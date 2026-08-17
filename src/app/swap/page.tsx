@@ -105,18 +105,29 @@ export default function SwapPage() {
 
   useEffect(() => {
     async function loadBalance() {
-      if (address && typeof window !== "undefined" && (window as any).ethereum) {
+      if (address) {
         try {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          // Determine the active RPC endpoint based on selectedChain
+          const rpcUrl = selectedChain === "Arbitrum" 
+            ? "https://arb1.arbitrum.io/rpc" 
+            : selectedChain === "Base" 
+            ? "https://mainnet.base.org" 
+            : selectedChain === "Monad" 
+            ? "https://mainnet-rpc.monad.xyz" 
+            : "https://evmrpc.0g.ai";
+
+          const provider = new ethers.JsonRpcProvider(rpcUrl);
           const bal = await provider.getBalance(address);
-          setWalletBalance(parseFloat(ethers.formatEther(bal)).toFixed(3));
+          setWalletBalance(parseFloat(ethers.formatEther(bal)).toFixed(4));
         } catch {
-          setWalletBalance("0.000");
+          setWalletBalance("0.0000");
         }
+      } else {
+        setWalletBalance("0.0000");
       }
     }
     loadBalance();
-  }, [address, isConnected]);
+  }, [address, isConnected, selectedChain, fromToken]);
 
   const numericAmount = parseFloat(fromAmount) || 0;
   

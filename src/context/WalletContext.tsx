@@ -22,20 +22,20 @@ export const CHAIN_CONFIGS: Record<SupportedChainKey, ChainConfig> = {
     blockExplorer: "https://chainscan.0g.ai",
     status: "Live On-Chain",
   },
-  Base: {
-    id: 8453,
-    name: "Base Mainnet",
-    key: "Base",
-    rpcUrl: "https://mainnet.base.org",
-    blockExplorer: "https://basescan.org",
-    status: "Phase 2 Mesh",
-  },
   Arbitrum: {
     id: 42161,
     name: "Arbitrum One",
     key: "Arbitrum",
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     blockExplorer: "https://arbiscan.io",
+    status: "Live On-Chain",
+  },
+  Base: {
+    id: 8453,
+    name: "Base Mainnet",
+    key: "Base",
+    rpcUrl: "https://mainnet.base.org",
+    blockExplorer: "https://basescan.org",
     status: "Phase 2 Mesh",
   },
   Monad: {
