@@ -32,13 +32,22 @@ const AVAILABLE_TOKENS: TokenOption[] = [
     image: "/aegis_logo.png",
   },
   {
-    symbol: "ARBAI",
-    name: "Arbitrum Mesh Sentinel",
+    symbol: "QNOVA",
+    name: "QuantNova Swarm HFT",
     priceInNative: 0.00018,
     chain: "Arbitrum One (42161)",
-    poolAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    poolAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     agentModel: "0G glm-5.2",
-    image: "/logo.svg",
+    image: "/qnova_logo.png",
+  },
+  {
+    symbol: "CSENT",
+    name: "CyberSentinel Shield AI",
+    priceInNative: 0.00008,
+    chain: "Arbitrum One (42161)",
+    poolAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    agentModel: "0G 0gm-1.0-35b",
+    image: "/csent_logo.png",
   },
 ];
 

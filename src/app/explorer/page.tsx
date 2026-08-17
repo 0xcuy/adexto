@@ -59,11 +59,11 @@ const DEFAULT_PROJECTS: ProjectItem[] = [
   },
   {
     id: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-    name: "Arbitrum Mesh Sentinel",
-    symbol: "ARBAI",
+    name: "QuantNova Swarm HFT",
+    symbol: "QNOVA",
     chain: "Arbitrum One (42161)",
     tvl: "Pool Initialized",
-    mcap: "1,000,000,000 ARBAI",
+    mcap: "1,000,000,000 QNOVA",
     volume24h: "Live On-Chain",
     feesGenerated: "0.20% LP / 0.10% Buyback",
     buybackAmount: "Active Vault",
@@ -72,11 +72,34 @@ const DEFAULT_PROJECTS: ProjectItem[] = [
     agentStatus: "Active (0G CCIP)",
     edgeProvider: "Cloudflare x402",
     agentModel: "0G glm-5.2",
-    mcpTools: ["Signet", "Sentinel", "x402"],
-    category: "defi",
-    image: "/logo.svg",
+    mcpTools: ["Signet", "Helm", "x402"],
+    category: "trading",
+    image: "/qnova_logo.png",
     address: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     txHash: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
+    teeRoot: "0x57d8f0846a59cc3ae156dcaa43553d3dd69f49211031f39a1e8fe636677e6572",
+  },
+  {
+    id: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    name: "CyberSentinel Shield AI",
+    symbol: "CSENT",
+    chain: "Arbitrum One (42161)",
+    tvl: "Pool Initialized",
+    mcap: "1,000,000,000 CSENT",
+    volume24h: "Live On-Chain",
+    feesGenerated: "0.20% LP / 0.10% Buyback",
+    buybackAmount: "Active Vault",
+    price: "0.00008 ETH",
+    change24h: "Live Shield",
+    agentStatus: "Active (0G TEE)",
+    edgeProvider: "Cloudflare x402",
+    agentModel: "0G 0gm-1.0-35b",
+    mcpTools: ["Sentinel", "Aegis", "x402"],
+    category: "security",
+    image: "/csent_logo.png",
+    address: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    txHash: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    teeRoot: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
   },
 ];
 
@@ -117,8 +140,8 @@ export default function ExplorerPage() {
               edgeProvider: p.edgeProvider || "Cloudflare x402 Edge",
               agentModel: p.agentModel || "0G Compute (glm-5.2 + z-image-turbo)",
               mcpTools: p.mcpTools || ["Signet", "Sentinel", "Helm", "x402"],
-              category: p.category || "defi",
-              image: p.image || (p.symbol === "AEGIS" ? "/aegis_logo.png" : "/logo.svg"),
+              category: p.category || (p.symbol === "QNOVA" ? "trading" : p.symbol === "CSENT" ? "security" : "defi"),
+              image: p.image || (p.symbol === "AEGIS" ? "/aegis_logo.png" : p.symbol === "QNOVA" ? "/qnova_logo.png" : p.symbol === "CSENT" ? "/csent_logo.png" : "/logo.svg"),
               address: p.tokenAddress || p.id,
               txHash: p.transactionHash || "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
               teeRoot: p.teeAttestationRoot || "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
@@ -136,10 +159,18 @@ export default function ExplorerPage() {
   }, []);
 
   const filtered = projects.filter((p) => {
-    const matchesCategory = filter === "all" || p.category === filter;
-    const matchesChain = chainFilter === "all" || p.chain.toLowerCase().includes(chainFilter.toLowerCase());
+    const matchesCategory = filter === "all" || p.category.toLowerCase() === filter.toLowerCase();
+    const chainStr = p.chain.toLowerCase();
+    const matchesChain = 
+      chainFilter === "all" ||
+      (chainFilter === "0g" && (chainStr.includes("0g") || chainStr.includes("16661"))) ||
+      (chainFilter === "arbitrum" && (chainStr.includes("arbitrum") || chainStr.includes("42161"))) ||
+      (chainFilter === "base" && chainStr.includes("base")) ||
+      (chainFilter === "monad" && chainStr.includes("monad"));
+
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
-                          p.symbol.toLowerCase().includes(search.toLowerCase());
+                          p.symbol.toLowerCase().includes(search.toLowerCase()) ||
+                          p.address.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesChain && matchesSearch;
   });
 
