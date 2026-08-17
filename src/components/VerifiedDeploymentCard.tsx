@@ -40,8 +40,8 @@ export default function VerifiedDeploymentCard() {
       color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
     },
     {
-      label: "The Graph Subgraph (Decentralized Network on Arbitrum)",
-      address: GRAPH_STUDIO_CONFIG.nftTokenId ? `Token ID: ${GRAPH_STUDIO_CONFIG.nftTokenId.slice(0, 10)}...${GRAPH_STUDIO_CONFIG.nftTokenId.slice(-8)}` : GRAPH_STUDIO_CONFIG.httpEndpoint,
+      label: "The Graph Subgraph (Decentralized Network Mainnet)",
+      address: GRAPH_STUDIO_CONFIG.subgraphId,
       explorerUrl: GRAPH_STUDIO_CONFIG.explorerUrl,
       badge: "The Graph Published",
       color: "border-pink-500/40 bg-pink-950/20 text-pink-300",
