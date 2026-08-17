@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { useWallet } from "@/context/WalletContext";
@@ -46,6 +46,22 @@ export default function SwapPage() {
   const [selectedTargetToken, setSelectedTargetToken] = useState<TokenOption>(AVAILABLE_TOKENS[0]);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapTxHash, setSwapTxHash] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<string>("0.000");
+
+  useEffect(() => {
+    async function loadBalance() {
+      if (address && typeof window !== "undefined" && (window as any).ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          const bal = await provider.getBalance(address);
+          setWalletBalance(parseFloat(ethers.formatEther(bal)).toFixed(3));
+        } catch {
+          setWalletBalance("0.000");
+        }
+      }
+    }
+    loadBalance();
+  }, [address, isConnected]);
 
   const numericAmount = parseFloat(fromAmount) || 0;
   const currentPrice = selectedTargetToken.priceInNative;
@@ -148,7 +164,7 @@ export default function SwapPage() {
           <div className="p-4 rounded-2xl bg-[#060913] border border-white/15 space-y-2 mb-2">
             <div className="flex justify-between text-xs text-zinc-300 font-medium">
               <span>You Pay</span>
-              <span>Balance: 1.928 {fromToken}</span>
+              <span>Balance: {isConnected ? `${walletBalance} ${fromToken}` : `0.00 ${fromToken}`}</span>
             </div>
             <div className="flex items-center justify-between">
               <input

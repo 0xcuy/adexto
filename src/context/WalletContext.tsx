@@ -166,10 +166,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
         localStorage.setItem("adexto_wallet_address", userAddr);
       } else {
-        // Standard Web3 demo wallet fallback for environments without browser extension
-        const mockAddr = "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D";
-        setAddress(mockAddr);
-        localStorage.setItem("adexto_wallet_address", mockAddr);
+        alert("Web3 Wallet not detected. Please install MetaMask, Coinbase Wallet, or Rabby to connect.");
       }
     } catch (err) {
       console.error("User rejected connection", err);
