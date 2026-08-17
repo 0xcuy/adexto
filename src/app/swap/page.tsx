@@ -14,18 +14,19 @@ import { ethers } from "ethers";
 interface TokenOption {
   symbol: string;
   name: string;
-  priceInNative: number; // in 0G / Native token
+  priceUSD: number; // Real USD benchmark price
   chain: string;
   poolAddress: string;
   agentModel: string;
   image?: string;
 }
 
+// Token pricing benchmark in USD
 const AVAILABLE_TOKENS: TokenOption[] = [
   {
     symbol: "AEGIS",
     name: "Aegis Sentinel AI (ERC-8004)",
-    priceInNative: 0.0184,
+    priceUSD: 0.0184, // $0.0184 USD
     chain: "0G Mainnet (16661)",
     poolAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
     agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
@@ -34,7 +35,7 @@ const AVAILABLE_TOKENS: TokenOption[] = [
   {
     symbol: "QNOVA",
     name: "QuantNova Swarm HFT",
-    priceInNative: 0.00018,
+    priceUSD: 0.2920, // $0.2920 USD
     chain: "Arbitrum One (42161)",
     poolAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     agentModel: "0G glm-5.2",
@@ -43,7 +44,7 @@ const AVAILABLE_TOKENS: TokenOption[] = [
   {
     symbol: "CSENT",
     name: "CyberSentinel Shield AI",
-    priceInNative: 0.00008,
+    priceUSD: 0.0890, // $0.0890 USD
     chain: "Arbitrum One (42161)",
     poolAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     agentModel: "0G 0gm-1.0-35b",
@@ -51,10 +52,22 @@ const AVAILABLE_TOKENS: TokenOption[] = [
   },
 ];
 
+// Market USD Value of Base Currency
+const NATIVE_ASSET_PRICES_USD: Record<string, number> = {
+  "ETH": 2650.0,
+  "0G": 1.0,
+  "A0GI": 1.0,
+  "USDC": 1.0,
+  "USDT": 1.0,
+  "cbBTC": 62500.0,
+  "ARB": 0.55,
+  "MON": 0.25,
+};
+
 const NATIVE_INPUT_TOKENS: Record<string, string[]> = {
   "0G": ["0G", "A0GI", "USDC", "USDT"],
-  "Base": ["ETH", "USDC", "cbBTC"],
   "Arbitrum": ["ETH", "USDC", "ARB"],
+  "Base": ["ETH", "USDC", "cbBTC"],
   "Monad": ["MON", "USDC", "USDT"],
 };
 
@@ -84,10 +97,24 @@ export default function SwapPage() {
   }, [address, isConnected]);
 
   const numericAmount = parseFloat(fromAmount) || 0;
-  const currentPrice = selectedTargetToken.priceInNative;
-  const estimatedToAmount = numericAmount > 0 ? (numericAmount / currentPrice).toFixed(2) : "0.00";
-  const lpFee = (numericAmount * 0.002).toFixed(4);
-  const treasuryFee = (numericAmount * 0.001).toFixed(4);
+  
+  // Real Price Converter Calculation
+  const inputAssetPriceUSD = NATIVE_ASSET_PRICES_USD[fromToken] || 1.0;
+  const targetTokenPriceUSD = selectedTargetToken.priceUSD;
+
+  // Total USD Inflow
+  const totalInflowUSD = numericAmount * inputAssetPriceUSD;
+
+  // Output token amount
+  const estimatedToAmount = targetTokenPriceUSD > 0 && totalInflowUSD > 0 
+    ? (totalInflowUSD / targetTokenPriceUSD).toFixed(2) 
+    : "0.00";
+
+  // Fee calculation in input currency & USD
+  const lpFeeAmount = (numericAmount * 0.002);
+  const lpFeeUSD = (totalInflowUSD * 0.002).toFixed(3);
+  const treasuryFeeAmount = (numericAmount * 0.001);
+  const treasuryFeeUSD = (totalInflowUSD * 0.001).toFixed(3);
 
   const availableInputs = NATIVE_INPUT_TOKENS[selectedChain] || ["0G", "USDC"];
 
@@ -110,13 +137,12 @@ export default function SwapPage() {
           ? selectedTargetToken.poolAddress 
           : ADEXTO_CONTRACTS.sovereignHookAddress;
 
-        // Dynamic EIP-1559 Fee Calculation with +30% Buffer against Base Fee spikes
+        // Dynamic EIP-1559 Fee Calculation with +30% Buffer
         const feeData = await provider.getFeeData();
         const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("0.01", "gwei");
         
         let maxFee: bigint;
         if (feeData.maxFeePerGas) {
-          // Add 30% headroom to prevent "max fee per gas less than block base fee"
           maxFee = (feeData.maxFeePerGas * BigInt(130)) / BigInt(100) + priorityFee;
         } else if (feeData.gasPrice) {
           maxFee = (feeData.gasPrice * BigInt(130)) / BigInt(100);
@@ -154,7 +180,7 @@ export default function SwapPage() {
         </div>
         <h1 className="text-3xl font-black text-white">Sovereign DEX Swap &amp; Hook Routing</h1>
         <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-lg mx-auto font-medium">
-          Select any agent token deployed on ADEXTO. Every swap triggers 0.20% LP Rewards and 0.10% automated 0G TEE Agent Buybacks.
+          Multi-chain liquidity routing with real-time conversion rates. Every swap triggers 0.20% LP Rewards and 0.10% automated 0G TEE Agent Buybacks.
         </p>
       </div>
 
@@ -171,7 +197,8 @@ export default function SwapPage() {
               onChange={(e) => {
                 const newChain = e.target.value;
                 setSelectedChain(newChain);
-                setFromToken(NATIVE_INPUT_TOKENS[newChain]?.[0] || "0G");
+                const defaultInput = NATIVE_INPUT_TOKENS[newChain]?.[0] || "0G";
+                setFromToken(defaultInput);
                 const matchedToken = AVAILABLE_TOKENS.find(t => t.chain.includes(newChain));
                 if (matchedToken) setSelectedTargetToken(matchedToken);
               }}
@@ -205,16 +232,19 @@ export default function SwapPage() {
               <span>Balance: {isConnected ? `${walletBalance} ${fromToken}` : `0.00 ${fromToken}`}</span>
             </div>
             <div className="flex items-center justify-between">
-              <input
-                type="number"
-                value={fromAmount}
-                onChange={(e) => {
-                  setFromAmount(e.target.value);
-                  setSwapTxHash(null);
-                }}
-                className="w-1/2 bg-transparent text-2xl font-black text-white font-mono focus:outline-none"
-                placeholder="0.0"
-              />
+              <div className="w-1/2">
+                <input
+                  type="number"
+                  value={fromAmount}
+                  onChange={(e) => {
+                    setFromAmount(e.target.value);
+                    setSwapTxHash(null);
+                  }}
+                  className="w-full bg-transparent text-2xl font-black text-white font-mono focus:outline-none"
+                  placeholder="0.0"
+                />
+                <span className="text-[10px] text-zinc-400 font-mono block">≈ ${totalInflowUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+              </div>
               <select
                 value={fromToken}
                 onChange={(e) => setFromToken(e.target.value)}
@@ -222,7 +252,7 @@ export default function SwapPage() {
               >
                 {availableInputs.map((tk) => (
                   <option key={tk} value={tk} className="bg-[#0b0f19] text-white">
-                    {tk}
+                    {tk} (${NATIVE_ASSET_PRICES_USD[tk] || 1})
                   </option>
                 ))}
               </select>
@@ -243,11 +273,14 @@ export default function SwapPage() {
           <div className="p-4 rounded-2xl bg-[#060913] border border-white/15 space-y-2 mt-2 mb-4">
             <div className="flex justify-between text-xs text-zinc-300 font-medium">
               <span>You Receive (Estimated)</span>
-              <span>1 {selectedTargetToken.symbol} ≈ {selectedTargetToken.priceInNative} {fromToken}</span>
+              <span>1 {selectedTargetToken.symbol} = ${selectedTargetToken.priceUSD} USD</span>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <div className="w-1/2 text-2xl font-black text-cyan-300 font-mono truncate">
-                {Number(estimatedToAmount).toLocaleString()}
+              <div className="w-1/2">
+                <div className="text-2xl font-black text-cyan-300 font-mono truncate">
+                  {Number(estimatedToAmount).toLocaleString()}
+                </div>
+                <span className="text-[10px] text-zinc-400 font-mono block">1 {fromToken} ≈ {((NATIVE_ASSET_PRICES_USD[fromToken] || 1) / selectedTargetToken.priceUSD).toFixed(2)} ${selectedTargetToken.symbol}</span>
               </div>
 
               {/* Target Token Selector with Real Logo Image */}
@@ -270,7 +303,7 @@ export default function SwapPage() {
                 >
                   {AVAILABLE_TOKENS.map((token) => (
                     <option key={token.symbol} value={token.symbol} className="bg-[#0b0f19] text-white font-mono">
-                      ${token.symbol} ({token.name.slice(0, 14)})
+                      ${token.symbol} (${token.priceUSD})
                     </option>
                   ))}
                 </select>
@@ -288,17 +321,17 @@ export default function SwapPage() {
           <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 space-y-1.5 text-xs font-mono mb-6 text-slate-100">
             <div className="flex justify-between">
               <span>Sovereign Hook Fee (0.30%):</span>
-              <span className="text-white font-bold">{(numericAmount * 0.003).toFixed(4)} {fromToken}</span>
+              <span className="text-white font-bold">{(numericAmount * 0.003).toFixed(5)} {fromToken} (${((totalInflowUSD * 0.003)).toFixed(3)} USD)</span>
             </div>
             <div className="flex justify-between pl-2">
               <span>↳ LP Rewards (0.20%):</span>
-              <span className="text-zinc-200">{lpFee} {fromToken}</span>
+              <span className="text-zinc-200">{lpFeeAmount.toFixed(5)} {fromToken} (${lpFeeUSD} USD)</span>
             </div>
             <div className="flex justify-between text-pink-300 pl-2 font-bold">
               <span className="flex items-center gap-1">
                 <Flame className="w-3.5 h-3.5 text-pink-400" /> ↳ Agent Buyback Vault (0.10%):
               </span>
-              <span>{treasuryFee} {fromToken}</span>
+              <span>{treasuryFeeAmount.toFixed(5)} {fromToken} (${treasuryFeeUSD} USD)</span>
             </div>
           </div>
 
