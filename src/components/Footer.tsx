@@ -76,12 +76,29 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
-          <p>© 2026 ADEXTO (adexto.xyz). All rights reserved. Zero central points of failure.</p>
-          <div className="flex items-center gap-4">
-            <span className="font-mono text-zinc-300 font-semibold">EIP-191 / ERC-8004 Compliant</span>
-          </div>
+      <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
+        <p>© 2026 ADEXTO (adexto.xyz). All rights reserved. Zero central points of failure.</p>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://x.com/adexto_"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-zinc-300 hover:text-cyan-300 transition-colors font-mono font-semibold"
+          >
+            <Twitter className="w-4 h-4" />
+            <span>@adexto_</span>
+          </a>
+          <a
+            href="https://github.com/0xcuy/adexto"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-zinc-300 hover:text-purple-300 transition-colors font-mono font-semibold"
+          >
+            <Github className="w-4 h-4" />
+            <span>GitHub</span>
+          </a>
         </div>
+      </div>
       </div>
     </footer>
   );

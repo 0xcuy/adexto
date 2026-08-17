@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   Compass, ArrowDownUp, CloudLightning, BookOpen, 
-  Award, ShieldCheck, LogOut, Wallet, Sparkles, Vote, Menu, X
+  Award, ShieldCheck, LogOut, Wallet, Sparkles, Vote, Menu, X, Twitter, Github
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 
@@ -67,6 +67,28 @@ export default function Navbar() {
 
         {/* Right Action Bar */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Social Icons Desktop */}
+          <div className="hidden md:flex items-center gap-1.5 border-r border-white/10 pr-2 mr-1">
+            <a
+              href="https://x.com/adexto_"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-xl text-zinc-400 hover:text-cyan-300 hover:bg-white/5 transition-colors"
+              title="X (Twitter) @adexto_"
+            >
+              <Twitter className="w-4 h-4" />
+            </a>
+            <a
+              href="https://github.com/0xcuy/adexto"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-xl text-zinc-400 hover:text-purple-300 hover:bg-white/5 transition-colors"
+              title="GitHub Open-Source Repo"
+            >
+              <Github className="w-4 h-4" />
+            </a>
+          </div>
+
           {/* Web3 Wallet Connect Button */}
           {isConnected ? (
             <div className="flex items-center gap-2">
@@ -161,6 +183,28 @@ export default function Navbar() {
                 </Link>
               );
             })}
+          </div>
+
+          {/* Social Links on Mobile */}
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 font-mono text-xs">
+            <a
+              href="https://x.com/adexto_"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-xl bg-white/5 text-zinc-300 hover:text-cyan-300 flex items-center justify-center gap-2"
+            >
+              <Twitter className="w-4 h-4" />
+              <span>@adexto_</span>
+            </a>
+            <a
+              href="https://github.com/0xcuy/adexto"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-xl bg-white/5 text-zinc-300 hover:text-purple-300 flex items-center justify-center gap-2"
+            >
+              <Github className="w-4 h-4" />
+              <span>GitHub</span>
+            </a>
           </div>
         </div>
       )}
