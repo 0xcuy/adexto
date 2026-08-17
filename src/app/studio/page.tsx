@@ -284,10 +284,10 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
   const selectedCount = (deployToken ? 1 : 0) + (deployDex ? 1 : 0) + (deployAgent ? 1 : 0);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col p-4 max-w-[1560px] mx-auto w-full overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
       
       {/* ── TOP CONTROL STRIP ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 pb-2.5 mb-2.5 border-b border-white/[0.08] shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-white/[0.08] shrink-0">
         
         {/* Left Status */}
         <div className="flex items-center gap-3">
@@ -386,7 +386,7 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-0">
         
         {/* ── LEFT: LAUNCH CONTROL PANEL (7 COLS) ───────────────────────────── */}
-        <div className="lg:col-span-7 bg-[#070913] rounded-2xl border border-white/[0.06] p-4 flex flex-col justify-between h-full shadow-xl overflow-hidden">
+        <div className="lg:col-span-7 bg-[#070913] rounded-2xl border border-white/[0.06] p-3 sm:p-4 flex flex-col justify-between shadow-xl lg:overflow-hidden min-h-[520px]">
           {deployedResult ? (
             /* Success View */
             <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-4 font-mono text-xs my-auto">
@@ -760,7 +760,7 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
         </div>
 
         {/* ── RIGHT: 0G AI CHAT CO-PILOT (5 COLS) ───────────────────────────── */}
-        <div className="lg:col-span-5 bg-[#070913] rounded-2xl border border-white/[0.06] flex flex-col h-full overflow-hidden shadow-xl">
+        <div className="lg:col-span-5 bg-[#070913] rounded-2xl border border-white/[0.06] flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
           {/* Header */}
           <div className="p-2.5 border-b border-white/[0.06] bg-black/30 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
