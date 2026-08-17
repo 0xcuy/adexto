@@ -73,7 +73,7 @@ const NATIVE_INPUT_TOKENS: Record<string, string[]> = {
 
 export default function SwapPage() {
   const { address, isConnected, connectWallet, selectedChain, setSelectedChain } = useWallet();
-  const [fromAmount, setFromAmount] = useState("10");
+  const [fromAmount, setFromAmount] = useState("1");
   const [fromToken, setFromToken] = useState("0G");
   const [selectedTargetToken, setSelectedTargetToken] = useState<TokenOption>(AVAILABLE_TOKENS[0]);
   const [isSwapping, setIsSwapping] = useState(false);
@@ -259,9 +259,28 @@ export default function SwapPage() {
 
           {/* From Token Box */}
           <div className="p-4 rounded-2xl bg-[#060913] border border-white/15 space-y-2 mb-2">
-            <div className="flex justify-between text-xs text-zinc-300 font-medium">
+            <div className="flex justify-between items-center text-xs text-zinc-300 font-medium">
               <span>You Pay</span>
-              <span>Balance: {isConnected ? `${walletBalance} ${fromToken}` : `0.00 ${fromToken}`}</span>
+              <div className="flex items-center gap-2">
+                <span>Balance: {isConnected ? `${walletBalance} ${fromToken}` : `0.00 ${fromToken}`}</span>
+                {isConnected && parseFloat(walletBalance) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const numBal = parseFloat(walletBalance);
+                      // Leave a small buffer for gas fee if native token (ETH or 0G)
+                      const maxVal = (fromToken === "ETH" || fromToken === "0G") 
+                        ? Math.max(0, numBal - 0.0001).toFixed(4)
+                        : walletBalance;
+                      setFromAmount(maxVal);
+                      setSwapTxHash(null);
+                    }}
+                    className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono font-black hover:bg-cyan-900 transition-colors uppercase tracking-wider"
+                  >
+                    MAX
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="w-1/2">
