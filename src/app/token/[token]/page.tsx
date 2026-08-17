@@ -315,7 +315,7 @@ export default function AgentTerminalPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         
         {/* 1. PROFESSIONAL TRADINGVIEW CANDLESTICK CHART (5 COLS) */}
-        <div className="lg:col-span-5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl relative overflow-hidden bg-[#030610]">
+        <div className="lg:col-span-5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between min-h-[480px] lg:h-[540px] shadow-2xl relative overflow-hidden bg-[#030610]">
           <RealtimeCandleChart symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
 
           {/* Enclave Hardware Attestation Footer */}
@@ -328,12 +328,12 @@ export default function AgentTerminalPage() {
         </div>
 
         {/* 2. LIVE SOVEREIGN AMM ORDER BOOK (2.5 COLS) */}
-        <div className="lg:col-span-2 glass-panel p-3 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl bg-[#030712] overflow-hidden">
+        <div className="lg:col-span-2.5 glass-panel p-3 rounded-3xl border-2 border-white/15 flex flex-col justify-between min-h-[480px] lg:h-[540px] shadow-2xl bg-[#030712] overflow-hidden">
           <LiveOrderBook symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
         </div>
 
         {/* 3. DEX SWAP TERMINAL (2.5 COLS) */}
-        <div className="lg:col-span-2.5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl bg-[#040814]">
+        <div className="lg:col-span-2.5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between min-h-[480px] lg:h-[540px] shadow-2xl bg-[#040814]">
           <div>
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5 mb-2.5">
               <span className="font-mono text-xs font-bold text-white">Sovereign Swap</span>
