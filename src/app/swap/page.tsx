@@ -89,10 +89,26 @@ export default function SwapPage() {
         const hookAddress = selectedTargetToken.poolAddress.startsWith("0x") 
           ? selectedTargetToken.poolAddress 
           : ADEXTO_CONTRACTS.sovereignHookAddress;
+
+        // Dynamic EIP-1559 Fee Calculation with +30% Buffer against Base Fee spikes
+        const feeData = await provider.getFeeData();
+        const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("0.01", "gwei");
         
+        let maxFee: bigint;
+        if (feeData.maxFeePerGas) {
+          // Add 30% headroom to prevent "max fee per gas less than block base fee"
+          maxFee = (feeData.maxFeePerGas * BigInt(130)) / BigInt(100) + priorityFee;
+        } else if (feeData.gasPrice) {
+          maxFee = (feeData.gasPrice * BigInt(130)) / BigInt(100);
+        } else {
+          maxFee = ethers.parseUnits("2", "gwei");
+        }
+
         const tx = await signer.sendTransaction({
           to: hookAddress,
           value: ethers.parseEther(numericAmount > 0 ? (numericAmount * 0.0001).toFixed(6) : "0.0001"),
+          maxFeePerGas: maxFee,
+          maxPriorityFeePerGas: priorityFee,
         });
 
         const receipt = await tx.wait();
