@@ -6,11 +6,13 @@ import Link from "next/link";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
+import RealtimeCandleChart from "@/components/RealtimeCandleChart";
+import LiveOrderBook from "@/components/LiveOrderBook";
 import { 
   ArrowDownUp, ShieldCheck, Flame, RefreshCw, 
   CheckCircle2, TrendingUp, Sparkles, ExternalLink, Network,
   Bot, Send, DollarSign, Activity, Cpu, CloudLightning, Copy, Check,
-  BarChart3, Lock
+  BarChart3, Lock, CandlestickChart
 } from "lucide-react";
 import { ethers } from "ethers";
 
@@ -309,73 +311,152 @@ export default function AgentTerminalPage() {
         </div>
       </div>
 
-      {/* ── 3-COLUMN WORKSPACE: CHART (7 COLS) | DEX SWAP (2.5 COLS) | AGENT CHAT (2.5 COLS) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── 4-SECTION PRO WORKSPACE: CHART (5 COLS) | ORDERBOOK (2.5 COLS) | SWAP (2.5 COLS) | 0G CHAT (2 COLS) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         
-        {/* 1. CANDLESTICK / PRICE CHART (6 COLS) */}
-        <div className="lg:col-span-6 glass-panel p-4 sm:p-5 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[520px] shadow-2xl relative overflow-hidden bg-[#03060f]">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-2">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-cyan-400" />
-              <span className="font-mono font-bold text-xs text-white">${agent.symbol} / USD Liquidity Curve</span>
-            </div>
-            <div className="flex items-center gap-1.5 font-mono text-[10px]">
-              <span className="px-2 py-0.5 rounded bg-white/10 text-cyan-300 font-bold">1H</span>
-              <span className="px-2 py-0.5 rounded bg-white/5 text-zinc-400">1D</span>
-              <span className="px-2 py-0.5 rounded bg-white/5 text-zinc-400">1W</span>
-            </div>
-          </div>
-
-          {/* Interactive Chart Canvas Simulation */}
-          <div className="flex-1 flex flex-col justify-end p-2 relative">
-            {/* Background Grid Lines */}
-            <div className="absolute inset-0 flex flex-col justify-between opacity-15 pointer-events-none">
-              <div className="border-b border-cyan-400 w-full" />
-              <div className="border-b border-cyan-400 w-full" />
-              <div className="border-b border-cyan-400 w-full" />
-              <div className="border-b border-cyan-400 w-full" />
-            </div>
-
-            {/* Price Line Graphic Wave */}
-            <svg className="w-full h-56 overflow-visible" preserveAspectRatio="none" viewBox="0 0 500 150">
-              <defs>
-                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#9333ea" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M 0,130 Q 80,110 140,80 T 260,95 T 380,40 T 500,20"
-                fill="none"
-                stroke="#00F5FF"
-                strokeWidth="3"
-              />
-              <path
-                d="M 0,130 Q 80,110 140,80 T 260,95 T 380,40 T 500,20 L 500,150 L 0,150 Z"
-                fill="url(#chartGrad)"
-              />
-            </svg>
-
-            <div className="flex justify-between font-mono text-[10px] text-zinc-500 pt-2 border-t border-white/10">
-              <span>Pool Inception</span>
-              <span>12:00</span>
-              <span>15:00</span>
-              <span>18:00</span>
-              <span className="text-emerald-400 font-bold">Live (${agent.priceUSD})</span>
-            </div>
-          </div>
+        {/* 1. PROFESSIONAL TRADINGVIEW CANDLESTICK CHART (5 COLS) */}
+        <div className="lg:col-span-5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl relative overflow-hidden bg-[#030610]">
+          <RealtimeCandleChart symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
 
           {/* Enclave Hardware Attestation Footer */}
-          <div className="p-2.5 rounded-xl bg-[#040714] border border-white/10 flex items-center justify-between text-[11px] font-mono text-zinc-400 mt-2">
+          <div className="p-2.5 rounded-xl bg-[#040714] border border-white/10 flex items-center justify-between text-[10px] font-mono text-zinc-400 mt-2 shrink-0">
             <span className="flex items-center gap-1.5 text-slate-200">
               <Cpu className="w-3.5 h-3.5 text-purple-400" /> AMD SEV-SNP Enclave Verified
             </span>
-            <span className="text-cyan-300 font-bold">0.10% Auto-Buyback Engine Active</span>
+            <span className="text-cyan-300 font-bold">0.10% Auto-Buyback Active</span>
           </div>
         </div>
 
-        {/* 2. DEX SWAP TERMINAL (3 COLS) */}
-        <div className="lg:col-span-3 glass-panel p-4 sm:p-5 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[520px] shadow-2xl bg-[#040814]">
+        {/* 2. LIVE SOVEREIGN AMM ORDER BOOK (2.5 COLS) */}
+        <div className="lg:col-span-2 glass-panel p-3 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl bg-[#030712] overflow-hidden">
+          <LiveOrderBook symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
+        </div>
+
+        {/* 3. DEX SWAP TERMINAL (2.5 COLS) */}
+        <div className="lg:col-span-2.5 glass-panel p-4 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl bg-[#040814]">
+          <div>
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5 mb-2.5">
+              <span className="font-mono text-xs font-bold text-white">Sovereign Swap</span>
+              <div className="flex rounded-lg bg-black/60 p-0.5 border border-white/10 font-mono text-[10px]">
+                <button
+                  onClick={() => setTradeMode("buy")}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+                    tradeMode === "buy" ? "bg-emerald-500 text-black shadow-sm" : "text-zinc-400"
+                  }`}
+                >
+                  BUY
+                </button>
+                <button
+                  onClick={() => setTradeMode("sell")}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+                    tradeMode === "sell" ? "bg-red-500 text-white shadow-sm" : "text-zinc-400"
+                  }`}
+                >
+                  SELL
+                </button>
+              </div>
+            </div>
+
+            {/* Input Box */}
+            <div className="space-y-2 font-mono text-xs">
+              <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                <div className="flex justify-between text-[10px] text-zinc-400">
+                  <span>You Pay</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Bal: {walletBalance}</span>
+                    {isConnected && parseFloat(walletBalance) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const num = parseFloat(walletBalance);
+                          const max = (payCurrency === "ETH" || payCurrency === "0G") ? Math.max(0, num - 0.0001).toFixed(4) : walletBalance;
+                          setPayAmount(max);
+                        }}
+                        className="px-1 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[9px] font-bold"
+                      >
+                        MAX
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <input
+                    type="number"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="w-2/3 bg-transparent text-lg font-black text-white focus:outline-none"
+                    placeholder="0.0"
+                  />
+                  <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-lg text-xs">{payCurrency}</span>
+                </div>
+                <span className="text-[10px] text-zinc-500 block">≈ ${inputUSD.toFixed(2)} USD</span>
+              </div>
+
+              {/* Output Box */}
+              <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                <div className="flex justify-between text-[10px] text-zinc-400">
+                  <span>You Receive</span>
+                  <span>Rate: ${agent.priceUSD}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-black text-cyan-300 truncate w-2/3">{estimatedTokenReceive}</div>
+                  <span className="font-bold text-pink-300 bg-pink-950/60 px-2 py-0.5 rounded-lg text-xs">${agent.symbol}</span>
+                </div>
+              </div>
+
+              {/* Fee Breakdown */}
+              <div className="p-2 rounded-xl bg-purple-950/30 border border-purple-500/20 text-[10px] space-y-0.5 text-slate-300">
+                <div className="flex justify-between">
+                  <span>LP Fee (0.20%):</span>
+                  <span>${(inputUSD * 0.002).toFixed(3)} USD</span>
+                </div>
+                <div className="flex justify-between text-pink-300 font-bold">
+                  <span>↳ Buyback Burn (0.10%):</span>
+                  <span>${(inputUSD * 0.001).toFixed(3)} USD</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            {txHash && (
+              <div className="p-1.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-center mb-2 text-[10px] font-mono text-emerald-300">
+                <span>Success! </span>
+                <a
+                  href={agent.chain.includes("Arbitrum") ? `https://arbiscan.io/tx/${txHash}` : `https://chainscan.0g.ai/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-bold text-cyan-300"
+                >
+                  Tx Link
+                </a>
+              </div>
+            )}
+
+            <button
+              onClick={handleExecuteTrade}
+              disabled={isTrading}
+              className={`w-full py-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                tradeMode === "buy"
+                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-black shadow-emerald-500/20 hover:shadow-emerald-500/40"
+                  : "bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-red-600/20 hover:shadow-red-600/40"
+              }`}
+            >
+              {isTrading ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Routing...
+                </>
+              ) : !isConnected ? (
+                <>Connect Wallet</>
+              ) : (
+                <>{tradeMode === "buy" ? `Buy $${agent.symbol}` : `Sell $${agent.symbol}`}</>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 4. 0G TEE AGENT DIRECT CHAT (2.5 COLS) */}
+        <div className="lg:col-span-2.5 glass-panel p-3.5 rounded-3xl border-2 border-white/15 flex flex-col justify-between h-[540px] shadow-2xl bg-[#050813] overflow-hidden">
           <div>
             <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
               <span className="font-mono text-xs font-bold text-white">Sovereign Swap</span>
