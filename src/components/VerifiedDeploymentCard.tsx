@@ -19,25 +19,25 @@ export default function VerifiedDeploymentCard() {
 
   const records = [
     {
-      label: "Cloudflare Workers x402 Edge Paywall Gateway",
-      address: ADEXTO_CONTRACTS.edgeX402Gateway,
-      explorerUrl: ADEXTO_CONTRACTS.edgeX402Gateway,
-      badge: "HTTP 402 Edge Active",
-      color: "border-orange-500/40 bg-orange-950/20 text-orange-300",
-    },
-    {
-      label: "AdextoTrinityFactory (1-Click Atomic Deployer)",
-      address: ADEXTO_CONTRACTS.factoryAddress,
-      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.factoryAddress}`,
-      badge: "Factory Contract",
+      label: "AdextoTrinityFactory (0G Mainnet 16661)",
+      address: ADEXTO_CONTRACTS.og.factoryAddress,
+      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.factoryAddress}`,
+      badge: "0G Factory Live",
       color: "border-cyan-500/40 bg-cyan-950/20 text-cyan-300",
     },
     {
-      label: "AdextoGovernor (DAO On-Chain Voting Phase 2)",
-      address: ADEXTO_CONTRACTS.governorAddress,
-      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.governorAddress}`,
-      badge: "DAO Governor Live",
-      color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
+      label: "AdextoTrinityFactory (Arbitrum One 42161)",
+      address: ADEXTO_CONTRACTS.arbitrum.factoryAddress,
+      explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.factoryAddress}`,
+      badge: "Arbitrum Factory Live",
+      color: "border-sky-500/40 bg-sky-950/20 text-sky-300",
+    },
+    {
+      label: "SovereignHook AMM (Arbitrum One 42161)",
+      address: ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress,
+      explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress}`,
+      badge: "Arbitrum Hook Live",
+      color: "border-sky-500/40 bg-sky-950/20 text-sky-300",
     },
     {
       label: "The Graph Subgraph (Decentralized Network Mainnet)",
@@ -47,11 +47,11 @@ export default function VerifiedDeploymentCard() {
       color: "border-pink-500/40 bg-pink-950/20 text-pink-300",
     },
     {
-      label: "SovereignHook (Uniswap v4 AMM Fee Splitter)",
-      address: ADEXTO_CONTRACTS.sovereignHookAddress,
-      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.sovereignHookAddress}`,
-      badge: "Uniswap v4 Hook",
-      color: "border-cyan-500/40 bg-cyan-950/20 text-cyan-300",
+      label: "SovereignHook AMM (0G Mainnet 16661)",
+      address: ADEXTO_CONTRACTS.og.sovereignHookAddress,
+      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.sovereignHookAddress}`,
+      badge: "0G Hook Live",
+      color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
     },
     {
       label: "0G DA Storage Attestation Root (Metadata Flow)",
@@ -59,6 +59,13 @@ export default function VerifiedDeploymentCard() {
       explorerUrl: `https://chainscan.0g.ai/tx/0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55`,
       badge: "0G DA Storage Turbo",
       color: "border-emerald-500/40 bg-emerald-950/20 text-emerald-300",
+    },
+    {
+      label: "Cloudflare Workers x402 Edge Paywall Gateway",
+      address: ADEXTO_CONTRACTS.edgeX402Gateway,
+      explorerUrl: ADEXTO_CONTRACTS.edgeX402Gateway,
+      badge: "HTTP 402 Edge Active",
+      color: "border-orange-500/40 bg-orange-950/20 text-orange-300",
     },
   ];
 

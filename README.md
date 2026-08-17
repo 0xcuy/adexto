@@ -63,8 +63,9 @@ graph TD
 
 ---
 
-## 🏛️ Verified On-Chain Deployments (0G Mainnet - Chain ID 16661)
+## 🏛️ Verified Multi-Chain Deployments (0G Mainnet & Arbitrum One)
 
+### 1. 0G Mainnet (Chain ID 16661 - Primary AI Compute Chain)
 | Smart Contract / Service | Verified Address / Endpoint | Status |
 |---|---|---|
 | **AdextoTrinityFactory** | [`0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0`](https://chainscan.0g.ai/address/0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0) | ✅ Live On-Chain |
@@ -72,9 +73,16 @@ graph TD
 | **AdextoGovernor (DAO Phase 2)** | [`0x5045b117dDF788078c535f37837fDB6384da034d`](https://chainscan.0g.ai/address/0x5045b117dDF788078c535f37837fDB6384da034d) | ✅ Live On-Chain |
 | **AdextoCCIPReceiver (Mesh)** | [`0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4`](https://chainscan.0g.ai/address/0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4) | ✅ Live On-Chain |
 | **0G DA Storage Turbo** | Root: `0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d`<br>Tx: [`0xcfac6cd4...`](https://chainscan.0g.ai/tx/0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55) | ✅ Anchored |
-| **The Graph Network** | Published on Arbitrum One Mainnet (ID: `DdSBjB...RjQv`)<br>[`Explorer Link`](https://thegraph.com/explorer/subgraphs/DdSBjB19RrovZJbpcbXwgTRtDUTRppTWwMsVznjARjQv?view=Query&chain=arbitrum-one) | ✅ Published to Decentralized Network |
+
+### 2. Arbitrum One (Chain ID 42161 - Liquidity & Graph Network)
+| Smart Contract / Service | Verified Address / Endpoint | Status |
+|---|---|---|
+| **AdextoTrinityFactory** | [`0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56`](https://arbiscan.io/address/0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56) | ✅ Live On-Chain |
+| **SovereignHook (Uniswap v4)** | [`0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39`](https://arbiscan.io/address/0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) | ✅ Live On-Chain |
+| **AdextoGovernor (DAO)** | [`0x33811F9c53da5071A130F18D844f64999dBD43bA`](https://arbiscan.io/address/0x33811F9c53da5071A130F18D844f64999dBD43bA) | ✅ Live On-Chain |
+| **AdextoCCIPReceiver (Mesh)** | [`0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3`](https://arbiscan.io/address/0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3) | ✅ Live On-Chain |
+| **The Graph Network** | [`Explorer Link`](https://thegraph.com/explorer/subgraphs/DdSBjB19RrovZJbpcbXwgTRtDUTRppTWwMsVznjARjQv?view=Query&chain=arbitrum-one) | ✅ Published to Decentralized Network |
 | **Cloudflare Worker x402** | [`https://adexto-x402-edge.cucuvirtual.workers.dev`](https://adexto-x402-edge.cucuvirtual.workers.dev) | ✅ Edge Active (<35ms) |
-| **Official Signer Wallet** | `0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D` | ✅ Hardware Attested |
 
 ---
 

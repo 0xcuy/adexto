@@ -82,6 +82,11 @@ ssh -i ~/.ssh/id_ed25519 root@168.144.249.185 "docker logs -f adexto-production"
 - [x] **Cloudflare Workers x402 Edge Paywall Gateway**:
   - Live Edge URL: `https://adexto-x402-edge.cucuvirtual.workers.dev`
   - HTTP 402 / EIP-712 micro-payment facilitator active with <35ms latency.
+- [x] **Smart Contracts Core & Phase 2 di Arbitrum One (Chain ID 42161)**:
+  - `AdextoTrinityFactory`: `0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56`
+  - `SovereignHook`: `0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39`
+  - `AdextoGovernor`: `0x33811F9c53da5071A130F18D844f64999dBD43bA`
+  - `AdextoCCIPReceiver`: `0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3`
 - [x] **Smart Contracts Core & Phase 2 di 0G Mainnet (Chain ID 16661)**:
   - `AdextoTrinityFactory`: `0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0`
   - `SovereignHook`: `0x592c697aD1Fa712c6701C90991B96264aB2E98d8`
