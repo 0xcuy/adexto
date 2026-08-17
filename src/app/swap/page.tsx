@@ -81,6 +81,28 @@ export default function SwapPage() {
   const [swapTxHash, setSwapTxHash] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string>("0.000");
 
+  const [assetPrices, setAssetPrices] = useState<Record<string, number>>(NATIVE_ASSET_PRICES_USD);
+
+  // Fetch live market spot prices every 30s
+  useEffect(() => {
+    async function fetchLivePrices() {
+      try {
+        const res = await fetch("/api/prices");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.prices) {
+            setAssetPrices(json.prices);
+          }
+        }
+      } catch (e) {
+        console.warn("Live price fetch fallback:", e);
+      }
+    }
+    fetchLivePrices();
+    const interval = setInterval(fetchLivePrices, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     async function loadBalance() {
       if (address && typeof window !== "undefined" && (window as any).ethereum) {
@@ -98,8 +120,8 @@ export default function SwapPage() {
 
   const numericAmount = parseFloat(fromAmount) || 0;
   
-  // Real Price Converter Calculation
-  const inputAssetPriceUSD = NATIVE_ASSET_PRICES_USD[fromToken] || 1.0;
+  // Real Price Converter Calculation (Live Feed)
+  const inputAssetPriceUSD = assetPrices[fromToken] || 1.0;
   const targetTokenPriceUSD = selectedTargetToken.priceUSD;
 
   // Total USD Inflow
@@ -252,7 +274,7 @@ export default function SwapPage() {
               >
                 {availableInputs.map((tk) => (
                   <option key={tk} value={tk} className="bg-[#0b0f19] text-white">
-                    {tk} (${NATIVE_ASSET_PRICES_USD[tk] || 1})
+                    {tk} (${(assetPrices[tk] || 1).toLocaleString()})
                   </option>
                 ))}
               </select>
