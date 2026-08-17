@@ -421,10 +421,10 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
                   Deploy Another
                 </button>
                 <Link
-                  href="/swap"
+                  href={`/token/${tokenTicker.toLowerCase()}`}
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-semibold text-xs text-center flex items-center justify-center gap-1 shadow-md"
                 >
-                  Open Live Swap →
+                  Open Token Terminal &amp; Chart →
                 </Link>
               </div>
             </div>

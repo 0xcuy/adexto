@@ -331,19 +331,25 @@ export default function ExplorerPage() {
               </a>
 
               <div className="flex items-center gap-3 font-bold">
-                <a
-                  href="https://adexto.xyz/swap"
+                <Link
+                  href={`/token/${p.symbol.toLowerCase()}`}
+                  className="text-cyan-300 hover:text-white flex items-center gap-1 hover:underline"
+                >
+                  Terminal &amp; Chart <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/swap"
                   className="text-purple-300 hover:text-white flex items-center gap-1 hover:underline"
                 >
-                  Swap AMM <ArrowUpRight className="w-3.5 h-3.5" />
-                </a>
+                  Swap <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
                 <a
                   href="https://adexto-x402-edge.cucuvirtual.workers.dev"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-orange-400 hover:text-orange-300 flex items-center gap-1 hover:underline"
                 >
-                  Call Edge (x402) <CloudLightning className="w-3 h-3" />
+                  x402 <CloudLightning className="w-3 h-3" />
                 </a>
               </div>
             </div>
