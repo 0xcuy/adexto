@@ -20,23 +20,23 @@ export default function LiveOrderBook({ symbol, basePriceUSD }: OrderBookProps) 
   const [spread, setSpread] = useState("0.02%");
 
   useEffect(() => {
-    // Generate initial orderbook depth
-    function generateDepth() {
+    // Generate deterministic Sovereign AMM bonding curve depth steps from base price
+    function computeAMMDepth() {
       const askList: OrderLevel[] = [];
       const bidList: OrderLevel[] = [];
 
       let askTotal = 0;
-      for (let i = 1; i <= 6; i++) {
-        const p = basePriceUSD * (1 + i * 0.0018 + (Math.random() * 0.0005));
-        const amount = Math.floor(5000 + Math.random() * 25000);
+      for (let i = 1; i <= 5; i++) {
+        const p = basePriceUSD * (1 + i * 0.002);
+        const amount = 10000 * i;
         askTotal += amount;
         askList.push({ price: p, amount, total: askTotal });
       }
 
       let bidTotal = 0;
-      for (let i = 1; i <= 6; i++) {
-        const p = basePriceUSD * (1 - i * 0.0018 - (Math.random() * 0.0005));
-        const amount = Math.floor(5000 + Math.random() * 25000);
+      for (let i = 1; i <= 5; i++) {
+        const p = basePriceUSD * Math.max(0.0001, (1 - i * 0.002));
+        const amount = 10000 * i;
         bidTotal += amount;
         bidList.push({ price: p, amount, total: bidTotal });
       }
@@ -45,9 +45,7 @@ export default function LiveOrderBook({ symbol, basePriceUSD }: OrderBookProps) 
       setBids(bidList);
     }
 
-    generateDepth();
-    const interval = setInterval(generateDepth, 3500);
-    return () => clearInterval(interval);
+    computeAMMDepth();
   }, [basePriceUSD]);
 
   return (

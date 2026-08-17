@@ -55,54 +55,57 @@ export default function RealtimeCandleChart({ symbol, basePriceUSD }: RealtimeCa
       wickDownColor: "#f43f5e",
     });
 
-    // 3. Generate Historical Realistic Candles based on base price
+    // 3. Generate Historical Candles based on real on-chain / base spot price
     const initialData = [];
     const now = Math.floor(Date.now() / 1000);
     const interval = 60 * 5; // 5 min candles
-    let price = basePriceUSD * 0.85;
+    const price = basePriceUSD;
 
-    for (let i = 50; i >= 0; i--) {
+    for (let i = 30; i >= 0; i--) {
       const time = (now - i * interval) as any;
-      const variation = (Math.random() - 0.48) * (price * 0.02);
-      const open = price;
-      const close = open + variation;
-      const high = Math.max(open, close) + Math.random() * (price * 0.01);
-      const low = Math.min(open, close) - Math.random() * (price * 0.01);
-      price = close;
-
       initialData.push({
         time,
-        open,
-        high,
-        low,
-        close,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
       });
     }
 
     candleSeries.setData(initialData);
     seriesRef.current = candleSeries;
     chartRef.current = chart;
-
     setCurrentPrice(price);
 
-    // 4. Live Tick Simulation (Updating latest candle in real-time)
-    const timer = setInterval(() => {
-      if (!seriesRef.current) return;
-      const tickDelta = (Math.random() - 0.49) * (price * 0.004);
-      price = Math.max(0.0001, price + tickDelta);
+    // 4. Fetch telemetry / live trade price updates without random simulation
+    const fetchLatestTrade = async () => {
+      try {
+        const res = await fetch(`/api/agent/telemetry?symbol=${symbol}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.trades && data.trades.length > 0) {
+          const latest = data.trades[0];
+          const parsedPrice = parseFloat(latest.priceUSD.replace("$", "")) || basePriceUSD;
+          const tradeTime = Math.floor(new Date(latest.timestamp).getTime() / 1000) as any;
+          
+          if (seriesRef.current) {
+            seriesRef.current.update({
+              time: tradeTime || Math.floor(Date.now() / 1000),
+              open: price,
+              high: Math.max(price, parsedPrice),
+              low: Math.min(price, parsedPrice),
+              close: parsedPrice,
+            });
+          }
+          setCurrentPrice(parsedPrice);
+        }
+      } catch (e) {
+        // No-op on network error
+      }
+    };
 
-      const currentTime = (Math.floor(Date.now() / 1000)) as any;
-      seriesRef.current.update({
-        time: currentTime,
-        open: price - tickDelta,
-        high: price + Math.abs(tickDelta) * 1.5,
-        low: price - Math.abs(tickDelta) * 1.5,
-        close: price,
-      });
-
-      setCurrentPrice(price);
-      setPriceChange(prev => +(prev + (tickDelta > 0 ? 0.05 : -0.05)).toFixed(2));
-    }, 2500);
+    fetchLatestTrade();
+    const tradePoll = setInterval(fetchLatestTrade, 10000);
 
     // 5. Handle Resize
     const handleResize = () => {
@@ -115,7 +118,7 @@ export default function RealtimeCandleChart({ symbol, basePriceUSD }: RealtimeCa
     window.addEventListener("resize", handleResize);
 
     return () => {
-      clearInterval(timer);
+      clearInterval(tradePoll);
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };

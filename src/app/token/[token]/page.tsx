@@ -180,13 +180,11 @@ export default function AgentTerminalPage() {
         const receipt = await tx.wait();
         setTxHash(receipt?.hash || tx.hash);
       } else {
-        setTimeout(() => {
-          setTxHash(`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`);
-        }, 1500);
+        alert("Wallet provider not detected. Please connect MetaMask / Web3 Wallet.");
       }
     } catch (e: any) {
       console.warn("Trade error:", e);
-      setTxHash(`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`);
+      alert(`Trade failed: ${e?.reason || e?.message || "Transaction rejected"}`);
     } finally {
       setIsTrading(false);
     }

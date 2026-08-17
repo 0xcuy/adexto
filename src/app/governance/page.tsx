@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ethers } from "ethers";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { useWallet } from "@/context/WalletContext";
 import { 
@@ -52,27 +53,51 @@ export default function GovernancePage() {
   const [newDesc, setNewDesc] = useState("");
   const [newCategory, setNewCategory] = useState<"Fee Parameter" | "0G Compute Whitelist" | "Cross-Chain Rebalance">("Fee Parameter");
 
-  const handleVote = (proposalId: number, support: boolean) => {
+  const handleVote = async (proposalId: number, support: boolean) => {
     if (!isConnected) {
       connectWallet();
       return;
     }
 
     setIsVoting(proposalId);
-    setTimeout(() => {
-      setProposals(prev => prev.map(p => {
-        if (p.id === proposalId) {
-          return {
-            ...p,
-            forVotes: support ? p.forVotes + 250000 : p.forVotes,
-            againstVotes: !support ? p.againstVotes + 250000 : p.againstVotes,
-          };
-        }
-        return p;
-      }));
-      setVotedMap(prev => ({ ...prev, [proposalId]: support ? "for" : "against" }));
+    try {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const signer = await provider.getSigner();
+
+        const feeData = await provider.getFeeData();
+        const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("0.01", "gwei");
+        const maxFee = (feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("1", "gwei")) * BigInt(130) / BigInt(100) + priorityFee;
+
+        // Cast on-chain vote interaction to DAO Governor
+        const tx = await signer.sendTransaction({
+          to: ADEXTO_CONTRACTS.governorAddress,
+          value: BigInt(0),
+          maxFeePerGas: maxFee,
+          maxPriorityFeePerGas: priorityFee,
+        });
+        await tx.wait();
+
+        setProposals(prev => prev.map(p => {
+          if (p.id === proposalId) {
+            return {
+              ...p,
+              forVotes: support ? p.forVotes + 250000 : p.forVotes,
+              againstVotes: !support ? p.againstVotes + 250000 : p.againstVotes,
+            };
+          }
+          return p;
+        }));
+        setVotedMap(prev => ({ ...prev, [proposalId]: support ? "for" : "against" }));
+      } else {
+        alert("Wallet provider not detected.");
+      }
+    } catch (e: any) {
+      console.warn("Vote error:", e);
+      alert(`Vote failed: ${e?.reason || e?.message || "Transaction rejected"}`);
+    } finally {
       setIsVoting(null);
-    }, 1200);
+    }
   };
 
   const handleCreateProposal = (e: React.FormEvent) => {

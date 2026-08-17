@@ -192,13 +192,11 @@ export default function SwapPage() {
         const receipt = await tx.wait();
         setSwapTxHash(receipt?.hash || tx.hash);
       } else {
-        setTimeout(() => {
-          setSwapTxHash(`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`);
-        }, 1500);
+        alert("Wallet provider not detected. Please connect MetaMask / Web3 Wallet.");
       }
     } catch (err: any) {
       console.warn("Wallet execution note:", err.message);
-      setSwapTxHash(`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`);
+      alert(`Swap failed: ${err?.reason || err?.message || "Transaction rejected"}`);
     } finally {
       setIsSwapping(false);
     }
