@@ -88,6 +88,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [chainId, setChainId] = useState<number>(16661);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Sync state whenever selectedChainState changes
+  const chainName = CHAIN_CONFIGS[selectedChain]?.name || "0G Mainnet";
+
   useEffect(() => {
     const savedAddr = localStorage.getItem("adexto_wallet_address");
     const savedChain = localStorage.getItem("adexto_selected_chain") as SupportedChainKey;
@@ -144,7 +147,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           params: [{ chainId: `0x${targetConfig.id.toString(16)}` }],
         });
       } catch (switchError: any) {
-        // If chain is not added to user wallet yet, prompt add
         if (switchError.code === 4902) {
           try {
             await (window as any).ethereum.request({
@@ -208,7 +210,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         address,
         chainId,
         selectedChain,
-        chainName: CHAIN_CONFIGS[selectedChain]?.name || "Base Mainnet",
+        chainName,
         isConnected: !!address,
         isConnecting,
         connectWallet,
