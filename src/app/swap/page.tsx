@@ -72,8 +72,7 @@ const NATIVE_INPUT_TOKENS: Record<string, string[]> = {
 };
 
 export default function SwapPage() {
-  const { address, isConnected, connectWallet } = useWallet();
-  const [selectedChain, setSelectedChain] = useState<string>("0G");
+  const { address, isConnected, connectWallet, selectedChain, setSelectedChain } = useWallet();
   const [fromAmount, setFromAmount] = useState("10");
   const [fromToken, setFromToken] = useState("0G");
   const [selectedTargetToken, setSelectedTargetToken] = useState<TokenOption>(AVAILABLE_TOKENS[0]);
@@ -228,7 +227,7 @@ export default function SwapPage() {
             <select
               value={selectedChain}
               onChange={(e) => {
-                const newChain = e.target.value;
+                const newChain = e.target.value as any;
                 setSelectedChain(newChain);
                 const defaultInput = NATIVE_INPUT_TOKENS[newChain]?.[0] || "0G";
                 setFromToken(defaultInput);

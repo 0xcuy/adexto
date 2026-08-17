@@ -132,19 +132,41 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const setSelectedChain = async (chain: SupportedChainKey) => {
     setSelectedChainState(chain);
-    const targetId = CHAIN_CONFIGS[chain].id;
-    setChainId(targetId);
+    const targetConfig = CHAIN_CONFIGS[chain];
+    setChainId(targetConfig.id);
     localStorage.setItem("adexto_selected_chain", chain);
 
-    if (typeof window !== "undefined" && (window as any).ethereum && address) {
+    // If browser wallet is connected, switch EVM chain network in wallet
+    if (typeof window !== "undefined" && (window as any).ethereum) {
       try {
         await (window as any).ethereum.request({
           method: "wallet_switchEthereumChain",
-          params: [{ chainId: `0x${targetId.toString(16)}` }],
+          params: [{ chainId: `0x${targetConfig.id.toString(16)}` }],
         });
-      } catch (err: any) {
-        // Fallback gracefully without breaking UI state
-        console.warn("Chain switch request:", err.message);
+      } catch (switchError: any) {
+        // If chain is not added to user wallet yet, prompt add
+        if (switchError.code === 4902) {
+          try {
+            await (window as any).ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: `0x${targetConfig.id.toString(16)}`,
+                  chainName: targetConfig.name,
+                  rpcUrls: [targetConfig.rpcUrl],
+                  blockExplorerUrls: [targetConfig.blockExplorer],
+                  nativeCurrency: {
+                    name: chain === "0G" ? "0G" : chain === "Arbitrum" || chain === "Base" ? "ETH" : "MON",
+                    symbol: chain === "0G" ? "0G" : chain === "Arbitrum" || chain === "Base" ? "ETH" : "MON",
+                    decimals: 18,
+                  },
+                },
+              ],
+            });
+          } catch (addError) {
+            console.warn("User rejected adding chain:", addError);
+          }
+        }
       }
     }
   };
