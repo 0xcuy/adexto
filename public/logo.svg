@@ -1,0 +1,103 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradients -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.25"/>
+      <stop offset="60%" stop-color="#00F5FF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#04060A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Core Facet Gradients -->
+    <linearGradient id="neonCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F5FF"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <linearGradient id="neonPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C084FC"/>
+      <stop offset="50%" stop-color="#9333EA"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+
+    <linearGradient id="neonPink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+
+    <linearGradient id="goldCore" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="50%" stop-color="#00F5FF"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <linearGradient id="metalDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#090D1A"/>
+    </linearGradient>
+
+    <!-- Glow Filters -->
+    <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="intenseBloom" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="24" result="blur2"/>
+      <feComposite in="SourceGraphic" in2="blur2" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Deep Obsidian Canvas -->
+  <rect width="512" height="512" rx="128" fill="#05070D"/>
+  <circle cx="256" cy="256" r="240" fill="url(#bgGlow)"/>
+
+  <!-- Outer Hexagonal Quantum Forcefield (Orchestration Ring) -->
+  <path d="M256 36 L440 142 V370 L256 476 L72 370 V142 Z" stroke="url(#neonCyan)" stroke-width="3" stroke-opacity="0.35" stroke-dasharray="8 8"/>
+  <path d="M256 50 L424 148 V364 L256 462 L88 364 V148 Z" stroke="url(#neonPurple)" stroke-width="1.5" stroke-opacity="0.4"/>
+
+  <!-- Hexagon Nodes / Validation Anchors -->
+  <circle cx="256" cy="36" r="6" fill="#00F5FF" filter="url(#bloom)"/>
+  <circle cx="440" cy="142" r="6" fill="#7C3AED" filter="url(#bloom)"/>
+  <circle cx="440" cy="370" r="6" fill="#F43F5E" filter="url(#bloom)"/>
+  <circle cx="256" cy="476" r="6" fill="#00F5FF" filter="url(#bloom)"/>
+  <circle cx="72" cy="370" r="6" fill="#7C3AED" filter="url(#bloom)"/>
+  <circle cx="72" cy="142" r="6" fill="#F43F5E" filter="url(#bloom)"/>
+
+  <!-- Autonomous Dual Orbit Rings (AMM Swap Liquidity Flow) -->
+  <g filter="url(#bloom)">
+    <!-- Right Loop (Liquidity Route) -->
+    <ellipse cx="256" cy="256" rx="160" ry="68" transform="rotate(-30 256 256)" stroke="url(#neonCyan)" stroke-width="5" stroke-opacity="0.75"/>
+    <!-- Left Loop (Treasury Buyback Vector) -->
+    <ellipse cx="256" cy="256" rx="160" ry="68" transform="rotate(30 256 256)" stroke="url(#neonPink)" stroke-width="5" stroke-opacity="0.75"/>
+  </g>
+
+  <!-- ── CENTRAL CRYPTOGRAPHIC EMBLEM: THE TRI-PRISM VAULT ───────────────── -->
+  <!-- Facet 1: Top Apex (Autonomous AI / 0G TEE) -->
+  <path d="M256 96 L360 256 H256 Z" fill="url(#neonCyan)" opacity="0.9"/>
+  <path d="M256 96 L152 256 H256 Z" fill="url(#neonPurple)" opacity="0.95"/>
+
+  <!-- Facet 2: Lower-Left Wing (Sovereign DEX / AMM Hook) -->
+  <path d="M152 256 L256 416 L210 286 Z" fill="url(#neonPurple)"/>
+  <path d="M256 256 L256 416 L210 286 Z" fill="url(#metalDark)" opacity="0.9"/>
+
+  <!-- Facet 3: Lower-Right Wing (Token Factory / ERC-8004) -->
+  <path d="M360 256 L256 416 L302 286 Z" fill="url(#neonPink)"/>
+  <path d="M256 256 L256 416 L302 286 Z" fill="url(#metalDark)" opacity="0.9"/>
+
+  <!-- ── INNER TEE ENCLAVE DIAMOND (HARDWARE SECURITY CORE) ─────────────── -->
+  <g filter="url(#intenseBloom)">
+    <!-- Core Rhombus / Octahedron -->
+    <polygon points="256,192 312,256 256,320 200,256" fill="url(#goldCore)"/>
+    <polygon points="256,212 296,256 256,300 216,256" fill="#04060A"/>
+    
+    <!-- Central Verifiable Proof Pulse -->
+    <circle cx="256" cy="256" r="10" fill="#FFFFFF"/>
+    <circle cx="256" cy="256" r="18" stroke="#00F5FF" stroke-width="2" opacity="0.8"/>
+  </g>
+
+  <!-- Laser Conduits & Interlocking Geometry -->
+  <line x1="256" y1="96" x2="256" y2="192" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="152" y1="256" x2="200" y2="256" stroke="#00F5FF" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="360" y1="256" x2="312" y2="256" stroke="#F43F5E" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="256" y1="320" x2="256" y2="416" stroke="#C084FC" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

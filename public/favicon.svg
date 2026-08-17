@@ -1,0 +1,26 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="favNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F5FF"/>
+      <stop offset="50%" stop-color="#9333EA"/>
+      <stop offset="100%" stop-color="#F43F5E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="18" fill="#05070D"/>
+  <rect x="2" y="2" width="60" height="60" rx="16" stroke="url(#favNeon)" stroke-width="2" stroke-opacity="0.6"/>
+
+  <!-- Outer Orbit Loops -->
+  <ellipse cx="32" cy="32" rx="20" ry="8" transform="rotate(-30 32 32)" stroke="#00F5FF" stroke-width="2" opacity="0.8"/>
+  <ellipse cx="32" cy="32" rx="20" ry="8" transform="rotate(30 32 32)" stroke="#F43F5E" stroke-width="2" opacity="0.8"/>
+
+  <!-- Tri-Prism Symbol -->
+  <path d="M32 12 L46 32 H32 Z" fill="#00F5FF"/>
+  <path d="M32 12 L18 32 H32 Z" fill="#9333EA"/>
+  <path d="M18 32 L32 52 L26 36 Z" fill="#7C3AED"/>
+  <path d="M46 32 L32 52 L38 36 Z" fill="#F43F5E"/>
+
+  <!-- Central TEE Core -->
+  <polygon points="32,24 38,32 32,40 26,32" fill="#FDE047"/>
+  <circle cx="32" cy="32" r="2.5" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,27 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AdextoTrinityFactory
+    network: mainnet
+    source:
+      address: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0"
+      abi: AdextoTrinityFactory
+      startBlock: 1
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Project
+        - GlobalStats
+      abis:
+        - name: AdextoTrinityFactory
+          file: ./abis/AdextoTrinityFactory.json
+      eventHandlers:
+        - event: TrinityProjectCreated(indexed address,indexed address,string,bytes32)
+          handler: handleTrinityProjectCreated
+      file: ./src/mapping.ts

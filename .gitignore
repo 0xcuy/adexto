@@ -1,0 +1,51 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js Build
+/.next/
+/out/
+
+# Hardhat & Subgraph Artifacts
+/artifacts/
+/cache/
+/subgraph/generated/
+/build/
+/typechain-types/
+
+# Production & Environment Variables (NEVER COMMIT SENSITIVE SECRETS)
+.env
+.env*.local
+.env.production
+.env.staging
+*.pem
+*.key
+private key
+private_key
+private-key*
+*token*github*
+token github*
+secrets.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+/tmp/
+
+# OS & Editor files
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.idea/
+.vscode/
+
+# Playwright Test Output & Screenshots
+/test-results/
+/playwright-report/

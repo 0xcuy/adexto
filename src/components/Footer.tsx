@@ -1,0 +1,84 @@
+import Link from "next/link";
+import { Terminal, Shield, Cpu, Zap, Github, Twitter, Layers, CloudLightning } from "lucide-react";
+
+export default function Footer() {
+  return (
+    <footer className="border-t border-white/10 bg-[#020306] relative z-10 text-zinc-300 text-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/20 p-1 bg-[#05070D]">
+                <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <span className="font-black text-white tracking-wide text-base block leading-tight">ADEXTO PROTOCOL</span>
+                <span className="text-[10px] font-mono text-zinc-400">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
+              </div>
+            </div>
+            <p className="text-zinc-300 leading-relaxed text-xs">
+              Autonomous Decentralized EXchange &amp; Token Orchestrator powered by 0G Private Computer (TEE) &amp; Cloudflare Workers Edge x402.
+            </p>
+            <div className="flex items-center gap-2 pt-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                ● 0G TEE Mainnet Ready
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/10 text-orange-300 border border-orange-500/30">
+                Cloudflare x402 Edge
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-zinc-100 mb-3 uppercase tracking-wider text-xs">Protocol &amp; Apps</h4>
+            <ul className="space-y-2 text-zinc-300">
+              <li><Link href="/studio" className="hover:text-cyan-300 transition-colors">Launch Studio</Link></li>
+              <li><Link href="/explorer" className="hover:text-cyan-300 transition-colors">Live Explorer</Link></li>
+              <li><Link href="/swap" className="hover:text-cyan-300 transition-colors">Sovereign DEX Swap</Link></li>
+              <li><Link href="/agent/demo" className="hover:text-cyan-300 transition-colors">Cloudflare x402 Demo</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-zinc-100 mb-3 uppercase tracking-wider text-xs">Architecture &amp; Trust</h4>
+            <ul className="space-y-2 text-zinc-300">
+              <li><Link href="/whitepaper" className="hover:text-cyan-300 transition-colors">Whitepaper &amp; Tokenomics</Link></li>
+              <li><Link href="/pitch" className="hover:text-cyan-300 transition-colors">VC Memorandum &amp; Grants</Link></li>
+              <li><Link href="/docs" className="hover:text-cyan-300 transition-colors">EVIDIQ MCP Suite</Link></li>
+              <li><Link href="/docs#0g-tee" className="hover:text-cyan-300 transition-colors">0G TEE Verifiable Compute</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-zinc-100 mb-3 uppercase tracking-wider text-xs">Supported EVM Chains</h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                <span className="text-zinc-200 font-medium">Base Mainnet</span>
+                <span className="text-blue-400 font-mono text-[11px] font-bold">8453</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                <span className="text-zinc-200 font-medium">0G Mainnet</span>
+                <span className="text-cyan-300 font-mono text-[11px] font-bold">16661</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                <span className="text-zinc-200 font-medium">Arbitrum One</span>
+                <span className="text-sky-300 font-mono text-[11px] font-bold">42161</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                <span className="text-zinc-200 font-medium">Monad Mainnet</span>
+                <span className="text-purple-300 font-mono text-[11px] font-bold">10143</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
+          <p>© 2026 ADEXTO (adexto.xyz). All rights reserved. Zero central points of failure.</p>
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-zinc-300 font-semibold">EIP-191 / ERC-8004 Compliant</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

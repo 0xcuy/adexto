@@ -1,0 +1,8 @@
+name = "adexto-x402-edge"
+main = "src/index.ts"
+compatibility_date = "2026-08-16"
+account_id = "c1a94ec73ec04756ac77a82a6ef21df6"
+
+[vars]
+VAULT_TREASURY = "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D"
+OG_COMPUTE_ENDPOINT = "https://pc.0g.ai/v1"

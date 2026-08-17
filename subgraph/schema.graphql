@@ -1,0 +1,22 @@
+type Project @entity(immutable: false) {
+  id: ID! # Token Address
+  tokenAddress: Bytes!
+  creator: Bytes!
+  name: String!
+  symbol: String!
+  swapFeeBps: BigInt!
+  treasuryShareBps: BigInt!
+  teeAttestationRoot: Bytes!
+  deployedAt: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type GlobalStats @entity(immutable: false) {
+  id: ID!
+  totalProjects: BigInt!
+  totalVolumeUSD: BigDecimal!
+  totalFeesGeneratedUSD: BigDecimal!
+  totalBuybacksUSD: BigDecimal!
+}
