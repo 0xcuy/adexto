@@ -31,6 +31,7 @@ interface ProjectItem {
   address: string;
   txHash?: string;
   teeRoot?: string;
+  image?: string;
 }
 
 const DEFAULT_PROJECTS: ProjectItem[] = [
@@ -51,6 +52,7 @@ const DEFAULT_PROJECTS: ProjectItem[] = [
     agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
     mcpTools: ["Signet", "Sentinel", "Helm", "x402"],
     category: "defi",
+    image: "/aegis_logo.png",
     address: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
     txHash: "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
     teeRoot: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
@@ -72,6 +74,7 @@ const DEFAULT_PROJECTS: ProjectItem[] = [
     agentModel: "0G glm-5.2",
     mcpTools: ["Signet", "Sentinel", "x402"],
     category: "defi",
+    image: "/logo.svg",
     address: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     txHash: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
   },
@@ -98,26 +101,27 @@ export default function ExplorerPage() {
           const json = await res.json();
           const onChainList = json?.data?.projects;
           if (Array.isArray(onChainList) && onChainList.length > 0) {
-            const formatted: ProjectItem[] = onChainList.map((p: any, idx: number) => ({
+            const formatted: ProjectItem[] = onChainList.map((p: any) => ({
               id: p.tokenAddress || p.id,
               name: p.name || `Autonomous Agent (${p.symbol})`,
               symbol: p.symbol,
-              chain: "0G Mainnet",
-              tvl: "$4,820,000",
-              mcap: "$18.4M",
-              volume24h: "$1.45M",
-              feesGenerated: "$4,350",
-              buybackAmount: "$1,305",
-              price: "0.0184 0G",
-              change24h: "+24.8%",
-              agentStatus: "Active (0G TEE)",
-              edgeProvider: "Cloudflare x402",
-              agentModel: "0G glm-5.2",
-              mcpTools: ["Signet", "Sentinel", "Helm", "x402"],
-              category: "defi",
+              chain: p.chain || "0G Mainnet (16661)",
+              tvl: p.tvl || "Pool Initialized",
+              mcap: p.mcap || "1,000,000,000 " + p.symbol,
+              volume24h: p.volume24h || "Live On-Chain",
+              feesGenerated: p.feesGenerated || "0.20% LP / 0.10% Buyback",
+              buybackAmount: p.buybackAmount || "Active Vault",
+              price: p.price || "0.0184 0G",
+              change24h: p.change24h || "Live Genesis",
+              agentStatus: p.agentStatus || "Active (0G AMD SEV-SNP)",
+              edgeProvider: p.edgeProvider || "Cloudflare x402 Edge",
+              agentModel: p.agentModel || "0G Compute (glm-5.2 + z-image-turbo)",
+              mcpTools: p.mcpTools || ["Signet", "Sentinel", "Helm", "x402"],
+              category: p.category || "defi",
+              image: p.image || (p.symbol === "AEGIS" ? "/aegis_logo.png" : "/logo.svg"),
               address: p.tokenAddress || p.id,
-              txHash: p.transactionHash || "0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55",
-              teeRoot: p.teeAttestationRoot || "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
+              txHash: p.transactionHash || "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
+              teeRoot: p.teeAttestationRoot || "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
             }));
             setProjects(formatted);
           }
@@ -215,8 +219,14 @@ export default function ExplorerPage() {
           <div key={p.id} className="glass-panel p-6 rounded-2xl border-2 border-white/20 space-y-4 relative overflow-hidden shadow-2xl">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white font-black text-base shadow-lg shadow-purple-600/30">
-                  {p.symbol.slice(0, 2)}
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-black border border-cyan-500/40 p-0.5 flex items-center justify-center text-white font-black text-base shadow-lg shadow-purple-600/30 shrink-0">
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} className="w-full h-full object-cover rounded-[10px]" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-cyan-500 to-purple-600 rounded-[10px] flex items-center justify-center text-white font-bold">
+                      {p.symbol.slice(0, 2)}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">

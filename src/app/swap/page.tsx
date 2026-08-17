@@ -18,6 +18,7 @@ interface TokenOption {
   chain: string;
   poolAddress: string;
   agentModel: string;
+  image?: string;
 }
 
 const AVAILABLE_TOKENS: TokenOption[] = [
@@ -28,6 +29,7 @@ const AVAILABLE_TOKENS: TokenOption[] = [
     chain: "0G Mainnet (16661)",
     poolAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
     agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
+    image: "/aegis_logo.png",
   },
   {
     symbol: "ARBAI",
@@ -36,6 +38,7 @@ const AVAILABLE_TOKENS: TokenOption[] = [
     chain: "Arbitrum One (42161)",
     poolAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     agentModel: "0G glm-5.2",
+    image: "/logo.svg",
   },
 ];
 
@@ -236,22 +239,31 @@ export default function SwapPage() {
                 {Number(estimatedToAmount).toLocaleString()}
               </div>
 
-              {/* Target Token Dropdown */}
-              <select
-                value={selectedTargetToken.symbol}
-                onChange={(e) => {
-                  const found = AVAILABLE_TOKENS.find(t => t.symbol === e.target.value);
-                  if (found) setSelectedTargetToken(found);
-                  setSwapTxHash(null);
-                }}
-                className="bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-black text-xs rounded-xl px-3 py-2 border border-cyan-400/40 focus:outline-none cursor-pointer shadow-md"
-              >
-                {AVAILABLE_TOKENS.map((token) => (
-                  <option key={token.symbol} value={token.symbol} className="bg-[#0b0f19] text-white font-mono">
-                    ${token.symbol} ({token.name.slice(0, 14)})
-                  </option>
-                ))}
-              </select>
+              {/* Target Token Selector with Real Logo Image */}
+              <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-950/80 to-purple-950/80 p-1.5 rounded-xl border border-cyan-500/40">
+                <div className="w-6 h-6 rounded-lg overflow-hidden bg-black flex items-center justify-center shrink-0">
+                  {selectedTargetToken.image ? (
+                    <img src={selectedTargetToken.image} alt={selectedTargetToken.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-cyan-300 font-mono font-bold text-[10px]">{selectedTargetToken.symbol.slice(0, 2)}</span>
+                  )}
+                </div>
+                <select
+                  value={selectedTargetToken.symbol}
+                  onChange={(e) => {
+                    const found = AVAILABLE_TOKENS.find(t => t.symbol === e.target.value);
+                    if (found) setSelectedTargetToken(found);
+                    setSwapTxHash(null);
+                  }}
+                  className="bg-transparent text-white font-black text-xs focus:outline-none cursor-pointer pr-1"
+                >
+                  {AVAILABLE_TOKENS.map((token) => (
+                    <option key={token.symbol} value={token.symbol} className="bg-[#0b0f19] text-white font-mono">
+                      ${token.symbol} ({token.name.slice(0, 14)})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
