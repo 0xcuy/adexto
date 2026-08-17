@@ -172,13 +172,15 @@ export default function SwapPage() {
                 const newChain = e.target.value;
                 setSelectedChain(newChain);
                 setFromToken(NATIVE_INPUT_TOKENS[newChain]?.[0] || "0G");
+                const matchedToken = AVAILABLE_TOKENS.find(t => t.chain.includes(newChain));
+                if (matchedToken) setSelectedTargetToken(matchedToken);
               }}
-              className="bg-[#060913] border border-white/20 text-cyan-300 text-xs font-mono font-bold rounded-lg px-2.5 py-1 focus:outline-none"
+              className="bg-[#060913] border border-white/20 text-cyan-300 text-xs font-mono font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
             >
-              <option value="0G">0G Mainnet (16661 - Live Primary)</option>
-              <option value="Base">Base Mainnet (Phase 2 Mesh)</option>
-              <option value="Arbitrum">Arbitrum One (Phase 2 Mesh)</option>
-              <option value="Monad">Monad Mainnet (Phase 2 Mesh)</option>
+              <option value="0G">0G Mainnet (16661 - Live)</option>
+              <option value="Arbitrum">Arbitrum One (42161 - Live)</option>
+              <option value="Base">Base Mainnet (Phase 2)</option>
+              <option value="Monad">Monad Mainnet (Phase 2)</option>
             </select>
           </div>
 
@@ -186,7 +188,7 @@ export default function SwapPage() {
           <div className="mb-4 p-2.5 rounded-xl bg-[#040814] border border-white/10 flex items-center justify-between text-[11px] font-mono">
             <span className="text-zinc-400">Target Pool Hook:</span>
             <a 
-              href={`https://chainscan.0g.ai/address/${selectedTargetToken.poolAddress}`}
+              href={selectedTargetToken.chain.includes("Arbitrum") ? `https://arbiscan.io/address/${selectedTargetToken.poolAddress}` : `https://chainscan.0g.ai/address/${selectedTargetToken.poolAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-cyan-300 hover:underline font-bold flex items-center gap-1"
@@ -311,7 +313,7 @@ export default function SwapPage() {
               </p>
               <div className="pt-1">
                 <a
-                  href={`https://chainscan.0g.ai/tx/${swapTxHash}`}
+                  href={selectedTargetToken.chain.includes("Arbitrum") ? `https://arbiscan.io/tx/${swapTxHash}` : `https://chainscan.0g.ai/tx/${swapTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs font-mono text-cyan-300 font-bold hover:underline inline-flex items-center gap-1"
