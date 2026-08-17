@@ -18,11 +18,11 @@ export default function HomePage() {
       {/* ── HERO SECTION ────────────────────────────────────────────────────────── */}
       <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 text-center">
         {/* Mainnet Ready Pill */}
-        <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#0a1124] border border-cyan-400/40 text-xs font-mono text-cyan-300 mb-8 shadow-lg">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="font-bold text-white">ADEXTO PROTOCOL v1.0.0 (Mainnet Architecture)</span>
-          <span className="text-zinc-500">|</span>
-          <span className="text-cyan-300 font-semibold">0G Mainnet (Chain 16661) Live</span>
+        <div className="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 px-4 py-1.5 rounded-full bg-[#0a1124] border border-cyan-400/40 text-xs font-mono text-cyan-300 mb-8 shadow-lg">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-bold text-white">ADEXTO PROTOCOL v1.0.0</span>
+          <span className="text-zinc-500 hidden sm:inline">|</span>
+          <span className="text-cyan-300 font-semibold">0G Mainnet (16661) &amp; Arbitrum One (42161) Live</span>
         </div>
 
         {/* Value Proposition Headline */}
@@ -62,11 +62,11 @@ export default function HomePage() {
             <span className="text-[11px] text-zinc-300 mt-1 block">Contracts Verified</span>
           </div>
 
-          <div className="glass-panel p-5 rounded-xl border border-white/20">
-            <div className="text-zinc-400 text-xs font-bold uppercase">Target Chains</div>
-            <div className="text-xl sm:text-2xl font-black text-white mt-1">4 EVM Networks</div>
-            <span className="text-[11px] text-cyan-300 mt-1 block">Base, 0G, Arbitrum, Monad</span>
-          </div>
+        <div className="glass-panel p-5 rounded-xl border border-white/20">
+          <div className="text-zinc-400 text-xs font-bold uppercase">Multi-Chain Live</div>
+          <div className="text-xl sm:text-2xl font-black text-white mt-1">0G &amp; Arbitrum</div>
+          <span className="text-[11px] text-cyan-300 mt-1 block">Live On-Chain Contracts</span>
+        </div>
 
           <div className="glass-panel p-5 rounded-xl border border-white/20">
             <div className="text-zinc-400 text-xs font-bold uppercase">Compute Enclave</div>

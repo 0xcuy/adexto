@@ -52,22 +52,26 @@ export default function Footer() {
           <div>
             <h4 className="font-bold text-zinc-100 mb-3 uppercase tracking-wider text-xs">Supported EVM Chains</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
-                <span className="text-zinc-200 font-medium">Base Mainnet</span>
-                <span className="text-blue-400 font-mono text-[11px] font-bold">8453</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
-                <span className="text-zinc-200 font-medium">0G Mainnet</span>
-                <span className="text-cyan-300 font-mono text-[11px] font-bold">16661</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
-                <span className="text-zinc-200 font-medium">Arbitrum One</span>
-                <span className="text-sky-300 font-mono text-[11px] font-bold">42161</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
-                <span className="text-zinc-200 font-medium">Monad Mainnet</span>
-                <span className="text-purple-300 font-mono text-[11px] font-bold">10143</span>
-              </div>
+                <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-cyan-500/30">
+                  <span className="text-zinc-200 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> 0G Mainnet
+                  </span>
+                  <span className="text-cyan-300 font-mono text-[11px] font-bold">16661 (Live)</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-sky-500/30">
+                  <span className="text-zinc-200 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Arbitrum One
+                  </span>
+                  <span className="text-sky-300 font-mono text-[11px] font-bold">42161 (Live)</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                  <span className="text-zinc-200 font-medium">Base Mainnet</span>
+                  <span className="text-blue-400 font-mono text-[11px] font-bold">8453 (Phase 2)</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-white/[0.04] border border-white/10">
+                  <span className="text-zinc-200 font-medium">Monad Mainnet</span>
+                  <span className="text-purple-300 font-mono text-[11px] font-bold">10143 (Phase 2)</span>
+                </div>
             </div>
           </div>
         </div>
