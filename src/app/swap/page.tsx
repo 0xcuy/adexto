@@ -22,12 +22,20 @@ interface TokenOption {
 
 const AVAILABLE_TOKENS: TokenOption[] = [
   {
-    symbol: "ADAI",
-    name: "Aegis Alpha AI (ERC-8004)",
+    symbol: "AEGIS",
+    name: "Aegis Sentinel AI (ERC-8004)",
     priceInNative: 0.0184,
-    chain: "0G Mainnet",
-    poolAddress: ADEXTO_CONTRACTS.sovereignHookAddress,
-    agentModel: "0G Router (glm-5.2)",
+    chain: "0G Mainnet (16661)",
+    poolAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
+    agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
+  },
+  {
+    symbol: "ARBAI",
+    name: "Arbitrum Mesh Sentinel",
+    priceInNative: 0.00018,
+    chain: "Arbitrum One (42161)",
+    poolAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+    agentModel: "0G glm-5.2",
   },
 ];
 

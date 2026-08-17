@@ -14,38 +14,38 @@ export async function POST(req: Request) {
     const defaultData = {
       projects: [
         {
-          id: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
-          tokenAddress: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
+          id: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
+          tokenAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
           creator: ADEXTO_CONTRACTS.deployer,
           name: "Aegis Sentinel AI",
-          symbol: "ADAI",
+          symbol: "AEGIS",
           swapFeeBps: "30",
           treasuryShareBps: "10",
-          teeAttestationRoot: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
-          deployedAt: "1786848000",
-          transactionHash: "0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55",
-          blockNumber: "41868250"
+          teeAttestationRoot: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
+          deployedAt: "1786848200",
+          transactionHash: "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
+          blockNumber: "41896821"
         },
         {
-          id: "0x4b8e219aa0912fbbd89a444d18721c890123e",
-          tokenAddress: "0x4b8e219aa0912fbbd89a444d18721c890123e",
+          id: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
+          tokenAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
           creator: ADEXTO_CONTRACTS.deployer,
-          name: "CyberSentinel AI",
-          symbol: "CSENT",
+          name: "Arbitrum Mesh Sentinel",
+          symbol: "ARBAI",
           swapFeeBps: "30",
           treasuryShareBps: "10",
           teeAttestationRoot: "0x57d8f0846a59cc3ae156dcaa43553d3dd69f49211031f39a1e8fe636677e6572",
-          deployedAt: "1786848100",
-          transactionHash: "0xf975c114489d0aa60fc0e73dadc108d96c8275f0ef66d2edff756c8140ff6d43",
-          blockNumber: "41868255"
+          deployedAt: "1786848250",
+          transactionHash: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
+          blockNumber: "41896830"
         }
       ],
       globalStats: {
         id: "global",
-        totalProjects: "4",
-        totalVolumeUSD: "18450000.00",
-        totalFeesGeneratedUSD: "55350.00",
-        totalBuybacksUSD: "18450.00"
+        totalProjects: "2",
+        totalVolumeUSD: "0.00",
+        totalFeesGeneratedUSD: "0.00",
+        totalBuybacksUSD: "0.00"
       }
     };
 

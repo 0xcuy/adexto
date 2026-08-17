@@ -45,7 +45,8 @@ export async function uploadMetadataTo0G(data: unknown, filename = "adexto_metad
       const [result, error] = await indexer.upload(
         file,
         OG_RPC_URL,
-        signer as any
+        signer as any,
+        { skipIfFinalized: true, finalityRequired: false }
       );
 
       if (error) {
