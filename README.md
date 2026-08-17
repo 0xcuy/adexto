@@ -72,7 +72,7 @@ graph TD
 | **AdextoGovernor (DAO Phase 2)** | [`0x5045b117dDF788078c535f37837fDB6384da034d`](https://chainscan.0g.ai/address/0x5045b117dDF788078c535f37837fDB6384da034d) | ✅ Live On-Chain |
 | **AdextoCCIPReceiver (Mesh)** | [`0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4`](https://chainscan.0g.ai/address/0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4) | ✅ Live On-Chain |
 | **0G DA Storage Turbo** | Root: `0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d`<br>Tx: [`0xcfac6cd4...`](https://chainscan.0g.ai/tx/0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55) | ✅ Anchored |
-| **The Graph Subgraph** | [`https://api.studio.thegraph.com/query/1757874/adexto-protocol/v1.0.0`](https://thegraph.com/studio/subgraph/adexto-protocol) | ✅ Deployed v1.0.0 |
+| **The Graph Network** | Published on Arbitrum (NFT ID: `1700315130...26634`)<br>[`Explorer Link`](https://thegraph.com/explorer/subgraphs/3133948342F35b8699d8F94aeE064AbB76eDe965) | ✅ Published to Decentralized Network |
 | **Cloudflare Worker x402** | [`https://adexto-x402-edge.cucuvirtual.workers.dev`](https://adexto-x402-edge.cucuvirtual.workers.dev) | ✅ Edge Active (<35ms) |
 | **Official Signer Wallet** | `0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D` | ✅ Hardware Attested |
 

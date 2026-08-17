@@ -90,8 +90,9 @@ ssh -i ~/.ssh/id_ed25519 root@168.144.249.185 "docker logs -f adexto-production"
 - [x] **0G DA / Storage Indexer Turbo**:
   - Live Storage Flow Tx: `0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55`
   - Attestation Root Hash: `0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d`
-- [x] **The Graph Subgraph Studio Live**:
-  - Published Version: `v1.0.0`
+- [x] **The Graph Decentralized Network Live (Arbitrum One)**:
+  - Subgraph NFT Token ID: `17003151304055627656862349796568032991348364722599332449508936548931924826634`
+  - Explorer Link: `https://thegraph.com/explorer/subgraphs/3133948342F35b8699d8F94aeE064AbB76eDe965`
   - Query URL: `https://api.studio.thegraph.com/query/1757874/adexto-protocol/v1.0.0`
 - [x] **0G Compute AI Router**:
   - Streaming `/api/chat` aktif (`glm-5.2`, `0gm-1.0-35b-a3b`, `0gm-1.0-35b-a3b-sia`).
