@@ -99,17 +99,17 @@ export default function VerifiedDeploymentCard() {
             return (
               <div 
                 key={i} 
-                className="p-4 rounded-2xl bg-[#040814] border border-white/10 hover:border-cyan-400/50 transition-all flex flex-col justify-between group"
+                className="p-3.5 sm:p-4 rounded-2xl bg-[#040814] border border-white/10 hover:border-cyan-400/50 transition-all flex flex-col justify-between group overflow-hidden max-w-full"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-slate-300 font-sans font-bold text-xs truncate">{rec.label}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${rec.color}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
+                    <span className="text-slate-300 font-sans font-bold text-xs truncate max-w-[200px] sm:max-w-none">{rec.label}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 ${rec.color}`}>
                       {rec.badge}
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-[#02050e] border border-white/5 text-slate-200 text-xs break-all flex items-center justify-between gap-2">
-                    <span className="text-cyan-300 font-semibold">{rec.address}</span>
+                  <div className="p-2.5 rounded-xl bg-[#02050e] border border-white/5 text-slate-200 text-[11px] sm:text-xs break-all flex items-center justify-between gap-2 overflow-hidden">
+                    <span className="text-cyan-300 font-semibold break-all">{rec.address}</span>
                   </div>
                 </div>
 

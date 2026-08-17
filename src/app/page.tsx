@@ -289,48 +289,48 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Smart Contract & Cloudflare Code Tab */}
-            <div className="bg-[#050811] p-6 rounded-2xl border-2 border-white/20 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/15 pb-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Code2 className="w-4 h-4 text-cyan-400" />
-                  <span className="text-xs font-mono font-bold text-white">ON-CHAIN &amp; EDGE CODE</span>
-                </div>
-                <div className="flex gap-1.5">
-                  <button 
-                    onClick={() => setActiveCodeTab("factory")}
-                    className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${
-                      activeCodeTab === "factory" 
-                        ? "bg-cyan-500/30 text-cyan-200 border border-cyan-400" 
-                        : "text-zinc-400 hover:text-white bg-white/5"
-                    }`}
-                  >
-                    AdextoFactory.sol
-                  </button>
-                  <button 
-                    onClick={() => setActiveCodeTab("hook")}
-                    className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${
-                      activeCodeTab === "hook" 
-                        ? "bg-purple-500/30 text-purple-200 border border-purple-400" 
-                        : "text-zinc-400 hover:text-white bg-white/5"
-                    }`}
-                  >
-                    SovereignHook.sol
-                  </button>
-                  <button 
-                    onClick={() => setActiveCodeTab("cloudflare")}
-                    className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${
-                      activeCodeTab === "cloudflare" 
-                        ? "bg-orange-500/30 text-orange-200 border border-orange-400" 
-                        : "text-zinc-400 hover:text-white bg-white/5"
-                    }`}
-                  >
-                    cloudflare-x402.ts
-                  </button>
-                </div>
-              </div>
+      {/* Smart Contract & Cloudflare Code Tab */}
+      <div className="bg-[#050811] p-4 sm:p-6 rounded-2xl border-2 border-white/20 shadow-2xl overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/15 pb-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-mono font-bold text-white">ON-CHAIN &amp; EDGE CODE</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button 
+              onClick={() => setActiveCodeTab("factory")}
+              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
+                activeCodeTab === "factory" 
+                  ? "bg-cyan-500/30 text-cyan-200 border border-cyan-400" 
+                  : "text-zinc-400 hover:text-white bg-white/5"
+              }`}
+            >
+              AdextoFactory.sol
+            </button>
+            <button 
+              onClick={() => setActiveCodeTab("hook")}
+              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
+                activeCodeTab === "hook" 
+                  ? "bg-purple-500/30 text-purple-200 border border-purple-400" 
+                  : "text-zinc-400 hover:text-white bg-white/5"
+              }`}
+            >
+              SovereignHook.sol
+            </button>
+            <button 
+              onClick={() => setActiveCodeTab("cloudflare")}
+              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
+                activeCodeTab === "cloudflare" 
+                  ? "bg-orange-500/30 text-orange-200 border border-orange-400" 
+                  : "text-zinc-400 hover:text-white bg-white/5"
+              }`}
+            >
+              cloudflare-x402.ts
+            </button>
+          </div>
+        </div>
 
-              <div className="font-mono text-xs text-slate-100 space-y-2 bg-[#020307] p-5 rounded-xl border border-white/10 overflow-x-auto leading-relaxed">
+        <div className="font-mono text-[11px] sm:text-xs text-slate-100 space-y-2 bg-[#020307] p-4 sm:p-5 rounded-xl border border-white/10 overflow-x-auto leading-relaxed max-w-full">
                 {activeCodeTab === "factory" && (
                   <>
                     <div className="text-zinc-400">// SPDX-License-Identifier: MIT</div>
@@ -353,10 +353,10 @@ export default function HomePage() {
                     <div className="pl-4 text-zinc-300">uint256 public constant LP_SPLIT = 70; // 70% to LPs</div>
                     <div className="pl-4 text-zinc-300">uint256 public constant TREASURY_SPLIT = 30; // 30% to Agent</div>
                     <div className="pl-4 text-emerald-400 mt-2 font-semibold">function afterSwap(address, PoolKey calldata, BalanceDelta delta)</div>
-                    <div className="pl-8 text-zinc-200">external override returns (bytes4, int128) &#123;</div>
-                    <div className="pl-12 text-pink-300">_routeToTreasury(delta.amount0());</div>
-                    <div className="pl-12 text-pink-300">return (BaseHook.afterSwap.selector, 0);</div>
-                    <div className="pl-8 text-zinc-200">&#125;</div>
+                    <div className="pl-4 sm:pl-8 text-zinc-200">external override returns (bytes4, int128) &#123;</div>
+                    <div className="pl-6 sm:pl-12 text-pink-300">_routeToTreasury(delta.amount0());</div>
+                    <div className="pl-6 sm:pl-12 text-pink-300">return (BaseHook.afterSwap.selector, 0);</div>
+                    <div className="pl-4 sm:pl-8 text-zinc-200">&#125;</div>
                     <div className="text-purple-300 font-bold">&#125;</div>
                   </>
                 )}
