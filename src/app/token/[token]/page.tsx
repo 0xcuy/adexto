@@ -8,6 +8,7 @@ import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import RealtimeCandleChart from "@/components/RealtimeCandleChart";
 import LiveOrderBook from "@/components/LiveOrderBook";
+import LiveTradeFeed from "@/components/LiveTradeFeed";
 import { 
   ArrowDownUp, ShieldCheck, Flame, RefreshCw, 
   CheckCircle2, TrendingUp, Sparkles, ExternalLink, Network,
@@ -329,9 +330,14 @@ export default function AgentTerminalPage() {
             </div>
           </div>
 
-          {/* 2. Order Book (Planted Directly Below Chart) */}
-          <div className="glass-panel p-4 rounded-3xl border-2 border-white/15 min-h-[220px] shadow-2xl bg-[#030712] overflow-hidden">
-            <LiveOrderBook symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
+          {/* 2. Order Book & Live Trades Stream (Below Chart) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="glass-panel p-4 rounded-3xl border-2 border-white/15 min-h-[220px] shadow-2xl bg-[#030712] overflow-hidden">
+              <LiveOrderBook symbol={agent.symbol} basePriceUSD={agent.priceUSD} />
+            </div>
+            <div className="glass-panel p-4 rounded-3xl border-2 border-white/15 min-h-[220px] shadow-2xl bg-[#030712] overflow-hidden">
+              <LiveTradeFeed symbol={agent.symbol} />
+            </div>
           </div>
         </div>
 
