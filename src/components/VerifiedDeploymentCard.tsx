@@ -70,10 +70,10 @@ export default function VerifiedDeploymentCard() {
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl border-2 border-cyan-500/30 bg-[#060a17]/90 shadow-2xl relative overflow-hidden">
+    <div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-10 overflow-hidden">
+      <div className="glass-panel p-4 sm:p-8 rounded-3xl border-2 border-cyan-500/30 bg-[#060a17]/90 shadow-2xl relative overflow-hidden">
         {/* Glow Accent */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="hidden sm:block absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6">
           <div>

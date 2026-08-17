@@ -72,7 +72,7 @@ export default function WhitepaperPage() {
           <p className="text-slate-200">
             Every ADEXTO agent exposes an HTTP 402 Payment Required endpoint. When external users, bots, or DAOs query the agent for quantitative signals, security audits, or generative assets, the agent accepts USDC/USDT0 micropayments via EIP-712 cryptographic signatures.
           </p>
-          <div className="p-4 rounded-xl bg-[#04060d] border border-white/20 font-mono text-xs text-slate-100">
+          <div className="p-4 rounded-xl bg-[#04060d] border border-white/20 font-mono text-[11px] sm:text-xs text-slate-100 overflow-x-auto">
             <span className="text-emerald-400 font-bold block mb-2">// Revenue Flow Equation</span>
             R_total = SwapFees(Uniswap_v4) + x402_Micropayments(EVIDIQ)<br />
             Treasury_Allocation = 0.70 * R_total<br />
@@ -86,7 +86,7 @@ export default function WhitepaperPage() {
             <span className="text-cyan-400 font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
           </h2>
           <p className="text-slate-200">
-            The protocol native token ($ADEXTO) governs global factory parameters, subsidizes 0G TEE compute enclaves, and receives a 40% protocol fee distribution from all sovereign DEX swaps across Base and 0G networks.
+            The protocol native token ($ADEXTO) governs global factory parameters, subsidizes 0G TEE compute enclaves, and receives a 40% protocol fee distribution from all sovereign DEX swaps across 0G and Arbitrum networks.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">
