@@ -73,15 +73,15 @@ export default function AgentDemoPage() {
         amount_settled: tools.find((t) => t.id === selectedTool)?.price,
         tee_enclave_host: "pc.0g.ai/v1 (0G AMD SEV-SNP Enclave)",
         tee_signer: ADEXTO_CONTRACTS.deployer,
-        zero_g_storage_root: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
-        zero_g_da_tx: "0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55",
+        zero_g_storage_root: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
+        zero_g_da_tx: "0x319fd59b0765f43b1ced911e2706dbcac8f09bd60e5443599ef7fde64e1a64f1",
         proof_signature: "0x38fa8029c7da192834bba72619cd91823749817293847192837491827394817263",
         result_payload: {
           target_chain: selectedChain,
           pool_health: "Optimal (99.8/100)",
           slippage_risk: "0.01% at 100,000 USDC volume",
           mev_sandwich_shield: "Active (EVIDIQ Sentinel Block-Guard)",
-          treasury_buyback_queued: "284.10 ADAI scheduled at next block",
+          treasury_buyback_queued: "284.10 AEGIS scheduled at next block",
         },
       });
     }, 1600);

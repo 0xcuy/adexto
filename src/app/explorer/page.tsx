@@ -321,7 +321,7 @@ export default function ExplorerPage() {
             {/* Action Bar */}
             <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs font-mono">
               <a
-                href={`https://chainscan.0g.ai/address/${p.address}`}
+                href={p.chain.includes("Arbitrum") ? `https://arbiscan.io/address/${p.address}` : `https://chainscan.0g.ai/address/${p.address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold hover:underline"
@@ -331,18 +331,20 @@ export default function ExplorerPage() {
               </a>
 
               <div className="flex items-center gap-3 font-bold">
-                <Link
-                  href="/swap"
+                <a
+                  href="https://adexto.xyz/swap"
                   className="text-purple-300 hover:text-white flex items-center gap-1 hover:underline"
                 >
                   Swap AMM <ArrowUpRight className="w-3.5 h-3.5" />
-                </Link>
-                <Link
-                  href="/agent/demo"
+                </a>
+                <a
+                  href="https://adexto-x402-edge.cucuvirtual.workers.dev"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-orange-400 hover:text-orange-300 flex items-center gap-1 hover:underline"
                 >
                   Call Edge (x402) <CloudLightning className="w-3 h-3" />
-                </Link>
+                </a>
               </div>
             </div>
           </div>

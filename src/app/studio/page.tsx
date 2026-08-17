@@ -354,9 +354,9 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
               onChange={(e) => setSelectedChain(e.target.value as SupportedChainKey)}
               className="bg-transparent text-cyan-300 font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none"
             >
-              <option value="0G" className="bg-[#0b0f19] text-cyan-300 font-bold">0G Mainnet (16661 - Primary Live)</option>
+              <option value="0G" className="bg-[#0b0f19] text-cyan-300 font-bold">0G Mainnet (16661 - Live)</option>
+              <option value="Arbitrum" className="bg-[#0b0f19] text-sky-300 font-bold">Arbitrum One (42161 - Live)</option>
               <option value="Base" className="bg-[#0b0f19] text-zinc-400">Base Mainnet (Phase 2)</option>
-              <option value="Arbitrum" className="bg-[#0b0f19] text-zinc-400">Arbitrum One (Phase 2)</option>
               <option value="Monad" className="bg-[#0b0f19] text-zinc-400">Monad Mainnet (Phase 2)</option>
             </select>
             <ChevronDown className="w-3 h-3 text-cyan-400/60 absolute right-2 pointer-events-none" />
