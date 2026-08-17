@@ -136,7 +136,7 @@ export default function PitchDeckPage() {
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#070a14] border border-white/10">
             <div>
               <strong className="text-white block text-sm">Phase 1 (Live Now - August 2026):</strong>
-              <span className="text-zinc-300 text-xs">EVM Core Launchpad + Cloudflare Workers x402 + 0G TEE Enclave Spawner</span>
+              <span className="text-zinc-300 text-xs">0G Mainnet + Arbitrum One Core Contracts + Cloudflare Workers x402 + 0G TEE Enclaves</span>
             </div>
             <span className="px-3 py-1 rounded bg-emerald-500/20 text-emerald-300 font-bold text-xs">LIVE</span>
           </div>
@@ -144,7 +144,7 @@ export default function PitchDeckPage() {
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#070a14] border border-white/10">
             <div>
               <strong className="text-white block text-sm">Phase 2 (Q4 2026):</strong>
-              <span className="text-zinc-300 text-xs">Cross-Chain Liquidity Mesh (Base + 0G + Arbitrum + Monad) &amp; DAO Governance</span>
+              <span className="text-zinc-300 text-xs">Cross-Chain CCIP Mesh (Base + Monad) &amp; DAO Decentralized Governance</span>
             </div>
             <span className="px-3 py-1 rounded bg-cyan-500/20 text-cyan-300 font-bold text-xs">IN PROGRESS</span>
           </div>

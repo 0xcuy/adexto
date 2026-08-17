@@ -8,31 +8,31 @@ export default function DocsPage() {
       {/* Header */}
       <div className="border-b-2 border-white/20 pb-6 mb-10">
         <div className="text-xs font-mono text-cyan-300 font-bold mb-2">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
-        <h1 className="text-3xl sm:text-4xl font-black text-white">ADEXTO Multi-Chain &amp; ETHOnline 2026 Stack</h1>
-        <p className="text-sm text-slate-200 mt-2 font-medium">Complete architecture uniting 0G TEE Compute, Uniswap v4 Hooks, The Graph, 1inch, World ID, Chainlink, and Cloudflare Workers x402.</p>
+        <h1 className="text-3xl sm:text-4xl font-black text-white">ADEXTO Enterprise Multi-Chain Infrastructure</h1>
+        <p className="text-sm text-slate-200 mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, Uniswap v4 Hooks, The Graph Network, World ID ZKP, Chainlink CCIP, and Cloudflare Workers x402.</p>
       </div>
 
-      {/* Sponsor Matrix Section */}
+      {/* Enterprise Architecture Stack */}
       <div className="glass-panel p-8 rounded-3xl border-2 border-white/20 mb-12 space-y-6 shadow-2xl">
         <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 font-bold">
           <Award className="w-4 h-4 text-emerald-400" />
-          <span>ETHONLINE 2026 ARCHITECTURE MATRIX ($77,000 TOTAL BOUNTY TRACK)</span>
+          <span>PRODUCTION ARCHITECTURE &amp; PROTOCOL COMPOSITION</span>
         </div>
-        <h2 className="text-2xl font-black text-white">Native Multi-Sponsor Composition</h2>
+        <h2 className="text-2xl font-black text-white">Enterprise Infrastructure Layer</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-medium">
           <div className="p-4 rounded-xl bg-[#070a14] border border-cyan-500/30 space-y-1.5">
-            <strong className="text-cyan-300 block font-bold text-sm">0G ($15,000)</strong>
+            <strong className="text-cyan-300 block font-bold text-sm">0G Compute &amp; DA Turbo</strong>
             <p className="text-slate-300">Hardware TEE compute on AMD SEV-SNP (anti-rug agent) + 50GB/s decentralized data availability and long-term memory storage.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-1.5">
-            <strong className="text-purple-300 block font-bold text-sm">Uniswap Foundation ($5,000)</strong>
+            <strong className="text-purple-300 block font-bold text-sm">Uniswap v4 Sovereign Hooks</strong>
             <p className="text-slate-300">Custom Uniswap v4 Sovereign Hooks intercepting <code className="text-purple-300">afterSwap()</code> to split 0.20% LP fees and 0.10% buybacks.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30 space-y-1.5">
-            <strong className="text-pink-300 block font-bold text-sm">The Graph ($15,000)</strong>
+            <strong className="text-pink-300 block font-bold text-sm">The Graph Decentralized Network</strong>
             <p className="text-slate-300">Custom subgraphs indexing factory deployments, pool depth, swap transactions, and real-time treasury buyback burns.</p>
           </div>
 
@@ -42,12 +42,12 @@ export default function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-blue-500/30 space-y-1.5">
-            <strong className="text-blue-300 block font-bold text-sm">1inch API ($7,000)</strong>
+            <strong className="text-blue-300 block font-bold text-sm">1inch Fusion &amp; AMM Routing</strong>
             <p className="text-slate-300">Optimal multi-path liquidity routing for automated agent treasury buybacks on secondary markets.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-emerald-500/30 space-y-1.5">
-            <strong className="text-emerald-300 block font-bold text-sm">World ID &amp; Chainlink ($10,000)</strong>
+            <strong className="text-emerald-300 block font-bold text-sm">World ID &amp; Chainlink CCIP</strong>
             <p className="text-slate-300">World ID proof-of-human anti-sybil bonding curve gating + Chainlink CCIP for cross-chain treasury bridging.</p>
           </div>
         </div>
