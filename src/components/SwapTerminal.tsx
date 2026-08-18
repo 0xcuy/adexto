@@ -198,9 +198,13 @@ export default function SwapTerminal() {
   }, [swap.parsedAmount, swap.mode, swap.tokenDecimals, nativeUsd, tokenPriceUsd]);
 
   const feeUsd = useMemo(() => {
-    if (!swap.quote) return { lp: 0, buyback: 0 };
+    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0 };
     const native = (v: bigint) => Number(ethers.formatEther(v));
-    return { lp: native(swap.quote.lpFee) * nativeUsd, buyback: native(swap.quote.treasuryFee) * nativeUsd };
+    return {
+      lp: native(swap.quote.lpFee) * nativeUsd,
+      creator: native(swap.quote.creatorFee) * nativeUsd,
+      buyback: native(swap.quote.treasuryFee) * nativeUsd,
+    };
   }, [swap.quote, nativeUsd]);
 
   const tradableCount = markets.filter((m) => m.tradable).length;
@@ -516,9 +520,15 @@ export default function SwapTerminal() {
           {selected && (
             <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 space-y-1.5 text-xs font-mono mb-5 text-slate-100">
               <div className="flex justify-between">
-                <span>Liquidity fee ({(selected.lpFeeBps / 100).toFixed(2)}%) — stays in pool</span>
+                <span>Curve depth ({(selected.lpFeeBps / 100).toFixed(2)}%) — stays in curve</span>
                 <span className="text-zinc-200">{formatUsd(feeUsd.lp)}</span>
               </div>
+              {swap.pool?.creatorFeeBps ? (
+                <div className="flex justify-between text-emerald-300">
+                  <span>↳ Creator ({(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}%)</span>
+                  <span>{formatUsd(feeUsd.creator)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between text-pink-300 font-bold">
                 <span className="flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 text-pink-400" /> Agent buyback (

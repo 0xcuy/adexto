@@ -11,7 +11,7 @@ import {
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
-import { FACTORY_V2_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
+import { FACTORY_V3_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 
@@ -75,14 +75,14 @@ export default function StudioPage() {
   const [tokenName, setTokenName] = useState("Aegis Quant AI");
   const [tokenTicker, setTokenTicker] = useState("AQUANT");
   const [tokenSupply, setTokenSupply] = useState("1,000,000,000");
-  const [poolSharePct, setPoolSharePct] = useState(80);
-  const [liquiditySeed, setLiquiditySeed] = useState("0.05");
   const [generatedLogo, setGeneratedLogo] = useState<string | null>("/logo.svg");
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
   const [feeTier, setFeeTier] = useState<"low" | "standard" | "meme">("standard");
   const [totalSwapFee, setTotalSwapFee] = useState(0.3);
-  const [treasuryCut, setTreasuryCut] = useState(0.1);
+  /** Streamed to the creator on every swap — the reason no free token allocation is needed. */
+  const [creatorCut, setCreatorCut] = useState(0.1);
+  const [treasuryCut, setTreasuryCut] = useState(0.05);
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
   const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
   const [selectedModel, setSelectedModel] = useState("glm-5.2");
@@ -101,8 +101,21 @@ export default function StudioPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const supplyNumber = Number(tokenSupply.replace(/[^0-9]/g, "")) || 0;
-  const lpCut = Math.max(0, totalSwapFee - treasuryCut);
-  const seedNumber = Number(liquiditySeed) || 0;
+  /**
+   * The fee is split three ways inside the same total, so traders are never
+   * charged extra to pay the creator. Depth is whatever is left after the creator
+   * and buyback shares.
+   */
+  const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut);
+
+  /** Opening market cap in native units for a chain; see ChainInfo.defaultVirtualNative. */
+  const virtualNativeFor = (chain: ChainInfo) => chain.defaultVirtualNative;
+  /**
+   * Chain used for the illustrative opening price. Prefers the first chain that
+   * will actually launch, so the number shown matches what the user is about to do.
+   */
+  const primaryChain: ChainInfo =
+    liveChains.find((c) => targetChainIds.includes(c.chainId)) ?? liveChains[0] ?? CHAIN_LIST[0];
 
   // Attestation is bound to the address, so changing accounts invalidates it.
   useEffect(() => {
@@ -240,8 +253,8 @@ export default function StudioPage() {
       setGlobalError("Sign the launch attestation first.");
       return;
     }
-    if (seedNumber <= 0) {
-      setGlobalError("Seed liquidity must be greater than zero — the pool needs a native side to quote against.");
+    if (supplyNumber <= 0) {
+      setGlobalError("Supply must be greater than zero — the curve needs tokens to sell.");
       return;
     }
     if (supplyNumber <= 0) {
@@ -283,7 +296,7 @@ export default function StudioPage() {
     // Stage 1 — anchor metadata and get the attestation root that goes in calldata.
     let attestationRoot: string;
     let daStorageTx: string | null = null;
-    let lpFeeBps = Math.round(lpCut * 100);
+    let lpFeeBps = Math.round(depthCut * 100);
     let treasuryBuybackBps = Math.round(treasuryCut * 100);
     try {
       const res = await fetch("/api/deploy", {
@@ -318,20 +331,25 @@ export default function StudioPage() {
     }
 
     // Stage 2 — one transaction per chain. Each is independent and reported honestly.
-    const ethereum = getActiveEip1193();
-    const iface = new ethers.Interface(FACTORY_V2_ABI);
+    //
+    // Arguments are built per chain because `virtualNative` is chain-specific: it
+    // is the opening market cap in that chain's native asset, so a single shared
+    // number would value the same launch wildly differently across chains.
+    const argsFor = (chain: ChainInfo) =>
+      [
+        tokenName,
+        symbol,
+        BigInt(supplyNumber),
+        address as string,
+        ethers.parseEther(String(chain.defaultVirtualNative)),
+        BigInt(Math.round(totalSwapFee * 100)),
+        BigInt(Math.round(creatorCut * 100)),
+        BigInt(treasuryBuybackBps),
+        attestationRoot,
+      ] as const;
 
-    const value = ethers.parseEther(liquiditySeed);
-    const args = [
-      tokenName,
-      symbol,
-      BigInt(supplyNumber),
-      address,
-      BigInt(Math.round(totalSwapFee * 100)),
-      BigInt(treasuryBuybackBps),
-      attestationRoot,
-      BigInt(Math.round(poolSharePct * 100)),
-    ] as const;
+    const ethereum = getActiveEip1193();
+    const iface = new ethers.Interface(FACTORY_V3_ABI);
 
     for (const chain of chains) {
       try {
@@ -351,11 +369,11 @@ export default function StudioPage() {
 
             const provider = new ethers.BrowserProvider(ethereum);
             const signer = await provider.getSigner();
-            const candidate = new ethers.Contract(chain.factoryV2Address as string, FACTORY_V2_ABI, signer);
+            const candidate = new ethers.Contract(chain.factoryV3Address as string, FACTORY_V3_ABI, signer);
 
             // Simulate first: a revert here costs nothing and gives the real reason.
             updateResult(chain.chainId, { message: "Simulating launch…" });
-            await candidate.deployTrinityProject.staticCall(...args, { value });
+            await candidate.deployTrinity.staticCall(...argsFor(chain));
             factory = candidate;
           } catch (error) {
             preflightError = error;
@@ -366,7 +384,8 @@ export default function StudioPage() {
         if (!factory) throw preflightError;
 
         updateResult(chain.chainId, { message: "Confirm in your wallet…" });
-        const tx = await factory.deployTrinityProject(...args, { value });
+        // No `value`: a launch costs gas only.
+        const tx = await factory.deployTrinity(...argsFor(chain));
         updateResult(chain.chainId, { status: "confirming", txHash: tx.hash, message: "Waiting for confirmation…" });
 
         const receipt = await tx.wait();
@@ -507,8 +526,10 @@ export default function StudioPage() {
   const launchTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && !blockedChainIds.has(c.chainId));
   const skippedTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && blockedChainIds.has(c.chainId));
 
+  // No seed to validate any more: a launch needs supply, a signed attestation and
+  // at least one chain that is not already using this ticker.
   const canDeploy =
-    isConnected && Boolean(attestation) && seedNumber > 0 && liveChains.length > 0 && launchTargets.length > 0;
+    isConnected && Boolean(attestation) && supplyNumber > 0 && liveChains.length > 0 && launchTargets.length > 0;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
@@ -736,32 +757,27 @@ export default function StudioPage() {
                 </div>
               </Section>
 
-              {/* Pool */}
-              <Section title="2. Sovereign Hook pool" tone="purple">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Field label="Seed liquidity (native, required)" hint="Sent as msg.value and becomes the pool's native reserve">
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={liquiditySeed}
-                      onChange={(e) => setLiquiditySeed(e.target.value)}
-                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border text-white font-semibold focus:outline-none ${
-                        seedNumber <= 0 ? "border-red-500/60" : "border-white/[0.06] focus:border-purple-400"
-                      }`}
-                    />
-                  </Field>
-                  <Field label={`Supply into pool: ${poolSharePct}%`} hint={`${(100 - poolSharePct)}% goes to your wallet`}>
-                    <input
-                      type="range"
-                      min={10}
-                      max={100}
-                      step={5}
-                      value={poolSharePct}
-                      onChange={(e) => setPoolSharePct(Number(e.target.value))}
-                      className="w-full accent-purple-400"
-                    />
-                  </Field>
+              {/* Curve.
+                  The seed-liquidity input and the supply-split slider used to live
+                  here. Both are gone: the curve needs no native deposit, and 100%
+                  of supply enters it, so there is nothing left to configure and
+                  nothing for the creator to dump. */}
+              <Section title="2. Bonding curve" tone="purple">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-2.5 flex items-start gap-2 text-[10px] font-mono">
+                  <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                  <span className="text-slate-300">
+                    <strong className="text-emerald-300">No liquidity deposit.</strong> The curve opens with a virtual
+                    reserve, so you pay gas only — typically under $0.10 per chain. Every token is tradable from the
+                    launch transaction onward.
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Row
+                    label="Supply into curve"
+                    value={`100% · ${supplyNumber > 0 ? supplyNumber.toLocaleString("en-US") : "—"}`}
+                  />
+                  <Row label="Your token allocation" value="0 — you earn from fees" />
                 </div>
 
                 <div className="p-2 rounded-xl bg-black/40 flex items-start gap-2 text-[10px] font-mono text-zinc-400">
@@ -769,32 +785,38 @@ export default function StudioPage() {
                   <span>
                     Opening price ≈{" "}
                     <strong className="text-cyan-300">
-                      {supplyNumber > 0 && seedNumber > 0
-                        ? formatSmallNumber(seedNumber / ((supplyNumber * poolSharePct) / 100))
-                        : "—"}
+                      {supplyNumber > 0 ? formatSmallNumber(virtualNativeFor(primaryChain) / supplyNumber) : "—"}
                     </strong>{" "}
-                    native per token, from the seeded reserves.
+                    {primaryChain.nativeSymbol} per token, i.e. an opening market cap of{" "}
+                    <strong className="text-cyan-300">
+                      {virtualNativeFor(primaryChain).toLocaleString("en-US")} {primaryChain.nativeSymbol}
+                    </strong>
+                    .
                     <br />
                     <span className="text-amber-300/90">
-                      Seeded liquidity is permanently locked: the pool has no withdrawal function, so neither you nor
-                      anyone else can pull it out. The liquidity fee stays in the pool and deepens it over time.
+                      The curve has no withdrawal function, so nobody can drain it — not you either. The depth share of
+                      each fee stays in the curve, which raises the price floor as volume accumulates.
                     </span>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                  {/* Three-way split: depth · creator · buyback. The creator slice
+                      is what replaces a free token allocation, so there is nothing
+                      for a creator to dump. */}
                   {(
                     [
-                      ["low", 0.1, 0.02, "0.10% Low"],
-                      ["standard", 0.3, 0.1, "0.30% Standard"],
-                      ["meme", 0.5, 0.2, "0.50% Meme"],
+                      ["low", 0.1, 0.04, 0.02, "0.10% Low"],
+                      ["standard", 0.3, 0.1, 0.05, "0.30% Standard"],
+                      ["meme", 0.5, 0.2, 0.1, "0.50% Meme"],
                     ] as const
-                  ).map(([tier, fee, cut, label]) => (
+                  ).map(([tier, fee, creator, cut, label]) => (
                     <button
                       key={tier}
                       onClick={() => {
                         setFeeTier(tier);
                         setTotalSwapFee(fee);
+                        setCreatorCut(creator);
                         setTreasuryCut(cut);
                       }}
                       className={`p-2 rounded-xl text-left transition-all border ${
@@ -805,21 +827,27 @@ export default function StudioPage() {
                     >
                       <span className="font-bold block text-[11px] text-purple-200">{label}</span>
                       <span className="text-[9px] text-zinc-400">
-                        {(fee - cut).toFixed(2)}% depth · {cut.toFixed(2)}% buyback
+                        {(fee - creator - cut).toFixed(2)}% depth · {creator.toFixed(2)}% you · {cut.toFixed(2)}% buyback
                       </span>
                     </button>
                   ))}
                 </div>
 
                 <div className="p-2 rounded-xl bg-black/40 space-y-1">
-                  <div className="flex justify-between text-[10px] font-mono">
-                    <span className="text-cyan-300 font-medium">Pool depth: {lpCut.toFixed(2)}%</span>
-                    <span className="text-pink-400 font-medium">Buyback vault: {treasuryCut.toFixed(2)}%</span>
+                  <div className="flex flex-wrap justify-between gap-x-3 text-[10px] font-mono">
+                    <span className="text-cyan-300 font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
+                    <span className="text-emerald-300 font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
+                    <span className="text-pink-400 font-medium">Buyback: {treasuryCut.toFixed(2)}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden flex">
-                    <div className="bg-cyan-400 h-full" style={{ width: `${(lpCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-cyan-400 h-full" style={{ width: `${(depthCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-emerald-400 h-full" style={{ width: `${(creatorCut / totalSwapFee) * 100}%` }} />
                     <div className="bg-pink-500 h-full" style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }} />
                   </div>
+                  <span className="block text-[9px] font-mono text-emerald-300/80">
+                    You earn {creatorCut.toFixed(2)}% of every swap, streamed to your wallet. You receive no free tokens,
+                    so there is nothing you could dump.
+                  </span>
                   <span className="text-[9px] font-mono text-zinc-500 block">
                     Subdomain: {customSubdomain || "myswap"}.adexto.xyz
                   </span>
@@ -940,8 +968,8 @@ export default function StudioPage() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5" /> Launch on {launchTargets.map((c) => c.key).join(" + ")} ·{" "}
-                    {liquiditySeed} seed each
+                    <Sparkles className="w-3.5 h-3.5" /> Launch on {launchTargets.map((c) => c.key).join(" + ")} · gas
+                    only
                   </>
                 )}
               </button>
@@ -974,15 +1002,15 @@ export default function StudioPage() {
                     </p>
                   </div>
                   <div className="bg-[#050912] p-3">
-                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">Per-chain funding</p>
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">Per-chain cost</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                      Gas is cheap (under $0.10). The real cost is the seed, roughly 16&times; gas, paid in that
-                      chain&apos;s native asset and <span className="text-amber-300">locked permanently</span>.
+                      Gas only, usually under $0.10. You need a little of each chain&apos;s native asset to pay it —
+                      <span className="text-emerald-300"> no liquidity deposit</span>.
                     </p>
                   </div>
                 </div>
                 <p className="border-t border-white/10 px-3 py-2 font-mono text-[10px] text-zinc-500">
-                  A chain with insufficient balance is skipped on its own — the others still launch.
+                  A chain without enough gas is skipped on its own — the others still launch.
                 </p>
               </div>
 

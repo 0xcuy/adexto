@@ -367,7 +367,22 @@ Penjagaan yang terbukti menolak: jual melebihi token beredar, `minTokensOut` mus
 
 **Catatan harness.** Perhitungan "berapa yang saya terima" wajib memakai `txCost()`, bukan `gasUsed * gasPrice`. Di chain OP-stack seperti Base, receipt mentah punya `l1Fee` yang juga dipotong dari saldo; mengabaikannya membuat klaim fee tampak nol padahal pembayarannya berhasil. Kesalahan ini sempat memunculkan 3 kegagalan palsu di Base Sepolia.
 
-**Belum dikerjakan:** sisi aplikasi (studio masih meminta seed, `/swap` dan terminal masih membaca ABI `SovereignHook`). Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
+### Sisi aplikasi sudah menyusul kontrak
+
+Mengubah kontrak tanpa mengubah UI berarti perubahan setengah jadi, jadi keduanya kini sejalan. Uji: `node audit_curve_ui_flow.mjs` (devchain) — **23 LULUS / 0 GAGAL**.
+
+- `src/lib/dex.ts`: `SOVEREIGN_CURVE_ABI` + `FACTORY_V3_ABI`. `PoolState` bertambah `isCurve`, `creatorFeeBps`, `virtualNative`, `realNative`, `creatorOwed`, `creator`, `floorPriceNative`. Pembacaan khusus kurva dibungkus `try`: pada `SovereignHook` lama panggilan itu revert, jadi satu jalur kode melayani kedua generasi tanpa perlu flag dari pemanggil. `Quote` bertambah `creatorFee`, dan matematika kuotasi lokal ikut memotongnya — kalau tidak, setiap kuotasi akan kelebihan sebesar fee creator dan hasil on-chain tidak cocok dengan yang dilihat user.
+- `src/lib/chains.ts`: `factoryV3Address`, `launchGeneration` (v3 menang bila keduanya ada), dan `defaultVirtualNative` per chain — 0G 1.500 · Base/Arbitrum 1 · Monad 60.000, semuanya menyasar ~$3k market cap pembukaan. Satu angka bersama akan menilai launch 0G beberapa dolar dan launch Base ribuan dolar.
+- **Studio:** field *Seed liquidity* dan slider *Supply into pool* **dihapus**. Tier fee jadi tiga irisan (depth · creator · buyback) di dalam total yang sama. Tombol berbunyi `Launch on … · gas only`. Calldata `deployTrinity` dibangun **per chain** karena `virtualNative` berbeda tiap chain.
+- **`/swap` & terminal:** baris fee menampilkan tiga irisan, termasuk porsi creator.
+- **Terminal:** panel *Your creator revenue* dengan tombol Claim, hanya tampil bagi alamat creator yang terkunci di kurva.
+- `/api/deploy`: membaca event v3 (`curve`, `virtualNative`, `curveTokens`) dan tetap menerima nama field v2, sehingga registry lama tetap terbaca.
+
+Terverifikasi lewat UI: `/api/deploy` melaporkan `gen=v3`, launch memakan **gas saja** (0,00524 di devchain), 100% supply di kurva, creator memegang **nol** token, pembelian menaikkan native nyata kurva, dan klaim fee creator membawa `creatorOwed` ke nol.
+
+**Jebakan yang sempat membuang waktu:** sebuah `next-server` lama berumur 1,75 jam masih menahan port 3100, sehingga build baru tidak pernah tersaji dan hasil verifikasi terlihat seperti kode belum berubah. Periksa `ss -ltnp | grep :3100` sebelum menyimpulkan build tidak berlaku.
+
+**Belum dikerjakan:** `audit_e2e_flow.mjs`, `audit_multichain_flow.mjs`, dan `audit_studio_testnet_flow.mjs` masih menguji alur berseed dan perlu disesuaikan. Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
 
 ## 4b. Jebakan saat menguji (sudah pernah menyesatkan)
 

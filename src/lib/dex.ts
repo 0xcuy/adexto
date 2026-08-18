@@ -48,6 +48,54 @@ export const ERC20_ABI = [
   "function totalSupply() view returns (uint256)",
 ];
 
+/**
+ * SovereignCurve. Intentionally overlaps SovereignHook for the shared reads and
+ * for `buy`/`sell`, so the trading surfaces did not need forking. The differences
+ * that matter: quotes return a fourth value (the creator share), and the curve
+ * exposes its virtual reserve, real balance and creator accounting.
+ */
+export const SOVEREIGN_CURVE_ABI = [
+  "function initialized() view returns (bool)",
+  "function targetToken() view returns (address)",
+  "function getReserves() view returns (uint256 reserveNative, uint256 reserveToken)",
+  "function lpFeeBps() view returns (uint256)",
+  "function depthFeeBps() view returns (uint256)",
+  "function creatorFeeBps() view returns (uint256)",
+  "function treasuryBuybackBps() view returns (uint256)",
+  "function virtualNative() view returns (uint256)",
+  "function realNative() view returns (uint256)",
+  "function tokensSold() view returns (uint256)",
+  "function curveTokens() view returns (uint256)",
+  "function creator() view returns (address)",
+  "function creatorOwed() view returns (uint256)",
+  "function totalCreatorFeesPaid() view returns (uint256)",
+  "function treasuryNative() view returns (uint256)",
+  "function totalTokensBurned() view returns (uint256)",
+  "function totalVolumeNative() view returns (uint256)",
+  "function swapCount() view returns (uint256)",
+  "function spotPriceNativePerToken() view returns (uint256)",
+  "function floorPriceNativePerToken() view returns (uint256)",
+  "function getBuyQuote(uint256 nativeIn) view returns (uint256 tokensOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee)",
+  "function getSellQuote(uint256 tokenIn) view returns (uint256 nativeOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee)",
+  "function buy(uint256 minTokensOut, address to, uint256 deadline) payable returns (uint256)",
+  "function sell(uint256 tokenAmountIn, uint256 minNativeOut, address to, uint256 deadline) returns (uint256)",
+  "function claimCreatorFees() returns (uint256)",
+  "event Swap(address indexed trader, address indexed recipient, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 nativeReserveAfter, uint256 tokenReserveAfter)",
+];
+
+/**
+ * FactoryV3. Not payable: requiring native to launch is exactly the barrier this
+ * generation removes. `virtualNative` equals the opening market cap in native
+ * terms because 100% of supply enters the curve.
+ */
+export const FACTORY_V3_ABI = [
+  "function deployTrinity(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 virtualNative, uint256 swapFeeBps, uint256 creatorShareBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot) returns (address token, address curve)",
+  "function isSymbolAvailable(string symbol) view returns (bool)",
+  "function totalProjectsCount() view returns (uint256)",
+  "function curveOf(address token) view returns (address)",
+  "event TrinityProjectDeployed(address indexed token, address indexed curve, address indexed creator, string name, string symbol, uint256 initialSupply, uint256 curveTokens, uint256 virtualNative, uint256 depthFeeBps, uint256 creatorFeeBps, uint256 treasuryBuybackBps, bytes32 teeAttestationRoot)",
+];
+
 export const FACTORY_V2_ABI = [
   "function deployTrinityProject(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 swapFeeBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot, uint256 poolTokenBps) payable returns (address token, address pool)",
   "function isSymbolAvailable(string symbol) view returns (bool)",
@@ -65,15 +113,35 @@ export interface PoolState {
   initialized: boolean;
   reserveNative: bigint;
   reserveToken: bigint;
+  /** Depth share of the fee. Named lpFeeBps for continuity; it is retained by the curve. */
   lpFeeBps: bigint;
   treasuryBuybackBps: bigint;
   tokenDecimals: number;
   spotPriceNative: number;
+
+  // ── Bonding curve extras. Zero/false when the venue is a legacy seeded pool. ──
+  /** True when the venue is a SovereignCurve rather than a seeded SovereignHook. */
+  isCurve: boolean;
+  /** Share of the fee streamed to the creator. */
+  creatorFeeBps: bigint;
+  /** Virtual native reserve; never real money. Sets the opening price. */
+  virtualNative: bigint;
+  /** Real native actually held for the curve. */
+  realNative: bigint;
+  /** Native accrued to the creator, claimable. */
+  creatorOwed: bigint;
+  /** Immutable fee recipient. */
+  creator: string | null;
+  /** Lowest price the curve can return to; rises as depth fees settle. */
+  floorPriceNative: number;
 }
 
 export interface Quote {
   amountOut: bigint;
+  /** Depth portion, retained by the curve. */
   lpFee: bigint;
+  /** Streamed to the creator. */
+  creatorFee: bigint;
   treasuryFee: bigint;
   priceImpactBps: number;
 }
@@ -86,7 +154,7 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
   if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return null;
   try {
     const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
-    const pool = new ethers.Contract(poolAddress, SOVEREIGN_HOOK_ABI, provider);
+    const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const [initialized, tokenAddress, reserves, lpFeeBps, treasuryBuybackBps] = await Promise.all([
       pool.initialized(),
@@ -97,6 +165,38 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
     ]);
 
     if (!tokenAddress || tokenAddress === ethers.ZeroAddress) return null;
+
+    /**
+     * Curve-only reads. A seeded SovereignHook does not have these, so the calls
+     * revert and the venue is treated as a legacy pool with zeroed extras. This
+     * is how one code path serves both generations without a flag from the caller.
+     */
+    let isCurve = false;
+    let creatorFeeBps = 0n;
+    let virtualNative = 0n;
+    let realNative = 0n;
+    let creatorOwed = 0n;
+    let creator: string | null = null;
+    let floorPriceRaw = 0n;
+    try {
+      const [cf, vn, rn, owed, who, floor] = await Promise.all([
+        pool.creatorFeeBps(),
+        pool.virtualNative(),
+        pool.realNative(),
+        pool.creatorOwed(),
+        pool.creator(),
+        pool.floorPriceNativePerToken(),
+      ]);
+      isCurve = true;
+      creatorFeeBps = BigInt(cf);
+      virtualNative = BigInt(vn);
+      realNative = BigInt(rn);
+      creatorOwed = BigInt(owed);
+      creator = who;
+      floorPriceRaw = BigInt(floor);
+    } catch {
+      isCurve = false;
+    }
 
     let tokenDecimals = 18;
     try {
@@ -120,38 +220,76 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
       treasuryBuybackBps: BigInt(treasuryBuybackBps),
       tokenDecimals,
       spotPriceNative,
+      isCurve,
+      creatorFeeBps,
+      virtualNative,
+      realNative,
+      creatorOwed,
+      creator,
+      floorPriceNative: Number(ethers.formatEther(floorPriceRaw)),
     };
   } catch {
     return null;
   }
 }
 
-/** Mirrors SovereignHook.getBuyQuote exactly so the UI can quote without an RPC hop. */
+/**
+ * Mirrors `getBuyQuote` exactly so the UI can quote without an RPC hop.
+ *
+ * The creator share is part of the same total, so it must be deducted from the
+ * amount that moves along the curve. Leaving it out would over-quote every trade
+ * by the creator fee and the on-chain result would not match what the user saw.
+ */
 export function quoteBuyLocal(state: PoolState, nativeIn: bigint): Quote {
   if (!state.initialized || nativeIn <= 0n) {
-    return { amountOut: 0n, lpFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
+    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
   }
   const lpFee = (nativeIn * state.lpFeeBps) / BPS;
+  const creatorFee = (nativeIn * state.creatorFeeBps) / BPS;
   const treasuryFee = (nativeIn * state.treasuryBuybackBps) / BPS;
-  const inAfterFee = nativeIn - lpFee - treasuryFee;
+  const inAfterFee = nativeIn - lpFee - creatorFee - treasuryFee;
   const amountOut = (state.reserveToken * inAfterFee) / (state.reserveNative + inAfterFee);
-  return { amountOut, lpFee, treasuryFee, priceImpactBps: impactBps(inAfterFee, state.reserveNative) };
+  return {
+    amountOut,
+    lpFee,
+    creatorFee,
+    treasuryFee,
+    priceImpactBps: impactBps(inAfterFee, state.reserveNative),
+  };
 }
 
-/** Mirrors SovereignHook.getSellQuote exactly. */
+/** Mirrors `getSellQuote` exactly: fees come off the output. */
 export function quoteSellLocal(state: PoolState, tokenIn: bigint): Quote {
   if (!state.initialized || tokenIn <= 0n) {
-    return { amountOut: 0n, lpFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
+    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
   }
   const grossOut = (state.reserveNative * tokenIn) / (state.reserveToken + tokenIn);
   const lpFee = (grossOut * state.lpFeeBps) / BPS;
+  const creatorFee = (grossOut * state.creatorFeeBps) / BPS;
   const treasuryFee = (grossOut * state.treasuryBuybackBps) / BPS;
   return {
-    amountOut: grossOut - lpFee - treasuryFee,
+    amountOut: grossOut - lpFee - creatorFee - treasuryFee,
     lpFee,
+    creatorFee,
     treasuryFee,
     priceImpactBps: impactBps(tokenIn, state.reserveToken),
   };
+}
+
+/** Claim accrued creator fees. Funds can only go to the curve's immutable creator. */
+export async function claimCreatorFees(params: {
+  ethereum: any;
+  chain: ChainInfo;
+  curveAddress: string;
+}): Promise<{ hash: string }> {
+  const { ethereum, chain, curveAddress } = params;
+  await ensureWalletChain(ethereum, chain);
+  const provider = new ethers.BrowserProvider(ethereum);
+  const signer = await provider.getSigner();
+  const curve = new ethers.Contract(curveAddress, SOVEREIGN_CURVE_ABI, signer);
+  const tx = await curve.claimCreatorFees();
+  const receipt = await tx.wait();
+  return { hash: receipt?.hash ?? tx.hash };
 }
 
 function impactBps(amountIn: bigint, reserveIn: bigint): number {

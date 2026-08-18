@@ -27,6 +27,7 @@ export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Devchain";
  */
 const DEVCHAIN_RPC = process.env.NEXT_PUBLIC_DEVCHAIN_RPC || "";
 const DEVCHAIN_FACTORY = process.env.NEXT_PUBLIC_FACTORY_V2_DEVCHAIN || "";
+const DEVCHAIN_FACTORY_V3 = process.env.NEXT_PUBLIC_FACTORY_V3_DEVCHAIN || "";
 export const DEVCHAIN_ENABLED = Boolean(DEVCHAIN_RPC);
 export const DEVCHAIN_ID = Number(process.env.NEXT_PUBLIC_DEVCHAIN_CHAIN_ID || 31337);
 const DEVCHAIN_NAME = process.env.NEXT_PUBLIC_DEVCHAIN_NAME || "Local Devchain";
@@ -46,6 +47,22 @@ export interface ChainInfo {
   factoryAddress: string;
   /** v2 factory — deploys token + executable SovereignHook AMM atomically. */
   factoryV2Address: string | null;
+  /**
+   * v3 factory — deploys token + SovereignCurve. No native seed required and
+   * 100% of supply enters the curve. Takes precedence over v2 when present.
+   */
+  factoryV3Address: string | null;
+  /** Which generation a launch will use on this chain. */
+  launchGeneration: "v3" | "v2" | null;
+  /**
+   * Virtual native reserve for a new curve, in whole native units.
+   *
+   * Because 100% of supply enters the curve, this number *is* the opening market
+   * capitalisation denominated in the chain's native asset. It is therefore set
+   * per chain so the opening valuation lands in the same USD range everywhere
+   * (~$3k), rather than being 1500x apart between 0G and ETH.
+   */
+  defaultVirtualNative: number;
   /** Legacy v1 hook. Cannot settle trades (no receive/swap entrypoint). */
   legacyHookAddress: string;
   governorAddress: string;
@@ -61,6 +78,7 @@ interface ChainSource {
   readonly blockExplorer: string;
   readonly factoryAddress: string;
   readonly factoryV2Address: string | null;
+  readonly factoryV3Address?: string | null;
   readonly sovereignHookAddress: string;
   readonly governorAddress: string;
 }
@@ -77,7 +95,10 @@ interface ChainSource {
  * Unset in production, where it has no effect whatsoever.
  */
 type ChainOverride = Partial<
-  Pick<ChainInfo, "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "factoryV2Address">
+  Pick<
+    ChainInfo,
+    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "factoryV2Address" | "factoryV3Address"
+  >
 >;
 
 const CHAIN_OVERRIDES: Partial<Record<ChainKey, ChainOverride>> = (() => {
@@ -99,6 +120,21 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
   const chainId = o.chainId ?? source.chainId;
   const name = o.name ?? source.chainName;
   const factoryV2Address = o.factoryV2Address ?? source.factoryV2Address ?? null;
+  const factoryV3Address = o.factoryV3Address ?? source.factoryV3Address ?? null;
+  // v3 wins when both exist: it is the zero-deposit generation, and offering a
+  // seeded launch beside a free one would only confuse the creator.
+  const launchGeneration: "v3" | "v2" | null = factoryV3Address ? "v3" : factoryV2Address ? "v2" : null;
+  // Targets roughly $3k of opening market cap on each chain, in line with how
+  // comparable launchpads open. Native prices differ by orders of magnitude, so a
+  // single shared number would value a 0G launch at a few dollars and a Base
+  // launch at thousands.
+  const DEFAULT_VIRTUAL_NATIVE: Record<ChainKey, number> = {
+    "0G": 1500,
+    Arbitrum: 1,
+    Base: 1,
+    Monad: 60_000,
+    Devchain: 1,
+  };
 
   return {
     key,
@@ -111,9 +147,12 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     nativeCurrencyName: nativeName,
     factoryAddress: source.factoryAddress,
     factoryV2Address,
+    factoryV3Address,
+    launchGeneration,
+    defaultVirtualNative: DEFAULT_VIRTUAL_NATIVE[key],
     legacyHookAddress: source.sovereignHookAddress,
     governorAddress: source.governorAddress,
-    dexLive: Boolean(factoryV2Address),
+    dexLive: Boolean(factoryV3Address || factoryV2Address),
   };
 }
 
@@ -133,9 +172,13 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     nativeCurrencyName: DEVCHAIN_SYMBOL,
     factoryAddress: DEVCHAIN_FACTORY,
     factoryV2Address: DEVCHAIN_ENABLED && DEVCHAIN_FACTORY ? DEVCHAIN_FACTORY : null,
+    factoryV3Address: DEVCHAIN_ENABLED && DEVCHAIN_FACTORY_V3 ? DEVCHAIN_FACTORY_V3 : null,
+    launchGeneration:
+      DEVCHAIN_ENABLED && DEVCHAIN_FACTORY_V3 ? "v3" : DEVCHAIN_ENABLED && DEVCHAIN_FACTORY ? "v2" : null,
+    defaultVirtualNative: 1,
     legacyHookAddress: "",
     governorAddress: "",
-    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_FACTORY),
+    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_FACTORY_V3 || DEVCHAIN_FACTORY),
   },
 };
 

@@ -5,7 +5,7 @@ import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
 import { checkSymbolAvailable, findProjectGroup, registerProject, listProjects } from "@/lib/registry";
-import { FACTORY_V2_ABI, SOVEREIGN_HOOK_ABI } from "@/lib/dex";
+import { FACTORY_V3_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
 
 /**
  * Two-stage launch API.
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         chainKey: c.key,
         chainId: c.chainId,
         chainName: c.name,
-        factoryV2: c.factoryV2Address,
+        factoryV2: c.factoryV2Address, factoryV3: c.factoryV3Address, launchGeneration: c.launchGeneration,
         dexLive: c.dexLive,
       })),
       registered: listProjects().map((p) => p.symbol),
@@ -154,15 +154,15 @@ async function handlePrepare(body: any) {
   }
 
   const allowed = chains.filter((c) => !blocked.some((b) => b.chain.chainId === c.chainId));
-  const deployable = allowed.filter((c) => c.dexLive && c.factoryV2Address);
+  const deployable = allowed.filter((c) => c.dexLive && (c.factoryV3Address || c.factoryV2Address));
   const unavailable = [
     ...allowed
-      .filter((c) => !c.dexLive || !c.factoryV2Address)
+      .filter((c) => !c.dexLive || !(c.factoryV3Address || c.factoryV2Address))
       .map((c) => ({
         chainKey: c.key,
         chainId: c.chainId,
         chainName: c.name,
-        reason: "AdextoTrinityFactoryV2 is not deployed on this chain yet, so no tradable pool can be created.",
+        reason: "No ADEXTO factory is deployed on this chain yet, so no tradable market can be created.",
       })),
     ...blocked.map((b) => ({
       chainKey: b.chain.key,
@@ -218,7 +218,7 @@ async function handlePrepare(body: any) {
       chainKey: c.key,
       chainId: c.chainId,
       chainName: c.name,
-      factoryV2: c.factoryV2Address,
+      factoryV2: c.factoryV2Address, factoryV3: c.factoryV3Address, launchGeneration: c.launchGeneration,
       nativeSymbol: c.nativeSymbol,
     })),
     unavailableChains: unavailable,
@@ -303,7 +303,7 @@ async function handleConfirm(body: any) {
   }
 
   // Recover token + pool from the factory event rather than trusting the client.
-  const iface = new ethers.Interface(FACTORY_V2_ABI);
+  const iface = new ethers.Interface(FACTORY_V3_ABI);
   let tokenAddress: string | null = null;
   let poolAddress: string | null = null;
   let onChainSymbol: string | null = null;
@@ -315,10 +315,15 @@ async function handleConfirm(body: any) {
       const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
       if (parsed?.name === "TrinityProjectDeployed") {
         tokenAddress = parsed.args.token;
-        poolAddress = parsed.args.pool;
+        // v3 names the venue `curve`; v2 named it `pool`. Accept either so a
+        // registry written by one generation is still readable by the other.
+        poolAddress = parsed.args.curve ?? parsed.args.pool;
         onChainSymbol = String(parsed.args.symbol).toUpperCase();
-        poolNative = Number(ethers.formatEther(BigInt(parsed.args.poolNativeAmount)));
-        poolTokens = Number(ethers.formatUnits(BigInt(parsed.args.poolTokenAmount), 18));
+        // v3 has no native deposit: the native side opens as `virtualNative`.
+        poolNative = Number(ethers.formatEther(BigInt(parsed.args.virtualNative ?? parsed.args.poolNativeAmount ?? 0)));
+        poolTokens = Number(
+          ethers.formatUnits(BigInt(parsed.args.curveTokens ?? parsed.args.poolTokenAmount ?? 0), 18)
+        );
         break;
       }
     } catch {
@@ -330,7 +335,7 @@ async function handleConfirm(body: any) {
     return NextResponse.json(
       {
         error:
-          "The transaction did not emit TrinityProjectDeployed. Launches must go through AdextoTrinityFactoryV2 so the token and pool addresses come from the chain.",
+          "The transaction did not emit TrinityProjectDeployed. Launches must go through an ADEXTO factory so the token and market addresses come from the chain.",
       },
       { status: 400 }
     );
@@ -352,7 +357,7 @@ async function handleConfirm(body: any) {
   let poolLive = false;
   if (poolAddress) {
     try {
-      const pool = new ethers.Contract(poolAddress, SOVEREIGN_HOOK_ABI, provider);
+      const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
       const [initialized, reserves] = await Promise.all([pool.initialized(), pool.getReserves()]);
       poolLive = Boolean(initialized);
       const reserveNative = Number(ethers.formatEther(BigInt(reserves[0])));

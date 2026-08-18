@@ -9,13 +9,14 @@ import {
 
 import { useWallet } from "@/context/WalletContext";
 import WalletMenu from "@/components/WalletMenu";
+import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import RealtimeCandleChart from "@/components/RealtimeCandleChart";
 import LiveOrderBook from "@/components/LiveOrderBook";
 import LiveTradeFeed from "@/components/LiveTradeFeed";
 import Link from "next/link";
 import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
-import { describeTxError } from "@/lib/dex";
+import { claimCreatorFees, describeTxError } from "@/lib/dex";
 import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
 
@@ -103,6 +104,8 @@ export default function TokenTerminal({
   const [prices, setPrices] = useState<AssetPrices>(FALLBACK_PRICES);
   const [showSlippage, setShowSlippage] = useState(false);
   const [copied, setCopied] = useState(false);
+ const [claimingFees, setClaimingFees] = useState(false);
+ const [claimLine, setClaimLine] = useState<string | null>(null);
 
   const onCorrectChain = isOnChain(project.chainId);
   const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
@@ -136,9 +139,13 @@ export default function TokenTerminal({
   }, [swap.parsedAmount, swap.mode, swap.tokenDecimals, nativeUsd, tokenPriceUsd]);
 
   const feeUsd = useMemo(() => {
-    if (!swap.quote) return { lp: 0, buyback: 0 };
+    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0 };
     const native = (v: bigint) => Number(ethers.formatEther(v));
-    return { lp: native(swap.quote.lpFee) * nativeUsd, buyback: native(swap.quote.treasuryFee) * nativeUsd };
+    return {
+      lp: native(swap.quote.lpFee) * nativeUsd,
+      creator: native(swap.quote.creatorFee) * nativeUsd,
+      buyback: native(swap.quote.treasuryFee) * nativeUsd,
+    };
   }, [swap.quote, nativeUsd]);
 
   const copyAddress = () => {
@@ -485,6 +492,63 @@ export default function TokenTerminal({
 
         {/* Right: swap + chat */}
         <div className="lg:col-span-5 space-y-4">
+          {/* Penghasilan creator.
+              Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
+              dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
+              kalau fee didorong tiap swap, wallet creator berupa kontrak yang revert
+              akan membekukan seluruh perdagangan token ini. */}
+          {isConnected &&
+            swap.pool?.isCurve &&
+            swap.pool.creator &&
+            address &&
+            swap.pool.creator.toLowerCase() === address.toLowerCase() && (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/15 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-300/90">
+                    Your creator revenue
+                  </span>
+                  <span className="font-mono text-[10px] text-zinc-500">
+                    {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
+                  </span>
+                </div>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-lg font-bold text-white">
+                      {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
+                    </p>
+                    <p className="font-mono text-[10px] text-zinc-500">unclaimed</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={swap.pool.creatorOwed === 0n || claimingFees}
+                    onClick={async () => {
+                      setClaimingFees(true);
+                      setClaimLine(null);
+                      try {
+                        const ethereum = getActiveEip1193();
+                        if (!ethereum) throw new Error("No wallet available.");
+                        const { hash } = await claimCreatorFees({
+                          ethereum,
+                          chain,
+                          curveAddress: project.poolAddress as string,
+                        });
+                        setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
+                        swap.refresh();
+                      } catch (e) {
+                        setClaimLine(describeTxError(e));
+                      } finally {
+                        setClaimingFees(false);
+                      }
+                    }}
+                    className="rounded-xl bg-emerald-500 px-3 py-2 font-mono text-[11px] font-black text-black transition-colors hover:bg-emerald-400 disabled:opacity-40"
+                  >
+                    {claimingFees ? "Claiming…" : "Claim"}
+                  </button>
+                </div>
+                {claimLine && <p className="font-mono text-[10px] text-emerald-200">{claimLine}</p>}
+              </div>
+            )}
+
           {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
           {isConnected && (
@@ -643,11 +707,20 @@ export default function TokenTerminal({
                 )}
               </div>
 
+              {/* Three fee lines, because the fee genuinely splits three ways now.
+                  Showing only depth and buyback would hide where the creator's
+                  revenue comes from. */}
               <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/20 text-[10px] space-y-1 text-slate-300">
                 <div className="flex justify-between">
-                  <span>Liquidity fee ({(project.lpFeeBps / 100).toFixed(2)}%) — stays in pool</span>
+                  <span>Curve depth ({(project.lpFeeBps / 100).toFixed(2)}%) — stays in curve</span>
                   <span>{formatUsd(feeUsd.lp)}</span>
                 </div>
+                {swap.pool?.creatorFeeBps ? (
+                  <div className="flex justify-between text-emerald-300">
+                    <span>↳ Creator ({(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}%)</span>
+                    <span>{formatUsd(feeUsd.creator)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between text-pink-300 font-bold">
                   <span>↳ Agent buyback ({(project.treasuryBuybackBps / 100).toFixed(2)}%)</span>
                   <span>{formatUsd(feeUsd.buyback)}</span>
