@@ -23,8 +23,14 @@ export default {
       });
     }
 
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    // Dynamic agent ticker routing: /v1/x402/:agent or /:agent
+    const agentSymbol = (pathParts[pathParts.length - 1] || "AEGIS").toUpperCase();
+
     const authHeader = request.headers.get("X-402-Authorization");
     const targetChain = request.headers.get("X-Target-Chain") || "Base";
+    const customVault = request.headers.get("X-Creator-Vault") || env.VAULT_TREASURY || "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D";
 
     // 2. Gatekeeper: Challenge with 402 Payment Required if no auth provided
     if (!authHeader) {
@@ -32,21 +38,23 @@ export default {
         JSON.stringify({
           error: "Payment Required",
           protocol: "ADEXTO x402 Edge Protocol (adexto.xyz)",
+          agent: `$${agentSymbol}`,
           targetChain,
-          acceptedTokens: ["USDC", "USDT", "ETH"],
+          acceptedTokens: ["USDC", "USDT", "ETH", "0G"],
           pricing: {
-            quantAudit: "0.010 USDC",
-            brandAsset: "0.005 USDC",
-            arbitrageSignal: "0.020 USDC",
+            inferenceQuery: "0.005 USDC",
+            quantSignal: "0.010 USDC",
+            customExecution: "0.020 USDC",
           },
-          settlementVault: env.VAULT_TREASURY || "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
+          settlementVault: customVault,
+          gatewayUrl: `https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/${agentSymbol.toLowerCase()}`,
         }),
         {
           status: 402,
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
-            "WWW-Authenticate": 'x402 realm="adexto-edge"',
+            "WWW-Authenticate": `x402 realm="adexto-agent-${agentSymbol.toLowerCase()}"`,
           },
         }
       );

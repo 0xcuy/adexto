@@ -32,7 +32,10 @@ async function main() {
 
   const OG_RPC_URL = process.env.OG_RPC_URL || "https://evmrpc.0g.ai";
   const PRIVATE_KEY = process.env.OG_PRIVATE_KEY || process.env.PRIVATE_KEY!;
-  const OG_ROUTER_API_KEY = process.env.OG_ROUTER_API_KEY || "sk-9c741a02-7008-4019-829b-2235d794edb2";
+  // Jangan pernah menaruh kunci asli sebagai fallback di sumber: ia ikut ter-commit
+  // dan rotasi env tidak akan mencabutnya.
+  const OG_ROUTER_API_KEY = process.env.OG_ROUTER_API_KEY;
+  if (!OG_ROUTER_API_KEY) throw new Error("OG_ROUTER_API_KEY belum diset di environment.");
 
   const provider = new ethers.JsonRpcProvider(OG_RPC_URL);
   const wallet = new ethers.Wallet(PRIVATE_KEY, provider);

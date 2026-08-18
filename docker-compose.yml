@@ -1,27 +1,39 @@
-version: '3.8'
-
+# ADEXTO production stack.
+#
+# Secrets live in .env.local only. The previous revision hardcoded
+# OG_ROUTER_API_KEY in this tracked file, which leaked it to anyone with repo
+# access — rotate that key if it was ever committed.
 services:
   adexto-web:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Client bundle needs these at build time.
+        NEXT_PUBLIC_FACTORY_V2_0G: ${NEXT_PUBLIC_FACTORY_V2_0G:-}
+        NEXT_PUBLIC_FACTORY_V2_ARBITRUM: ${NEXT_PUBLIC_FACTORY_V2_ARBITRUM:-}
+        NEXT_PUBLIC_FACTORY_V2_BASE: ${NEXT_PUBLIC_FACTORY_V2_BASE:-}
+        NEXT_PUBLIC_FACTORY_V2_MONAD: ${NEXT_PUBLIC_FACTORY_V2_MONAD:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://adexto.xyz}
+        NEXT_PUBLIC_EDGE_GATEWAY: ${NEXT_PUBLIC_EDGE_GATEWAY:-https://edge.adexto.xyz}
     container_name: adexto-production
     restart: always
     ports:
       - "3000:3000"
+    env_file:
+      - .env.local
     environment:
       - NODE_ENV=production
-      - OG_ROUTER_URL=https://router-api.0g.ai/v1
-      - OG_ROUTER_API_KEY=${OG_ROUTER_API_KEY}
-      - OG_MODEL=glm-5.2
-      - OG_CHAIN_ID=16661
-      - OG_RPC_URL=https://evmrpc.0g.ai
-      - OG_STORAGE_INDEXER=https://indexer-storage-turbo.0g.ai
-      - SIGNER_ADDRESS=0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D
-      - NEXT_PUBLIC_APP_URL=https://adexto.xyz
-      - NEXT_PUBLIC_EDGE_GATEWAY=https://edge.adexto.xyz
+      # Registry + telemetry persistence. Backed by the named volume below so
+      # launched markets survive a container restart.
+      - ADEXTO_DATA_DIR=/app/data
+    volumes:
+      - adexto-data:/app/data
     networks:
       - adexto-network
+
+volumes:
+  adexto-data:
 
 networks:
   adexto-network:
