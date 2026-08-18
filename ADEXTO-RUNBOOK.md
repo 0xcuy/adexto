@@ -341,7 +341,33 @@ Alamat creator dikunci saat launch di `SovereignCurve` sehingga tidak bisa diali
 3. Studio: field seed dan slider supply **dihapus**; sisa form hanya nama, ticker, supply, tier fee, pilihan chain.
 4. Uji: devchain lebih dulu, termasuk skenario **semua pembeli menjual habis** untuk membuktikan penjual terakhir tetap terbayar dan saldo tidak pernah minus, plus pembulatan yang selalu berpihak ke pool. Lalu 4 testnet memakai harness yang sudah ada.
 
-**Belum dikerjakan.** Yang berubah pada sesi ini baru dokumen ini; kontrak v3 belum ditulis. Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
+### Status: kontrak sudah ditulis dan divalidasi
+
+`contracts/SovereignCurve.sol` (8,72 KiB) dan `contracts/AdextoTrinityFactoryV3.sol` (18,16 KiB) sudah ada dan terkompilasi dengan `node scripts/compile-contracts.mjs --via-ir`. Uji: `node scripts/test-sovereign-curve.mjs`.
+
+**LULUS SEMUA di lima jaringan:** devchain 31337, 0G Testnet 16602, Arbitrum Sepolia 421614, Base Sepolia 84532, Monad Testnet 10143.
+
+Yang dibuktikan pengujian, bukan diklaim:
+
+| Yang diuji | Hasil terukur (devchain, V = 1, supply 1 M) |
+|---|---|
+| Launch tanpa modal | native yang keluar **tepat sama** dengan gas; tidak ada seed |
+| Supply | 100% di kurva, creator **nol token**, factory tidak menyimpan sisa |
+| Harga buka | `V/T` = 1,0e-9 native/token, sesuai rumus |
+| Beli 0,05 | 47.482.973 token, harga naik ke 1,1022e-9 |
+| **Jual habis semuanya** | butuh 0,032644 sementara kurva punya 0,03279 → **penjual terakhir tetap terbayar, tanpa revert** |
+| Native kurva setelah jual habis | 0,000145 — **tidak pernah minus** |
+| Lantai harga | naik dari 1,000000000e-9 ke **1,000149781e-9** |
+| Harga setelah semua menjual | 1,000145405e-9, **tidak pernah di bawah harga buka** |
+| Fee creator | terakumulasi lalu terbayar penuh; klaim kedua tanpa saldo ditolak |
+| Buyback agent | token terbakar, total supply berkurang |
+| Invarian solvensi | `saldo ≥ kurva + utang creator + vault` diperiksa **setelah setiap mutasi**, selisih selalu 0 |
+
+Penjagaan yang terbukti menolak: jual melebihi token beredar, `minTokensOut` mustahil, deadline lampau, inisialisasi ulang, dan symbol duplikat.
+
+**Catatan harness.** Perhitungan "berapa yang saya terima" wajib memakai `txCost()`, bukan `gasUsed * gasPrice`. Di chain OP-stack seperti Base, receipt mentah punya `l1Fee` yang juga dipotong dari saldo; mengabaikannya membuat klaim fee tampak nol padahal pembayarannya berhasil. Kesalahan ini sempat memunculkan 3 kegagalan palsu di Base Sepolia.
+
+**Belum dikerjakan:** sisi aplikasi (studio masih meminta seed, `/swap` dan terminal masih membaca ABI `SovereignHook`). Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
 
 ## 4b. Jebakan saat menguji (sudah pernah menyesatkan)
 
