@@ -22,22 +22,50 @@ export default function VerifiedDeploymentCard() {
       label: "AdextoTrinityFactory (0G Mainnet 16661)",
       address: ADEXTO_CONTRACTS.og.factoryAddress,
       explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.factoryAddress}`,
-      badge: "0G Factory Live",
+      badge: "0G factory · v1",
       color: "border-cyan-500/40 bg-cyan-950/20 text-cyan-300",
     },
     {
       label: "AdextoTrinityFactory (Arbitrum One 42161)",
       address: ADEXTO_CONTRACTS.arbitrum.factoryAddress,
       explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.factoryAddress}`,
-      badge: "Arbitrum Factory Live",
+      badge: "Arbitrum factory · v1",
       color: "border-sky-500/40 bg-sky-950/20 text-sky-300",
     },
     {
       label: "SovereignHook AMM (Arbitrum One 42161)",
       address: ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress,
       explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress}`,
-      badge: "Arbitrum Hook Live",
+      badge: "Arbitrum hook · v1",
       color: "border-sky-500/40 bg-sky-950/20 text-sky-300",
+    },
+    {
+      label: "AdextoTrinityFactory (Base Mainnet 8453)",
+      address: ADEXTO_CONTRACTS.base.factoryAddress,
+      explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.base.factoryAddress}`,
+      badge: "Base factory · v1",
+      color: "border-blue-500/40 bg-blue-950/20 text-blue-300",
+    },
+    {
+      label: "SovereignHook AMM (Base Mainnet 8453)",
+      address: ADEXTO_CONTRACTS.base.sovereignHookAddress,
+      explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.base.sovereignHookAddress}`,
+      badge: "Base hook · v1",
+      color: "border-blue-500/40 bg-blue-950/20 text-blue-300",
+    },
+    {
+      label: "AdextoTrinityFactory (Monad Mainnet 143)",
+      address: ADEXTO_CONTRACTS.monad.factoryAddress,
+      explorerUrl: `https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.factoryAddress}`,
+      badge: "Monad factory · v1",
+      color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
+    },
+    {
+      label: "SovereignHook AMM (Monad Mainnet 143)",
+      address: ADEXTO_CONTRACTS.monad.sovereignHookAddress,
+      explorerUrl: `https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.sovereignHookAddress}`,
+      badge: "Monad hook · v1",
+      color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
     },
     {
       label: "The Graph Subgraph (Decentralized Network Mainnet)",
@@ -50,7 +78,7 @@ export default function VerifiedDeploymentCard() {
       label: "SovereignHook AMM (0G Mainnet 16661)",
       address: ADEXTO_CONTRACTS.og.sovereignHookAddress,
       explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.sovereignHookAddress}`,
-      badge: "0G Hook Live",
+      badge: "0G hook · v1",
       color: "border-purple-500/40 bg-purple-950/20 text-purple-300",
     },
     {
@@ -71,21 +99,31 @@ export default function VerifiedDeploymentCard() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-10 overflow-hidden">
-      <div className="glass-panel p-4 sm:p-8 rounded-3xl border-2 border-cyan-500/30 bg-[#060a17]/90 shadow-2xl relative overflow-hidden">
+      {/* Tanpa bingkai luar: tabel di dalamnya sudah punya bingkai sendiri, dan
+          setelah seksi lain dilepas bingkainya, kotak ini menjadi satu-satunya
+          kotak besar di halaman — bingkai ganda yang justru menarik perhatian
+          ke wadah, bukan ke isinya. */}
+      <div className="relative overflow-hidden">
         {/* Glow Accent */}
         <div className="hidden sm:block absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>LIVE ON-CHAIN &amp; HARDWARE ATTESTED</span>
+            {/* Badge ini dulu berbunyi "LIVE ON-CHAIN", padahal kontrak di bawah
+                adalah generasi v1 dan factory v2 yang eksekutabel belum di-broadcast
+                (`/api/deploy` melaporkan `dexLive: false`). Mengaku "live" sementara
+                trading terkunci adalah klaim yang tidak bisa dipertahankan. */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-white/15 text-slate-300 text-xs font-mono font-bold mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>DEPLOYED &amp; VERIFIABLE ON-CHAIN</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-              <span>0G Mainnet (Chain ID 16661) Verified Contracts</span>
+              <span>Deployed contract registry</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Smart contracts and storage roots deployed and permanently anchored to the 0G ecosystem.
+              Addresses below are the <strong className="text-white">v1</strong> generation, deployed and verifiable on
+              each chain. The executable <code className="text-cyan-300">AdextoTrinityFactoryV2</code> is not broadcast to
+              mainnet yet, so launching and trading stay disabled in the UI until it is.
             </p>
           </div>
 
@@ -99,48 +137,74 @@ export default function VerifiedDeploymentCard() {
           </div>
         </div>
 
-        {/* Verification Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
-          {records.map((rec, i) => {
-            const isCopied = copiedKey === `rec_${i}`;
-            return (
-              <div 
-                key={i} 
-                className="p-3.5 sm:p-4 rounded-2xl bg-[#040814] border border-white/10 hover:border-cyan-400/50 transition-all flex flex-col justify-between group overflow-hidden max-w-full"
-              >
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
-                    <span className="text-slate-300 font-sans font-bold text-xs truncate max-w-[200px] sm:max-w-none">{rec.label}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 ${rec.color}`}>
-                      {rec.badge}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#02050e] border border-white/5 text-slate-200 text-[11px] sm:text-xs break-all flex items-center justify-between gap-2 overflow-hidden">
-                    <span className="text-cyan-300 font-semibold break-all">{rec.address}</span>
-                  </div>
-                </div>
+        {/* Daftar kontrak.
+            Dulu ini 11 kartu dalam grid dua kolom, masing-masing dengan kotak
+            alamat sendiri dan dua tautan berlabel teks — satu bagian memakan
+            hampir separuh tinggi halaman dan terbaca seperti dump basis data.
+            Sekarang baris ramping: label, badge, alamat, dan dua aksi ikon.
+            Data, tautan, dan logika salin tidak berubah. */}
+        <div className="rounded-xl border border-white/10 overflow-hidden">
+          {/* Badge diberi kolom sendiri. Saat ia ikut mengalir bersama label,
+              label panjang seperti "AdextoTrinityFactory (Arbitrum One 42161)"
+              mendorong badge ke baris kedua dan tinggi baris jadi tidak rata. */}
+          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)_auto] items-center gap-3 border-b border-white/10 bg-white/[0.03] px-3 py-2">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Contract</span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Gen</span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Address</span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Verify</span>
+          </div>
 
-                <div className="flex items-center justify-end gap-3 mt-3 pt-2 border-t border-white/5 text-[11px]">
-                  <button
-                    onClick={() => copyToClipboard(rec.address, `rec_${i}`)}
-                    className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors"
+          <div className="divide-y divide-white/[0.06]">
+            {records.map((rec, i) => {
+              const isCopied = copiedKey === `rec_${i}`;
+              return (
+                <div
+                  key={i}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors hover:bg-white/[0.025] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)_auto] sm:gap-3"
+                >
+                  <span className="min-w-0 truncate text-[11px] font-bold text-slate-200" title={rec.label}>
+                    {rec.label}
+                  </span>
+
+                  <span
+                    className={`justify-self-end whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider sm:justify-self-start ${rec.color}`}
                   >
-                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopied ? "Copied" : "Copy"}</span>
-                  </button>
-                  <a
-                    href={rec.explorerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-bold hover:underline"
-                  >
-                    <span>Verify on Explorer</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                    {rec.badge}
+                  </span>
+
+                  <span className="addr col-span-2 min-w-0 truncate text-cyan-300/90 sm:col-span-1" title={rec.address}>
+                    {rec.address}
+                  </span>
+
+                  <div className="col-span-2 flex items-center gap-1 justify-end sm:col-span-1">
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(rec.address, `rec_${i}`)}
+                      title={isCopied ? "Copied" : "Copy address"}
+                      aria-label={`Copy address for ${rec.label}`}
+                      className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+                    >
+                      {isCopied ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                    <a
+                      href={rec.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Verify on explorer"
+                      aria-label={`Verify ${rec.label} on explorer`}
+                      className="rounded-md p-1.5 text-cyan-400 transition-colors hover:bg-cyan-500/10 hover:text-cyan-300"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

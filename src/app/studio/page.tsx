@@ -1,204 +1,210 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { 
-  Cpu, Terminal, Play, Send, RefreshCw, Sparkles, ShieldCheck, 
-  Code2, Layers, Coins, Globe, Key, CloudLightning, Copy, Check,
-  Bot, Settings, Activity, Zap, FileCode, CheckCircle2, ChevronDown, Flame,
-  Wallet, ArrowRight, Lock, CheckCircle, AlertTriangle, Shield, Sliders,
-  HelpCircle, ExternalLink, BarChart2, TrendingUp, Palette, SlidersHorizontal,
-  Wand2, ArrowDownUp, ShieldAlert, Globe2, CheckSquare, Square, Dices
+import { ethers } from "ethers";
+import {
+  Cpu, RefreshCw, Sparkles, ShieldCheck, Globe, Send, Bot, ChevronDown,
+  Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets,
 } from "lucide-react";
-import { useWallet, SupportedChainKey } from "@/context/WalletContext";
+
+import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
+import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
+import { FACTORY_V2_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
+import { getActiveEip1193 } from "@/lib/wallet-provider";
+import { formatSmallNumber } from "@/lib/pricing";
+
+/**
+ * Launch console.
+ *
+ * Rebuilt around four audit findings:
+ *   1. `/api/deploy` invented the token address with `Math.random()`. The address is
+ *      now read from the `TrinityProjectDeployed` receipt event and verified
+ *      server-side before the project is registered.
+ *   2. A rejected on-chain transaction was swallowed by `console.warn` and the UI
+ *      still printed "Deployment Succeeded" with a fake address. Failures are now
+ *      surfaced per chain and never produce a success screen on their own.
+ *   3. The button claimed "Deploy across 4 Chains" while `factoryAddress` was a
+ *      two-way ternary, so Base and Monad were never touched. Each selected chain
+ *      now gets its own transaction, and chains without a v2 factory are shown as
+ *      unavailable instead of being silently skipped.
+ *   4. The "World ID Proof of Humanity" gate was a plain `personal_sign` with no
+ *      server verification. It is now labelled as address attestation and the
+ *      signature is verified server-side.
+ */
+
+type DeployStatus = "pending" | "signing" | "confirming" | "registering" | "success" | "failed" | "skipped";
+
+interface ChainResult {
+  chainKey: string;
+  chainName: string;
+  chainId: number;
+  status: DeployStatus;
+  message?: string;
+  txHash?: string;
+  tokenAddress?: string;
+  poolAddress?: string;
+  explorerTx?: string;
+}
+
+interface TickerChainState {
+  chainId: number;
+  chainKey: string | null;
+  available: boolean;
+  reason: string | null;
+}
+
+interface TickerState {
+  checking: boolean;
+  available: boolean | null;
+  reason: string | null;
+  perChain: TickerChainState[];
+}
+
+const MODELS = [
+  { id: "glm-5.2", label: "0G: GLM-5.2" },
+  { id: "0gm-1.0-35b-a3b", label: "0G: 0GM-1.0 35B" },
+  { id: "0gm-1.0-35b-a3b-sia", label: "0G: 0GM-1.0 SIA" },
+];
 
 export default function StudioPage() {
-  const { address, isConnected, isConnecting, connectWallet, selectedChain, setSelectedChain, chainName } = useWallet();
+  const { address, isConnected, isConnecting, connectWallet, switchToChain } = useWallet();
 
-  // Active Model on 0G Mainnet Router
-  const [selectedModel, setSelectedModel] = useState<string>("glm-5.2");
-
-  // Active Preset
-  const [activePreset, setActivePreset] = useState<"quant" | "meme" | "defi">("quant");
-
-  // Selection Checkboxes (Default: ALL 3 SELECTED)
-  const [deployToken, setDeployToken] = useState(true);
-  const [deployDex, setDeployDex] = useState(true);
-  const [deployAgent, setDeployAgent] = useState(true);
-
-  // Project Parameters (Token - T)
+  // ── form state ───────────────────────────────────────────────────────────
   const [tokenName, setTokenName] = useState("Aegis Quant AI");
-  const [tokenTicker, setTokenTicker] = useState("AEGIS");
+  const [tokenTicker, setTokenTicker] = useState("AQUANT");
   const [tokenSupply, setTokenSupply] = useState("1,000,000,000");
+  const [poolSharePct, setPoolSharePct] = useState(80);
+  const [liquiditySeed, setLiquiditySeed] = useState("0.05");
   const [generatedLogo, setGeneratedLogo] = useState<string | null>("/logo.svg");
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
-  // DEX & Fee routing (DEX)
   const [feeTier, setFeeTier] = useState<"low" | "standard" | "meme">("standard");
-  const [totalSwapFee, setTotalSwapFee] = useState(0.30);
-  const [treasuryCut, setTreasuryCut] = useState(0.10);
-  const [customSubdomain, setCustomSubdomain] = useState("aegis");
+  const [totalSwapFee, setTotalSwapFee] = useState(0.3);
+  const [treasuryCut, setTreasuryCut] = useState(0.1);
+  const [customSubdomain, setCustomSubdomain] = useState("aquant");
+  const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
+  const [selectedModel, setSelectedModel] = useState("glm-5.2");
 
-  const randomizeSubdomain = () => {
-    const prefixes = ["alpha", "nova", "sentinel", "cyber", "aegis", "quant", "hyper", "nexus"];
-    const randPre = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const randNum = Math.floor(100 + Math.random() * 900);
-    const newSlug = `${randPre}-${randNum}`;
-    setCustomSubdomain(newSlug);
+  const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
+  const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
+
+  const [targetChainIds, setTargetChainIds] = useState<number[]>(liveChains.map((c) => c.chainId));
+
+  // ── gating + results ─────────────────────────────────────────────────────
+  const [ticker, setTicker] = useState<TickerState>({ checking: false, available: null, reason: null, perChain: [] });
+  const [attestation, setAttestation] = useState<{ signature: string; message: string; signer: string } | null>(null);
+  const [attesting, setAttesting] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [results, setResults] = useState<ChainResult[]>([]);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const supplyNumber = Number(tokenSupply.replace(/[^0-9]/g, "")) || 0;
+  const lpCut = Math.max(0, totalSwapFee - treasuryCut);
+  const seedNumber = Number(liquiditySeed) || 0;
+
+  // Attestation is bound to the address, so changing accounts invalidates it.
+  useEffect(() => {
+    if (attestation && attestation.signer.toLowerCase() !== (address ?? "").toLowerCase()) setAttestation(null);
+  }, [address, attestation]);
+
+  // ── ticker availability, evaluated per selected chain ────────────────────
+  // A multi-chain launch needs per-chain availability: the same creator extending
+  // their own ticker onto another chain is allowed, so a single global "taken"
+  // answer would block the very flow this page exists for.
+  useEffect(() => {
+    const symbol = tokenTicker.trim().toUpperCase();
+    if (!symbol) {
+      setTicker({ checking: false, available: null, reason: null, perChain: [] });
+      return;
+    }
+    setTicker((prev) => ({ ...prev, checking: true }));
+    const handle = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ symbol });
+        if (targetChainIds.length > 0) params.set("chainIds", targetChainIds.join(","));
+        if (address) params.set("creator", address);
+        const res = await fetch(`/api/deploy?${params.toString()}`);
+        const data = await res.json();
+        setTicker({
+          checking: false,
+          available: Boolean(data.available),
+          reason: data.reason ?? null,
+          perChain: Array.isArray(data.perChain) ? data.perChain : [],
+        });
+      } catch {
+        setTicker({ checking: false, available: null, reason: "Could not check ticker availability.", perChain: [] });
+      }
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [tokenTicker, targetChainIds, address]);
+
+  const toggleChain = (chainId: number) => {
+    setTargetChainIds((prev) => {
+      const next = prev.includes(chainId) ? prev.filter((id) => id !== chainId) : [...prev, chainId];
+      return next.length === 0 ? prev : next;
+    });
   };
 
-  // Agent mandate (Autonomous Agent - A)
-  const [agentPersona, setAgentPersona] = useState("24/7 Quant Market Maker & Liquidity Rebalancer");
-
-  // Deployment action state
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployStep, setDeployStep] = useState(0);
-  const [deployedResult, setDeployedResult] = useState<any>(null);
-  const [worldIdVerified, setWorldIdVerified] = useState(false);
-  const [isVerifyingWorldId, setIsVerifyingWorldId] = useState(false);
-
-  // Model Options on 0G Mainnet Router
-  const modelOptions = [
-    { id: "glm-5.2", label: "0G: GLM-5.2" },
-    { id: "0gm-1.0-35b-a3b", label: "0G: 0GM-1.0 35B" },
-    { id: "0gm-1.0-35b-a3b-sia", label: "0G: 0GM-1.0 SIA" },
-  ];
-
-  // AI Chat states
-  const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "system"; content: string }>>([
-    {
-      role: "assistant",
-      content: `⚡ **0G Autonomous Studio Initialized**
-
-• Network: **${selectedChain} Mainnet**
-• Target DEX Subdomain: **${customSubdomain || "myswap"}.adexto.xyz**
-• Model: **0G Router (${selectedModel})**
-• Enclave: **AMD SEV-SNP Isolated**
-
-Tell me your concept or select which components (Token, DEX, Agent) to deploy on the left!`,
-    },
-  ]);
-
-  // Synchronize AI chat target when subdomain changes
-  useEffect(() => {
-    if (messages.length === 1 && messages[0].role === "assistant") {
-      setMessages([
-        {
-          role: "assistant",
-          content: `⚡ **0G Autonomous Studio Initialized**
-
-• Network: **${selectedChain} Mainnet**
-• Target DEX Subdomain: **${customSubdomain || "myswap"}.adexto.xyz**
-• Model: **0G Router (${selectedModel})**
-• Enclave: **AMD SEV-SNP Isolated**
-
-Tell me your concept or select which components (Token, DEX, Agent) to deploy on the left!`,
-        },
-      ]);
-    }
-  }, [customSubdomain, selectedChain, selectedModel]);
-
-  const chatScrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollChatToBottom = () => {
-    if (chatScrollContainerRef.current) {
-      chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
-    }
-  };
-
-  useEffect(() => {
-    scrollChatToBottom();
-  }, [messages, isLoading]);
-
-  // Handle Preset Select
-  const handlePresetSelect = (type: "quant" | "meme" | "defi") => {
-    setActivePreset(type);
+  const applyPreset = (type: "quant" | "meme" | "defi") => {
     if (type === "meme") {
       setTokenName("Cyber Doge AI");
       setTokenTicker("CDOGE");
       setCustomSubdomain("cdoge");
       setTokenSupply("1,000,000,000");
       setFeeTier("meme");
-      setTotalSwapFee(0.50);
-      setTreasuryCut(0.20);
-      setAgentPersona("Viral meme quant bot with aggressive DEX auto-buyback");
+      setTotalSwapFee(0.5);
+      setTreasuryCut(0.2);
+      setAgentPersona("Viral meme quant bot with aggressive auto-buyback");
     } else if (type === "quant") {
       setTokenName("Aegis Quant AI");
-      setTokenTicker("AEGIS");
-      setCustomSubdomain("aegis");
+      setTokenTicker("AQUANT");
+      setCustomSubdomain("aquant");
       setTokenSupply("1,000,000,000");
       setFeeTier("standard");
-      setTotalSwapFee(0.30);
-      setTreasuryCut(0.10);
-      setAgentPersona("24/7 Quant Market Maker & Liquidity Rebalancer");
+      setTotalSwapFee(0.3);
+      setTreasuryCut(0.1);
+      setAgentPersona("24/7 quant market maker and liquidity rebalancer");
     } else {
       setTokenName("Nova Yield Protocol");
       setTokenTicker("NYIELD");
       setCustomSubdomain("novayield");
       setTokenSupply("500,000,000");
       setFeeTier("low");
-      setTotalSwapFee(0.10);
+      setTotalSwapFee(0.1);
       setTreasuryCut(0.02);
       setAgentPersona("Delta-neutral yield hedging and institutional LP routing");
     }
   };
 
-  const handleSendMessage = async (e?: React.FormEvent, customText?: string) => {
-    if (e) e.preventDefault();
-    const textToSend = customText || inputMessage;
-    if (!textToSend.trim() || isLoading) return;
-
-    const newMessages = [...messages, { role: "user" as const, content: textToSend }];
-    setMessages(newMessages);
-    setInputMessage("");
-    setIsLoading(true);
-
+  const handleAttest = async () => {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    setAttesting(true);
+    setGlobalError(null);
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          model: selectedModel,
-          chain: selectedChain,
-        }),
-      });
-
-      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-      if (!res.body) return;
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantReply = "";
-
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        assistantReply += chunk;
-
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[copy.length - 1] = { role: "assistant", content: assistantReply };
-          return copy;
-        });
-      }
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `⚠️ 0G Compute Error: ${err.message}` },
-      ]);
+      const ethereum = getActiveEip1193();
+      const provider = new ethers.BrowserProvider(ethereum);
+      const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+      const message =
+        `ADEXTO launch attestation\n` +
+        `Deployer: ${signerAddress}\n` +
+        `Ticker: ${tokenTicker.trim().toUpperCase()}\n` +
+        `Timestamp: ${Date.now()}`;
+      const signature = await signer.signMessage(message);
+      setAttestation({ signature, message, signer: signerAddress });
+    } catch (error) {
+      setGlobalError(describeTxError(error));
     } finally {
-      setIsLoading(false);
+      setAttesting(false);
     }
   };
 
-  const handleGenerateAiLogo = async () => {
+  const handleGenerateLogo = async () => {
     setIsGeneratingLogo(true);
     try {
       const res = await fetch("/api/generate-logo", {
@@ -207,89 +213,307 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
         body: JSON.stringify({
           tokenName,
           tokenSymbol: tokenTicker,
-          prompt: `Minimalist cyberpunk futuristic vector emblem for AI agent ${tokenName} ($${tokenTicker}), neon cyan purple glow, obsidian background, central high-tech crest`,
+          prompt: `Minimalist cyberpunk vector emblem for AI agent ${tokenName} ($${tokenTicker}), neon cyan and purple glow on obsidian`,
         }),
       });
       const data = await res.json();
-      if (data.imageUrl) {
-        setGeneratedLogo(data.imageUrl);
-      }
-    } catch (e) {
-      console.warn("Logo generation error:", e);
+      if (data.imageUrl) setGeneratedLogo(data.imageUrl);
+    } catch (error) {
+      console.warn("[adexto] logo generation failed:", error);
     } finally {
       setIsGeneratingLogo(false);
     }
   };
 
-  const handleVerifyWorldID = async () => {
-    setIsVerifyingWorldId(true);
-    // Simulate ZKP verification generation & proof validation
-    setTimeout(() => {
-      setWorldIdVerified(true);
-      setIsVerifyingWorldId(false);
-    }, 1200);
-  };
+  // ── deploy ───────────────────────────────────────────────────────────────
+  const updateResult = useCallback((chainId: number, patch: Partial<ChainResult>) => {
+    setResults((prev) => prev.map((r) => (r.chainId === chainId ? { ...r, ...patch } : r)));
+  }, []);
 
-  const handleExecuteDeploy = async () => {
-    if (!isConnected) {
+  const handleDeploy = async () => {
+    setGlobalError(null);
+    if (!isConnected || !address) {
       await connectWallet();
       return;
     }
-
-    if (!deployToken && !deployDex && !deployAgent) {
-      alert("Please select at least 1 component to deploy (Token, DEX, or Agent).");
+    if (!attestation) {
+      setGlobalError("Sign the launch attestation first.");
+      return;
+    }
+    if (seedNumber <= 0) {
+      setGlobalError("Seed liquidity must be greater than zero — the pool needs a native side to quote against.");
+      return;
+    }
+    if (supplyNumber <= 0) {
+      setGlobalError("Supply must be greater than zero.");
       return;
     }
 
-    setIsDeploying(true);
-    setDeployStep(1);
+    // Launch only where the factory exists AND the ticker is free on that chain.
+    // A chain whose ticker is taken is skipped rather than aborting the whole run.
+    const selected = liveChains.filter((c) => targetChainIds.includes(c.chainId));
+    if (selected.length === 0) {
+      setGlobalError("No selected chain has AdextoTrinityFactoryV2 deployed, so no tradable pool can be created.");
+      return;
+    }
 
+    const blockedIds = new Set(ticker.perChain.filter((p) => !p.available).map((p) => p.chainId));
+    const chains = selected.filter((c) => !blockedIds.has(c.chainId));
+    const skipped = selected.filter((c) => blockedIds.has(c.chainId));
+
+    if (chains.length === 0) {
+      setGlobalError(ticker.reason ?? `Ticker ${tokenTicker.toUpperCase()} is not available on any selected chain.`);
+      return;
+    }
+    if (skipped.length > 0) {
+      setGlobalError(
+        `Skipping ${skipped.map((c) => c.key).join(", ")}: ticker already has a market there. Launching on ${chains
+          .map((c) => c.key)
+          .join(", ")}.`
+      );
+    }
+
+    setDeploying(true);
+    setResults(
+      chains.map((c) => ({ chainKey: c.key, chainName: c.name, chainId: c.chainId, status: "pending" as DeployStatus }))
+    );
+
+    const symbol = tokenTicker.trim().toUpperCase();
+
+    // Stage 1 — anchor metadata and get the attestation root that goes in calldata.
+    let attestationRoot: string;
+    let daStorageTx: string | null = null;
+    let lpFeeBps = Math.round(lpCut * 100);
+    let treasuryBuybackBps = Math.round(treasuryCut * 100);
     try {
       const res = await fetch("/api/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: deployToken ? tokenName : undefined,
-          symbol: deployToken ? tokenTicker : undefined,
-          supply: deployToken ? tokenSupply.replace(/,/g, "") : undefined,
-          curve: "exponential",
-          swapFee: deployDex ? totalSwapFee.toString() : undefined,
-          treasuryCut: deployDex ? treasuryCut.toString() : undefined,
-          chain: selectedChain,
+          stage: "prepare",
+          name: tokenName,
+          symbol,
+          supply: String(supplyNumber),
+          swapFee: totalSwapFee,
+          treasuryCut,
+          model: selectedModel,
+          persona: agentPersona,
           deployer: address,
-          persona: deployAgent ? agentPersona : undefined,
-          subdomain: deployDex ? customSubdomain : undefined,
-          flags: { deployToken, deployDex, deployAgent },
+          targetChains: chains.map((c) => c.chainId),
+          attestationSignature: attestation.signature,
+          attestationMessage: attestation.message,
         }),
       });
-
-      setTimeout(() => setDeployStep(2), 1100);
-      setTimeout(() => setDeployStep(3), 2200);
-
       const data = await res.json();
-      setTimeout(() => {
-        setIsDeploying(false);
-        setDeployedResult(data.deployment);
-      }, 3400);
-    } catch (err) {
-      console.error(err);
-      setIsDeploying(false);
+      if (!res.ok) throw new Error(data.error || `prepare failed (${res.status})`);
+      attestationRoot = data.attestationRoot;
+      daStorageTx = data.daStorageTx ?? null;
+      lpFeeBps = Number(data.lpFeeBps ?? lpFeeBps);
+      treasuryBuybackBps = Number(data.treasuryBuybackBps ?? treasuryBuybackBps);
+    } catch (error: any) {
+      setGlobalError(`Preparation failed: ${error.message}`);
+      setDeploying(false);
+      setResults([]);
+      return;
+    }
+
+    // Stage 2 — one transaction per chain. Each is independent and reported honestly.
+    const ethereum = getActiveEip1193();
+    const iface = new ethers.Interface(FACTORY_V2_ABI);
+
+    const value = ethers.parseEther(liquiditySeed);
+    const args = [
+      tokenName,
+      symbol,
+      BigInt(supplyNumber),
+      address,
+      BigInt(Math.round(totalSwapFee * 100)),
+      BigInt(treasuryBuybackBps),
+      attestationRoot,
+      BigInt(Math.round(poolSharePct * 100)),
+    ] as const;
+
+    for (const chain of chains) {
+      try {
+        // Public RPCs drop reads occasionally, and in a four-chain launch one flaky
+        // read would otherwise cost the user a chain. The pre-flight is retried; the
+        // send never is, so a transaction can never be submitted twice.
+        let factory: ethers.Contract | null = null;
+        let preflightError: unknown = null;
+
+        for (let attempt = 1; attempt <= 3 && !factory; attempt++) {
+          try {
+            updateResult(chain.chainId, {
+              status: "signing",
+              message: attempt === 1 ? `Switching wallet to ${chain.name}…` : `Retrying ${chain.name} (${attempt}/3)…`,
+            });
+            await ensureWalletChain(ethereum, chain);
+
+            const provider = new ethers.BrowserProvider(ethereum);
+            const signer = await provider.getSigner();
+            const candidate = new ethers.Contract(chain.factoryV2Address as string, FACTORY_V2_ABI, signer);
+
+            // Simulate first: a revert here costs nothing and gives the real reason.
+            updateResult(chain.chainId, { message: "Simulating launch…" });
+            await candidate.deployTrinityProject.staticCall(...args, { value });
+            factory = candidate;
+          } catch (error) {
+            preflightError = error;
+            if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 3000));
+          }
+        }
+
+        if (!factory) throw preflightError;
+
+        updateResult(chain.chainId, { message: "Confirm in your wallet…" });
+        const tx = await factory.deployTrinityProject(...args, { value });
+        updateResult(chain.chainId, { status: "confirming", txHash: tx.hash, message: "Waiting for confirmation…" });
+
+        const receipt = await tx.wait();
+        if (!receipt || receipt.status !== 1) throw new Error("Transaction reverted on-chain.");
+
+        // Read the real addresses out of the receipt.
+        let tokenAddress: string | undefined;
+        let poolAddress: string | undefined;
+        for (const log of receipt.logs) {
+          try {
+            const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+            if (parsed?.name === "TrinityProjectDeployed") {
+              tokenAddress = parsed.args.token;
+              poolAddress = parsed.args.pool;
+              break;
+            }
+          } catch {
+            // not a factory event
+          }
+        }
+        if (!tokenAddress) throw new Error("Receipt did not contain TrinityProjectDeployed.");
+
+        updateResult(chain.chainId, {
+          status: "registering",
+          tokenAddress,
+          poolAddress,
+          message: "Verifying on-chain and registering…",
+        });
+
+        const confirmRes = await fetch("/api/deploy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "confirm",
+            chainId: chain.chainId,
+            txHash: receipt.hash,
+            name: tokenName,
+            symbol,
+            supply: String(supplyNumber),
+            lpFeeBps,
+            treasuryBuybackBps,
+            creator: address,
+            persona: agentPersona,
+            agentModel: `0G Router (${selectedModel})`,
+            image: generatedLogo ?? "/logo.svg",
+            attestationRoot,
+            daStorageTx,
+            targetChainIds: chains.map((c) => c.chainId),
+          }),
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(confirmData.error || `registration failed (${confirmRes.status})`);
+
+        updateResult(chain.chainId, {
+          status: "success",
+          message: confirmData.message,
+          explorerTx: confirmData.deployment?.explorerTx,
+          poolAddress: confirmData.project?.poolAddress ?? poolAddress,
+        });
+      } catch (error) {
+        // Keep the raw error in the console: the human-readable mapping is for the
+        // UI, but diagnosing a chain-specific failure needs the original payload.
+        console.error(`[adexto] launch failed on ${chain.name} (${chain.chainId}):`, error);
+        updateResult(chain.chainId, { status: "failed", message: describeTxError(error) });
+      }
+    }
+
+    setDeploying(false);
+  };
+
+  // ── AI co-pilot ──────────────────────────────────────────────────────────
+  const [inputMessage, setInputMessage] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          `⚡ **ADEXTO Studio**\n\n` +
+          `• Model: **0G Router (${selectedModel})**\n` +
+          `• Factory: **AdextoTrinityFactoryV2** (token + SovereignHook pool in one transaction)\n` +
+          `• Live chains: **${liveChains.length > 0 ? liveChains.map((c) => c.key).join(", ") : "none yet"}**\n\n` +
+          `Describe your concept, or configure the launch on the left.`,
+      },
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel]);
+
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }, [messages, chatLoading]);
+
+  const sendMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!inputMessage.trim() || chatLoading) return;
+
+    const next = [...messages, { role: "user" as const, content: inputMessage }];
+    setMessages(next);
+    setInputMessage("");
+    setChatLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: next, model: selectedModel }),
+      });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let reply = "";
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        reply += decoder.decode(value, { stream: true });
+        setMessages((prev) => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { role: "assistant", content: reply };
+          return copy;
+        });
+      }
+    } catch (error: any) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `0G Compute error: ${error.message}` }]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // 1. UNLOCKED CLEAN STUDIO (INTERACTIVE PREVIEW FOR ALL VISITORS)
-  // ──────────────────────────────────────────────────────────────────────────
-  const lpCut = Math.max(0, totalSwapFee - treasuryCut);
-  const selectedCount = (deployToken ? 1 : 0) + (deployDex ? 1 : 0) + (deployAgent ? 1 : 0);
+  const successes = results.filter((r) => r.status === "success");
+  const failures = results.filter((r) => r.status === "failed");
+  const finished = results.length > 0 && !deploying;
+  // Chains that will actually be launched on: factory present, selected, and the
+  // ticker still free there.
+  const blockedChainIds = new Set(ticker.perChain.filter((p) => !p.available).map((p) => p.chainId));
+  const launchTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && !blockedChainIds.has(c.chainId));
+  const skippedTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && blockedChainIds.has(c.chainId));
+
+  const canDeploy =
+    isConnected && Boolean(attestation) && seedNumber > 0 && liveChains.length > 0 && launchTargets.length > 0;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
-      
-      {/* ── TOP CONTROL STRIP ──────────────────────────────────────────────── */}
+      {/* Top strip */}
       <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-white/[0.08] shrink-0">
-        
-        {/* Left Status */}
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-white flex items-center gap-1.5 font-mono">
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> ADEXTO STUDIO
@@ -297,80 +521,47 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
           <span className="text-zinc-600 text-xs">/</span>
           {isConnected ? (
             <span className="text-emerald-400 font-mono text-xs font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> {address?.slice(0, 6)}...{address?.slice(-4)}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {address?.slice(0, 6)}…{address?.slice(-4)}
             </span>
           ) : (
             <button
-              onClick={connectWallet}
+              onClick={() => connectWallet()}
+              disabled={isConnecting}
               className="text-amber-300 hover:text-amber-200 font-mono text-xs font-medium flex items-center gap-1.5 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded"
             >
-              <Lock className="w-3 h-3 text-amber-400" /> Connect Wallet to Deploy
+              <Lock className="w-3 h-3 text-amber-400" /> {isConnecting ? "Connecting…" : "Connect wallet"}
             </button>
           )}
         </div>
 
-        {/* Right Settings Bar */}
         <div className="flex items-center gap-2 font-mono text-xs">
-          
-          {/* Quick Presets */}
           <div className="hidden md:flex items-center bg-[#070913] p-1 rounded-lg">
-            <button
-              onClick={() => handlePresetSelect("quant")}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                activePreset === "quant"
-                  ? "bg-white/10 text-cyan-300"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Quant AI
-            </button>
-            <button
-              onClick={() => handlePresetSelect("meme")}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                activePreset === "meme"
-                  ? "bg-white/10 text-pink-300"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Viral Meme
-            </button>
-            <button
-              onClick={() => handlePresetSelect("defi")}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                activePreset === "defi"
-                  ? "bg-white/10 text-purple-300"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              DeFi Yield
-            </button>
+            {(
+              [
+                ["quant", "Quant AI", "text-cyan-300"],
+                ["meme", "Viral Meme", "text-pink-300"],
+                ["defi", "DeFi Yield", "text-purple-300"],
+              ] as const
+            ).map(([key, label, color]) => (
+              <button
+                key={key}
+                onClick={() => applyPreset(key)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold text-zinc-400 hover:${color}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {/* Network Selector */}
-          <div className="relative flex items-center bg-[#070913] hover:bg-[#0c1020] rounded-lg px-2.5 py-1 transition-colors">
-            <Globe className="w-3.5 h-3.5 text-cyan-400 mr-1.5 shrink-0" />
-            <select
-              value={selectedChain}
-              onChange={(e) => setSelectedChain(e.target.value as SupportedChainKey)}
-              className="bg-transparent text-cyan-300 font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none"
-            >
-              <option value="0G" className="bg-[#0b0f19] text-cyan-300 font-bold">0G Mainnet (16661 - Live)</option>
-              <option value="Arbitrum" className="bg-[#0b0f19] text-sky-300 font-bold">Arbitrum One (42161 - Live)</option>
-              <option value="Base" className="bg-[#0b0f19] text-zinc-400">Base Mainnet (Phase 2)</option>
-              <option value="Monad" className="bg-[#0b0f19] text-zinc-400">Monad Mainnet (Phase 2)</option>
-            </select>
-            <ChevronDown className="w-3 h-3 text-cyan-400/60 absolute right-2 pointer-events-none" />
-          </div>
-
-          {/* Model Selector */}
-          <div className="relative flex items-center bg-[#070913] hover:bg-[#0c1020] rounded-lg px-2.5 py-1 transition-colors">
+          <div className="relative flex items-center bg-[#070913] rounded-lg px-2.5 py-1">
             <Cpu className="w-3.5 h-3.5 text-purple-400 mr-1.5 shrink-0" />
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               className="bg-transparent text-purple-300 font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none max-w-[150px] truncate"
             >
-              {modelOptions.map((m) => (
+              {MODELS.map((m) => (
                 <option key={m.id} value={m.id} className="bg-[#0b0f19] text-purple-300">
                   {m.label}
                 </option>
@@ -378,393 +569,438 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
             </select>
             <ChevronDown className="w-3 h-3 text-purple-400/60 absolute right-2 pointer-events-none" />
           </div>
-
         </div>
       </div>
 
-      {/* Main Workspace Layout: LEFT (7 COLS) | RIGHT (5 COLS) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-0">
-        
-        {/* ── LEFT: LAUNCH CONTROL PANEL (7 COLS) ───────────────────────────── */}
-        <div className="lg:col-span-7 bg-[#070913] rounded-2xl border border-white/[0.06] p-3 sm:p-4 flex flex-col justify-between shadow-xl lg:overflow-hidden min-h-[520px]">
-          {deployedResult ? (
-            /* Success View */
-            <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-4 font-mono text-xs my-auto">
-              <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Deployment Succeeded on {selectedChain}!
-              </div>
-              <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2 text-slate-200">
-                {deployedResult.token && (
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Token Address:</span>
-                    <span className="text-cyan-300 font-bold">{deployedResult.token.address}</span>
-                  </div>
-                )}
-                {deployedResult.sovereignDex && (
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Sovereign DEX:</span>
-                    <span className="text-purple-300 font-bold">{deployedResult.sovereignDex.subdomain}</span>
-                  </div>
-                )}
-                {deployedResult.agentEnclave && (
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">0G TEE Agent:</span>
-                    <span className="text-pink-300 font-bold">{deployedResult.agentEnclave.agentId}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-3 pt-2 font-sans">
-                <button
-                  onClick={() => setDeployedResult(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all"
-                >
-                  Deploy Another
-                </button>
-                <Link
-                  href={`/token/${tokenTicker.toLowerCase()}`}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-semibold text-xs text-center flex items-center justify-center gap-1 shadow-md"
-                >
-                  Open Token Terminal &amp; Chart →
-                </Link>
-              </div>
-            </div>
+        {/* Left: launch control */}
+        <div className="lg:col-span-7 bg-[#070913] rounded-2xl border border-white/[0.06] p-3 sm:p-4 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
+          {finished ? (
+            <DeployReport
+              results={results}
+              symbol={tokenTicker.trim().toUpperCase()}
+              onReset={() => {
+                setResults([]);
+                setGlobalError(null);
+              }}
+            />
           ) : (
-            /* Modular Form with Green Checkbox Selection */
-            <div className="flex flex-col justify-between h-full space-y-3">
-              
-              {/* Pillar 1: Token Specs (With Green Checkbox) */}
-              <div className={`space-y-1.5 p-3 rounded-xl transition-all ${deployToken ? "bg-black/30 border border-pink-500/30" : "bg-black/10 opacity-50 border border-transparent"}`}>
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={deployToken}
-                      onChange={(e) => setDeployToken(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-mono font-bold text-pink-300 uppercase tracking-wider flex items-center gap-1.5">
-                      1. Token Launchpad (ERC-8004)
-                    </span>
-                  </label>
-                  <span className="text-[10px] font-mono text-zinc-500">Anti-Sniper Protected</span>
+            <div className="space-y-3">
+              {liveChains.length === 0 && (
+                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start gap-2 text-[11px] font-mono text-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  <span>
+                    <strong>Launching is disabled.</strong> AdextoTrinityFactoryV2 is not deployed on any chain yet, so a
+                    launch could not create a tradable pool. Broadcast it with{" "}
+                    <code className="text-cyan-300">node scripts/deploy-sovereign-dex.mjs --chain 0g --broadcast</code>{" "}
+                    and set <code className="text-cyan-300">NEXT_PUBLIC_FACTORY_V2_0G</code>.
+                  </span>
                 </div>
+              )}
 
-                {deployToken && (
-                  <div className="space-y-2 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-medium text-zinc-400">Name</span>
-                        <input
-                          type="text"
-                          value={tokenName}
-                          onChange={(e) => setTokenName(e.target.value)}
-                          className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 hover:bg-black/60 focus:bg-black/80 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none transition-all"
-                        />
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-medium text-zinc-400">Ticker</span>
-                        <input
-                          type="text"
-                          value={tokenTicker}
-                          onChange={(e) => {
-                            const val = e.target.value.toUpperCase();
-                            setTokenTicker(val);
-                            if (!customSubdomain || customSubdomain === tokenTicker.toLowerCase()) {
-                              setCustomSubdomain(val.toLowerCase());
-                            }
-                          }}
-                          className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 hover:bg-black/60 focus:bg-black/80 border border-white/[0.06] focus:border-pink-400 text-pink-300 font-bold focus:outline-none transition-all"
-                        />
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-medium text-zinc-400">Supply</span>
-                        <input
-                          type="text"
-                          value={tokenSupply}
-                          onChange={(e) => setTokenSupply(e.target.value)}
-                          className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 hover:bg-black/60 focus:bg-black/80 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-
-                  {/* 0G z-image-turbo AI Logo Generator */}
-                  <div className="p-2.5 rounded-xl bg-[#040814] border border-white/10 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#05070D] border border-cyan-500/40 p-1 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/10">
-                        {generatedLogo ? (
-                          <img src={generatedLogo} alt="AI Logo Emblem" className="w-full h-full object-contain" />
-                        ) : (
-                          <img src="/logo.svg" alt="Default Emblem" className="w-full h-full object-contain" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-bold text-white flex items-center gap-1.5 font-mono">
-                          <span>0G z-image-turbo</span>
-                          <span className="text-[9px] px-1 py-0.2 rounded bg-pink-950 text-pink-300 border border-pink-500/30 font-bold">TEE Attested</span>
-                        </div>
-                        <span className="text-[10px] text-zinc-400">Generate on-chain logo emblem</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleGenerateAiLogo}
-                      disabled={isGeneratingLogo}
-                      className="px-3 py-1.5 rounded-lg bg-pink-950/60 hover:bg-pink-900 text-pink-300 border border-pink-500/40 text-xs font-mono font-bold transition-all flex items-center gap-1.5 shrink-0"
-                    >
-                      {isGeneratingLogo ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin" /> Rendering...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="w-3 h-3" /> Re-Roll Logo
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Pillar 2: Sovereign DEX & Subdomain (With Green Checkbox) */}
-              <div className={`space-y-2 p-3 rounded-xl transition-all ${deployDex ? "bg-black/30 border border-purple-500/30" : "bg-black/10 opacity-50 border border-transparent"}`}>
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={deployDex}
-                      onChange={(e) => setDeployDex(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
-                      2. Uniswap v4 Sovereign Hook
-                    </span>
-                  </label>
-
-                  {/* Subdomain Inline Control with Randomizer */}
-                  {deployDex && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center bg-black/40 hover:bg-black/60 rounded-lg px-2 py-0.5 font-mono text-xs border border-white/[0.06] focus-within:border-purple-400/80 transition-colors">
-                        <span className="text-zinc-500 text-[10px] mr-1">https://</span>
-                        <input
-                          type="text"
-                          value={customSubdomain}
-                          onChange={(e) => setCustomSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                          className="bg-transparent text-purple-300 font-bold focus:outline-none w-20 text-center text-xs"
-                          placeholder="myswap"
-                        />
-                        <span className="text-purple-400/80 text-[10px] ml-1 font-bold">.adexto.xyz</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={randomizeSubdomain}
-                        title="Randomize Unique Subdomain Slug"
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-colors"
-                      >
-                        <Dices className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {deployDex && (
-                  <>
-                    {/* Preset Fee Buttons */}
-                    <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
-                      <button
-                        onClick={() => {
-                          setFeeTier("low");
-                          setTotalSwapFee(0.10);
-                          setTreasuryCut(0.02);
-                        }}
-                        className={`p-2 rounded-xl text-left transition-all ${
-                          feeTier === "low"
-                            ? "bg-purple-950/50 text-white border border-purple-500/30"
-                            : "bg-black/30 text-zinc-400 hover:text-white border border-transparent"
-                        }`}
-                      >
-                        <span className="font-bold block text-[11px] text-purple-200">0.10% Low Fee</span>
-                        <span className="text-[9px] text-zinc-400">0.08% LP · 0.02% Buyback</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setFeeTier("standard");
-                          setTotalSwapFee(0.30);
-                          setTreasuryCut(0.10);
-                        }}
-                        className={`p-2 rounded-xl text-left transition-all ${
-                          feeTier === "standard"
-                            ? "bg-purple-950/50 text-white border border-purple-500/30"
-                            : "bg-black/30 text-zinc-400 hover:text-white border border-transparent"
-                        }`}
-                      >
-                        <span className="font-bold block text-[11px] text-purple-200">0.30% Standard</span>
-                        <span className="text-[9px] text-zinc-400">0.20% LP · 0.10% Buyback</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setFeeTier("meme");
-                          setTotalSwapFee(0.50);
-                          setTreasuryCut(0.20);
-                        }}
-                        className={`p-2 rounded-xl text-left transition-all ${
-                          feeTier === "meme"
-                            ? "bg-pink-950/50 text-white border border-pink-500/30"
-                            : "bg-black/30 text-zinc-400 hover:text-white border border-transparent"
-                        }`}
-                      >
-                        <span className="font-bold block text-[11px] text-pink-200">0.50% Meme</span>
-                        <span className="text-[9px] text-zinc-400">0.30% LP · 0.20% Buyback</span>
-                      </button>
-                    </div>
-
-                    {/* Ratio Bar */}
-                    <div className="p-2 rounded-xl bg-black/40 space-y-1">
-                      <div className="flex justify-between text-[10px] font-mono">
-                        <span className="text-cyan-300 font-medium">LP Rewards: {lpCut.toFixed(2)}%</span>
-                        <span className="text-pink-400 font-medium">Buyback Vault: {treasuryCut.toFixed(2)}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden flex">
-                        <div
-                          className="bg-cyan-400 h-full transition-all"
-                          style={{ width: `${(lpCut / totalSwapFee) * 100}%` }}
-                        />
-                        <div
-                          className="bg-pink-500 h-full transition-all"
-                          style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Pillar 3: 0G TEE Agent (With Green Checkbox) */}
-              <div className={`space-y-2 p-3 rounded-xl transition-all ${deployAgent ? "bg-black/30 border border-cyan-500/30" : "bg-black/10 opacity-50 border border-transparent"}`}>
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={deployAgent}
-                      onChange={(e) => setDeployAgent(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-                      3. 0G TEE Agent Enclave
-                    </span>
-                  </label>
-                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
-                    <ShieldCheck className="w-3.5 h-3.5" /> AMD SEV-SNP
+              {/* Chain matrix */}
+              <div className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black border border-cyan-500/30 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                    Launch chains ({launchTargets.length}/{liveChains.length}) — one market per chain
                   </span>
                 </div>
 
-                {deployAgent && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-medium text-zinc-400">Mandate</span>
-                      <input
-                        type="text"
-                        value={agentPersona}
-                        onChange={(e) => setAgentPersona(e.target.value)}
-                        className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 hover:bg-black/60 focus:bg-black/80 border border-white/[0.06] focus:border-cyan-400 text-white font-medium focus:outline-none transition-all"
-                      />
-                    </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[11px]">
+                  {CHAIN_LIST.map((chain) => {
+                    const selectable = chain.dexLive;
+                    const selected = selectable && targetChainIds.includes(chain.chainId);
+                    return (
+                      <button
+                        key={chain.chainId}
+                        type="button"
+                        disabled={!selectable}
+                        onClick={() => toggleChain(chain.chainId)}
+                        title={
+                          !selectable
+                            ? `AdextoTrinityFactoryV2 is not deployed on ${chain.name} yet`
+                            : blockedChainIds.has(chain.chainId)
+                            ? `${chain.name} · this ticker already has a market here, it will be skipped`
+                            : `${chain.name} · factory ${chain.factoryV2Address}`
+                        }
+                        className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
+                          !selectable
+                            ? "bg-black/50 border-white/5 text-zinc-600 cursor-not-allowed"
+                            : selected
+                            ? "bg-cyan-950/60 border-cyan-500/50 text-cyan-200"
+                            : "bg-black/40 border-white/10 text-zinc-400"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {selectable ? (
+                            selected ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                            ) : (
+                              <span className="w-3.5 h-3.5 rounded border border-white/20 shrink-0" />
+                            )
+                          ) : (
+                            <Lock className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                          <span className="font-bold truncate">{chain.key}</span>
+                        </span>
+                        <span className="text-[9px] shrink-0">{chain.chainId}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                    <div className="flex items-center gap-1.5 pt-4 font-mono text-[10px]">
-                      <span className="px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-500/20 font-medium">
-                        ✓ Signet Assets
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-orange-950/40 text-orange-300 border border-orange-500/20 font-medium">
-                        ✓ Cloudflare x402
-                      </span>
-                    </div>
-                  </div>
+                {offlineChains.length > 0 && (
+                  <p className="text-[10px] font-mono text-zinc-500 flex items-start gap-1.5">
+                    <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                    {offlineChains.map((c) => c.key).join(", ")} unavailable: no v2 factory deployed, so a launch there
+                    would produce a token with no pool.
+                  </p>
                 )}
               </div>
 
-                  {/* World ID Anti-Sybil Gate */}
-                  <div className="p-3 rounded-xl bg-black/40 border border-white/[0.08] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-black font-black text-[10px]">
-                        W
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                          <span>World ID Proof of Humanity</span>
-                          {worldIdVerified && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono font-bold">
-                              VERIFIED ZKP
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-zinc-400">Anti-Sybil 1-Human-1-Launch Protection</span>
-                      </div>
-                    </div>
+              {/* Token */}
+              <Section title="1. Token (ERC-8004)" tone="pink">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <Field label="Name">
+                    <input
+                      value={tokenName}
+                      onChange={(e) => setTokenName(e.target.value)}
+                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none"
+                    />
+                  </Field>
+                  <Field
+                    label="Ticker"
+                    hint={
+                      ticker.checking
+                        ? "checking…"
+                        : ticker.available === true
+                        ? `available on ${launchTargets.length || targetChainIds.length} chain(s)`
+                        : launchTargets.length > 0
+                        ? `available on ${launchTargets.map((c) => c.key).join(", ")}`
+                        : ticker.available === false
+                        ? ticker.reason ?? "unavailable"
+                        : undefined
+                    }
+                    hintTone={
+                      launchTargets.length > 0 ? "ok" : ticker.available === false ? "error" : "muted"
+                    }
+                  >
+                    <input
+                      value={tokenTicker}
+                      onChange={(e) => {
+                        const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+                        setTokenTicker(value);
+                        setCustomSubdomain(value.toLowerCase());
+                      }}
+                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border text-pink-300 font-bold focus:outline-none ${
+                        ticker.available === false ? "border-red-500/60" : "border-white/[0.06] focus:border-pink-400"
+                      }`}
+                    />
+                  </Field>
+                  <Field label="Supply (whole tokens)">
+                    <input
+                      value={tokenSupply}
+                      onChange={(e) => setTokenSupply(e.target.value)}
+                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none"
+                    />
+                  </Field>
+                </div>
 
-                    {!worldIdVerified ? (
-                      <button
-                        type="button"
-                        onClick={handleVerifyWorldID}
-                        disabled={isVerifyingWorldId}
-                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-bold border border-white/20 transition-all flex items-center gap-1"
-                      >
-                        {isVerifyingWorldId ? (
-                          <>
-                            <RefreshCw className="w-3 h-3 animate-spin text-cyan-300" />
-                            <span>Verifying...</span>
-                          </>
-                        ) : (
-                          <span>Verify with World ID</span>
-                        )}
-                      </button>
+                <div className="p-2.5 rounded-xl bg-[#040814] border border-white/10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#05070D] border border-cyan-500/40 p-1 flex items-center justify-center shrink-0">
+                      <img src={generatedLogo ?? "/logo.svg"} alt="Logo" className="w-full h-full object-contain" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold text-white font-mono">0G z-image-turbo</div>
+                      <span className="text-[10px] text-zinc-400">Generate an emblem for the token</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateLogo}
+                    disabled={isGeneratingLogo}
+                    className="px-3 py-1.5 rounded-lg bg-pink-950/60 hover:bg-pink-900 text-pink-300 border border-pink-500/40 text-xs font-mono font-bold flex items-center gap-1.5 shrink-0"
+                  >
+                    {isGeneratingLogo ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Rendering…
+                      </>
                     ) : (
-                      <span className="text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> Ready
-                      </span>
+                      <>
+                        <Wand2 className="w-3 h-3" /> Generate
+                      </>
                     )}
+                  </button>
+                </div>
+              </Section>
+
+              {/* Pool */}
+              <Section title="2. Sovereign Hook pool" tone="purple">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Field label="Seed liquidity (native, required)" hint="Sent as msg.value and becomes the pool's native reserve">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={liquiditySeed}
+                      onChange={(e) => setLiquiditySeed(e.target.value)}
+                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border text-white font-semibold focus:outline-none ${
+                        seedNumber <= 0 ? "border-red-500/60" : "border-white/[0.06] focus:border-purple-400"
+                      }`}
+                    />
+                  </Field>
+                  <Field label={`Supply into pool: ${poolSharePct}%`} hint={`${(100 - poolSharePct)}% goes to your wallet`}>
+                    <input
+                      type="range"
+                      min={10}
+                      max={100}
+                      step={5}
+                      value={poolSharePct}
+                      onChange={(e) => setPoolSharePct(Number(e.target.value))}
+                      className="w-full accent-purple-400"
+                    />
+                  </Field>
+                </div>
+
+                <div className="p-2 rounded-xl bg-black/40 flex items-start gap-2 text-[10px] font-mono text-zinc-400">
+                  <Droplets className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                  <span>
+                    Opening price ≈{" "}
+                    <strong className="text-cyan-300">
+                      {supplyNumber > 0 && seedNumber > 0
+                        ? formatSmallNumber(seedNumber / ((supplyNumber * poolSharePct) / 100))
+                        : "—"}
+                    </strong>{" "}
+                    native per token, from the seeded reserves.
+                    <br />
+                    <span className="text-amber-300/90">
+                      Seeded liquidity is permanently locked: the pool has no withdrawal function, so neither you nor
+                      anyone else can pull it out. The liquidity fee stays in the pool and deepens it over time.
+                    </span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                  {(
+                    [
+                      ["low", 0.1, 0.02, "0.10% Low"],
+                      ["standard", 0.3, 0.1, "0.30% Standard"],
+                      ["meme", 0.5, 0.2, "0.50% Meme"],
+                    ] as const
+                  ).map(([tier, fee, cut, label]) => (
+                    <button
+                      key={tier}
+                      onClick={() => {
+                        setFeeTier(tier);
+                        setTotalSwapFee(fee);
+                        setTreasuryCut(cut);
+                      }}
+                      className={`p-2 rounded-xl text-left transition-all border ${
+                        feeTier === tier
+                          ? "bg-purple-950/50 text-white border-purple-500/30"
+                          : "bg-black/30 text-zinc-400 border-transparent hover:text-white"
+                      }`}
+                    >
+                      <span className="font-bold block text-[11px] text-purple-200">{label}</span>
+                      <span className="text-[9px] text-zinc-400">
+                        {(fee - cut).toFixed(2)}% depth · {cut.toFixed(2)}% buyback
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="p-2 rounded-xl bg-black/40 space-y-1">
+                  <div className="flex justify-between text-[10px] font-mono">
+                    <span className="text-cyan-300 font-medium">Pool depth: {lpCut.toFixed(2)}%</span>
+                    <span className="text-pink-400 font-medium">Buyback vault: {treasuryCut.toFixed(2)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden flex">
+                    <div className="bg-cyan-400 h-full" style={{ width: `${(lpCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-pink-500 h-full" style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }} />
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-500 block">
+                    Subdomain: {customSubdomain || "myswap"}.adexto.xyz
+                  </span>
+                </div>
+              </Section>
+
+              {/* Agent */}
+              <Section title="3. 0G TEE agent" tone="cyan">
+                <Field label="Mandate">
+                  <input
+                    value={agentPersona}
+                    onChange={(e) => setAgentPersona(e.target.value)}
+                    className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-cyan-400 text-white focus:outline-none"
+                  />
+                </Field>
+                <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
+                  <span className="px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-500/20">
+                    AMD SEV-SNP enclave
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-orange-950/40 text-orange-300 border border-orange-500/20">
+                    Cloudflare x402
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-purple-950/40 text-purple-300 border border-purple-500/20">
+                    0G DA attestation
+                  </span>
+                </div>
+              </Section>
+
+              {/* Attestation */}
+              <div className="p-3 rounded-xl bg-black/40 border border-white/[0.08] space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldCheck className={`w-5 h-5 shrink-0 ${attestation ? "text-emerald-400" : "text-zinc-500"}`} />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
+                        <span>Deployer address attestation</span>
+                        {attestation && (
+                          <span className="text-[10px] px-1.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono font-bold">
+                            SIGNED
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-zinc-400">
+                        Signature verified server-side and bound to your address
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Action Button */}
-                  <div className="pt-1">
+                  {attestation ? (
+                    <span className="text-emerald-400 text-xs font-mono font-bold flex items-center gap-1 shrink-0">
+                      <CheckCircle2 className="w-4 h-4" /> Ready
+                    </span>
+                  ) : (
                     <button
-                      onClick={handleExecuteDeploy}
-                      disabled={isDeploying || selectedCount === 0 || !worldIdVerified}
-                      className="w-full py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      type="button"
+                      onClick={handleAttest}
+                      disabled={attesting}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-bold border border-white/20 flex items-center gap-1 shrink-0"
                     >
-                      {isDeploying ? (
+                      {attesting ? (
                         <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          {deployStep === 1 && `Signing Transactions on ${selectedChain}...`}
-                          {deployStep === 2 && "Executing On-Chain Deployment..."}
-                          {deployStep === 3 && "Binding 0G TEE Enclave..."}
-                        </>
-                      ) : !worldIdVerified ? (
-                        <>
-                          <ShieldCheck className="w-3.5 h-3.5 text-amber-300" /> Verify World ID to Unlock Deploy ({selectedCount}/3)
+                          <RefreshCw className="w-3 h-3 animate-spin text-cyan-300" /> Signing…
                         </>
                       ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" /> Deploy Selected ({selectedCount}/3) on {selectedChain}
-                        </>
+                        "Sign attestation"
                       )}
                     </button>
-                  </div>
+                  )}
+                </div>
 
+                <p className="text-[10px] font-mono text-amber-300/90 flex items-start gap-1.5 pt-1 border-t border-white/5">
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                  This proves control of an address. It is <strong>not</strong> World ID: there is no zero-knowledge
+                  proof and no nullifier, so it does not enforce one-human-one-launch. Configure{" "}
+                  <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_APP_ID</code> to add real Sybil resistance.
+                </p>
+              </div>
+
+              {globalError && (
+                <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-500/40 text-[11px] font-mono text-red-200 flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                  <span>{globalError}</span>
+                </div>
+              )}
+
+              {deploying && results.length > 0 && (
+                <div className="space-y-1.5">
+                  {results.map((r) => (
+                    <ResultRow key={r.chainId} result={r} />
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={handleDeploy}
+                disabled={deploying || !canDeploy}
+                className="w-full py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deploying ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deploying…
+                  </>
+                ) : liveChains.length === 0 ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5" /> Factory not deployed yet
+                  </>
+                ) : !isConnected ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5" /> Connect wallet
+                  </>
+                ) : !attestation ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" /> Sign attestation to unlock
+                  </>
+                ) : launchTargets.length === 0 ? (
+                  <>
+                    <XCircle className="w-3.5 h-3.5" /> Choose an available ticker
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" /> Launch on {launchTargets.map((c) => c.key).join(" + ")} ·{" "}
+                    {liquiditySeed} seed each
+                  </>
+                )}
+              </button>
+
+              {skippedTargets.length > 0 && (
+                <p className="text-[10px] font-mono text-amber-300/90 flex items-start gap-1.5">
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                  {skippedTargets.map((c) => c.key).join(", ")} will be skipped: this ticker already has a market there.
+                </p>
+              )}
+
+              <div className="rounded-xl border border-white/10 bg-[#050912] overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2">
+                  <Info className="h-3 w-3 text-cyan-300" />
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-200">
+                    How a multi-chain launch works
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-px bg-white/5 sm:grid-cols-3">
+                  <div className="bg-[#050912] p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">One market per chain</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                      Each selected chain gets its own token and pool. Supply, liquidity and price are independent.
+                    </p>
+                  </div>
+                  <div className="bg-[#050912] p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">No bridging</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                      Nothing moves between chains, so the price on 0G and Base can differ. Arbitrage is up to the market.
+                    </p>
+                  </div>
+                  <div className="bg-[#050912] p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">Per-chain funding</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                      Gas is cheap (under $0.10). The real cost is the seed, roughly 16&times; gas, paid in that
+                      chain&apos;s native asset and <span className="text-amber-300">locked permanently</span>.
+                    </p>
+                  </div>
+                </div>
+                <p className="border-t border-white/10 px-3 py-2 font-mono text-[10px] text-zinc-500">
+                  A chain with insufficient balance is skipped on its own — the others still launch.
+                </p>
+              </div>
+
+              <p className="text-[9px] font-mono text-zinc-500 leading-relaxed">
+                Each selected chain gets its own transaction to{" "}
+                <code className="text-cyan-400">deployTrinityProject</code>, simulated first so a revert costs no gas. The
+                token and pool addresses come from the receipt event and are verified server-side before the market is
+                registered.
+              </p>
             </div>
           )}
         </div>
 
-        {/* ── RIGHT: 0G AI CHAT CO-PILOT (5 COLS) ───────────────────────────── */}
+        {/* Right: co-pilot */}
         <div className="lg:col-span-5 bg-[#070913] rounded-2xl border border-white/[0.06] flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
-          {/* Header */}
           <div className="p-2.5 border-b border-white/[0.06] bg-black/30 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px]">
+              <div className="w-5 h-5 rounded bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white">
                 <Bot className="w-3 h-3" />
               </div>
               <span className="font-bold text-white text-xs">0G TEE Co-Pilot</span>
@@ -772,32 +1008,35 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
                 {selectedModel}
               </span>
             </div>
-
             <button
-              onClick={() => setMessages([messages[0]])}
-              className="p-1 text-zinc-500 hover:text-white text-xs font-mono"
-              title="Reset Chat"
+              onClick={() => setMessages((prev) => prev.slice(0, 1))}
+              className="p-1 text-zinc-500 hover:text-white"
+              title="Reset chat"
             >
               <RefreshCw className="w-3 h-3" />
             </button>
           </div>
 
-          {/* Dynamic Status Ribbon (Shows Target Subdomain & Network Real-time) */}
           <div className="px-3 py-1 bg-black/40 border-b border-white/[0.02] flex items-center justify-between text-[10px] font-mono text-zinc-400">
-            <span>Target: <strong className="text-purple-300 font-bold">{customSubdomain || "myswap"}.adexto.xyz</strong></span>
-            <span>Network: <strong className="text-cyan-300 font-bold">{selectedChain}</strong></span>
+            <span>
+              Target: <strong className="text-purple-300 font-bold">{customSubdomain || "myswap"}.adexto.xyz</strong>
+            </span>
+            <span>
+              Chains:{" "}
+              <strong className="text-cyan-300 font-bold">
+                {liveChains.length === 0
+                  ? "none live"
+                  : liveChains
+                      .filter((c) => targetChainIds.includes(c.chainId))
+                      .map((c) => c.key)
+                      .join(", ") || "none selected"}
+              </strong>
+            </span>
           </div>
 
-          {/* Chat Stream */}
-          <div 
-            ref={chatScrollContainerRef} 
-            className="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs bg-black/20"
-          >
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs bg-black/20">
             {messages.map((m, idx) => (
-              <div
-                key={idx}
-                className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+              <div key={idx} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
                   <div className="w-5 h-5 rounded bg-purple-500/10 text-purple-300 flex items-center justify-center shrink-0 mt-0.5">
                     <Cpu className="w-3 h-3" />
@@ -816,9 +1055,9 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
                   <div className="text-xs">
                     {m.content ? (
                       <FormattedMarkdown text={m.content} />
-                    ) : isLoading && idx === messages.length - 1 ? (
+                    ) : chatLoading && idx === messages.length - 1 ? (
                       <span className="flex items-center gap-1 text-cyan-300 font-mono text-xs">
-                        <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G...
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G…
                       </span>
                     ) : null}
                   </div>
@@ -827,27 +1066,193 @@ Tell me your concept or select which components (Token, DEX, Agent) to deploy on
             ))}
           </div>
 
-          {/* Input */}
-          <form onSubmit={handleSendMessage} className="p-2 border-t border-white/[0.06] bg-black/30 flex gap-2 shrink-0">
+          <form onSubmit={sendMessage} className="p-2 border-t border-white/[0.06] bg-black/30 flex gap-2 shrink-0">
             <input
               type="text"
-              placeholder={`Ask AI on ${selectedChain} for ${customSubdomain}.adexto.xyz...`}
+              placeholder="Ask the 0G co-pilot…"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              disabled={isLoading}
-              className="flex-1 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs bg-black/40 border border-white/[0.06] focus:border-cyan-400 focus:outline-none transition-all"
+              disabled={chatLoading}
+              className="flex-1 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs bg-black/40 border border-white/[0.06] focus:border-cyan-400 focus:outline-none"
             />
             <button
               type="submit"
-              disabled={isLoading || !inputMessage.trim()}
-              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow disabled:opacity-50 flex items-center gap-1"
+              disabled={chatLoading || !inputMessage.trim()}
+              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white disabled:opacity-50"
             >
               <Send className="w-3 h-3" />
             </button>
           </form>
         </div>
-
       </div>
+    </div>
+  );
+}
+
+// ─── presentational helpers ──────────────────────────────────────────────────
+
+function Section({
+  title,
+  tone,
+  children,
+}: {
+  title: string;
+  tone: "pink" | "purple" | "cyan";
+  children: React.ReactNode;
+}) {
+  const border = tone === "pink" ? "border-pink-500/30" : tone === "purple" ? "border-purple-500/30" : "border-cyan-500/30";
+  const text = tone === "pink" ? "text-pink-300" : tone === "purple" ? "text-purple-300" : "text-cyan-300";
+  return (
+    <div className={`space-y-2 p-3 rounded-xl bg-black/30 border ${border}`}>
+      <span className={`text-xs font-mono font-bold uppercase tracking-wider ${text}`}>{title}</span>
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  hintTone = "muted",
+  children,
+}: {
+  label: string;
+  hint?: string;
+  hintTone?: "ok" | "error" | "muted";
+  children: React.ReactNode;
+}) {
+  const hintColor = hintTone === "ok" ? "text-emerald-400" : hintTone === "error" ? "text-red-400" : "text-zinc-500";
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-medium text-zinc-400">{label}</span>
+        {hint && <span className={`text-[9px] font-mono ${hintColor} truncate`}>{hint}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ResultRow({ result }: { result: ChainResult }) {
+  const tone =
+    result.status === "success"
+      ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+      : result.status === "failed"
+      ? "bg-red-950/30 border-red-500/40 text-red-200"
+      : "bg-white/[0.03] border-white/10 text-zinc-300";
+
+  return (
+    <div className={`p-2 rounded-xl border flex items-center justify-between gap-2 font-mono text-[10px] ${tone}`}>
+      <span className="font-bold shrink-0">{result.chainName}</span>
+      <span className="flex items-center gap-1.5 min-w-0">
+        {result.status === "success" ? (
+          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+        ) : result.status === "failed" ? (
+          <XCircle className="w-3 h-3 text-red-400 shrink-0" />
+        ) : (
+          <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+        )}
+        <span className="truncate">{result.message ?? result.status}</span>
+      </span>
+    </div>
+  );
+}
+
+function DeployReport({
+  results,
+  symbol,
+  onReset,
+}: {
+  results: ChainResult[];
+  symbol: string;
+  onReset: () => void;
+}) {
+  const successes = results.filter((r) => r.status === "success");
+  const failures = results.filter((r) => r.status === "failed");
+  const allFailed = successes.length === 0;
+
+  return (
+    <div className="space-y-4 my-auto">
+      <div
+        className={`p-4 rounded-2xl border space-y-1 ${
+          allFailed ? "bg-red-950/20 border-red-500/40" : "bg-emerald-950/20 border-emerald-500/30"
+        }`}
+      >
+        <div className={`flex items-center gap-2 font-bold text-sm ${allFailed ? "text-red-300" : "text-emerald-300"}`}>
+          {allFailed ? <XCircle className="w-5 h-5 text-red-400" /> : <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+          {allFailed
+            ? `Launch failed on all ${results.length} chain(s)`
+            : `${symbol} live on ${successes.length} of ${results.length} chain(s)`}
+        </div>
+        {failures.length > 0 && !allFailed && (
+          <p className="text-[11px] font-mono text-amber-300">
+            {failures.length} chain(s) failed — details below. Nothing was registered for those.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-2 font-mono text-xs">
+        {results.map((r) => (
+          <div
+            key={r.chainId}
+            className={`p-3 rounded-xl border space-y-1.5 ${
+              r.status === "success" ? "bg-black/40 border-emerald-500/20" : "bg-black/40 border-red-500/20"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-white">
+                {r.chainName} <span className="text-zinc-500">({r.chainId})</span>
+              </span>
+              <span className={r.status === "success" ? "text-emerald-400" : "text-red-400"}>{r.status}</span>
+            </div>
+
+            {r.status === "success" ? (
+              <div className="space-y-1 text-[11px]">
+                <Row label="Token" value={r.tokenAddress ?? "—"} />
+                <Row label="Pool" value={r.poolAddress ?? "—"} />
+                {r.explorerTx && (
+                  <a
+                    href={r.explorerTx}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:underline block"
+                  >
+                    View launch transaction →
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] text-red-300 leading-relaxed">{r.message}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 pt-2 font-sans">
+        <button
+          onClick={onReset}
+          className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all"
+        >
+          Launch another
+        </button>
+        {successes.length > 0 && (
+          <Link
+            href={`/token/${symbol.toLowerCase()}`}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-semibold text-xs text-center flex items-center justify-center gap-1"
+          >
+            Open ${symbol} terminal →
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-zinc-400 shrink-0">{label}:</span>
+      <span className="text-cyan-300 font-bold truncate">{value}</span>
     </div>
   );
 }

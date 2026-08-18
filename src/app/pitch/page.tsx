@@ -22,17 +22,19 @@ export default function PitchDeckPage() {
         </p>
       </div>
 
-      <div className="space-y-12">
+      {/* Ritme diatur oleh .section-block (jarak + garis tipis di atas), bukan lagi
+          oleh space-y besar antar kotak. */}
+      <div>
         {/* ── VC TEAR-DOWN: THE HARD TRUTHS ──────────────────────────────────── */}
-        <div className="glass-panel p-8 rounded-3xl border-2 border-red-500/40 space-y-6 shadow-2xl bg-red-950/10">
-          <div className="flex items-center gap-2 text-xs font-mono text-red-400 font-bold">
-            <ShieldAlert className="w-4 h-4" />
-            <span>EXECUTIVE SUMMARY: WHY 99% OF CRYPTO x AI IS UNINVESTABLE</span>
+        <div className="section-block space-y-5">
+          <div className="kicker text-red-300/90">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Executive summary — why 99% of crypto x AI is uninvestable</span>
           </div>
-          <h2 className="text-2xl font-black text-white">The Three Fatal Flaws We Annihilate</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">The Three Fatal Flaws We Annihilate</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
-            <div className="p-4 rounded-xl bg-[#080d1a] border border-red-500/30 space-y-2">
+            <div className="card card-hover p-4 space-y-2 border-red-500/20">
               <span className="text-red-400 font-black text-sm block">1. The Fake AI Problem</span>
               <p className="text-slate-300 leading-relaxed">
                 Most "AI tokens" are centralized wrappers running on AWS with hardcoded OpenAI keys. When the developer gets subpoenaed or rugged, the agent dies. 
@@ -40,7 +42,7 @@ export default function PitchDeckPage() {
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#080d1a] border border-red-500/30 space-y-2">
+            <div className="card card-hover p-4 space-y-2 border-red-500/20">
               <span className="text-red-400 font-black text-sm block">2. Launchpad Fee Theft</span>
               <p className="text-slate-300 leading-relaxed">
                 Platforms like Pump.fun and Clanker extract $100M+ in creator fees while creators receive $0 from downstream AMM trading volume.
@@ -48,7 +50,7 @@ export default function PitchDeckPage() {
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#080d1a] border border-red-500/30 space-y-2">
+            <div className="card card-hover p-4 space-y-2 border-red-500/20">
               <span className="text-red-400 font-black text-sm block">3. Zero Real Revenue (Ponzi Trap)</span>
               <p className="text-slate-300 leading-relaxed">
                 Tokens with 0 cashflow inevitably dump to zero when retail hype moves on.
@@ -59,28 +61,27 @@ export default function PitchDeckPage() {
         </div>
 
         {/* ── THE 4-IN-1 ORCHESTRATION ARCHITECTURE ──────────────────────────── */}
-        <div className="glass-panel p-8 rounded-3xl border-2 border-white/20 space-y-6 shadow-2xl">
-          <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 font-bold">
-            <span>PILLAR ARCHITECTURE</span>
-            <span>•</span>
-            <span>THE ADEXTO ADVANTAGE</span>
-          </div>
-          <h2 className="text-2xl font-black text-white">Full-Stack Sovereignty: The ADEXTO Moat</h2>
+        <div className="section-block space-y-5">
+          <div className="kicker">Pillar architecture · the ADEXTO advantage</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Full-Stack Sovereignty: The ADEXTO Moat</h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
-            <div className="p-4 rounded-xl bg-[#070a14] border border-cyan-500/30">
+          {/* Paragraf penjelas tidak boleh monospace. Kelas `font-mono` di sini
+              membuat empat kartu pilar terbaca seperti keluaran terminal, dan itu
+              baru kelihatan jelas setelah situs punya typeface sungguhan. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-[13px]">
+            <div className="card card-hover p-4 border-cyan-500/20">
               <strong className="text-cyan-300 block mb-1 text-sm font-bold">A → Autonomous</strong>
               <span className="text-slate-200">Hardware-verified TEE compute on 0G Mainnet (Chain ID 16661). Verifiable inference and 24/7 quant market-making.</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30">
+            <div className="card card-hover p-4 border-purple-500/20">
               <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign Hook</strong>
               <span className="text-slate-200">Uniswap v4 dynamic hook AMM capturing 0.20% LP / 0.10% buyback fee splits natively.</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30">
+            <div className="card card-hover p-4 border-pink-500/20">
               <strong className="text-pink-300 block mb-1 text-sm font-bold">T → Token Factory</strong>
               <span className="text-slate-200">ERC-8004 metadata binding with dynamic mathematical bonding curves &amp; anti-sniper protection.</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-emerald-500/30">
+            <div className="card card-hover p-4 border-emerald-500/20">
               <strong className="text-emerald-300 block mb-1 text-sm font-bold">O → Orchestrator</strong>
               <span className="text-slate-200">Cloudflare Workers x402 edge gate settling global machine micropayments in sub-50ms.</span>
             </div>
@@ -88,13 +89,9 @@ export default function PitchDeckPage() {
         </div>
 
         {/* ── UNIT ECONOMICS & FINANCIAL PROJECTIONS ─────────────────────────── */}
-        <div className="glass-panel p-8 rounded-3xl border-2 border-white/20 space-y-6 shadow-2xl">
-          <div className="flex items-center gap-2 text-xs font-mono text-emerald-300 font-bold">
-            <span>FINANCIAL UNIT ECONOMICS</span>
-            <span>•</span>
-            <span>REVENUE &amp; MRR MODEL</span>
-          </div>
-          <h2 className="text-2xl font-black text-white">4 Scalable High-Margin Revenue Streams</h2>
+        <div className="section-block space-y-5">
+          <div className="kicker">Financial unit economics · revenue &amp; MRR model</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">4 Scalable High-Margin Revenue Streams</h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-[#070a14] border border-white/15 space-y-1.5">
@@ -123,14 +120,66 @@ export default function PitchDeckPage() {
           </div>
         </div>
 
-        {/* ── ROADMAP & GRANT TARGETS ────────────────────────────────────────── */}
-        <div className="glass-panel p-8 rounded-3xl border-2 border-white/20 space-y-6 shadow-2xl">
-          <div className="flex items-center gap-2 text-xs font-mono text-pink-300 font-bold">
-            <span>GRANT STRATEGY &amp; ROADMAP</span>
-            <span>•</span>
-            <span>BASE + 0G + ARBITRUM + MONAD</span>
+        {/* ── COMPETITIVE MATRIX: ADEXTO VS EXISTING LAUNCHPADS ────────────── */}
+        <div className="section-block space-y-5">
+          <div className="kicker">
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Competitive moat &amp; benchmark matrix</span>
           </div>
-          <h2 className="text-2xl font-black text-white">90-Day Execution Milestones</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Why ADEXTO Dominates the Next Cycle</h2>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-mono text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-white/20 text-zinc-400">
+                  <th className="pb-3 pr-4">Feature / Metric</th>
+                  <th className="pb-3 px-4 text-red-400">Pump.fun / Clanker</th>
+                  <th className="pb-3 px-4 text-purple-400">Virtuals Protocol</th>
+                  <th className="pb-3 pl-4 text-cyan-300 font-bold bg-cyan-950/30 rounded-t-lg">ADEXTO (adexto.xyz)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10 text-slate-200">
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-white">AI Hardware Isolation</td>
+                  <td className="py-3 px-4 text-red-400">None (Meme only)</td>
+                  <td className="py-3 px-4 text-zinc-400">Cloud Web2 API</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">0G AMD SEV-SNP TEE</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-white">Creator Trading Revenue</td>
+                  <td className="py-3 px-4 text-red-400">0% (Platform takes all)</td>
+                  <td className="py-3 px-4 text-zinc-400">Partial pool cut</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">100% (Sovereign Hook AMM)</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-white">Multi-chain launch</td>
+                  <td className="py-3 px-4 text-red-400">Single chain only</td>
+                  <td className="py-3 px-4 text-zinc-400">Base only</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">
+                    1–4 chains, one market per chain
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-white">Edge Micro-Monetization</td>
+                  <td className="py-3 px-4 text-red-400">None</td>
+                  <td className="py-3 px-4 text-red-400">None</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">Cloudflare Workers x402</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-white">Anti-Sniper Defense</td>
+                  <td className="py-3 px-4 text-red-400">Rampant Bot Dumps</td>
+                  <td className="py-3 px-4 text-zinc-400">Basic cooldown</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">ERC-8004 1% Genesis Limit</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── ROADMAP & GRANT TARGETS ────────────────────────────────────────── */}
+        <div className="section-block space-y-5">
+          <div className="kicker">Grant strategy &amp; roadmap · Base + 0G + Arbitrum + Monad</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">90-Day Execution Milestones</h2>
           
         <div className="space-y-3 text-xs sm:text-sm font-mono">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#070a14] border border-white/10">
@@ -144,7 +193,9 @@ export default function PitchDeckPage() {
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#070a14] border border-white/10">
             <div>
               <strong className="text-white block text-sm">Phase 2 (Q4 2026):</strong>
-              <span className="text-zinc-300 text-xs">Cross-Chain CCIP Mesh (Base + Monad) &amp; DAO Decentralized Governance</span>
+              <span className="text-zinc-300 text-xs">
+                DAO governance on 0G · cross-chain lanes pending CCIP support for 0G and Monad
+              </span>
             </div>
             <span className="px-3 py-1 rounded bg-cyan-500/20 text-cyan-300 font-bold text-xs">IN PROGRESS</span>
           </div>

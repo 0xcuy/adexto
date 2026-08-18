@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   Compass, ArrowDownUp, CloudLightning, BookOpen, 
-  Award, ShieldCheck, LogOut, Wallet, Sparkles, Vote, Menu, X, Twitter, Github
+  Award, ShieldCheck, Sparkles, Vote, Menu, X, Twitter, Github
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
+import WalletMenu from "@/components/WalletMenu";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { address, isConnected, isConnecting, connectWallet, disconnectWallet, chainName } = useWallet();
+  const { isConnected, chainName } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const links = [
@@ -89,35 +90,17 @@ export default function Navbar() {
             </a>
           </div>
 
-          {/* Web3 Wallet Connect Button */}
-          {isConnected ? (
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col text-right font-mono text-[10px]">
+          {/* Wallet: sambung, ganti wallet, ganti akun, putuskan */}
+          <div className="flex items-center gap-2">
+            {isConnected && (
+              <span className="hidden sm:flex flex-col text-right font-mono text-[10px]">
                 <span className="text-emerald-400 font-bold flex items-center gap-1 justify-end">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> {chainName.split(" ")[0]}
                 </span>
-                <span className="text-zinc-400 text-[9px]">{address?.slice(0, 4)}...{address?.slice(-3)}</span>
-              </div>
-              <button
-                onClick={disconnectWallet}
-                className="p-1.5 sm:p-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 transition-all text-xs flex items-center gap-1"
-                title="Disconnect Wallet"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={connectWallet}
-              disabled={isConnecting}
-              className="relative inline-flex items-center justify-center p-0.5 overflow-hidden rounded-xl font-black text-xs group bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/30 hover:shadow-cyan-500/50 transition-all duration-300"
-            >
-              <span className="relative px-3 sm:px-4 py-1.5 sm:py-2 transition-all ease-in duration-200 bg-[#07080d] rounded-[10px] group-hover:bg-transparent flex items-center gap-1.5 text-[11px] sm:text-xs">
-                <Wallet className="w-3.5 h-3.5 text-cyan-300" />
-                {isConnecting ? "Connecting..." : "Connect"}
               </span>
-            </button>
-          )}
+            )}
+            <WalletMenu />
+          </div>
 
           <Link
             href="/studio"

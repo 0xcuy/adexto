@@ -1,104 +1,123 @@
 import { NextResponse } from "next/server";
-import { ethers } from "ethers";
-import { ADEXTO_CONTRACTS } from "@/config/contracts";
+import { listProjects, customProjectCount, marketKey, type ProjectRecord } from "@/lib/registry";
+import { resolveChainOrDefault } from "@/lib/chains";
+import { isDurable } from "@/lib/server-store";
 
-// Factory Contract ABI for Event Querying
-const FACTORY_ABI = [
-  "event TrinityProjectCreated(address indexed token, address indexed creator, string symbol, bytes32 teeAttestationRoot)",
-  "function allProjects(uint256) view returns (address token, address creator, string name, string symbol, uint256 swapFeeBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot, uint256 deployedAt)",
-  "function totalProjects() view returns (uint256)"
-];
+/**
+ * Project index consumed by /explorer, /swap and /token/[slug].
+ *
+ * Changed from the previous revision:
+ *   - prices are numeric and carry their unit (`priceNative` + `nativeSymbol`)
+ *     instead of display strings like "0.00018 ETH" that callers stripped and
+ *     then treated as USD;
+ *   - the list is deduplicated and curated entries always win, so a launch can no
+ *     longer shadow an official project by reusing its ticker;
+ *   - every record states whether it is `verified` on-chain and whether its pool
+ *     is `poolLive`, so the UI can disable trading instead of guessing.
+ */
+export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
-  try {
-    const defaultData = {
-      projects: [
-        {
-          id: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
-          tokenAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
-          creator: ADEXTO_CONTRACTS.deployer,
-          name: "Aegis Sentinel AI",
-          symbol: "AEGIS",
-          chain: "0G Mainnet (16661)",
-          tvl: "Pool Initialized (1.912 0G)",
-          mcap: "1,000,000,000 AEGIS",
-          volume24h: "Live On-Chain",
-          feesGenerated: "0.20% LP / 0.10% Buyback",
-          buybackAmount: "Active 0G TEE Vault",
-          price: "0.0184 0G",
-          change24h: "Live Genesis",
-          agentStatus: "Active (0G AMD SEV-SNP)",
-          edgeProvider: "Cloudflare x402 Edge",
-          agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
-          mcpTools: ["Signet", "Sentinel", "Helm", "x402"],
-          category: "defi",
-          image: "/aegis_logo.png",
-          teeAttestationRoot: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
-          deployedAt: "1786848200",
-          transactionHash: "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
-          blockNumber: "41896821"
-        },
-        {
-          id: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-          tokenAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-          creator: ADEXTO_CONTRACTS.deployer,
-          name: "QuantNova Swarm HFT",
-          symbol: "QNOVA",
-          chain: "Arbitrum One (42161)",
-          tvl: "Pool Initialized",
-          mcap: "1,000,000,000 QNOVA",
-          volume24h: "Live On-Chain",
-          feesGenerated: "0.20% LP / 0.10% Buyback",
-          buybackAmount: "Active Vault",
-          price: "0.00018 ETH",
-          change24h: "Live Mesh",
-          agentStatus: "Active (0G CCIP)",
-          edgeProvider: "Cloudflare x402",
-          agentModel: "0G glm-5.2",
-          mcpTools: ["Signet", "Helm", "x402"],
-          category: "trading",
-          image: "/qnova_logo.png",
-          teeAttestationRoot: "0x57d8f0846a59cc3ae156dcaa43553d3dd69f49211031f39a1e8fe636677e6572",
-          deployedAt: "1786848250",
-          transactionHash: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-          blockNumber: "41896830"
-        },
-        {
-          id: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
-          tokenAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
-          creator: ADEXTO_CONTRACTS.deployer,
-          name: "CyberSentinel Shield AI",
-          symbol: "CSENT",
-          chain: "Arbitrum One (42161)",
-          tvl: "Pool Initialized",
-          mcap: "1,000,000,000 CSENT",
-          volume24h: "Live On-Chain",
-          feesGenerated: "0.20% LP / 0.10% Buyback",
-          buybackAmount: "Active Vault",
-          price: "0.00008 ETH",
-          change24h: "Live Shield",
-          agentStatus: "Active (0G TEE)",
-          edgeProvider: "Cloudflare x402",
-          agentModel: "0G 0gm-1.0-35b",
-          mcpTools: ["Sentinel", "Aegis", "x402"],
-          category: "security",
-          image: "/csent_logo.png",
-          teeAttestationRoot: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
-          deployedAt: "1786848300",
-          transactionHash: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
-          blockNumber: "41896835"
-        }
-      ],
+function serialize(project: ProjectRecord, all: ProjectRecord[]) {
+  const chain = resolveChainOrDefault(project.chainId);
+
+  // A one-click multi-chain launch produces one independent market per chain.
+  // `alsoOn` lets a client show the sibling deployments without guessing, and
+  // `marketKey` gives every row a stable identity now that the ticker alone is
+  // no longer unique.
+  const alsoOn = all
+    .filter((p) => p.symbol === project.symbol && p.chainId !== project.chainId)
+    .map((p) => ({
+      chainId: p.chainId,
+      chainKey: p.chainKey,
+      chainName: resolveChainOrDefault(p.chainId).name,
+      tokenAddress: p.tokenAddress,
+      poolAddress: p.poolAddress,
+      priceNative: p.priceNative,
+      nativeSymbol: p.nativeSymbol,
+      tradable: p.poolLive && Boolean(p.poolAddress),
+    }));
+
+  return {
+    id: project.id,
+    marketKey: marketKey(project.chainId, project.symbol),
+    alsoOn,
+    deployedChainCount: alsoOn.length + 1,
+    tokenAddress: project.tokenAddress,
+    poolAddress: project.poolAddress,
+    creator: project.creator,
+    name: project.name,
+    symbol: project.symbol,
+    slug: project.slug,
+
+    chainId: project.chainId,
+    chainKey: project.chainKey,
+    chain: project.chainLabel,
+    targetChainIds: project.targetChainIds,
+    nativeSymbol: project.nativeSymbol,
+    blockExplorer: chain.blockExplorer,
+
+    priceNative: project.priceNative,
+    supply: project.supply,
+    lpFeeBps: project.lpFeeBps,
+    treasuryBuybackBps: project.treasuryBuybackBps,
+
+    agentModel: project.agentModel,
+    agentPersona: project.agentPersona,
+    agentStatus: project.agentStatus,
+    edgeProvider: project.edgeProvider,
+    mcpTools: project.mcpTools,
+    category: project.category,
+    image: project.image,
+
+    transactionHash: project.txHash,
+    blockNumber: project.blockNumber,
+    teeAttestationRoot: project.teeRoot,
+    daStorageTx: project.daStorageTx,
+    deployedAt: String(project.deployedAt),
+
+    verified: project.verified,
+    curated: project.curated,
+    poolLive: project.poolLive,
+    tradable: project.poolLive && Boolean(project.poolAddress),
+  };
+}
+
+function payload() {
+  const records = listProjects();
+  const projects = records.map((r) => serialize(r, records));
+  const distinctSymbols = new Set(records.map((r) => r.symbol)).size;
+
+  return {
+    data: {
+      projects,
       globalStats: {
         id: "global",
-        totalProjects: "3",
-        totalVolumeUSD: "0.00",
-        totalFeesGeneratedUSD: "0.00",
-        totalBuybacksUSD: "0.00"
-      }
-    };
+        totalProjects: String(projects.length),
+        distinctSymbols: String(distinctSymbols),
+        multiChainSymbols: String(projects.filter((p) => p.deployedChainCount > 1).length),
+        curatedProjects: String(projects.filter((p) => p.curated).length),
+        launchedProjects: String(customProjectCount()),
+        tradableProjects: String(projects.filter((p) => p.tradable).length),
+        verifiedProjects: String(projects.filter((p) => p.verified).length),
+      },
+      registry: {
+        durable: isDurable(),
+      },
+    },
+  };
+}
 
-    return NextResponse.json({ data: defaultData });
+export async function POST() {
+  try {
+    return NextResponse.json(payload());
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    return NextResponse.json(payload());
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

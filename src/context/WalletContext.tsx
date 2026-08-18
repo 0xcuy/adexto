@@ -1,226 +1,319 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CHAINS, CHAIN_LIST, DEFAULT_CHAIN, chainFromId, type ChainInfo, type ChainKey } from "@/lib/chains";
+import { ensureWalletChain } from "@/lib/dex";
+import {
+  getActiveEip1193,
+  getActiveWalletInfo,
+  onWalletsChanged,
+  requestAccountChange,
+  setActiveWallet,
+  startWalletDiscovery,
+  wallets as discoveredWallets,
+  type DiscoveredWallet,
+  type WalletInfo,
+} from "@/lib/wallet-provider";
 
-export type SupportedChainKey = "0G" | "Base" | "Arbitrum" | "Monad";
+/**
+ * Wallet state.
+ *
+ * The previous version seeded `chainId` with 16661 whether or not a wallet was
+ * connected, so consumers could not tell which network the wallet was actually on
+ * — which is how a wallet sitting on 0G ended up sending native value to an
+ * Arbitrum contract address. `walletChainId` is now null until it has been read
+ * from the provider, and `isOnChain` / `switchToChain` are exposed so trade paths
+ * can gate on the real value.
+ */
 
-interface ChainConfig {
-  id: number;
-  name: string;
-  key: SupportedChainKey;
-  rpcUrl: string;
-  blockExplorer: string;
-  status: "Live On-Chain" | "Phase 2 Mesh";
-}
+export type SupportedChainKey = ChainKey;
 
-export const CHAIN_CONFIGS: Record<SupportedChainKey, ChainConfig> = {
-  "0G": {
-    id: 16661,
-    name: "0G Mainnet (Primary)",
-    key: "0G",
-    rpcUrl: "https://evmrpc.0g.ai",
-    blockExplorer: "https://chainscan.0g.ai",
-    status: "Live On-Chain",
-  },
-  Arbitrum: {
-    id: 42161,
-    name: "Arbitrum One",
-    key: "Arbitrum",
-    rpcUrl: "https://arb1.arbitrum.io/rpc",
-    blockExplorer: "https://arbiscan.io",
-    status: "Live On-Chain",
-  },
-  Base: {
-    id: 8453,
-    name: "Base Mainnet",
-    key: "Base",
-    rpcUrl: "https://mainnet.base.org",
-    blockExplorer: "https://basescan.org",
-    status: "Phase 2 Mesh",
-  },
-  Monad: {
-    id: 10143,
-    name: "Monad Mainnet",
-    key: "Monad",
-    rpcUrl: "https://mainnet-rpc.monad.xyz",
-    blockExplorer: "https://monadvision.com",
-    status: "Phase 2 Mesh",
-  },
-};
-
-const CHAIN_ID_TO_KEY: Record<number, SupportedChainKey> = {
-  16661: "0G",
-  16602: "0G",
-  8453: "Base",
-  84532: "Base",
-  42161: "Arbitrum",
-  421614: "Arbitrum",
-  10143: "Monad",
-};
+export const CHAIN_CONFIGS: Record<ChainKey, ChainInfo> = CHAINS;
 
 interface WalletContextType {
   address: string | null;
+  /** Chain the wallet actually reports, or null when unknown/disconnected. */
+  walletChainId: number | null;
+  /** Chain the user selected in the UI. */
+  selectedChain: ChainKey;
+  chainInfo: ChainInfo;
+  /** Kept for existing consumers: selected chain's id. */
   chainId: number;
-  selectedChain: SupportedChainKey;
   chainName: string;
   isConnected: boolean;
   isConnecting: boolean;
-  connectWallet: () => Promise<void>;
+  /** Menerima rdns supaya user bisa memilih wallet saat ada beberapa terpasang. */
+  connectWallet: (rdns?: string) => Promise<void>;
   disconnectWallet: () => void;
-  setSelectedChain: (chain: SupportedChainKey) => void;
+  setSelectedChain: (chain: ChainKey) => Promise<void>;
+  switchToChain: (chain: ChainInfo) => Promise<void>;
+  isOnChain: (chainId: number) => boolean;
+  /** Semua wallet yang mengumumkan diri lewat EIP-6963. */
+  availableWallets: DiscoveredWallet[];
+  /** Wallet yang sedang dipakai, null bila memakai `window.ethereum` legacy. */
+  activeWallet: WalletInfo | null;
+  /** Pindah ke wallet lain yang terpasang, lalu minta izin akunnya. */
+  switchWallet: (rdns: string) => Promise<void>;
+  /** Membuka pemilih akun milik wallet (ganti akun tanpa ganti wallet). */
+  changeAccount: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType>({
   address: null,
-  chainId: 16661,
-  selectedChain: "0G",
-  chainName: "0G Mainnet (Primary)",
+  walletChainId: null,
+  selectedChain: DEFAULT_CHAIN.key,
+  chainInfo: DEFAULT_CHAIN,
+  chainId: DEFAULT_CHAIN.chainId,
+  chainName: DEFAULT_CHAIN.name,
   isConnected: false,
   isConnecting: false,
   connectWallet: async () => {},
   disconnectWallet: () => {},
-  setSelectedChain: () => {},
+  setSelectedChain: async () => {},
+  switchToChain: async () => {},
+  isOnChain: () => false,
+  availableWallets: [],
+  activeWallet: null,
+  switchWallet: async () => {},
+  changeAccount: async () => {},
 });
+
+/**
+ * Provider aktif menurut `wallet-provider`. Dulu fungsi ini membaca
+ * `window.ethereum` langsung, sehingga tidak mungkin memilih wallet.
+ */
+function injected(): any | null {
+  return getActiveEip1193();
+}
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
-  const [selectedChain, setSelectedChainState] = useState<SupportedChainKey>("0G");
-  const [chainId, setChainId] = useState<number>(16661);
+  const [walletChainId, setWalletChainId] = useState<number | null>(null);
+  const [selectedChain, setSelectedChainState] = useState<ChainKey>(DEFAULT_CHAIN.key);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [availableWallets, setAvailableWallets] = useState<DiscoveredWallet[]>([]);
+  const [activeWallet, setActiveWalletInfo] = useState<WalletInfo | null>(null);
 
-  // Sync state whenever selectedChainState changes
-  const chainName = CHAIN_CONFIGS[selectedChain]?.name || "0G Mainnet";
+  const chainInfo = CHAINS[selectedChain] ?? DEFAULT_CHAIN;
 
+  // Penemuan wallet harus jalan sebelum apa pun mencoba memakai provider.
   useEffect(() => {
-    const savedAddr = localStorage.getItem("adexto_wallet_address");
-    const savedChain = localStorage.getItem("adexto_selected_chain") as SupportedChainKey;
-
-    if (savedAddr) {
-      setAddress(savedAddr);
-    }
-    if (savedChain && CHAIN_CONFIGS[savedChain]) {
-      setSelectedChainState(savedChain);
-      setChainId(CHAIN_CONFIGS[savedChain].id);
-    }
-
-    // Listen to real window.ethereum changes if available
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handleAccountsChanged = (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setAddress(accounts[0]);
-          localStorage.setItem("adexto_wallet_address", accounts[0]);
-        } else {
-          disconnectWallet();
-        }
-      };
-
-      const handleChainChanged = (hexChainId: string) => {
-        const num = parseInt(hexChainId, 16);
-        setChainId(num);
-        if (CHAIN_ID_TO_KEY[num]) {
-          setSelectedChainState(CHAIN_ID_TO_KEY[num]);
-          localStorage.setItem("adexto_selected_chain", CHAIN_ID_TO_KEY[num]);
-        }
-      };
-
-      (window as any).ethereum.on("accountsChanged", handleAccountsChanged);
-      (window as any).ethereum.on("chainChanged", handleChainChanged);
-
-      return () => {
-        (window as any).ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
-        (window as any).ethereum?.removeListener?.("chainChanged", handleChainChanged);
-      };
-    }
+    startWalletDiscovery();
+    setAvailableWallets(discoveredWallets());
+    setActiveWalletInfo(getActiveWalletInfo());
+    const off = onWalletsChanged((list) => {
+      setAvailableWallets(list);
+      setActiveWalletInfo(getActiveWalletInfo());
+    });
+    return off;
   }, []);
 
-  const setSelectedChain = async (chain: SupportedChainKey) => {
-    setSelectedChainState(chain);
-    const targetConfig = CHAIN_CONFIGS[chain];
-    setChainId(targetConfig.id);
-    localStorage.setItem("adexto_selected_chain", chain);
+  useEffect(() => {
+    const savedChain = localStorage.getItem("adexto_selected_chain") as ChainKey | null;
+    if (savedChain && CHAINS[savedChain]) setSelectedChainState(savedChain);
 
-    // If browser wallet is connected, switch EVM chain network in wallet
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        await (window as any).ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: `0x${targetConfig.id.toString(16)}` }],
-        });
-      } catch (switchError: any) {
-        if (switchError.code === 4902) {
-          try {
-            await (window as any).ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: `0x${targetConfig.id.toString(16)}`,
-                  chainName: targetConfig.name,
-                  rpcUrls: [targetConfig.rpcUrl],
-                  blockExplorerUrls: [targetConfig.blockExplorer],
-                  nativeCurrency: {
-                    name: chain === "0G" ? "0G" : chain === "Arbitrum" || chain === "Base" ? "ETH" : "MON",
-                    symbol: chain === "0G" ? "0G" : chain === "Arbitrum" || chain === "Base" ? "ETH" : "MON",
-                    decimals: 18,
-                  },
-                },
-              ],
-            });
-          } catch (addError) {
-            console.warn("User rejected adding chain:", addError);
-          }
+    const ethereum = injected();
+    if (!ethereum) return;
+
+    // Only restore the address if the wallet still authorises this origin, so a
+    // stale localStorage entry can never make the UI look connected.
+    ethereum
+      .request({ method: "eth_accounts" })
+      .then((accounts: string[]) => {
+        if (accounts?.length > 0) setAddress(accounts[0]);
+        else localStorage.removeItem("adexto_wallet_address");
+      })
+      .catch(() => {});
+
+    ethereum
+      .request({ method: "eth_chainId" })
+      .then((hex: string) => {
+        const id = parseInt(hex, 16);
+        setWalletChainId(id);
+        const known = chainFromId(id);
+        if (known && !savedChain) setSelectedChainState(known.key);
+      })
+      .catch(() => {});
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length > 0) {
+        setAddress(accounts[0]);
+        localStorage.setItem("adexto_wallet_address", accounts[0]);
+      } else {
+        setAddress(null);
+        localStorage.removeItem("adexto_wallet_address");
+      }
+    };
+
+    const handleChainChanged = (hexChainId: string) => {
+      const id = parseInt(hexChainId, 16);
+      setWalletChainId(id);
+      const known = chainFromId(id);
+      if (known) {
+        setSelectedChainState(known.key);
+        localStorage.setItem("adexto_selected_chain", known.key);
+      }
+    };
+
+    ethereum.on?.("accountsChanged", handleAccountsChanged);
+    ethereum.on?.("chainChanged", handleChainChanged);
+
+    return () => {
+      ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+      ethereum.removeListener?.("chainChanged", handleChainChanged);
+    };
+    // Penemuan EIP-6963 datang asinkron setelah mount, jadi provider aktif bisa
+    // berubah. Efek ini harus dipasang ulang ke provider yang benar — kalau hanya
+    // berjalan sekali, listener menempel pada wallet yang salah dan pergantian
+    // akun atau chain di wallet terpilih tidak akan pernah terbaca.
+  }, [activeWallet?.rdns, availableWallets.length]);
+
+  const switchToChain = useCallback(async (target: ChainInfo) => {
+    const ethereum = injected();
+    if (!ethereum) throw new Error("No Web3 wallet detected. Install MetaMask, Rabby or Coinbase Wallet.");
+    await ensureWalletChain(ethereum, target);
+    setWalletChainId(target.chainId);
+    setSelectedChainState(target.key);
+    localStorage.setItem("adexto_selected_chain", target.key);
+  }, []);
+
+  const setSelectedChain = useCallback(
+    async (chain: ChainKey) => {
+      const target = CHAINS[chain];
+      if (!target) return;
+      setSelectedChainState(chain);
+      localStorage.setItem("adexto_selected_chain", chain);
+      if (injected() && address) {
+        try {
+          await switchToChain(target);
+        } catch (error) {
+          console.warn("[adexto] chain switch declined:", (error as Error).message);
         }
       }
-    }
-  };
+    },
+    [address, switchToChain]
+  );
 
-  const connectWallet = async () => {
+  const connectWallet = useCallback(async (rdns?: string) => {
+    // Bila user menyebut wallet tertentu, jadikan aktif LEBIH DULU supaya
+    // permintaan izin dan seluruh transaksi setelahnya lewat provider itu.
+    if (rdns) setActiveWallet(rdns);
+    const ethereum = injected();
+    if (!ethereum) {
+      alert("No Web3 wallet detected. Install MetaMask, Rabby or Coinbase Wallet to continue.");
+      return;
+    }
     setIsConnecting(true);
     try {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        const accounts = await (window as any).ethereum.request({ method: "eth_requestAccounts" });
-        const currentChainIdHex = await (window as any).ethereum.request({ method: "eth_chainId" });
-        const numChain = parseInt(currentChainIdHex, 16);
-        const userAddr = accounts[0];
+      const accounts: string[] = await ethereum.request({ method: "eth_requestAccounts" });
+      const hexChainId: string = await ethereum.request({ method: "eth_chainId" });
+      const id = parseInt(hexChainId, 16);
 
-        setAddress(userAddr);
-        setChainId(numChain);
-        if (CHAIN_ID_TO_KEY[numChain]) {
-          setSelectedChainState(CHAIN_ID_TO_KEY[numChain]);
-          localStorage.setItem("adexto_selected_chain", CHAIN_ID_TO_KEY[numChain]);
-        }
-        localStorage.setItem("adexto_wallet_address", userAddr);
-      } else {
-        alert("Web3 Wallet not detected. Please install MetaMask, Coinbase Wallet, or Rabby to connect.");
+      setAddress(accounts[0]);
+      setWalletChainId(id);
+      localStorage.setItem("adexto_wallet_address", accounts[0]);
+
+      const known = chainFromId(id);
+      if (known) {
+        setSelectedChainState(known.key);
+        localStorage.setItem("adexto_selected_chain", known.key);
       }
-    } catch (err) {
-      console.error("User rejected connection", err);
+    } catch (error: any) {
+      if (error?.code !== 4001) console.error("[adexto] wallet connect failed:", error);
     } finally {
       setIsConnecting(false);
     }
-  };
+  }, []);
 
-  const disconnectWallet = () => {
+  const disconnectWallet = useCallback(() => {
     setAddress(null);
+    setWalletChainId(null);
     localStorage.removeItem("adexto_wallet_address");
-  };
+    // Lepaskan juga pilihan wallet, supaya "Connect" berikutnya kembali menawarkan
+    // daftar wallet dan bukan diam-diam memakai yang terakhir.
+    setActiveWallet(null);
+    setActiveWalletInfo(null);
+  }, []);
 
-  return (
-    <WalletContext.Provider
-      value={{
-        address,
-        chainId,
-        selectedChain,
-        chainName,
-        isConnected: !!address,
-        isConnecting,
-        connectWallet,
-        disconnectWallet,
-        setSelectedChain,
-      }}
-    >
-      {children}
-    </WalletContext.Provider>
+  /** Pindah ke wallet lain yang terpasang lalu minta izin akunnya. */
+  const switchWallet = useCallback(
+    async (rdns: string) => {
+      setAddress(null);
+      setWalletChainId(null);
+      setActiveWallet(rdns);
+      setActiveWalletInfo(getActiveWalletInfo());
+      await connectWallet(rdns);
+    },
+    [connectWallet]
   );
+
+  /** Buka pemilih akun wallet tanpa berganti wallet. */
+  const changeAccount = useCallback(async () => {
+    try {
+      const accounts = await requestAccountChange();
+      if (accounts?.length > 0) {
+        setAddress(accounts[0]);
+        localStorage.setItem("adexto_wallet_address", accounts[0]);
+      } else {
+        setAddress(null);
+        localStorage.removeItem("adexto_wallet_address");
+      }
+    } catch (e: any) {
+      if (e?.code !== 4001) console.warn("[adexto] account change failed:", e?.message ?? e);
+    }
+  }, []);
+
+  const isOnChain = useCallback(
+    (target: number) => {
+      if (walletChainId === null) return false;
+      if (walletChainId === target) return true;
+      const a = chainFromId(walletChainId);
+      const b = chainFromId(target);
+      return Boolean(a && b && a.key === b.key && walletChainId === b.chainId);
+    },
+    [walletChainId]
+  );
+
+  const value = useMemo<WalletContextType>(
+    () => ({
+      address,
+      walletChainId,
+      selectedChain,
+      chainInfo,
+      chainId: chainInfo.chainId,
+      chainName: chainInfo.name,
+      isConnected: Boolean(address),
+      isConnecting,
+      connectWallet,
+      disconnectWallet,
+      setSelectedChain,
+      switchToChain,
+      isOnChain,
+      availableWallets,
+      activeWallet,
+      switchWallet,
+      changeAccount,
+    }),
+    [
+      address,
+      walletChainId,
+      selectedChain,
+      chainInfo,
+      isConnecting,
+      connectWallet,
+      disconnectWallet,
+      setSelectedChain,
+      switchToChain,
+      isOnChain,
+      availableWallets,
+      activeWallet,
+      switchWallet,
+      changeAccount,
+    ]
+  );
+
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
 
 export const useWallet = () => useContext(WalletContext);
+export { CHAIN_LIST };

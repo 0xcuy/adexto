@@ -2,53 +2,305 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   Dasar desain
+   ----------------------------------------------------------------------------
+   Sebelumnya file ini hanya 54 baris dan seluruh gaya ditulis inline per elemen,
+   sehingga tidak ada satu pun aturan bersama: jarak antar seksi acak, label
+   kicker berganti warna tanpa sistem, dan angka bergeser-geser karena font
+   proporsional. Blok di bawah menetapkan token dan primitif yang dipakai semua
+   halaman. Murni presentasi — tidak ada logika yang berubah.
+   ========================================================================== */
+
 :root {
   --background: #04060a;
   --foreground: #f8fafc;
+
+  /* Permukaan, dari paling dalam ke paling menonjol */
+  --surface-0: #04060a;
+  --surface-1: #070b14;
+  --surface-2: #0a0f1c;
+  --surface-3: #0e1424;
+
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.12);
+
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.12);
+  --violet: #c084fc;
+
+  /* tailwind.config memakai var(--font-sans) dan var(--font-mono), tetapi keduanya
+     tidak pernah didefinisikan — jadi setiap kelas font-sans/font-mono jatuh ke
+     font sistem. Di sini keduanya dipetakan ke Geist. */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Ritme vertikal tunggal, supaya seksi tidak lagi mengapung acak */
+  --section-y: 4.5rem;
+  --gap: 1rem;
 }
 
-html, body {
-  color: #f8fafc;
-  background: #04060a;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+@media (min-width: 1024px) {
+  :root {
+    --section-y: 6rem;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  color: var(--foreground);
+  background: var(--surface-0);
+  /* Diisi oleh next/font di layout; fallback sistem hanya untuk keadaan darurat. */
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
   max-width: 100vw;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1;
+  /* Ukuran baca dasar. Body 11px membuat setiap halaman terasa seperti dashboard
+     admin dan melelahkan dibaca; 14px dengan leading longgar adalah dasar yang
+     wajar untuk teks penjelas. */
+  font-size: 14px;
+  line-height: 1.6;
 }
 
-/* Fix option background in native selects so it doesn't render white on light system themes */
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Judul: patahan baris yang seimbang, tracking rapat pada ukuran besar.
+   Tanpa ini judul panjang sering pecah menyisakan satu kata sendirian. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  letter-spacing: -0.035em;
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+
+/* Angka: lebar digit tetap. Di UI keuangan, harga dan saldo yang berubah
+   setiap detik akan bergeser-geser tanpa ini. */
+.font-mono,
+code,
+pre,
+table,
+input[type="number"],
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* Fokus keyboard. Sebelumnya hampir setiap kontrol memakai `focus:outline-none`
+   tanpa pengganti, jadi navigasi keyboard benar-benar tidak terlihat. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.28);
+  color: #fff;
+}
+
+/* Latar select bawaan agar tidak putih di tema terang sistem */
 select option {
   background-color: #0b0f19;
-  color: #f8fafc;
+  color: var(--foreground);
 }
 
-/* Modern seamless glass panels */
+/* ============================================================================
+   Primitif
+   ========================================================================== */
+
+/* Panel.
+   Masalah terbesar tata letak sebelumnya adalah kotak-di-dalam-kotak: setiap
+   seksi berupa panel bergaris berisi kartu bergaris, sehingga halaman jadi
+   tumpukan bingkai ganda dan terasa seperti dashboard admin. Perbaikan yang
+   benar bukan menipiskan garisnya, melainkan **melepas bingkai luarnya**:
+   panel seksi sekarang tanpa border dan hampir tanpa latar, cukup dipisahkan
+   ruang. Bingkai hanya dipakai pada elemen yang benar-benar sebuah objek —
+   kartu, tabel, panel trading. */
 .glass-panel {
-  background: rgba(10, 14, 24, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 120px),
+    var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* Pembungkus seksi halaman naratif: TANPA bingkai.
+   Bingkai luar hanya dipakai untuk objek nyata — kartu, tabel, panel trading. */
+.section-block {
+  position: relative;
+  padding-top: 2.75rem;
+}
+
+/* Garis tipis di atas seksi, menggantikan bingkai sebagai pemisah. Jauh lebih
+   tenang daripada menumpuk kotak. */
+.section-block + .section-block::before,
+.section-block[data-rule]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hairline-strong) 12%, var(--hairline-strong) 88%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .section-block {
+    padding-top: 3.5rem;
+  }
+}
+
+/* Kartu di dalam panel: lebih gelap dari induknya, bukan lebih terang.
+   Menumpuk permukaan yang makin terang membuat border ganda terlihat kotor. */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 0.85rem;
+}
+
+.card-hover {
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+.card-hover:hover {
+  border-color: var(--hairline-strong);
+  background: var(--surface-2);
+}
+
+/* Kicker / eyebrow. Satu bentuk untuk semua halaman, menggantikan label yang
+   sebelumnya berganti-ganti warna dan ukuran tanpa alasan. */
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(148 163 184);
+}
+
+.kicker::before {
+  content: "";
+  width: 1.25rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+
+/* Ritme seksi */
+.section {
+  padding-top: var(--section-y);
+  padding-bottom: var(--section-y);
+}
+
+.section-tight {
+  padding-top: calc(var(--section-y) * 0.6);
+  padding-bottom: calc(var(--section-y) * 0.6);
+}
+
+.hairline {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--hairline-strong) 15%, var(--hairline-strong) 85%, transparent);
 }
 
 .gradient-text {
   background: linear-gradient(135deg, #00f5ff 0%, #c084fc 50%, #f43f5e 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
+  /* Descender ("g", "y") terpotong tanpa ini karena background-clip: text */
+  padding-bottom: 0.06em;
+}
+
+/* Tabel data yang bersih: garis horizontal saja, tanpa kotak-kotak. */
+.table-clean {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-clean th,
+.table-clean td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+}
+.table-clean thead th {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+  font-weight: 700;
+}
+.table-clean tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table-clean tbody tr {
+  transition: background-color 140ms ease;
+}
+.table-clean tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Alamat kontrak dan hash: monospace yang bisa dipilih dengan nyaman. */
+.addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.01em;
+  word-break: break-all;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #04060a;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
-  border-radius: 3px;
+  border-radius: 99px;
+  border: 2px solid var(--surface-0);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #00f5ff;
+  background: #334155;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b transparent;
 }

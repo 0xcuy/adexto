@@ -108,9 +108,9 @@ export default function AgentDemoPage() {
             className="bg-[#060913] border border-white/20 text-cyan-300 text-xs font-mono font-bold rounded-lg px-3 py-2 focus:outline-none"
           >
             <option value="0G">0G Mainnet (16661 - Live Primary)</option>
-            <option value="Base">Base Mainnet (Phase 2 Mesh)</option>
-            <option value="Arbitrum">Arbitrum One (Phase 2 Mesh)</option>
-            <option value="Monad">Monad Mainnet (Phase 2 Mesh)</option>
+            <option value="Arbitrum">Arbitrum One (42161 - Live Mesh)</option>
+            <option value="Base">Base Mainnet (8453 - Live Mesh)</option>
+            <option value="Monad">Monad Mainnet (143 - Live Mesh)</option>
           </select>
         </div>
       </div>

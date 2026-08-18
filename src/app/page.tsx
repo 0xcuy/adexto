@@ -22,7 +22,7 @@ export default function HomePage() {
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="font-bold text-white">ADEXTO PROTOCOL v1.0.0</span>
           <span className="text-zinc-500 hidden sm:inline">|</span>
-          <span className="text-cyan-300 font-semibold">0G Mainnet (16661) &amp; Arbitrum One (42161) Live</span>
+          <span className="text-cyan-300 font-semibold">0G (16661) • Arbitrum (42161) • Base (8453) • Monad (143) Live</span>
         </div>
 
         {/* Value Proposition Headline */}
@@ -47,7 +47,7 @@ export default function HomePage() {
           </Link>
           <Link
             href="/pitch"
-            className="flex items-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base bg-[#0f172a] hover:bg-[#1e293b] border-2 border-white/30 text-white shadow-lg transition-all"
+            className="flex items-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base bg-[#0f172a] hover:bg-[#1e293b] border border-white/20 text-white shadow-lg transition-all"
           >
             <Award className="w-5 h-5 text-cyan-300" />
             VC Due Diligence &amp; Grant Memorandum
@@ -64,8 +64,8 @@ export default function HomePage() {
 
         <div className="glass-panel p-5 rounded-xl border border-white/20">
           <div className="text-zinc-400 text-xs font-bold uppercase">Multi-Chain Live</div>
-          <div className="text-xl sm:text-2xl font-black text-white mt-1">0G &amp; Arbitrum</div>
-          <span className="text-[11px] text-cyan-300 mt-1 block">Live On-Chain Contracts</span>
+          <div className="text-xl sm:text-2xl font-black text-white mt-1">4 Chains Active</div>
+          <span className="text-[11px] text-cyan-300 mt-1 block">0G, Arb, Base, Monad</span>
         </div>
 
           <div className="glass-panel p-5 rounded-xl border border-white/20">
@@ -81,9 +81,21 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── ON-CHAIN VERIFIED 0G MAINNET CONTRACTS ────────────────────────────── */}
-      <VerifiedDeploymentCard />
-    </section>
+        {/* Trust Badge Bar */}
+        <div className="mt-8 max-w-4xl mx-auto p-3.5 rounded-2xl bg-[#060a17]/90 border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono shadow-xl">
+          <div className="flex items-center gap-2 text-zinc-300">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Secured &amp; Attested on <strong className="text-cyan-300">0G</strong> • <strong className="text-sky-300">Arbitrum</strong> • <strong className="text-purple-300">Monad</strong> • <strong className="text-blue-300">Base</strong></span>
+          </div>
+          <Link
+            href="/docs"
+            className="text-cyan-400 hover:text-cyan-300 font-bold hover:underline flex items-center gap-1 shrink-0"
+          >
+            <span>View Verified Contracts</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </section>
 
     {/* ── THE PROBLEM & THE SOLUTION (VC PERSPECTIVE) ────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-white/10">
@@ -96,7 +108,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Problem */}
-          <div className="glass-panel p-8 rounded-3xl border border-red-500/30 space-y-4">
+          <div className="glass-panel p-8 rounded-2xl border border-red-500/30 space-y-4">
             <div className="flex items-center gap-2 text-red-400 font-bold text-sm font-mono">
               <AlertCircle className="w-4 h-4" /> THE BROKEN INDUSTRY STANDARD (Pump.fun, Clanker)
             </div>
@@ -117,7 +129,7 @@ export default function HomePage() {
           </div>
 
           {/* Solution */}
-          <div className="glass-panel p-8 rounded-3xl border border-emerald-500/30 space-y-4">
+          <div className="glass-panel p-8 rounded-2xl border border-emerald-500/30 space-y-4">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm font-mono">
               <CheckCircle2 className="w-4 h-4" /> THE ADEXTO ARCHITECTURAL MOAT
             </div>
@@ -260,7 +272,7 @@ export default function HomePage() {
 
       {/* ── REAL CODE IMPLEMENTATION ─────────────────────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-white/10">
-        <div className="glass-panel p-8 sm:p-12 rounded-3xl border-2 border-white/20 shadow-2xl">
+        <div className="glass-panel p-8 sm:p-12 rounded-2xl border border-white/10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-orange-950/80 text-orange-300 border border-orange-500/40 text-xs font-mono font-bold mb-3">
@@ -290,7 +302,7 @@ export default function HomePage() {
             </div>
 
       {/* Smart Contract & Cloudflare Code Tab */}
-      <div className="bg-[#050811] p-4 sm:p-6 rounded-2xl border-2 border-white/20 shadow-2xl overflow-hidden">
+      <div className="bg-[#050811] p-4 sm:p-6 rounded-2xl border border-white/10 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/15 pb-4 mb-4">
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-cyan-400" />
@@ -445,7 +457,7 @@ export default function HomePage() {
           </Link>
           <Link
             href="/pitch"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base bg-[#0f172a] border-2 border-white/30 text-white hover:bg-[#1e293b] transition-all"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base bg-[#0f172a] border border-white/20 text-white hover:bg-[#1e293b] transition-all"
           >
             <Award className="w-5 h-5 text-cyan-400" />
             View VC &amp; Grant Memorandum

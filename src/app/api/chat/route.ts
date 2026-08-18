@@ -2,10 +2,22 @@ import { NextResponse } from "next/server";
 
 // 0G Compute Official Mainnet Router Endpoint
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
+/**
+ * Kunci HARUS dari environment. Sebelumnya ada kunci asli tertulis langsung
+ * sebagai fallback di sini (dan ikut ter-commit), sehingga merotasi env tidak
+ * mencabut kunci lama — siapa pun yang membaca repo tetap bisa memakainya.
+ * Sekarang fail-closed: tanpa env, endpoint menolak dengan jelas.
+ */
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
 
 export async function POST(req: Request) {
   try {
+    if (!OG_API_KEY) {
+      return NextResponse.json(
+        { error: "Agent chat is not configured: OG_ROUTER_API_KEY is missing on the server." },
+        { status: 503 }
+      );
+    }
     const { messages, model, systemPrompt, chain, temperature } = await req.json();
 
     // Default to verified active model on 0G Mainnet Router
@@ -57,6 +69,23 @@ Help developers generate smart contracts, configure dynamic AMM bonding curves, 
 
         const reader = res.body.getReader();
         let buffer = "";
+        /**
+         * glm-5.2 di router 0G mengirim DUA aliran dalam satu delta:
+         * `reasoning_content` (deliberasi internal) dan `content` (jawaban).
+         * Kode lama memakai `content || reasoning_content`, sehingga yang tampil ke
+         * user adalah kalimat berpikir model — "Let's write a concise review",
+         * "Drafting the Review" — bukan jawabannya. Sekarang hanya `content` yang
+         * dialirkan; reasoning disimpan dan baru dipakai sebagai cadangan kalau
+         * model TIDAK menghasilkan jawaban sama sekali, supaya panel tidak kosong.
+         */
+        let emitted = false;
+        let reasoning = "";
+        let closed = false;
+        const close = () => {
+          if (closed) return;
+          closed = true;
+          controller.close();
+        };
 
         try {
           while (true) {
@@ -72,29 +101,36 @@ Help developers generate smart contracts, configure dynamic AMM bonding curves, 
               if (!trimmed || trimmed.startsWith(":")) continue;
 
               if (trimmed === "data: [DONE]") {
-                controller.close();
+                if (!emitted && reasoning) controller.enqueue(encoder.encode(reasoning));
+                close();
                 return;
               }
 
               if (trimmed.startsWith("data: ")) {
                 try {
-                  const jsonStr = trimmed.slice(6);
-                  const parsed = JSON.parse(jsonStr);
+                  const parsed = JSON.parse(trimmed.slice(6));
                   const delta = parsed.choices?.[0]?.delta;
-                  const content = delta?.content || delta?.reasoning_content || "";
-                  if (content) {
-                    controller.enqueue(encoder.encode(content));
+                  if (delta?.reasoning_content) reasoning += delta.reasoning_content;
+                  if (delta?.content) {
+                    emitted = true;
+                    controller.enqueue(encoder.encode(delta.content));
                   }
                 } catch {
-                  // Ignore partial buffer
+                  // Potongan buffer yang belum lengkap; abaikan.
                 }
               }
             }
           }
+          if (!emitted && reasoning) controller.enqueue(encoder.encode(reasoning));
         } catch (err: any) {
-          controller.error(err);
+          if (!closed) {
+            closed = true;
+            controller.error(err);
+          }
         } finally {
-          controller.close();
+          // Dulu `close()` dipanggil tanpa penjaga, jadi jalur [DONE] dan error
+          // bisa menutup controller dua kali dan melempar TypeError.
+          close();
         }
       },
     });

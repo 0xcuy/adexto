@@ -22,7 +22,7 @@ export default function WhitepaperPage() {
       {/* Sections */}
       <div className="space-y-12 text-slate-100 text-sm sm:text-base leading-relaxed">
         {/* Section 1 */}
-        <section className="glass-panel p-6 rounded-2xl border border-white/15 space-y-4">
+        <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-cyan-400 font-mono">§1.</span> The Problem: The Launchpad Trap
           </h2>
@@ -37,7 +37,7 @@ export default function WhitepaperPage() {
         </section>
 
         {/* Section 2 */}
-        <section className="glass-panel p-6 rounded-2xl border border-white/15 space-y-4">
+        <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-cyan-400 font-mono">§2.</span> The ADEXTO Architecture Mapping
           </h2>
@@ -65,7 +65,7 @@ export default function WhitepaperPage() {
         </section>
 
         {/* Section 3 */}
-        <section className="glass-panel p-6 rounded-2xl border border-white/15 space-y-4">
+        <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-cyan-400 font-mono">§3.</span> The x402 Micropayment Engine &amp; Auto-Buyback
           </h2>
@@ -81,7 +81,7 @@ export default function WhitepaperPage() {
         </section>
 
         {/* Section 4 */}
-        <section className="glass-panel p-6 rounded-2xl border border-white/15 space-y-4">
+        <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-cyan-400 font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
           </h2>
