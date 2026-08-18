@@ -384,6 +384,43 @@ Terverifikasi lewat UI: `/api/deploy` melaporkan `gen=v3`, launch memakan **gas 
 
 **Belum dikerjakan:** `audit_e2e_flow.mjs`, `audit_multichain_flow.mjs`, dan `audit_studio_testnet_flow.mjs` masih menguji alur berseed dan perlu disesuaikan. Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
 
+## 1f. Rencana peluncuran $ADEXTO di mainnet
+
+Token milik proyek sendiri, dipakai sekaligus sebagai demo mainnet.
+
+| Butir | Nilai |
+|---|---|
+| Ticker | `$ADEXTO` |
+| Chain | keempatnya: 0G, Base, Arbitrum, Monad |
+| Subdomain | `token.adexto.xyz` / `app.adexto.xyz` |
+| Supply ke kurva | 100% (tidak ada alokasi untuk deployer) |
+| Setoran likuiditas | **nol** — kurva virtual |
+
+**Biaya sebenarnya, gas saja** (harga gas saat pengukuran, gas unit dari hasil uji):
+
+| Chain | Launch | Beli + jual |
+|---|---|---|
+| 0G | ~$0,02 | ~$0,003 |
+| Base | ~$0,09 | ~$0,01 |
+| Monad | ~$0,03 | ~$0,003 |
+| Arbitrum | ~$0,34 | ~$0,04 |
+| **Total 4 chain** | **~$0,48** | ~$0,06 |
+
+Catatan penting untuk materi promosi: dengan v3, klaim "deploy ~$0,6" akhirnya **bisa dipertahankan** sebagai total gas keempat chain. Yang tetap **tidak** benar adalah "bayar sekali di 0G untuk 4 chain" — itu empat transaksi terpisah dengan aset native masing-masing chain, karena tidak ada lapisan pesan lintas chain di 0G dan Monad (§1c).
+
+Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilangan **~0,6%** (fee dua sisi), tidak bergantung besar order — terukur, lihat §4d. Jadi demo bisa dilakukan dengan beberapa dolar.
+
+**Prasyarat sebelum $ADEXTO dibuat:** urutan di §1g harus selesai lebih dulu, terutama v3 lulus di 4 testnet lewat UI. Jangan meluncurkan ticker `$ADEXTO` di mainnet sebagai percobaan — `symbolRegistry` di factory bersifat permanen per chain, jadi nama itu tidak bisa dipakai ulang kalau salah.
+
+## 1g. Urutan pekerjaan berikutnya
+
+1. **Deploy FactoryV3 ke 4 testnet.** Sekarang hanya ada di devchain. Biayanya gas saja, tanpa seed, jadi nyaris gratis.
+2. **Perbaiki perekam video dan tiga harness UI.** Semuanya masih menguji alur berseed: `record_demo_testnet.mjs` mengisi field seed yang sudah tidak ada dan prompt co-pilotnya menyebut "80% into the pool, seed locked permanently"; `audit_e2e_flow.mjs`, `audit_multichain_flow.mjs`, dan `audit_studio_testnet_flow.mjs` juga masih model lama.
+3. **Jalankan harness di 4 testnet** — barulah v3 boleh disebut lulus ujung-ke-ujung, bukan hanya di devchain.
+4. **Rekam video testnet** memakai alur kurva.
+5. **Broadcast FactoryV3 ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_FACTORY_V3_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
+6. **Luncurkan $ADEXTO** dan rekam demo mainnet.
+
 ## 4b. Jebakan saat menguji (sudah pernah menyesatkan)
 
 - **Jangan jalankan `next dev` sementara `next start` menyajikan build yang sama.** Keduanya memakai `.next` yang sama, sehingga dev menimpa artefak produksi dan server yang sedang jalan mulai menyajikan bundel campur. Gejalanya menipu: wallet mock gagal tersambung, tombol launch tidak pernah muncul, dan **error hidrasi React #418** yang tampak seperti bug aplikasi. Terbukti bukan: setelah `rm -rf .next` + build ulang, E2E kembali 66/0 dengan nol page error dan 8 rute bersih dari masalah hidrasi. Kalau perlu mode dev bersamaan, pakai direktori terpisah (`distDir`) atau hentikan server produksi lebih dulu.
