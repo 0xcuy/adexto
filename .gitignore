@@ -49,3 +49,31 @@ yarn-error.log*
 # Playwright Test Output & Screenshots
 /test-results/
 /playwright-report/
+
+# TypeScript incremental build info
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Runtime data store (project registry + trade telemetry)
+/.data/
+/data/
+
+# Local devchain workspace artifacts
+/devchain/cache/
+/devchain/artifacts/
+/devchain/node_modules/
+
+# Video demo: artefak build ulang, bukan sumber. Total ~131 MB dan akan
+# menggembungkan riwayat git secara permanen. Dihasilkan oleh
+# `node record_demo_testnet.mjs` (lihat ADEXTO-RUNBOOK.md §4c).
+public/adexto_demo.mp4
+public/adexto_demo.webm
+public/adexto_testnet_demo.mp4
+public/adexto_testnet_demo.webm
+public/demo-raw/
+
+# Artefak kompilasi kontrak. Dihasilkan ulang oleh
+# `node scripts/compile-contracts.mjs --via-ir`.
+devchain/artifacts/
+devchain/cache/
+devchain/node_modules/

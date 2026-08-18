@@ -1,0 +1,19 @@
+node_modules/
+.next/
+.git/
+.data/
+data/
+.env.local
+devchain/cache/
+devchain/artifacts/
+devchain/node_modules/
+build/deployments.json
+*.tsbuildinfo
+test-results/
+playwright-report/
+.rsyncignore
+# Video demo testnet: artefak lokal untuk pitch, tidak dirujuk komponen mana pun
+# dan tidak perlu ada di produksi (91 MB, memperlambat rsync + build image).
+public/adexto_testnet_demo.mp4
+public/adexto_testnet_demo.webm
+public/demo-raw/
