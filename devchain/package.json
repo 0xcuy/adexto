@@ -1,0 +1,7 @@
+{
+  "name": "adexto-devchain",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Isolated ESM workspace so Hardhat 3 can run a local devchain without forcing the Next.js app to become ESM."
+}
