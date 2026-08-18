@@ -142,6 +142,50 @@ Container `adexto-production` sehat (healthcheck lulus), `/app/data` writable ol
 
 ---
 
+## 1e. Akses git & push ke GitHub
+
+Remote: `https://github.com/0xcuy/adexto.git` (HTTPS, jadi butuh token — bukan SSH).
+
+**Kredensial tidak disimpan di repo ini.** Tidak ada credential helper git yang terpasang, `gh` CLI tidak ada, dan tidak ada variabel token di `.env.local`. Personal Access Token klasik (`ghp_…`) milik akun `0xcuy` berada di:
+
+```
+/home/cucu/Coder/Work/token github 0xcuy
+```
+
+File itu di luar repo, satu baris, hanya berisi token. **Jangan pernah menuliskan nilainya ke runbook, `.env.example`, atau berkas apa pun di dalam repo** — runbook ini ikut ter-commit, dan itu persis kesalahan `OG_ROUTER_API_KEY` yang sudah terjadi (§7). Catat lokasinya saja.
+
+Cara push tanpa membocorkan token ke riwayat perintah maupun keluaran terminal — buat helper askpass sekali pakai, lalu hapus:
+
+```bash
+cat > /tmp/askpass.sh <<'SH'
+#!/bin/sh
+case "$1" in
+  *[Uu]sername*) printf '0xcuy' ;;
+  *) tr -d '\r\n' < '/home/cucu/Coder/Work/token github 0xcuy' ;;
+esac
+SH
+chmod +x /tmp/askpass.sh
+GIT_ASKPASS=/tmp/askpass.sh GIT_TERMINAL_PROMPT=0 git push -u origin <branch>
+rm -f /tmp/askpass.sh
+```
+
+Menaruh token langsung di URL (`https://TOKEN@github.com/...`) akan menyimpannya di `.git/config` dan di riwayat shell. Jangan.
+
+**Kebijakan branch.** Push selalu ke branch baru, tidak langsung ke `main`. Branch pertama dari pekerjaan ini: `feat/sovereign-curve-plan-and-ui-overhaul` (6 commit). Merge dilakukan pemilik proyek lewat pull request:
+
+```
+https://github.com/0xcuy/adexto/pull/new/feat/sovereign-curve-plan-and-ui-overhaul
+```
+
+Sebelum setiap push, periksa diff tidak memuat rahasia:
+
+```bash
+git diff origin/main..HEAD --name-only | grep -iE '\.env|secret|key'
+git diff origin/main..HEAD | grep -cE 'ghp_|github_pat_|sk-[a-f0-9]{8}'
+```
+
+Catatan: satu kemunculan `sk-9c741a02…` memang ada di diff branch ini, tetapi sebagai baris **yang dihapus** (`-`). Kunci itu tetap ada di riwayat git lama dan **masih harus dirotasi**.
+
 ## 2. Akses VPS produksi
 
 ```bash
