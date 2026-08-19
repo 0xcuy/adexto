@@ -15,6 +15,34 @@ export const metadata: Metadata = {
     shortcut: "/favicon.svg",
     apple: "/logo.svg",
   },
+  /**
+   * Kartu pratinjau tautan.
+   *
+   * Sebelum ini TIDAK ADA metadata openGraph sama sekali, jadi setiap tautan
+   * adexto.xyz yang dibagikan ke X, Discord, atau Telegram muncul sebagai
+   * pratinjau kosong — hanya URL mentah. Gambarnya dibuat oleh
+   * `scripts/capture-og-image.mjs` dengan tipografi yang sama seperti situs.
+   *
+   * metadataBase membuat `/og.png` diubah menjadi URL absolut. Tanpa itu Next
+   * memancarkan jalur relatif, dan setiap pengurai pratinjau menolaknya.
+   */
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://adexto.xyz"),
+  openGraph: {
+    type: "website",
+    siteName: "ADEXTO",
+    title: "ADEXTO — launch an AI agent token with no liquidity deposit",
+    description:
+      "100% of supply enters a sovereign bonding curve, a launch costs gas only, and the creator earns 0.10% of every swap. World ID proves each creator is a distinct person.",
+    url: "/",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "ADEXTO — sovereign bonding curve launchpad" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ADEXTO — launch an AI agent token with no liquidity deposit",
+    description:
+      "Gas-only launches on 0G, Base, Arbitrum and Monad. Creator paid 0.10% of every swap, no free token allocation.",
+    images: ["/og.png"],
+  },
 };
 
 /**
