@@ -164,7 +164,7 @@ export default function TokenTerminal({
     setChatMessages([
       {
         role: "assistant",
-        content: `⚡ **${project.name} ($${project.symbol})**\n\n• Network: **${chain.name}** (${chain.chainId})\n• Fee split: **${(project.lpFeeBps / 100).toFixed(2)}% LP / ${(project.treasuryBuybackBps / 100).toFixed(2)}% buyback**\n• Token: \`${project.tokenAddress.slice(0, 10)}…${project.tokenAddress.slice(-8)}\`\n• Pool: ${project.poolAddress ? `\`${project.poolAddress.slice(0, 10)}…${project.poolAddress.slice(-8)}\`` : "**not deployed yet**"}\n\nAsk me about strategy, pool depth or swap telemetry.`,
+        content: `⚡ **${project.name} ($${project.symbol})**\n\n• Network: **${chain.name}** (${chain.chainId})\n• Fee split: **${(project.lpFeeBps / 100).toFixed(2)}% depth / ${(project.treasuryBuybackBps / 100).toFixed(2)}% buyback**, plus the creator's share of every swap\n• Token: \`${project.tokenAddress.slice(0, 10)}…${project.tokenAddress.slice(-8)}\`\n• Curve: ${project.poolAddress ? `\`${project.poolAddress.slice(0, 10)}…${project.poolAddress.slice(-8)}\`` : "**not deployed yet**"}\n\nAsk me about strategy, curve depth or swap telemetry.`,
       },
     ]);
   }, [
@@ -206,9 +206,11 @@ export default function TokenTerminal({
           systemPrompt:
             `You are ${project.name} ($${project.symbol}), an ERC-8004 agent on ${chain.name} (chainId ${chain.chainId}). ` +
             `Mandate: ${project.agentPersona}. Token ${project.tokenAddress}. ` +
-            `Pool ${project.poolAddress ?? "not deployed"}. Fees ${(project.lpFeeBps / 100).toFixed(2)}% LP / ${(project.treasuryBuybackBps / 100).toFixed(2)}% buyback. ` +
+            `Curve ${project.poolAddress ?? "not deployed"}. Fees ${(project.lpFeeBps / 100).toFixed(2)}% depth retained by the curve / ${(project.treasuryBuybackBps / 100).toFixed(2)}% agent buyback` +
+            (swap.pool ? ` / ${(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% to the creator` : "") +
+            `. 100% of supply sits in the curve and the creator holds no tokens, so creator income comes from swap fees, not an allocation. ` +
             (swap.pool
-              ? `LIVE POOL STATE (constant product x*y=k, read from chain just now): ` +
+              ? `LIVE CURVE STATE (constant product x*y=k over a VIRTUAL native reserve, read from chain just now): ` +
                 `reserveNative=${ethers.formatEther(swap.pool.reserveNative)} ${chain.nativeSymbol}, ` +
                 `reserveToken=${ethers.formatUnits(swap.pool.reserveToken, swap.pool.tokenDecimals)} ${project.symbol}, ` +
                 `spotPrice=${swap.spotPriceNative} ${chain.nativeSymbol} per token. ` +
@@ -560,7 +562,7 @@ export default function TokenTerminal({
 
           <div className="glass-panel p-5 rounded-3xl border-2 border-white/15 shadow-2xl bg-[#040814] space-y-3">
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-              <span className="font-mono text-xs font-bold text-white">Sovereign AMM Swap</span>
+              <span className="font-mono text-xs font-bold text-white">Sovereign Curve Swap</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

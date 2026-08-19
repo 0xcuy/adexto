@@ -32,7 +32,7 @@ export default function HomePage() {
 
         {/* Clear Explanation */}
         <p className="text-base sm:text-xl text-slate-200 max-w-3xl mx-auto mb-10 leading-relaxed font-medium bg-[#070b16]/95 p-5 rounded-2xl border border-white/10 shadow-xl">
-          Existing launchpads extract millions while creators earn zero downstream trading revenue. <strong className="text-cyan-300">ADEXTO</strong> binds an ERC-8004 token, a Uniswap v4 Sovereign Hook AMM, and a 24/7 0G TEE Agent into one atomic lifecycle—monetized at the edge with <strong className="text-orange-400">Cloudflare Workers x402</strong>.
+          Existing launchpads extract millions while creators earn zero downstream trading revenue. <strong className="text-cyan-300">ADEXTO</strong> binds an ERC-8004 token, a sovereign bonding curve that needs no liquidity deposit, and a 24/7 0G TEE Agent into one atomic lifecycle—monetized at the edge with <strong className="text-orange-400">Cloudflare Workers x402</strong>.
         </p>
 
         {/* CTAs */}

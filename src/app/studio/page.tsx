@@ -266,7 +266,7 @@ export default function StudioPage() {
     // A chain whose ticker is taken is skipped rather than aborting the whole run.
     const selected = liveChains.filter((c) => targetChainIds.includes(c.chainId));
     if (selected.length === 0) {
-      setGlobalError("No selected chain has AdextoTrinityFactoryV2 deployed, so no tradable pool can be created.");
+      setGlobalError("No selected chain has a launch factory deployed, so no tradable curve can be created.");
       return;
     }
 
@@ -469,7 +469,7 @@ export default function StudioPage() {
         content:
           `⚡ **ADEXTO Studio**\n\n` +
           `• Model: **0G Router (${selectedModel})**\n` +
-          `• Factory: **AdextoTrinityFactoryV2** (token + SovereignHook pool in one transaction)\n` +
+          `• Factory: **AdextoTrinityFactoryV3** (token + bonding curve in one transaction, no liquidity deposit)\n` +
           `• Live chains: **${liveChains.length > 0 ? liveChains.map((c) => c.key).join(", ") : "none yet"}**\n\n` +
           `Describe your concept, or configure the launch on the left.`,
       },
@@ -611,10 +611,10 @@ export default function StudioPage() {
                 <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start gap-2 text-[11px] font-mono text-amber-200">
                   <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                   <span>
-                    <strong>Launching is disabled.</strong> AdextoTrinityFactoryV2 is not deployed on any chain yet, so a
-                    launch could not create a tradable pool. Broadcast it with{" "}
-                    <code className="text-cyan-300">node scripts/deploy-sovereign-dex.mjs --chain 0g --broadcast</code>{" "}
-                    and set <code className="text-cyan-300">NEXT_PUBLIC_FACTORY_V2_0G</code>.
+                    <strong>Launching is disabled.</strong> No launch factory is deployed on any chain yet, so a launch
+                    could not create a tradable curve. Broadcast it with{" "}
+                    <code className="text-cyan-300">node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast</code>{" "}
+                    and set <code className="text-cyan-300">NEXT_PUBLIC_FACTORY_V3_0G</code>.
                   </span>
                 </div>
               )}
@@ -640,10 +640,12 @@ export default function StudioPage() {
                         onClick={() => toggleChain(chain.chainId)}
                         title={
                           !selectable
-                            ? `AdextoTrinityFactoryV2 is not deployed on ${chain.name} yet`
+                            ? `No launch factory is deployed on ${chain.name} yet`
                             : blockedChainIds.has(chain.chainId)
                             ? `${chain.name} · this ticker already has a market here, it will be skipped`
-                            : `${chain.name} · factory ${chain.factoryV2Address}`
+                            : // Tampilkan factory yang BENAR-BENAR dipakai chain ini. Menampilkan
+                              // factoryV2Address secara kaku memperlihatkan "null" di chain kurva.
+                              `${chain.name} · factory ${chain.factoryV3Address ?? chain.factoryV2Address}`
                         }
                         className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                           !selectable
@@ -674,8 +676,8 @@ export default function StudioPage() {
                 {offlineChains.length > 0 && (
                   <p className="text-[10px] font-mono text-zinc-500 flex items-start gap-1.5">
                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                    {offlineChains.map((c) => c.key).join(", ")} unavailable: no v2 factory deployed, so a launch there
-                    would produce a token with no pool.
+                    {offlineChains.map((c) => c.key).join(", ")} unavailable: no launch factory deployed, so a launch
+                    there would produce a token with no curve.
                   </p>
                 )}
               </div>
@@ -920,9 +922,15 @@ export default function StudioPage() {
 
                 <p className="text-[10px] font-mono text-amber-300/90 flex items-start gap-1.5 pt-1 border-t border-white/5">
                   <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                  This proves control of an address. It is <strong>not</strong> World ID: there is no zero-knowledge
-                  proof and no nullifier, so it does not enforce one-human-one-launch. Configure{" "}
-                  <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_APP_ID</code> to add real Sybil resistance.
+                  {/* Teks WAJIB dibungkus satu <span>. Induknya adalah flex container,
+                      jadi tanpa pembungkus ini setiap potongan teks, <strong>, dan <code>
+                      menjadi item flex tersendiri dan tersusun MENYAMPING — kalimatnya
+                      terbaca menyilang antar kolom. */}
+                  <span>
+                    This proves control of an address. It is <strong>not</strong> World ID: there is no zero-knowledge
+                    proof and no nullifier, so it does not enforce one-human-one-launch. Configure{" "}
+                    <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_APP_ID</code> to add real Sybil resistance.
+                  </span>
                 </p>
               </div>
 

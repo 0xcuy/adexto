@@ -57,8 +57,8 @@ export async function GET(req: Request) {
         ...base,
         tradable: false,
         reason: chain.dexLive
-          ? "This market has no SovereignHook pool yet."
-          : `AdextoTrinityFactoryV2 is not deployed on ${chain.name} yet, so no executable pool exists for this market.`,
+          ? "This market has no executable curve yet."
+          : `No launch factory is deployed on ${chain.name} yet, so no executable market exists for this ticker.`,
       });
     }
 
@@ -68,8 +68,10 @@ export async function GET(req: Request) {
         ...base,
         tradable: false,
         reason: state
-          ? "The pool exists but has not been seeded with liquidity."
-          : "The address recorded for this market does not expose a SovereignHook swap interface.",
+          ? // Kurva tidak pernah butuh setoran, jadi keadaan ini berarti belum di-init,
+            // bukan belum di-seed.
+            "The market exists but has not been initialised yet."
+          : "The address recorded for this market does not expose a tradable swap interface.",
       });
     }
 

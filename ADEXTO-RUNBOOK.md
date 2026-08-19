@@ -382,7 +382,50 @@ Terverifikasi lewat UI: `/api/deploy` melaporkan `gen=v3`, launch memakan **gas 
 
 **Jebakan yang sempat membuang waktu:** sebuah `next-server` lama berumur 1,75 jam masih menahan port 3100, sehingga build baru tidak pernah tersaji dan hasil verifikasi terlihat seperti kode belum berubah. Periksa `ss -ltnp | grep :3100` sebelum menyimpulkan build tidak berlaku.
 
-**Belum dikerjakan:** `audit_e2e_flow.mjs`, `audit_multichain_flow.mjs`, dan `audit_studio_testnet_flow.mjs` masih menguji alur berseed dan perlu disesuaikan. Broadcast mainnet apa pun tetap menunggu instruksi eksplisit pemilik proyek.
+### 1e-2. FactoryV3 lulus ujung-ke-ujung di 4 testnet
+
+FactoryV3 dideploy ke keempat testnet — **gas saja, tanpa setoran apa pun**. Semua bytecode 18.568 byte, `projects=0` saat deploy, ticker `ADEXTO` masih tersedia di keempatnya.
+
+| Chain | chainId | FactoryV3 |
+|---|---|---|
+| 0G Testnet | 16602 | `0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632` |
+| Arbitrum Sepolia | 421614 | `0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A` |
+| Base Sepolia | 84532 | `0x921E03288ADA4192bF592B603e86A147c6D2f6e7` |
+| Monad Testnet | 10143 | `0x516D005367045b1fc18c9c9a0Ff7bf8653d1B4e3` |
+| devchain | 31337 | `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
+
+Gas deploy 4.054.815 (Monad 4.086.015). Tercatat di `build/deployments.json`.
+
+Hasil harness setelah seluruhnya disesuaikan ke alur kurva:
+
+| Suite | Cakupan | Hasil |
+|---|---|---|
+| `scripts/test-sovereign-curve.mjs` | kontrak kurva di devchain, termasuk skenario jual-habis | LULUS SEMUA |
+| `audit_e2e_flow.mjs` | E2E devchain, launch + beli + jual + chart | **75 / 0** |
+| `audit_curve_ui_flow.mjs` | alur kurva devchain + klaim fee creator | **23 / 0** |
+| `audit_studio_testnet_flow.mjs` | studio → explorer → swap → terminal di 0G Testnet | **54 / 0** |
+| `audit_multichain_flow.mjs` | UI 1–4 chain di 4 testnet | **62 / 0** |
+| `audit_swap_chain_switch.mjs` | pemilihan market & pindah chain | 56 / 0 |
+| `audit_wallet_picker.mjs` | kontrol wallet | 19 / 0 |
+| `audit_hydration.mjs` | error hidrasi React | 0 rute bermasalah |
+| `audit_visual_sweep.mjs` | desktop + mobile, 9 rute | 0 temuan |
+
+Asersi baru yang penting: harness kini membuktikan **kebalikan** dari model lama — `realNative === 0` saat launch, reserve native awal sama dengan reserve virtual, creator memegang **nol** token, 100% supply di kurva, dan biaya launch diukur dari saldo native (`< 0,05`) untuk memastikan benar-benar hanya gas. Di `audit_multichain_flow.mjs` pemeriksaan itu dilakukan **per chain**, supaya satu chain yang diam-diam masih memakai generasi berseed tidak bisa lolos.
+
+**Dua bug produk ditemukan justru oleh harness yang sudah diperbaiki:**
+
+1. **Chart dan trade feed kosong untuk semua pool kurva.** `SovereignCurve.Swap` memecah fee menjadi `depthFee, creatorFee, treasuryFee`, satu parameter lebih banyak daripada `SovereignHook.Swap`. Parameter tambahan mengubah `topic0`, jadi filter log yang hanya memakai ABI hook **tidak pernah cocok**: `source=empty`, nol fill, chart garis datar — padahal swap benar-benar terjadi. `src/lib/onchain-trades.ts` sekarang meng-query dengan `topic0` berupa daftar (OR) lalu memilih interface sesuai `topic0` tiap log.
+2. **`parseSwapOut` diam-diam melaporkan angka simulasi.** Fungsi itu hanya diberi interface hook, sehingga untuk pool kurva `parseLog` selalu gagal dan pemanggil jatuh ke hasil `staticCall`. Angkanya kebetulan sama sehingga kegagalannya tak terlihat, tapi yang ditampilkan bukan lagi hasil terkonfirmasi. Kini kedua interface dicoba.
+
+**Copy UI yang masih menyebut model lama juga dibereskan** (studio, `/swap`, terminal token, explorer, docs, halaman not-found, `/api/pool`, `use-sovereign-swap`, hero landing): tidak ada lagi "seed liquidity", "LP rewards", "SovereignHook pool", atau "AdextoTrinityFactoryV2" di permukaan yang dilihat pengguna. Tooltip chain di studio juga berhenti menampilkan `factoryV2Address` yang bernilai `null` di chain kurva.
+
+**Satu cacat layout diperbaiki:** catatan attestation di studio memakai `<p className="flex">` dengan `<strong>` dan `<code>` inline. Karena induknya flex container, setiap potongan teks menjadi item flex terpisah dan tersusun **menyamping**, sehingga kalimatnya terbaca menyilang antar kolom. Teks sekarang dibungkus satu `<span>`. Terlihat jelas di frame video sebelum/sesudah.
+
+### 1e-3. Video demo testnet
+
+`node record_demo_testnet.mjs` → `public/adexto_testnet_demo.mp4` (**360 detik, 1920×1080**) + `.webm`. Direkam di 0G Testnet dengan transaksi nyata: launch tanpa setoran, beli dari terminal, beli dari `/swap`, jual dengan approve, lalu **klaim penghasilan creator** hingga `creatorOwed` nol. `page errors: 0`.
+
+Adegan 8a sengaja ditambahkan karena itu inti model ekonominya: creator dibayar dari fee, bukan dari alokasi token. Verifikasi tidak berhenti di exit code — frame diekstrak dengan `ffmpeg` dan diperiksa satu per satu; dua putaran perekaman dibuang karena frame masih memperlihatkan copy lama dan cacat layout di atas.
 
 ## 1f. Rencana peluncuran $ADEXTO di mainnet
 
@@ -414,12 +457,13 @@ Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilang
 
 ## 1g. Urutan pekerjaan berikutnya
 
-1. **Deploy FactoryV3 ke 4 testnet.** Sekarang hanya ada di devchain. Biayanya gas saja, tanpa seed, jadi nyaris gratis.
-2. **Perbaiki perekam video dan tiga harness UI.** Semuanya masih menguji alur berseed: `record_demo_testnet.mjs` mengisi field seed yang sudah tidak ada dan prompt co-pilotnya menyebut "80% into the pool, seed locked permanently"; `audit_e2e_flow.mjs`, `audit_multichain_flow.mjs`, dan `audit_studio_testnet_flow.mjs` juga masih model lama.
-3. **Jalankan harness di 4 testnet** — barulah v3 boleh disebut lulus ujung-ke-ujung, bukan hanya di devchain.
-4. **Rekam video testnet** memakai alur kurva.
-5. **Broadcast FactoryV3 ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_FACTORY_V3_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
-6. **Luncurkan $ADEXTO** dan rekam demo mainnet.
+1. ~~**Deploy FactoryV3 ke 4 testnet.**~~ **SELESAI** — lihat §1e-2.
+2. ~~**Perbaiki perekam video dan tiga harness UI.**~~ **SELESAI** — keempatnya kini menguji alur kurva.
+3. ~~**Jalankan harness di 4 testnet.**~~ **SELESAI** — 0G 54/0, multi-chain 62/0, devchain 75/0 + 23/0.
+4. ~~**Rekam video testnet.**~~ **SELESAI** — lihat §1e-3.
+5. **Deploy UI kurva terbaru ke VPS.** Perbaikan `onchain-trades.ts` (chart kurva) dan seluruh copy baru belum ada di produksi. Butuh rsync + `docker compose build` + `up -d`.
+6. **Broadcast FactoryV3 ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_FACTORY_V3_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
+7. **Luncurkan $ADEXTO** dan rekam demo mainnet.
 
 ## 4b. Jebakan saat menguji (sudah pernah menyesatkan)
 
@@ -428,10 +472,25 @@ Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilang
 - **Suite dengan premis berbeda tidak boleh dijalankan pada server yang sama.** `audit_studio_testnet_flow.mjs` menguji alur satu chain; kalau dijalankan pada server yang keempat slotnya diarahkan ke testnet, ia bisa meluncur ke lebih dari satu chain dan headline-nya jadi `1 of 4`. Skrip kini mematikan chain lain secara eksplisit dan memverifikasi label tombol sebelum mengirim.
 - **`source scripts/testnet-multichain-env.sh` mengosongkan `OG_PRIVATE_KEY`/`PRIVATE_KEY`** untuk proses server (agar upload 0G DA tersimulasi, nol biaya). Nilai itu menempel di shell. Sebelum menjalankan skrip audit di shell yang sama, jalankan `unset OG_PRIVATE_KEY PRIVATE_KEY` supaya audit membacanya kembali dari `.env.local`.
 - **Verifikasi lewat field yang benar.** `/api/deploy` mengembalikan `factoryV2`, bukan `factoryV2Address`. Skrip pemeriksa yang salah nama field akan melaporkan "belum ada factory" pada konfigurasi yang sebetulnya benar. Penanda yang bisa dipercaya adalah `dexLive`.
+- **Variabel env menempel antar perintah, dan `NEXT_PUBLIC_*` ikut ter-inline saat build.** Kalau shell pernah memuat `scripts/devchain-env.sh`, lalu dipakai membangun lingkungan testnet, `NEXT_PUBLIC_DEVCHAIN_RPC` masih ada sehingga chain 31337 tetap aktif: tombol berbunyi `Launch on 0G + Devchain`, asersi "1 of 1" gagal, dan token uji ikut ter-deploy ke chain lokal. Kedua skrip env kini **saling meng-`unset`** (`testnet-multichain-env.sh` membuang variabel devchain, `devchain-env.sh` membuang `NEXT_PUBLIC_CHAIN_OVERRIDES`). Jangan berasumsi shell-nya bersih — nyatakan.
+- **`ADEXTO_DATA_DIR` dari `.env.local` mengalahkan default uji.** Skrip env di-source **setelah** `. ./.env.local`, jadi bentuk `${ADEXTO_DATA_DIR:-/tmp/...}` tidak pernah berlaku dan registry uji menulis ke jalur produksi `/app/data`. Kedua skrip sekarang menyetelnya tanpa syarat; untuk mengarahkan ke tempat lain pakai `ADEXTO_TEST_DATA_DIR` atau `ADEXTO_DEVCHAIN_DATA_DIR`.
+- **FactoryV3 memakai `curveOf(address)`, bukan `poolOf(address)`.** Memanggil `poolOf` pada V3 menghasilkan `execution reverted (no data present)` yang mudah disalahartikan sebagai gangguan RPC.
+- **Jangan pakai alamat `0x5FbDB2315678afecb367f032d93F642f64180aa3` sebagai bukti kebocoran env.** Alamat deploy pertama Hardhat itu juga tertanam di definisi chain `otimDevnet` milik **viem**, jadi selalu muncul di bundel klien apa pun konfigurasinya. Cara memeriksa yang benar: baca `/proc/<pid>/environ` dari proses server, atau cek HTML rutenya.
+- **`npx next lint` pernah menggantung lebih dari 15 menit** tanpa keluaran. Gerbang yang bisa diandalkan: `npx tsc --noEmit`, lalu `npx next build`.
+- **Perekaman video harus diverifikasi per frame.** Exit code nol tidak membuktikan apa pun soal tampilan: dua rekaman sempat "berhasil" padahal frame-nya masih memperlihatkan copy generasi berseed dan satu paragraf yang tersusun menyamping. Ekstrak frame dengan `ffmpeg -ss <detik> -frames:v 1` lalu benar-benar lihat gambarnya. Perbesar dengan `crop`+`scale` sebelum menyimpulkan sebuah angka salah — "9 of 13" pernah saya baca sebagai "0 of 13" dan hampir "diperbaiki" padahal benar.
 
 ## 4c. Merekam video demo UI (testnet)
 
-`node record_demo_testnet.mjs` merekam alur penuh **dengan transaksi sungguhan** di 0G Testnet: studio (buat token) → explorer → terminal (chart + AMM depth) → beli dari terminal → beli dari `/swap` → jual → beberapa fill tambahan → chart penutup. Hasil: `public/adexto_testnet_demo.mp4` (H.264, 1920x1080, 30 fps) dan `.webm`.
+`node record_demo_testnet.mjs` merekam alur penuh **dengan transaksi sungguhan** di 0G Testnet: studio (buat token, tanpa setoran likuiditas) → explorer → terminal (chart + curve depth ladder) → beli dari terminal → beli dari `/swap` → jual → **klaim penghasilan creator** → beberapa fill tambahan → chart penutup. Hasil: `public/adexto_testnet_demo.mp4` (H.264, 1920x1080, 30 fps, ~360 detik) dan `.webm`.
+
+Server harus disiapkan lebih dulu, dan **build** harus memakai env testnet karena `NEXT_PUBLIC_*` ter-inline saat build:
+
+```bash
+set -a && . ./.env.local && set +a && source scripts/testnet-multichain-env.sh && npx next build
+# lalu di terminal lain, dengan env yang sama:
+set -a && . ./.env.local && set +a && source scripts/testnet-multichain-env.sh && npx next start -p 3100
+set -a && . ./.env.local && set +a && node record_demo_testnet.mjs
+```
 
 Jalankan dengan server uji yang slot chain-nya diarahkan ke testnet:
 

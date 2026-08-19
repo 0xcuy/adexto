@@ -41,7 +41,11 @@ const CHAIN = {
   rpc: "https://evmrpc-testnet.0g.ai",
   sym: "0G",
 };
-const SEED = process.env.DEMO_SEED || "0.05";
+/**
+ * Tidak ada lagi DEMO_SEED. FactoryV3 memakai bonding curve dengan reserve
+ * virtual, jadi tidak ada setoran likuiditas — dan field seed-nya sudah tidak ada
+ * di studio, sehingga mengisinya akan membuat perekaman macet.
+ */
 const BUY = process.env.DEMO_BUY || "0.01";
 const RUN = Math.floor(Math.random() * 900 + 100);
 const TICKER = process.env.DEMO_TICKER || `NOVA${RUN}`;
@@ -63,6 +67,11 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)"];
 const POOL = [
   "function getReserves() view returns (uint256,uint256)",
   "function buy(uint256,address,uint256) payable returns (uint256)",
+  // Khas kurva v3: dipakai untuk membuktikan penghasilan creator terakumulasi
+  // dari fee, bukan dari alokasi token.
+  "function creatorOwed() view returns (uint256)",
+  "function realNative() view returns (uint256)",
+  "function virtualNative() view returns (uint256)",
 ];
 
 const SHIM = `
@@ -111,8 +120,14 @@ async function glide(page, y, steps = 18) {
  */
 async function glidePanel(page, anchorText, y, steps = 18) {
   const found = await page.evaluate((text) => {
+    // Dicocokkan tanpa peduli huruf besar/kecil. Judul seksi di studio ditulis
+    // "2. Bonding curve" dan hanya ditampilkan huruf besar lewat CSS `uppercase`,
+    // sementara `textContent` tetap huruf aslinya. Jangkar yang case-sensitive
+    // karena itu tidak pernah cocok, dan glidePanel diam-diam jatuh ke gulir
+    // jendela — yang tidak menggerakkan kolom form sama sekali.
+    const needle = text.toLowerCase();
     const el = [...document.querySelectorAll("*")].find(
-      (e) => e.children.length < 40 && (e.textContent || "").includes(text)
+      (e) => e.children.length < 40 && (e.textContent || "").toLowerCase().includes(needle)
     );
     let n = el;
     while (n && n !== document.body) {
@@ -147,7 +162,7 @@ fs.mkdirSync(RAW_DIR, { recursive: true });
 console.log(`chain   : ${CHAIN.name} (${CHAIN.chainId})`);
 console.log(`akun    : ${ACCOUNT}`);
 console.log(`saldo   : ${ethers.formatEther(await provider.getBalance(ACCOUNT))} ${CHAIN.sym}`);
-console.log(`token   : $${TICKER} — ${NAME}   seed=${SEED}  beli=${BUY}`);
+console.log(`token   : $${TICKER} — ${NAME}   beli=${BUY}  (tanpa setoran likuiditas)`);
 
 const browser = await chromium.launch({
   args: ["--hide-scrollbars", "--disable-features=IsolateOrigins,site-per-process"],
@@ -259,8 +274,9 @@ if (!(await chainBtn.getAttribute("class"))?.includes("cyan-950")) {
 }
 await beat(page, 1400);
 
-await typeInto(page, page.locator('input[type="number"]').first(), SEED);
-await beat(page, 1200);
+// Tidak ada field seed untuk diisi. Cukup tahan sebentar supaya penonton melihat
+// panel "No liquidity deposit" dan alokasi token creator yang nol.
+await beat(page, 2400);
 
 // Chat dengan 0G TEE co-pilot di studio, sebelum token dibuat.
 scene("1b) Chat dengan 0G TEE co-pilot di studio");
@@ -268,9 +284,10 @@ await safely("chat co-pilot studio", async () => {
   const box = page.getByPlaceholder("Ask the 0G co-pilot…");
   await box.waitFor({ state: "visible", timeout: 20000 });
   await box.click();
-  await page.keyboard.type(`Review the tokenomics for $${TICKER}: 1B supply, 80% into the pool, seed ${SEED} 0G locked permanently. Is the opening price sane?`, {
-    delay: 22,
-  });
+  await page.keyboard.type(
+    `Review the tokenomics for $${TICKER}: 1B supply, 100% into a virtual bonding curve, no liquidity deposit, creator paid 0.10% of every swap instead of a token allocation. Is that sound?`,
+    { delay: 22 }
+  );
   await beat(page, 700);
   // Hitung balasan yang sudah ada dulu; menunggu angka tetap akan rapuh kalau
   // panel sudah berisi sapaan pembuka.
@@ -291,14 +308,17 @@ await safely("chat co-pilot studio", async () => {
 
 // Turuni SELURUH form: pool, penjelasan biaya per chain, mandate agent, sampai
 // attestation. Kolom ini punya area gulir sendiri, jadi harus glidePanel.
-scene("1c) Menelusuri form: pool, biaya per chain, agent, attestation");
-await glidePanel(page, "SOVEREIGN HOOK POOL", 300);
+// Jangkar diganti ke judul seksi kurva: "SOVEREIGN HOOK POOL" sudah tidak ada
+// di studio, dan jangkar yang tidak ditemukan membuat glidePanel jatuh ke gulir
+// jendela — yang tidak menggerakkan kolom form sama sekali.
+scene("1c) Menelusuri form: kurva, biaya per chain, agent, attestation");
+await glidePanel(page, "BONDING CURVE", 300);
 await beat(page, 2600);
-await glidePanel(page, "SOVEREIGN HOOK POOL", 320);
+await glidePanel(page, "BONDING CURVE", 320);
 await beat(page, 2800);
-await glidePanel(page, "SOVEREIGN HOOK POOL", 300);
+await glidePanel(page, "BONDING CURVE", 300);
 await beat(page, 2400);
-await glidePanel(page, "SOVEREIGN HOOK POOL", -700);
+await glidePanel(page, "BONDING CURVE", -700);
 await beat(page, 900);
 
 scene("2) Attestation lalu launch (transaksi 0G Testnet nyata)");
@@ -338,6 +358,8 @@ console.log(`  pool  : ${rec.poolAddress}`);
 
 const erc20 = new ethers.Contract(rec.tokenAddress, ERC20, provider);
 const pool = new ethers.Contract(rec.poolAddress, POOL, provider);
+/** Nama yang jujur untuk venue v3; `pool` dipertahankan agar adegan lama tetap jalan. */
+const curve = pool;
 
 /**
  * Window anti-sniper dijalankan di LATAR. Kalau ditunggu diam di satu halaman,
@@ -473,6 +495,30 @@ await safely("jual di terminal", async () => {
 });
 const balAfterSell = await erc20.balanceOf(ACCOUNT);
 console.log(`  saldo token setelah jual: ${fmt(balAfterSell)} ${TICKER}`);
+
+// ── 8a. Penghasilan creator ────────────────────────────────────────────────
+// Inti model v3: creator tidak menerima satu token pun, penghasilannya datang
+// dari irisan fee tiap swap. Setelah beberapa perdagangan di atas, ada yang bisa
+// diklaim — jadi ini adegan yang paling penting ditunjukkan.
+scene("8a) PENGHASILAN CREATOR — akumulasi dari fee, lalu diklaim");
+await safely("klaim penghasilan creator", async () => {
+  const owedBefore = await curve.creatorOwed();
+  console.log(`  terakumulasi: ${ethers.formatEther(owedBefore)} ${CHAIN.sym}`);
+  if (owedBefore === 0n) throw new Error("belum ada fee terakumulasi");
+
+  const panel = page.locator("text=Your creator revenue").first();
+  await panel.waitFor({ state: "visible", timeout: 20000 });
+  await panel.scrollIntoViewIfNeeded();
+  await beat(page, 2600);
+
+  const claimBtn = page.locator('button:has-text("Claim")').first();
+  await claimBtn.hover();
+  await beat(page, 700);
+  await claimBtn.click();
+  await beat(page, 6000);
+  console.log(`  setelah klaim : ${ethers.formatEther(await curve.creatorOwed())} ${CHAIN.sym}`);
+  await beat(page, 2400);
+});
 
 // Beberapa fill tambahan supaya chart dan trade feed tidak terlihat kosong.
 // Ini transaksi nyata lewat UI yang sama, bukan data tempelan.

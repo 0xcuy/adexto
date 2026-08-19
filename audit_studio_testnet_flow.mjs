@@ -21,7 +21,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
 const RPC = process.env.TEST_RPC || "https://evmrpc-testnet.0g.ai";
 const EXPLORER = process.env.TEST_EXPLORER || "https://chainscan-newton.0g.ai";
 const CHAIN_ID = Number(process.env.TEST_CHAIN_ID || 16602);
-const SEED = process.env.TEST_SEED || "1";
+// TEST_SEED dihapus: kurva tidak menerima setoran native sama sekali.
 const BUY_AMOUNT = process.env.TEST_BUY || "0.1";
 const PK = process.env.TEST_PK || process.env.OG_PRIVATE_KEY || process.env.PRIVATE_KEY;
 const TICKER = process.env.TEST_TICKER || `TRIAL${Math.floor(Math.random() * 900 + 100)}`;
@@ -67,7 +67,7 @@ window.ethereum = {
   console.log(`chainId   : ${net.chainId} (${RPC})`);
   console.log(`akun      : ${signer.address}`);
   console.log(`saldo     : ${ethers.formatEther(startBalance)} 0G`);
-  console.log(`ticker    : ${TICKER}   seed: ${SEED}   beli: ${BUY_AMOUNT}\n`);
+  console.log(`ticker    : ${TICKER}   beli: ${BUY_AMOUNT}   (tanpa setoran likuiditas)\n`);
 
   if (Number(net.chainId) !== CHAIN_ID) {
     console.error(`RPC chainId ${net.chainId} != ${CHAIN_ID}`);
@@ -149,7 +149,7 @@ window.ethereum = {
 
   // Suite ini menguji alur SATU chain (0G Testnet). Server uji bisa punya
   // beberapa slot yang diarahkan ke testnet, jadi chain lain dimatikan eksplisit
-  // agar headline benar-benar "1 of 1" dan tidak ada seed terbuang di chain lain.
+  // agar headline benar-benar "1 of 1" dan tidak ada gas terbuang di chain lain.
   for (const other of ["Arbitrum Sepolia", "Base Sepolia", "Monad Testnet", "Arbitrum One", "Base Mainnet", "Monad"]) {
     const btn = page.locator(`button[title*="${other}"]`).first();
     if ((await btn.count()) === 0) continue;
@@ -170,22 +170,30 @@ window.ethereum = {
   await page.waitForTimeout(1600);
   check("ticker dinyatakan tersedia", (await page.locator("text=available").first().count()) > 0);
 
-  await page.locator('input[type="number"]').first().fill(SEED);
-  await page.waitForTimeout(400);
-  check(
-    "peringatan likuiditas terkunci permanen tampil",
-    (await page.locator("text=/permanently locked/i").count()) > 0
-  );
+  // Tidak ada lagi field seed untuk diisi: FactoryV3 memakai kurva dengan reserve
+  // virtual. Yang harus dibuktikan justru sebaliknya — bahwa UI menyatakan nol
+  // setoran dan nol alokasi token untuk creator.
+  const studioBody = await page.evaluate(() => document.body.innerText);
+  check("field seed liquidity sudah tidak ada", !/Seed liquidity/i.test(studioBody));
+  check("slider supply split sudah tidak ada", !/Supply into pool/i.test(studioBody));
+  check("UI menyatakan tanpa setoran likuiditas", /No liquidity deposit/i.test(studioBody));
+  check("UI menyatakan alokasi token creator nol", /Your token allocation/i.test(studioBody));
+  check("UI menyatakan porsi pendapatan creator", /Your revenue/i.test(studioBody));
 
   await page.getByRole("button", { name: "Sign attestation", exact: true }).click();
   await page.waitForTimeout(2500);
   check("attestation ditandatangani & diverifikasi", (await page.locator("text=SIGNED").count()) > 0);
 
-  // Label tombol baru terbentuk setelah ticker/seed/attestation siap, jadi target
+  // Label tombol baru terbentuk setelah ticker dan attestation siap, jadi target
   // launch diverifikasi di sini — tepat sebelum dikirim.
   const launchBtn = page.locator('button:has-text("Launch on")').first();
   const btnLabel = ((await launchBtn.textContent()) ?? "").replace(/\s+/g, " ").trim();
   check("hanya 0G yang jadi target launch", /Launch on 0G\b/.test(btnLabel) && !btnLabel.includes("+"), btnLabel);
+  check("tombol menyebut gas only, bukan seed", /gas only/i.test(btnLabel), btnLabel);
+
+  // Biaya launch harus benar-benar hanya gas. Diukur dari saldo native, bukan
+  // dipercaya dari label tombol.
+  const nativeBeforeLaunch = await provider.getBalance(signer.address);
 
   console.log("  mengirim transaksi launch ke 0G Testnet…");
   await launchBtn.click();
@@ -216,12 +224,17 @@ window.ethereum = {
   check("kontrak token ada di 0G Testnet", (await provider.getCode(tokenAddress)) !== "0x");
   check("kontrak pool ada di 0G Testnet", (await provider.getCode(poolAddress)) !== "0x");
 
+  // Dulu ini membaca NEXT_PUBLIC_FACTORY_V2_DEVCHAIN — nama env yang salah sama
+  // sekali untuk uji 0G, dengan fallback ke alamat FactoryV2 lama. Sekarang
+  // menunjuk FactoryV3 0G, dan bisa ditimpa lewat TEST_FACTORY untuk chain lain.
+  // FactoryV3 menamai pemetaannya `curveOf`, bukan `poolOf` seperti V2. Memanggil
+  // poolOf pada V3 revert tanpa data, yang tampak seperti kegagalan jaringan.
   const factory = new ethers.Contract(
-    process.env.NEXT_PUBLIC_FACTORY_V2_DEVCHAIN || "0x6394E3820d62a9Ab901128bEf5A04860b71A535c",
-    ["function poolOf(address) view returns (address)"],
+    process.env.TEST_FACTORY || "0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632",
+    ["function curveOf(address) view returns (address)"],
     provider
   );
-  check("factory.poolOf(token) cocok (resolusi on-chain)", (await factory.poolOf(tokenAddress)) === poolAddress);
+  check("factory.curveOf(token) cocok (resolusi on-chain)", (await factory.curveOf(tokenAddress)) === poolAddress);
 
   const erc20 = new ethers.Contract(
     tokenAddress,
@@ -237,17 +250,36 @@ window.ethereum = {
     [
       "function getReserves() view returns (uint256,uint256)",
       "function buy(uint256,address,uint256) payable returns (uint256)",
-      "function getBuyQuote(uint256) view returns (uint256,uint256,uint256)",
+      // Kuotasi kurva mengembalikan EMPAT nilai: depth, creator, buyback.
+      "function getBuyQuote(uint256) view returns (uint256,uint256,uint256,uint256)",
+      "function virtualNative() view returns (uint256)",
+      "function realNative() view returns (uint256)",
+      "function creatorOwed() view returns (uint256)",
+      "function creator() view returns (address)",
+      "function creatorFeeBps() view returns (uint256)",
     ],
     provider
   );
 
   const [rN, rT] = await pool.getReserves();
   const creatorTokens = await erc20.balanceOf(signer.address);
-  console.log(`  reserve pool  : ${fmt(rN)} 0G / ${fmt(rT)} ${TICKER}`);
+  const virtualNative = await pool.virtualNative();
+  const realNative = await pool.realNative();
+  const totalSupply = await erc20.totalSupply();
+  console.log(`  reserve kurva : ${fmt(rN)} 0G (virtual ${fmt(virtualNative)} + nyata ${fmt(realNative)}) / ${fmt(rT)} ${TICKER}`);
   console.log(`  token creator : ${fmt(creatorTokens)} ${TICKER}`);
-  check("pool ter-seed dengan native", rN === ethers.parseEther(SEED));
-  check("creator menerima sisa supply (20%)", creatorTokens > 0n);
+
+  // Inti model v3, dibalik dari asersi lama:
+  check("kurva TIDAK menerima setoran native", realNative === 0n, `${fmt(realNative)}`);
+  check("reserve native awal = reserve virtual", rN === virtualNative, `${fmt(rN)}`);
+  check("creator memegang NOL token (tidak ada bahan dump)", creatorTokens === 0n, `${fmt(creatorTokens)}`);
+  check("100% supply masuk kurva", rT === totalSupply, `${fmt(rT)} / ${fmt(totalSupply)}`);
+  check("alamat creator terkunci di kurva", (await pool.creator()).toLowerCase() === signer.address.toLowerCase());
+  check("porsi fee creator terpasang", (await pool.creatorFeeBps()) > 0n, `${await pool.creatorFeeBps()} bps`);
+
+  const launchCost = nativeBeforeLaunch - (await provider.getBalance(signer.address));
+  console.log(`  biaya launch  : ${fmt(launchCost)} 0G`);
+  check("biaya launch hanya gas, bukan modal", launchCost < ethers.parseEther("0.05"), `${fmt(launchCost)} 0G`);
 
   // ── 2. EXPLORER ──────────────────────────────────────────────────────────
   step("2) EXPLORER — apakah token langsung muncul?");
@@ -391,6 +423,27 @@ window.ethereum = {
   check("SALDO NATIVE NAIK (bukan turun)", nativeDelta > 0n,
     `${nativeDelta > 0n ? "+" : ""}${ethers.formatEther(nativeDelta).slice(0, 12)} 0G setelah gas`);
   check("allowance habis terpakai", (await erc20.allowance(signer.address, poolAddress)) === 0n);
+
+  // ── 6. PENGHASILAN CREATOR ───────────────────────────────────────────────
+  // Ini pengganti alokasi token gratis, jadi harus dibuktikan benar-benar
+  // terakumulasi dan benar-benar bisa ditarik — bukan hanya angka di layar.
+  step("6) PENGHASILAN CREATOR — akumulasi dari fee lalu diklaim lewat UI");
+  const owed = await pool.creatorOwed();
+  check("fee creator terakumulasi dari perdagangan", owed > 0n, `${ethers.formatEther(owed)} 0G`);
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(4000);
+  const hasRevenuePanel = (await page.locator("text=Your creator revenue").count()) > 0;
+  check("panel penghasilan creator tampil bagi creator", hasRevenuePanel);
+
+  if (hasRevenuePanel && owed > 0n) {
+    const claimBtn = page.locator('button:has-text("Claim")').first();
+    await claimBtn.scrollIntoViewIfNeeded();
+    check("tombol Claim aktif", !(await claimBtn.isDisabled()));
+    await claimBtn.click();
+    await page.waitForTimeout(8000);
+    check("utang creator jadi nol setelah klaim", (await pool.creatorOwed()) === 0n, `${ethers.formatEther(await pool.creatorOwed())} 0G`);
+  }
 
   const [finalN, finalT] = await pool.getReserves();
   console.log(`  reserve akhir: ${fmt(finalN)} 0G / ${fmt(finalT)} ${TICKER}`);

@@ -10,7 +10,7 @@
  */
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
-import { SOVEREIGN_HOOK_ABI, ERC20_ABI } from "@/lib/dex";
+import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
 import type { TradeEvent } from "@/lib/telemetry";
 
 const LOOKBACK_BLOCKS = 45_000;
@@ -30,6 +30,22 @@ function cache(): Map<string, CacheEntry> {
   return globalThis.__ADEXTO_SWAP_CACHE__;
 }
 
+/**
+ * Dua generasi pool memancarkan event bernama sama tapi bertanda tangan BEDA:
+ * SovereignHook punya `lpFee, treasuryFee` sedangkan SovereignCurve memecahnya
+ * menjadi `depthFee, creatorFee, treasuryFee`. Satu parameter tambahan berarti
+ * topic0 yang sama sekali lain, jadi memfilter dengan ABI hook saja membuat pool
+ * kurva tampak tidak pernah diperdagangkan: chart jadi garis datar dan feed
+ * kosong, padahal swap benar-benar terjadi.
+ *
+ * Empat field yang dipakai di bawah (trader, isBuy, amountIn, amountOut) ada di
+ * kedua tanda tangan pada posisi yang sama, jadi cukup memilih interface yang
+ * cocok dengan topic0 tiap log.
+ */
+const SWAP_IFACES = [new ethers.Interface(SOVEREIGN_CURVE_ABI), new ethers.Interface(SOVEREIGN_HOOK_ABI)];
+const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
+const ifaceForTopic = (topic0: string) => SWAP_IFACES[SWAP_TOPICS.indexOf(topic0)];
+
 export async function readOnChainSwaps(
   chain: ChainInfo,
   poolAddress: string,
@@ -44,11 +60,17 @@ export async function readOnChainSwaps(
 
   try {
     const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
-    const pool = new ethers.Contract(poolAddress, SOVEREIGN_HOOK_ABI, provider);
+    const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const latest = await provider.getBlockNumber();
     const fromBlock = Math.max(0, latest - LOOKBACK_BLOCKS);
-    const logs = await pool.queryFilter(pool.filters.Swap(), fromBlock, latest);
+    // topic0 sebagai daftar = OR, jadi satu panggilan menangkap swap kurva maupun hook.
+    const logs = await provider.getLogs({
+      address: poolAddress,
+      fromBlock,
+      toBlock: latest,
+      topics: [SWAP_TOPICS],
+    });
 
     let decimals = 18;
     try {
@@ -73,7 +95,9 @@ export async function readOnChainSwaps(
 
     const trades: TradeEvent[] = [];
     for (const log of recent) {
-      const parsed = pool.interface.parseLog({ topics: [...log.topics], data: log.data });
+      const iface = ifaceForTopic(log.topics[0]);
+      if (!iface) continue;
+      const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
       if (!parsed || parsed.name !== "Swap") continue;
 
       const isBuy = Boolean(parsed.args.isBuy);

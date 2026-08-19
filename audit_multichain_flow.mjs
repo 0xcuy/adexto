@@ -21,13 +21,18 @@ dotenv.config({ path: ".env.local", quiet: true });
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
 const PK = process.env.OG_PRIVATE_KEY || process.env.PRIVATE_KEY;
-const SEED = process.env.TEST_SEED || "0.0005";
+/**
+ * Ukuran pembelian uji. Dulu ini diturunkan dari TEST_SEED, tapi kurva tidak
+ * punya seed — jadi ukuran beli kini berdiri sendiri dan sengaja kecil supaya
+ * dana testnet tidak terpakai banyak.
+ */
+const BUY_SIZE = process.env.TEST_BUY || "0.00005";
 const RUN = Math.floor(Math.random() * 900 + 100);
 
 const CHAINS = {
   16602: { key: "0G", name: "0G Testnet", rpc: "https://evmrpc-testnet.0g.ai", sym: "0G" },
   421614: { key: "Arbitrum", name: "Arbitrum Sepolia", rpc: "https://sepolia-rollup.arbitrum.io/rpc", sym: "ETH" },
-  84532: { key: "Base", name: "Base Sepolia", rpc: "https://sepolia.base.org", sym: "ETH" },
+  84532: { key: "Base", name: "Base Sepolia", rpc: "https://base-sepolia-rpc.publicnode.com", sym: "ETH" },
   10143: { key: "Monad", name: "Monad Testnet", rpc: "https://testnet-rpc.monad.xyz", sym: "MON" },
 };
 
@@ -80,6 +85,10 @@ const ERC20 = [
 const POOL = [
   "function getReserves() view returns (uint256,uint256)",
   "function buy(uint256,address,uint256) payable returns (uint256)",
+  // Khas kurva v3.
+  "function virtualNative() view returns (uint256)",
+  "function realNative() view returns (uint256)",
+  "function creatorOwed() view returns (uint256)",
 ];
 
 /** Shim wallet multi-chain: satu akun, chain aktif bisa ditukar seperti MetaMask. */
@@ -121,7 +130,7 @@ async function launchViaStudio(page, { ticker, name, chainKeys }) {
 
   await page.locator('input[value="AQUANT"]').first().fill(ticker);
   await page.locator('input[value="Aegis Quant AI"]').first().fill(name);
-  await page.locator('input[type="number"]').first().fill(SEED);
+  // Tidak ada field seed lagi: FactoryV3 memakai kurva dengan reserve virtual.
   await page.waitForTimeout(2200);
 
   const signBtn = page.getByRole("button", { name: "Sign attestation", exact: true });
@@ -174,7 +183,7 @@ async function registryFor(page, ticker) {
 
 (async () => {
   console.log(`akun    : ${ACCOUNT}`);
-  console.log(`seed    : ${SEED} per chain`);
+ console.log(`beli : ${BUY_SIZE} per chain (tanpa setoran likuiditas)`);
   // Satu RPC publik yang sedang rewel tidak boleh membatalkan seluruh pengujian.
   for (const [id, c] of Object.entries(CHAINS)) {
     try {
@@ -258,6 +267,17 @@ async function registryFor(page, ticker) {
     check(`  ${c?.key}: tradable`, rec.tradable === true);
     check(`  ${c?.key}: label chain benar (bukan "Omnichain (...)")`, rec.chain === `${c.name} (${rec.chainId})`, rec.chain);
     check(`  ${c?.key}: deployedChainCount = 4`, rec.deployedChainCount === 4);
+
+    // Properti kurva, diperiksa PER CHAIN. Satu chain yang diam-diam masih
+    // memakai generasi berseed akan lolos kalau hanya diperiksa di satu tempat.
+    const curve = new ethers.Contract(rec.poolAddress, POOL, providers[rec.chainId]);
+    const token = new ethers.Contract(rec.tokenAddress, ERC20, providers[rec.chainId]);
+    const realN = await read(() => curve.realNative(), "realNative");
+    const virtN = await read(() => curve.virtualNative(), "virtualNative");
+    const heldByCreator = await read(() => token.balanceOf(ACCOUNT), "saldo creator");
+    check(`  ${c?.key}: kurva tanpa setoran native`, realN === 0n, `${ethers.formatEther(realN)}`);
+    check(`  ${c?.key}: reserve virtual terpasang`, virtN > 0n, `${ethers.formatEther(virtN)} ${c?.sym}`);
+    check(`  ${c?.key}: creator memegang nol token`, heldByCreator === 0n, `${fmt(heldByCreator)}`);
   }
   const uniqTokens = new Set(reg4.map((r) => r.tokenAddress.toLowerCase()));
   check("setiap chain punya alamat token berbeda", uniqTokens.size === 4, `${uniqTokens.size} alamat unik`);
@@ -281,7 +301,10 @@ async function registryFor(page, ticker) {
   check("switcher chain punya 4 tautan", new Set(switcherLinks).size === 4, JSON.stringify([...new Set(switcherLinks)]));
   check(
     "penjelasan harga terpisah per chain tampil",
-    (await page.locator("text=/harga sendiri/").count()) > 0
+    // Jangkarnya harus teks UI yang sebenarnya (bahasa Inggris). Sebelumnya di sini
+    // tertulis /harga sendiri/ — pola bahasa Indonesia yang tidak pernah ada di UI,
+    // jadi asersi ini mustahil lulus dan bukan menandakan cacat produk.
+    (await page.locator("text=/Independent pool and price per chain/i").count()) > 0
   );
 
   // Pindah chain lewat switcher -> pool & harga ikut berubah
@@ -305,7 +328,7 @@ async function registryFor(page, ticker) {
     console.log(`\n  --- ${c.name} ---`);
     const pool = new ethers.Contract(rec.poolAddress, POOL, providers[rec.chainId]);
     const erc20 = new ethers.Contract(rec.tokenAddress, ERC20, providers[rec.chainId]);
-    const buyWei = ethers.parseEther(SEED) / 10n;
+    const buyWei = ethers.parseEther(BUY_SIZE);
 
     // tunggu window anti-sniper
     const deadline = Date.now() + 240000;
@@ -455,7 +478,9 @@ async function registryFor(page, ticker) {
   }
   await page.locator('input[value="AQUANT"]').first().fill(T1);
   await page.waitForTimeout(2500);
-  const skipNotice = await page.locator("text=/akan dilewati/").count();
+  // Sama seperti di seksi B: jangkar harus teks Inggris yang benar-benar dirender
+  // studio ("… it will be skipped"), bukan frasa Indonesia.
+  const skipNotice = await page.locator("text=/will be skipped/i").count();
 
   // Tanda tangani attestation dulu, kalau tidak tombolnya masih "Sign attestation to unlock".
   const signF = page.getByRole("button", { name: "Sign attestation", exact: true });

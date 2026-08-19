@@ -508,14 +508,31 @@ export async function executeSell(params: {
   };
 }
 
-function parseSwapOut(receipt: ethers.TransactionReceipt | null, iface: ethers.Interface): bigint | null {
+/**
+ * Ambil amountOut sungguhan dari receipt.
+ *
+ * Event `Swap` kurva memecah fee menjadi depth/creator/treasury, jadi tanda
+ * tangannya — dan topic0-nya — berbeda dari hook. Sebelumnya fungsi ini hanya
+ * diberi interface hook, sehingga untuk pool kurva parseLog selalu gagal dan
+ * pemanggil diam-diam memakai angka SIMULASI. Angkanya kebetulan sama, jadi
+ * kegagalannya tidak terlihat; tapi yang dilaporkan bukan lagi hasil terkonfirmasi.
+ * Karena itu kedua interface dicoba.
+ */
+function parseSwapOut(receipt: ethers.TransactionReceipt | null, iface?: ethers.Interface): bigint | null {
   if (!receipt) return null;
+  const ifaces = [
+    new ethers.Interface(SOVEREIGN_CURVE_ABI),
+    new ethers.Interface(SOVEREIGN_HOOK_ABI),
+    ...(iface ? [iface] : []),
+  ];
   for (const log of receipt.logs) {
-    try {
-      const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
-      if (parsed?.name === "Swap") return BigInt(parsed.args.amountOut);
-    } catch {
-      // not our event
+    for (const candidate of ifaces) {
+      try {
+        const parsed = candidate.parseLog({ topics: [...log.topics], data: log.data });
+        if (parsed?.name === "Swap") return BigInt(parsed.args.amountOut);
+      } catch {
+        // bukan event kita, coba interface berikutnya
+      }
     }
   }
   return null;

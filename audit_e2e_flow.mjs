@@ -8,7 +8,7 @@
  *   1. cd devchain && npx hardhat node
  *   2. node scripts/compile-contracts.mjs --via-ir
  *   3. node scripts/deploy-sovereign-dex.mjs --chain devchain --broadcast
- *   4. next start with NEXT_PUBLIC_DEVCHAIN_RPC + NEXT_PUBLIC_FACTORY_V2_DEVCHAIN
+ *   4. next start with NEXT_PUBLIC_DEVCHAIN_RPC + NEXT_PUBLIC_FACTORY_V3_DEVCHAIN
  *
  * The injected wallet is a thin proxy onto the devchain's unlocked account #0, so
  * eth_sendTransaction and personal_sign are handled by the node itself.
@@ -226,8 +226,14 @@ window.ethereum = {
   check("ticker baru dinyatakan available", tickerHint > 0);
 
   await page.locator('input[value="Aegis Quant AI"]').first().fill("E2E Verified Agent");
-  const seedInput = page.locator('input[type="number"]').first();
-  await seedInput.fill("5");
+
+  // FactoryV3 memakai kurva dengan reserve virtual, jadi tidak ada field seed
+  // untuk diisi. Yang diuji sekarang justru ketiadaannya — kalau field itu
+  // muncul lagi, berarti UI diam-diam kembali ke generasi berseed.
+  const studioBody = await page.evaluate(() => document.body.innerText);
+  check("tidak ada field seed liquidity di studio", !/Seed liquidity/i.test(studioBody));
+  check("tidak ada slider bagi supply", !/Supply into pool/i.test(studioBody));
+  check("studio menyatakan tanpa setoran likuiditas", /No liquidity deposit/i.test(studioBody));
 
   const deployBtnBefore = page.locator("button", { hasText: /Sign attestation to unlock|Launch on/ }).first();
   check("deploy terkunci sebelum attestation", /Sign attestation/.test(await deployBtnBefore.textContent()));
@@ -259,6 +265,36 @@ window.ethereum = {
   if (poolAddress) {
     const poolCode = await provider.getCode(poolAddress);
     check("kontrak pool BENAR ADA di chain", poolCode !== "0x", `${(poolCode.length - 2) / 2} bytes`);
+
+    // Bukti on-chain bahwa yang ter-deploy benar kurva v3, bukan hook berseed.
+    const curve = new ethers.Contract(
+      poolAddress,
+      [
+        "function getReserves() view returns (uint256,uint256)",
+        "function virtualNative() view returns (uint256)",
+        "function realNative() view returns (uint256)",
+        "function creator() view returns (address)",
+        "function creatorOwed() view returns (uint256)",
+      ],
+      provider
+    );
+    const tokenC = new ethers.Contract(
+      tokenAddress,
+      ["function balanceOf(address) view returns (uint256)", "function totalSupply() view returns (uint256)"],
+      provider
+    );
+    const [curveN, curveT] = await curve.getReserves();
+    const virtN = await curve.virtualNative();
+    const realN = await curve.realNative();
+    const supply = await tokenC.totalSupply();
+    const creatorBal = await tokenC.balanceOf(ACCOUNT);
+    console.log(`    kurva: ${ethers.formatEther(curveN)} native (virtual ${ethers.formatEther(virtN)}) / ${ethers.formatEther(curveT)} token`);
+    check("kurva tidak menerima setoran native", realN === 0n, `${ethers.formatEther(realN)}`);
+    check("reserve native awal = reserve virtual", curveN === virtN);
+    check("100% supply masuk kurva", curveT === supply, `${ethers.formatEther(curveT)} / ${ethers.formatEther(supply)}`);
+    check("creator memegang NOL token", creatorBal === 0n, `${ethers.formatEther(creatorBal)}`);
+    check("alamat creator terkunci di kurva", (await curve.creator()).toLowerCase() === ACCOUNT.toLowerCase());
+    check("utang fee creator mulai dari nol", (await curve.creatorOwed()) === 0n);
   }
 
   // ── 5. explorer + registry ────────────────────────────────────────────────
@@ -463,7 +499,8 @@ window.ethereum = {
   step("9) Market tanpa pool (/token/qnova) harus terkunci, bukan kirim tx");
   await page.goto(`${BASE}/token/qnova`, { waitUntil: "networkidle" });
   await page.waitForTimeout(2500);
-  const lockedMsg = await page.locator("text=/Trading is disabled|no SovereignHook pool|does not expose/").first().textContent().catch(() => "");
+  // Copy-nya kini menyebut "market", bukan "SovereignHook pool".
+  const lockedMsg = await page.locator("text=/Trading is disabled|no executable market|does not expose/").first().textContent().catch(() => "");
   check("alasan pool tidak tradable dijelaskan", lockedMsg.length > 0, lockedMsg.slice(0, 120));
   const tradingUnavailable = await page.locator('button:has-text("Trading unavailable")').count();
   check("tombol trading dinonaktifkan", tradingUnavailable > 0);

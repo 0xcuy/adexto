@@ -174,12 +174,14 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     if (!market) return "Select a market.";
     if (!market.poolAddress) {
       return chain.dexLive
-        ? `${market.symbol} has no SovereignHook pool recorded, so there is nothing to trade against.`
-        : `Trading is disabled: AdextoTrinityFactoryV2 is not deployed on ${chain.name} yet, so ${market.symbol} has no executable pool. The legacy hook has no swap entrypoint and would revert.`;
+        ? `${market.symbol} has no executable market recorded, so there is nothing to trade against.`
+        : `Trading is disabled: no launch factory is deployed on ${chain.name} yet, so ${market.symbol} has no executable market. The legacy showcase entry has no swap entrypoint and would revert.`;
     }
-    if (!poolChecked) return "Reading pool state…";
-    if (!pool) return `The address recorded for ${market.symbol} does not expose a SovereignHook swap interface.`;
-    if (!pool.initialized) return "The pool exists but has not been seeded with liquidity.";
+    if (!poolChecked) return "Reading market state…";
+    if (!pool) return `The address recorded for ${market.symbol} does not expose a tradable swap interface.`;
+    // Kurva sudah bisa diperdagangkan sejak blok pertama tanpa setoran apa pun, jadi
+    // "belum di-seed" bukan lagi penjelasan yang benar untuk keadaan ini.
+    if (!pool.initialized) return "The market exists but has not been initialised yet.";
     return "Pool is live.";
   }, [market, chain, pool, poolChecked]);
 

@@ -204,7 +204,7 @@ export default function DocsPage() {
             market has its own liquidity and its own price.
           </p>
           <div className="p-2.5 rounded-lg bg-[#070a14] border border-white/10 font-mono text-[11px] text-zinc-300 space-y-1">
-            <div>per chain: token + pool + seed liquidity (locked)</div>
+            <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>
             <div className="text-amber-300">
               cross-chain supply would need a messaging layer on every chain; CCIP and LayerZero have no endpoint on 0G or
               Monad today.

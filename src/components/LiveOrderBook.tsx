@@ -126,7 +126,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   return (
     <div className="w-full h-full flex flex-col font-mono text-[11px]">
       <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2 shrink-0">
-        <span className="text-zinc-400 font-bold text-[10px] uppercase">AMM Depth (constant product)</span>
+        <span className="text-zinc-400 font-bold text-[10px] uppercase">Curve depth ladder</span>
         {asks.length > 0 && <span className="text-zinc-500 text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}
       </div>
 

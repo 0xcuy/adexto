@@ -213,16 +213,16 @@ export default function SwapTerminal() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-purple-950/80 text-purple-300 border border-purple-500/40 text-xs font-mono font-bold mb-2">
-          SOVEREIGN HOOK AMM · CONSTANT PRODUCT
+          SOVEREIGN BONDING CURVE · VIRTUAL RESERVE
         </div>
         <h1 className="text-3xl font-black text-white">Sovereign DEX Swap</h1>
         <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-lg mx-auto font-medium">
-          Native ↔ token routing through each project&apos;s own SovereignHook pool. Every fill splits the fee between LP
-          rewards and the agent buyback vault on-chain.
+          Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee three ways
+          on-chain: depth that stays in the curve, the creator&apos;s share, and the agent buyback vault.
         </p>
         {!loading && (
           <p className="text-[11px] font-mono text-zinc-500 mt-2">
-            {tradableCount} of {markets.length} markets have an executable pool
+            {tradableCount} of {markets.length} markets have an executable curve
           </p>
         )}
       </div>
@@ -247,8 +247,10 @@ export default function SwapTerminal() {
                 {selected ? selected.name : "Select a market"}
               </span>
               <span className="text-[10px] text-zinc-400 font-mono">
+                {/* lpFeeBps kini berarti porsi depth yang mengendap di kurva, jadi
+                    labelnya "depth" — bukan "LP", karena tidak ada penyedia likuiditas. */}
                 {selected
-                  ? `${(selected.lpFeeBps / 100).toFixed(2)}% LP / ${(selected.treasuryBuybackBps / 100).toFixed(2)}% buyback`
+                  ? `${(selected.lpFeeBps / 100).toFixed(2)}% depth / ${(selected.treasuryBuybackBps / 100).toFixed(2)}% buyback`
                   : "—"}
               </span>
             </div>

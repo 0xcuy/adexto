@@ -46,6 +46,9 @@ const args = process.argv.slice(2);
 const chainKey = (args[args.indexOf("--chain") + 1] || "").toLowerCase();
 const BROADCAST = args.includes("--broadcast");
 const net = NETWORKS[chainKey];
+// RPC publik kadang 503 (sepolia.base.org pernah begitu berulang). Satu env
+// override menghindari harus menyunting skrip demi penyedia yang sedang rewel.
+if (net && process.env.DEPLOY_RPC) net.rpc = process.env.DEPLOY_RPC;
 
 if (!net) {
   console.error(`Usage: node scripts/deploy-sovereign-curve.mjs --chain <${Object.keys(NETWORKS).join("|")}> [--broadcast]`);

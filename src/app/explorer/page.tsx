@@ -164,7 +164,7 @@ export default function ExplorerPage() {
           <p className="text-xs sm:text-sm text-slate-200 mt-1 font-medium">
             {loading
               ? "Loading registry…"
-              : `${projects.length} registered · ${tradableCount} with an executable SovereignHook pool`}
+              : `${projects.length} registered · ${tradableCount} with an executable bonding curve`}
           </p>
         </div>
 

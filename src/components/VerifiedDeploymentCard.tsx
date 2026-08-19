@@ -122,7 +122,7 @@ export default function VerifiedDeploymentCard() {
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
               Addresses below are the <strong className="text-white">v1</strong> generation, deployed and verifiable on
-              each chain. The executable <code className="text-cyan-300">AdextoTrinityFactoryV2</code> is not broadcast to
+              each chain. The executable <code className="text-cyan-300">AdextoTrinityFactoryV3</code> is not broadcast to
               mainnet yet, so launching and trading stay disabled in the UI until it is.
             </p>
           </div>
