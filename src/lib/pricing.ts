@@ -108,6 +108,23 @@ function trimZeros(s: string): string {
   return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
 }
 
+/**
+ * Angka desimal utuh, tanpa notasi ringkas — untuk isi tooltip.
+ *
+ * Notasi subscript memang padat, tapi ia menuntut pembaca tahu aturannya:
+ * `0.0₅15` berarti titik, lima nol, lalu 15. Yang belum tahu hanya bisa menebak,
+ * dan tidak ada apa pun di layar yang mengajarkan. Ini menyediakan angka aslinya
+ * saat kursor diarahkan, sehingga notasinya bisa tetap padat tanpa menyandera
+ * informasi.
+ */
+export function plainDecimal(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  if (value === 0) return "0";
+  // toFixed(20) melampaui presisi double, jadi cukup untuk harga token apa pun,
+  // lalu nol di ujung dibuang supaya tidak jadi ekor panjang tanpa makna.
+  return trimZeros(value.toFixed(20));
+}
+
 export function formatUsd(value: number, opts: { compact?: boolean } = {}): string {
   if (!Number.isFinite(value) || value === 0) return "$0.00";
   const abs = Math.abs(value);

@@ -7,6 +7,7 @@ import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
 import { checkSymbolAvailable, findProjectGroup, registerProject, listProjects } from "@/lib/registry";
 import { FACTORY_V3_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
 import { recordLaunch, verifyWorldIdToken, worldIdConfig } from "@/lib/worldid";
+import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
 /**
  * Two-stage launch API.
@@ -193,13 +194,19 @@ async function handlePrepare(body: any) {
   const lpFeeBps = Math.round((Number(body.swapFee ?? 0.3) - Number(body.treasuryCut ?? 0.1)) * 100);
   const treasuryBuybackBps = Math.round(Number(body.treasuryCut ?? 0.1) * 100);
 
+  const opening = await resolveOpenings(deployable);
+  if (!opening.ok) {
+    return NextResponse.json({ error: opening.error, code: "OPENING_PRICE_UNAVAILABLE" }, { status: 503 });
+  }
+  const openings = opening.openings;
+
   const metadata = {
     protocol: "ADEXTO Protocol (adexto.xyz)",
     version: "2.5.0",
     ecosystem: {
-      token: { name, symbol, supply, standard: "ERC-8004", curve: "Constant product AMM" },
+      token: { name, symbol, supply, standard: "ERC-8004", curve: "Bonding curve over a virtual reserve" },
       dex: {
-        type: "Sovereign Hook AMM",
+        type: "Sovereign bonding curve",
         lpFeeBps,
         treasuryBuybackBps,
         subdomain: `https://${symbol.toLowerCase()}.adexto.xyz`,
@@ -236,16 +243,67 @@ async function handlePrepare(body: any) {
     lpFeeBps,
     treasuryBuybackBps,
     supply,
+    // Market cap buka DITETAPKAN SERVER, bukan diambil dari angka paku di config.
+    // `virtualNative` per chain sudah dihitung dari harga live, sehingga satu
+    // ticker yang diluncurkan ke 4 chain membuka pada nilai USD yang sama.
+    openingMarketCapUsd: OPENING_MARKET_CAP_USD,
     deployTargets: deployable.map((c) => ({
       chainKey: c.key,
       chainId: c.chainId,
       chainName: c.name,
       factoryV2: c.factoryV2Address, factoryV3: c.factoryV3Address, launchGeneration: c.launchGeneration,
       nativeSymbol: c.nativeSymbol,
+      virtualNative: String(openings[c.chainId].virtualNative),
+      nativePriceUsd: openings[c.chainId].priceUsd,
+      openingPriceNative: openings[c.chainId].virtualNative / supply,
     })),
     unavailableChains: unavailable,
     metadata,
   });
+}
+
+/**
+ * Hitung `virtualNative` per chain dari harga live.
+ *
+ * MENOLAK bila harga chain mana pun bukan harga live. Kurva tidak bisa diubah
+ * setelah dibuat, jadi market cap yang salah bersifat permanen — lebih baik
+ * launch-nya gagal sekarang daripada pasar itu salah harga selamanya. Hanya chain
+ * yang benar-benar dituju yang diperiksa, sehingga feed MON yang mati tidak
+ * memblokir launch khusus 0G.
+ */
+async function resolveOpenings(
+  chains: Array<{ chainId: number; key: string; nativeSymbol: string }>
+): Promise<
+  | { ok: true; openings: Record<number, { virtualNative: number; priceUsd: number }> }
+  | { ok: false; error: string }
+> {
+  const { prices, live } = await nativePrices();
+  const openings: Record<number, { virtualNative: number; priceUsd: number }> = {};
+  const stale: string[] = [];
+
+  for (const c of chains) {
+    const priceUsd = prices[c.nativeSymbol];
+    if (!live[c.nativeSymbol] || !priceUsd) {
+      stale.push(`${c.key} (${c.nativeSymbol})`);
+      continue;
+    }
+    const virtualNative = openingVirtualNative(priceUsd);
+    if (virtualNative <= 0) {
+      stale.push(`${c.key} (${c.nativeSymbol})`);
+      continue;
+    }
+    openings[c.chainId] = { virtualNative, priceUsd };
+  }
+
+  if (stale.length > 0) {
+    return {
+      ok: false,
+      error:
+        `No live price for ${stale.join(", ")}, so the opening market cap cannot be set. ` +
+        `A curve cannot be repriced after deployment, so the launch is refused rather than guessed.`,
+    };
+  }
+  return { ok: true, openings };
 }
 
 type AttestationResult = { ok: true; signer: string } | { ok: false; error: string };

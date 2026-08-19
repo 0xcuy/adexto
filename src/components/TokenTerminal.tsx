@@ -17,7 +17,7 @@ import LiveTradeFeed from "@/components/LiveTradeFeed";
 import Link from "next/link";
 import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
 import { claimCreatorFees, describeTxError } from "@/lib/dex";
-import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
+import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
 
 /**
@@ -110,6 +110,8 @@ export default function TokenTerminal({
   const onCorrectChain = isOnChain(project.chainId);
   const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
   const tokenPriceUsd = swap.spotPriceNative * nativeUsd;
+  /** Penghasilan creator dalam USD: 0.0₄1 0G tidak memberi tahu apa pun soal nilainya. */
+  const creatorOwedUsd = swap.pool ? Number(ethers.formatEther(swap.pool.creatorOwed)) * nativeUsd : 0;
   const marketCapUsd = project.supply * tokenPriceUsd;
 
   useEffect(() => {
@@ -332,19 +334,36 @@ export default function TokenTerminal({
           </div>
         </div>
 
+        {/* Market cap didahulukan, harga per token dibelakangkan.
+            Dengan supply 1 miliar, harga per token selalu mikroskopis
+            (0.0₅15 dan seterusnya) — itu angka yang paling sulit dibaca sekaligus
+            paling jarang dipakai orang untuk memutuskan. Market cap dan nilai USD
+            adalah yang benar-benar dibandingkan orang, jadi itu yang di depan.
+            Angka mentahnya tetap bisa dilihat lewat tooltip. */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs text-center">
+          <Stat
+            label="Market cap"
+            value={marketCapUsd > 0 ? formatUsd(marketCapUsd, { compact: true }) : "—"}
+            tone="cyan"
+            title={marketCapUsd > 0 ? `${marketCapUsd} USD` : undefined}
+          />
+          <Stat
+            label="Price USD"
+            value={tokenPriceUsd > 0 ? formatUsd(tokenPriceUsd) : "—"}
+            tone="white"
+            title={tokenPriceUsd > 0 ? `${tokenPriceUsd.toFixed(18).replace(/0+$/, "")} USD per token` : undefined}
+          />
+          <Stat label={`Supply (${project.symbol})`} value={formatTokenAmount(project.supply)} tone="pink" />
           <Stat
             label={`Price (${chain.nativeSymbol})`}
             value={swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}
             tone="white"
+            title={
+              swap.spotPriceNative > 0
+                ? `${swap.spotPriceNative.toFixed(18).replace(/0+$/, "")} ${chain.nativeSymbol} per token`
+                : undefined
+            }
           />
-          <Stat label="Price USD" value={tokenPriceUsd > 0 ? formatUsd(tokenPriceUsd) : "—"} tone="cyan" />
-          <Stat
-            label="Market cap"
-            value={marketCapUsd > 0 ? formatUsd(marketCapUsd, { compact: true }) : "—"}
-            tone="white"
-          />
-          <Stat label={`Supply (${project.symbol})`} value={formatTokenAmount(project.supply)} tone="pink" />
         </div>
       </div>
 
@@ -515,8 +534,16 @@ export default function TokenTerminal({
                 </div>
                 <div className="flex items-end justify-between gap-3">
                   <div>
-                    <p className="font-mono text-lg font-bold text-white">
+                    {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
+                        orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
+                    <p
+                      className="font-mono text-lg font-bold text-white"
+                      title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
+                    >
                       {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
+                      {creatorOwedUsd > 0 && (
+                        <span className="text-zinc-400 text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
+                      )}
                     </p>
                     <p className="font-mono text-[10px] text-zinc-500">unclaimed</p>
                   </div>
@@ -670,7 +697,13 @@ export default function TokenTerminal({
               <div className="p-3 rounded-2xl bg-black/50 border border-white/10 space-y-1">
                 <div className="flex justify-between text-[10px] text-zinc-400">
                   <span>You receive (estimated)</span>
-                  <span>
+                  <span
+                    title={
+                      swap.spotPriceNative > 0
+                        ? `${plainDecimal(swap.spotPriceNative)} ${chain.nativeSymbol} per token`
+                        : undefined
+                    }
+                  >
                     1 {project.symbol} ={" "}
                     {swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}{" "}
                     {chain.nativeSymbol}
@@ -848,10 +881,21 @@ export default function TokenTerminal({
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone: "white" | "cyan" | "pink" }) {
+function Stat({
+  label,
+  value,
+  tone,
+  title,
+}: {
+  label: string;
+  value: string;
+  tone: "white" | "cyan" | "pink";
+  /** Angka mentah tanpa notasi ringkas, supaya notasi subscript bisa dibaca. */
+  title?: string;
+}) {
   const color = tone === "cyan" ? "text-cyan-300" : tone === "pink" ? "text-pink-400" : "text-white";
   return (
-    <div className="p-3 rounded-2xl bg-[#040814] border border-white/10">
+    <div className="p-3 rounded-2xl bg-[#040814] border border-white/10" title={title}>
       <span className="text-[10px] text-zinc-400 block">{label}</span>
       <span className={`text-sm font-black ${color}`}>{value}</span>
     </div>

@@ -258,6 +258,7 @@ async function registryFor(page, ticker) {
 
   const reg4 = await registryFor(page, T4);
   check("4 market terdaftar di registry", reg4.length === 4, `${reg4.length} market`);
+  const openings = [];
   for (const rec of reg4) {
     const c = CHAINS[rec.chainId];
     const code = await read(() => providers[rec.chainId].getCode(rec.tokenAddress), "getCode token");
@@ -278,9 +279,32 @@ async function registryFor(page, ticker) {
     check(`  ${c?.key}: kurva tanpa setoran native`, realN === 0n, `${ethers.formatEther(realN)}`);
     check(`  ${c?.key}: reserve virtual terpasang`, virtN > 0n, `${ethers.formatEther(virtN)} ${c?.sym}`);
     check(`  ${c?.key}: creator memegang nol token`, heldByCreator === 0n, `${fmt(heldByCreator)}`);
+    openings.push({ key: c?.key ?? String(rec.chainId), sym: c?.sym ?? "?", virtual: Number(ethers.formatEther(virtN)) });
   }
   const uniqTokens = new Set(reg4.map((r) => r.tokenAddress.toLowerCase()));
   check("setiap chain punya alamat token berbeda", uniqTokens.size === 4, `${uniqTokens.size} alamat unik`);
+
+  // ── Market cap buka harus SETARA antar chain ─────────────────────────────
+  //
+  // Inti perubahan patokan USD. Dulu jumlah native dipaku per chain, sehingga satu
+  // ticker membuka $212 di 0G tapi $1.939 di Base — dan selisih itu TIDAK bisa
+  // diratakan arbitrase karena tidak ada bridge, jadi ia menetap sebagai
+  // ketidakadilan. Diperiksa di sini karena hanya harness multi-chain yang
+  // melihat keempat pasar sekaligus.
+  const feed = await fetch(`${BASE}/api/prices`).then((r) => r.json());
+  const caps = openings.map((o) => ({ ...o, usd: o.virtual * (feed?.prices?.[o.sym] ?? 0) }));
+  caps.forEach((o) =>
+    console.log(`    ${o.key.padEnd(9)} ${o.virtual} ${o.sym} x $${feed?.prices?.[o.sym]} = $${o.usd.toFixed(0)}`)
+  );
+  const usd = caps.map((o) => o.usd).filter((v) => v > 0);
+  check("market cap buka terbaca di keempat chain", usd.length === 4, `${usd.length} chain`);
+  if (usd.length === 4) {
+    const spread = Math.max(...usd) / Math.min(...usd);
+    // Toleransi 5%: keempat launch adalah empat transaksi terpisah, jadi harga
+    // native bisa bergeser sedikit di antaranya. Yang tidak boleh adalah selisih
+    // berlipat seperti sebelumnya.
+    check("selisih market cap buka di bawah 5%", spread < 1.05, `${spread.toFixed(3)}x`);
+  }
 
   // ── B. explorer & halaman token ───────────────────────────────────────────
   step("B) EXPLORER & HALAMAN TOKEN");

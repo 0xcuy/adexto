@@ -15,6 +15,7 @@ import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
 import { FACTORY_V3_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
+import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
 
 /**
  * `@worldcoin/idkit` menarik Tailwind sebagai dependensi runtime, jadi ia dimuat
@@ -103,6 +104,8 @@ export default function StudioPage() {
   const [worldIdToken, setWorldIdToken] = useState<string | null>(null);
   const [worldIdError, setWorldIdError] = useState<string | null>(null);
   const [worldIdBusy, setWorldIdBusy] = useState(false);
+  /** Harga native USD, untuk menampilkan market cap buka yang sama di tiap chain. */
+  const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
   const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
   const [selectedModel, setSelectedModel] = useState("glm-5.2");
@@ -128,8 +131,19 @@ export default function StudioPage() {
    */
   const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut);
 
-  /** Opening market cap in native units for a chain; see ChainInfo.defaultVirtualNative. */
-  const virtualNativeFor = (chain: ChainInfo) => chain.defaultVirtualNative;
+  /**
+   * Jumlah native untuk market cap buka, HANYA untuk ilustrasi di layar.
+   *
+   * Angka yang benar-benar masuk calldata datang dari server saat prepare. Di
+   * sini dipakai harga live yang sama supaya yang ditampilkan cocok dengan yang
+   * akan terjadi; `defaultVirtualNative` dipakai kalau feed harga belum termuat,
+   * dan itu memang cuma cadangan tampilan.
+   */
+  const virtualNativeFor = (chain: ChainInfo) => {
+    const price = nativeUsd[chain.nativeSymbol];
+    if (!price || price <= 0) return chain.defaultVirtualNative;
+    return openingVirtualNative(price);
+  };
   /**
    * Chain used for the illustrative opening price. Prefers the first chain that
    * will actually launch, so the number shown matches what the user is about to do.
@@ -141,6 +155,21 @@ export default function StudioPage() {
   useEffect(() => {
     if (attestation && attestation.signer.toLowerCase() !== (address ?? "").toLowerCase()) setAttestation(null);
   }, [address, attestation]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/prices")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d?.prices) setNativeUsd(d.prices);
+      })
+      .catch(() => {
+        // Ilustrasi jatuh ke defaultVirtualNative; calldata tetap menunggu server.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Status gerbang dibaca dari server sekali per muat halaman.
   useEffect(() => {
@@ -367,6 +396,7 @@ export default function StudioPage() {
     let daStorageTx: string | null = null;
     let lpFeeBps = Math.round(depthCut * 100);
     let treasuryBuybackBps = Math.round(treasuryCut * 100);
+    const serverVirtualNative: Record<number, string> = {};
     try {
       const res = await fetch("/api/deploy", {
         method: "POST",
@@ -393,6 +423,16 @@ export default function StudioPage() {
       daStorageTx = data.daStorageTx ?? null;
       lpFeeBps = Number(data.lpFeeBps ?? lpFeeBps);
       treasuryBuybackBps = Number(data.treasuryBuybackBps ?? treasuryBuybackBps);
+      // `virtualNative` DATANG DARI SERVER, dihitung dari harga native live agar
+      // market cap buka sama di setiap chain. Angka di config hanya cadangan
+      // tampilan; memakainya untuk calldata akan mengembalikan ketidaksetaraan
+      // yang justru sedang diperbaiki.
+      for (const t of (data.deployTargets ?? []) as Array<{ chainId: number; virtualNative: string }>) {
+        if (t?.chainId && t?.virtualNative) serverVirtualNative[t.chainId] = t.virtualNative;
+      }
+      if (Object.keys(serverVirtualNative).length === 0) {
+        throw new Error("server did not return an opening market cap for any chain");
+      }
     } catch (error: any) {
       setGlobalError(`Preparation failed: ${error.message}`);
       setDeploying(false);
@@ -402,16 +442,19 @@ export default function StudioPage() {
 
     // Stage 2 — one transaction per chain. Each is independent and reported honestly.
     //
-    // Arguments are built per chain because `virtualNative` is chain-specific: it
-    // is the opening market cap in that chain's native asset, so a single shared
-    // number would value the same launch wildly differently across chains.
+    // `virtualNative` berbeda per chain karena ia adalah market cap buka dalam aset
+    // native chain itu. Nilainya diambil dari server, yang menghitungnya dari harga
+    // live sehingga nilai USD-nya SAMA di keempat chain. Dulu angkanya dipaku per
+    // chain, dan karena harga koin bergerak, satu ticker bisa membuka $212 di 0G
+    // tapi $1.939 di Base — selisih yang tidak bisa diratakan arbitrase karena
+    // tidak ada bridge.
     const argsFor = (chain: ChainInfo) =>
       [
         tokenName,
         symbol,
         BigInt(supplyNumber),
         address as string,
-        ethers.parseEther(String(chain.defaultVirtualNative)),
+        ethers.parseEther(serverVirtualNative[chain.chainId]),
         BigInt(Math.round(totalSwapFee * 100)),
         BigInt(Math.round(creatorCut * 100)),
         BigInt(treasuryBuybackBps),
@@ -864,15 +907,25 @@ export default function StudioPage() {
                 <div className="p-2 rounded-xl bg-black/40 flex items-start gap-2 text-[10px] font-mono text-zinc-400">
                   <Droplets className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
                   <span>
-                    Opening price ≈{" "}
-                    <strong className="text-cyan-300">
-                      {supplyNumber > 0 ? formatSmallNumber(virtualNativeFor(primaryChain) / supplyNumber) : "—"}
-                    </strong>{" "}
-                    {primaryChain.nativeSymbol} per token, i.e. an opening market cap of{" "}
-                    <strong className="text-cyan-300">
-                      {virtualNativeFor(primaryChain).toLocaleString("en-US")} {primaryChain.nativeSymbol}
-                    </strong>
-                    .
+                    {/* USD didahulukan: itu satu-satunya angka yang berarti sama di
+                        keempat chain. Jumlah native-nya berbeda per chain justru
+                        AGAR nilai USD-nya sama. */}
+                    Opening market cap{" "}
+                    <strong className="text-cyan-300">≈ ${OPENING_MARKET_CAP_USD.toLocaleString("en-US")}</strong> on
+                    every chain you select
+                    {virtualNativeFor(primaryChain) > 0 && (
+                      <>
+                        {" "}
+                        — {formatSmallNumber(virtualNativeFor(primaryChain), 6)} {primaryChain.nativeSymbol} on{" "}
+                        {primaryChain.key}
+                      </>
+                    )}
+                    .{" "}
+                    <span title={supplyNumber > 0 ? String(virtualNativeFor(primaryChain) / supplyNumber) : undefined}>
+                      Opening price{" "}
+                      {supplyNumber > 0 ? formatSmallNumber(virtualNativeFor(primaryChain) / supplyNumber) : "—"}{" "}
+                      {primaryChain.nativeSymbol} per token.
+                    </span>
                     <br />
                     <span className="text-amber-300/90">
                       The curve has no withdrawal function, so nobody can drain it — not you either. The depth share of

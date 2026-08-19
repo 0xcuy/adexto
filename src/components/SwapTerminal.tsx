@@ -13,7 +13,7 @@ import { useWallet } from "@/context/WalletContext";
 import WalletMenu from "@/components/WalletMenu";
 import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { describeTxError } from "@/lib/dex";
-import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
+import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap, type SwapMarket } from "@/lib/use-sovereign-swap";
 
 /**
@@ -478,7 +478,14 @@ export default function SwapTerminal() {
             <div className="flex justify-between text-xs text-zinc-300 font-medium">
               <span>You receive (estimated)</span>
               {selected && (
-                <span className="font-mono text-[11px]">
+                <span
+                  className="font-mono text-[11px]"
+                  title={
+                    swap.spotPriceNative > 0
+                      ? `${plainDecimal(swap.spotPriceNative)} ${chain.nativeSymbol} per token`
+                      : undefined
+                  }
+                >
                   1 {selected.symbol} ={" "}
                   {swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}{" "}
                   {chain.nativeSymbol}
