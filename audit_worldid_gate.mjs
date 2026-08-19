@@ -198,6 +198,24 @@ const prepareBody = async (wallet, extra) => ({
     check(`  ${label} dikenali sebagai orang yang sama`, r.status === 409, `HTTP ${r.status} ${r.data.code ?? ""}`);
   }
 
+  step("7b) MODE KETAT — chain ke-2..4 dari peluncuran SAMA tidak boleh diblokir");
+  // Bug laten yang pernah ada: kuota dihitung dengan penghitung yang dinaikkan
+  // setiap tahap confirm, sementara launch multi-chain memanggil confirm sekali
+  // PER CHAIN. Jadi mode ketat memblokir chain kedua dari peluncuran yang sama —
+  // memblokir fitur utama produk, bukan Sybil. Sekarang kuota dihitung per ticker.
+  const strictHuman = ethers.Wallet.createRandom();
+  const strictNull = `0xfeed${Date.now().toString(16)}`;
+  const sv = await post("/api/worldid/verify", { address: strictHuman.address, payload: v4Payload(strictNull) });
+  check("verifikasi mode ketat lolos", sv.status === 200, `HTTP ${sv.status}`);
+  const sharedTicker = `MC${Math.floor(Math.random() * 900 + 100)}`;
+  // Empat tahap prepare dengan token yang sama, meniru satu peluncuran 4 chain.
+  let sameTickerOk = 0;
+  for (let i = 0; i < 4; i++) {
+    const r = await post("/api/deploy", await prepareBody(strictHuman, { worldIdToken: sv.data.token, symbol: sharedTicker }));
+    if (r.status === 200) sameTickerOk++;
+  }
+  check("empat chain dengan ticker sama semuanya lolos", sameTickerOk === 4, `${sameTickerOk}/4`);
+
   step("8) PROOF v3 LAMA — ditolak selama mode legacy mati");
   const legacy = await post("/api/worldid/verify", {
     address: human.address,

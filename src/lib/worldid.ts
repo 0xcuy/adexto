@@ -99,10 +99,32 @@ export function normalizeNullifier(raw: unknown): string | null {
   }
 }
 
-type NullifierEntry = { address: string; firstSeen: string; launches: number };
+/**
+ * Yang dicatat adalah TICKER yang sudah diluncurkan, bukan sekadar penghitung.
+ *
+ * Versi sebelumnya memakai `launches: number` yang dinaikkan setiap tahap confirm.
+ * Karena launch multi-chain memanggil confirm sekali PER CHAIN, mode ketat
+ * (`oneLaunchPerHuman`) akan menolak chain kedua dari peluncuran yang sama —
+ * memblokir fitur utama produk ini alih-alih memblokir Sybil. Menyimpan himpunan
+ * ticker membuat "satu orang satu peluncuran" berarti satu TOKEN di semua chain,
+ * yang memang maksudnya.
+ */
+type NullifierEntry = { address: string; firstSeen: string; symbols: string[] };
 type NullifierStore = Record<string, NullifierEntry>;
 
-const readStore = (): NullifierStore => readJson<NullifierStore>(NULLIFIER_FILE, {});
+/** Entri lama memakai `launches`; dibaca ulang tanpa merusak apa pun. */
+function readStore(): NullifierStore {
+  const raw = readJson<Record<string, any>>(NULLIFIER_FILE, {});
+  const out: NullifierStore = {};
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = {
+      address: String(v?.address ?? ""),
+      firstSeen: String(v?.firstSeen ?? new Date().toISOString()),
+      symbols: Array.isArray(v?.symbols) ? v.symbols.map((s: unknown) => String(s).toUpperCase()) : [],
+    };
+  }
+  return out;
+}
 
 /** Konteks RP yang dibutuhkan widget. Kunci privatnya tidak termasuk. */
 export type RpContextResult =
@@ -177,7 +199,7 @@ export async function verifyWorldIdProof(payload: any, address: string): Promise
   if (responses.length === 0) {
     return { ok: false, status: 400, code: "BAD_PROOF", error: "The World ID payload carries no proof responses." };
   }
-  const nullifier = normalizeNullifier(responses[0]?.nullifier);
+  let nullifier = normalizeNullifier(responses[0]?.nullifier);
   if (!nullifier) {
     return { ok: false, status: 400, code: "BAD_PROOF", error: "The World ID payload has no usable nullifier." };
   }
@@ -199,13 +221,28 @@ export async function verifyWorldIdProof(payload: any, address: string): Promise
     });
     const body = await res.json().catch(() => ({}) as any);
     if (!res.ok || body?.success === false) {
+      const code = String(body?.code || "");
       return {
         ok: false,
         status: 401,
-        code: "WORLDID_PROOF_REJECTED",
-        error: String(body?.detail || body?.code || body?.error || `World ID rejected this proof (${res.status}).`),
+        // World menolak verifikasi KEDUA dari orang yang sama bila action-nya
+        // ber-`max_verifications: 1`. Pesan mentahnya tidak menjelaskan apa pun ke
+        // creator, jadi diterjemahkan di sini.
+        code: code === "max_verifications_reached" ? "WORLDID_ALREADY_LAUNCHED" : "WORLDID_PROOF_REJECTED",
+        error:
+          code === "max_verifications_reached"
+            ? "This World ID has already been used to launch here. Each person gets one launch."
+            : String(body?.detail || code || body?.error || `World ID rejected this proof (${res.status}).`),
       };
     }
+    // Nullifier diambil dari JAWABAN VERIFIER bila tersedia, bukan dari payload
+    // kiriman klien. Keduanya seharusnya sama — World tidak akan membalas sukses
+    // untuk proof yang nullifier-nya tidak cocok — tapi memakai nilai yang
+    // benar-benar divalidasi menghapus asumsi bahwa `responses[0]` yang saya baca
+    // adalah entri yang sama dengan yang diverifikasi. Untuk permintaan dengan
+    // beberapa kredensial, urutannya belum tentu sejajar.
+    const attested = normalizeNullifier(body?.results?.[0]?.nullifier);
+    if (attested) nullifier = attested;
   } catch (error) {
     return {
       ok: false,
@@ -230,19 +267,19 @@ export async function verifyWorldIdProof(payload: any, address: string): Promise
       error: "This World ID is already bound to a different wallet.",
     };
   }
-  if (existing && cfg.oneLaunchPerHuman && existing.launches > 0) {
+  if (existing && cfg.oneLaunchPerHuman && existing.symbols.length > 0) {
     return {
       ok: false,
       status: 409,
       code: "WORLDID_ALREADY_LAUNCHED",
-      error: "This World ID has already been used for a launch.",
+      error: `This World ID has already launched ${existing.symbols.join(", ")}. Each person gets one launch.`,
     };
   }
 
   store[nullifier] = {
     address: signal,
     firstSeen: existing?.firstSeen ?? new Date().toISOString(),
-    launches: existing?.launches ?? 0,
+    symbols: existing?.symbols ?? [],
   };
   writeJson(NULLIFIER_FILE, store);
 
@@ -261,7 +298,12 @@ export function issueWorldIdToken(address: string, nullifier: string): string | 
 
 export type TokenCheck = { ok: true; nullifier: string } | { ok: false; error: string; code: string };
 
-export function verifyWorldIdToken(token: string, address: string): TokenCheck {
+/**
+ * @param symbol Ticker yang sedang diluncurkan. WAJIB diberikan pada tahap
+ * confirm: mode ketat harus mengizinkan confirm berikutnya untuk ticker yang
+ * SAMA (chain ke-2 sampai ke-4 dari satu peluncuran) sambil menolak ticker baru.
+ */
+export function verifyWorldIdToken(token: string, address: string, symbol?: string): TokenCheck {
   const secret = tokenSecret();
   if (!secret) return { ok: false, code: "WORLDID_SECRET_MISSING", error: "World ID gate is misconfigured on the server." };
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { ok: false, code: "BAD_ADDRESS", error: "A valid wallet address is required." };
@@ -287,18 +329,31 @@ export function verifyWorldIdToken(token: string, address: string): TokenCheck {
     return { ok: false, code: "WORLDID_BOUND_ELSEWHERE", error: "This World ID is bound to a different wallet." };
   }
   const cfg = worldIdConfig();
-  if (cfg.oneLaunchPerHuman && entry.launches > 0) {
-    return { ok: false, code: "WORLDID_ALREADY_LAUNCHED", error: "This World ID has already been used for a launch." };
+  const wanted = (symbol ?? "").toUpperCase();
+  // Ticker yang sama boleh lanjut: itu chain berikutnya dari peluncuran yang sama.
+  if (cfg.oneLaunchPerHuman && entry.symbols.length > 0 && (!wanted || !entry.symbols.includes(wanted))) {
+    return {
+      ok: false,
+      code: "WORLDID_ALREADY_LAUNCHED",
+      error: `This World ID has already launched ${entry.symbols.join(", ")}. Each person gets one launch.`,
+    };
   }
   return { ok: true, nullifier };
 }
 
-/** Dicatat SETELAH launch berhasil, supaya percobaan yang gagal tidak menghanguskan kuota. */
-export function recordLaunch(nullifier: string): void {
+/**
+ * Dicatat SETELAH launch berhasil, supaya percobaan yang gagal — tx revert, RPC
+ * putus — tidak menghanguskan hak launch seseorang tanpa dia mendapat apa pun.
+ *
+ * Ticker disimpan sebagai himpunan, jadi empat chain dari satu peluncuran tetap
+ * terhitung SATU peluncuran.
+ */
+export function recordLaunch(nullifier: string, symbol?: string): void {
   const store = readStore();
   const entry = store[nullifier];
   if (!entry) return;
-  entry.launches += 1;
+  const s = (symbol ?? "").toUpperCase();
+  if (s && !entry.symbols.includes(s)) entry.symbols.push(s);
   store[nullifier] = entry;
   writeJson(NULLIFIER_FILE, store);
 }

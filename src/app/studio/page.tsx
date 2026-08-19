@@ -1134,9 +1134,14 @@ export default function StudioPage() {
                 {worldIdGate?.enabled && (
                   <p className="text-[10px] font-mono text-zinc-500 flex items-start gap-1.5 pt-1 border-t border-white/5">
                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                    {/* Aturan satu-peluncuran ditegakkan oleh World sendiri lewat
+                        `max_verifications` pada action, bukan oleh kode kita. Dinyatakan
+                        di sini supaya creator tahu sebelum mencoba, bukan menemukannya
+                        sebagai pesan error setelah bolak-balik ke World App. */}
                     <span>
                       The proof is checked by the server, never trusted from the browser, and its nullifier is bound to
-                      this wallet — so one person cannot farm fresh wallets to launch repeatedly.
+                      this wallet — so one person cannot farm fresh wallets to launch repeatedly. Each verified person
+                      gets one launch, across as many chains as they select.
                     </span>
                   </p>
                 )}

@@ -376,7 +376,9 @@ async function handleConfirm(body: any) {
         { status: 400 }
       );
     }
-    const check = verifyWorldIdToken(String(body.worldIdToken || ""), claimant);
+    // Ticker diteruskan supaya mode ketat mengizinkan chain ke-2..4 dari
+    // peluncuran YANG SAMA, dan hanya menolak ticker baru.
+    const check = verifyWorldIdToken(String(body.worldIdToken || ""), claimant, symbol);
     if (!check.ok) {
       return NextResponse.json({ error: check.error, code: check.code }, { status: 401 });
     }
@@ -505,7 +507,7 @@ async function handleConfirm(body: any) {
   // Kuota dicatat SETELAH launch benar-benar terdaftar, bukan saat verifikasi.
   // Kalau dicatat lebih awal, percobaan yang gagal — tx revert, RPC putus —
   // akan menghanguskan hak launch seseorang tanpa dia mendapat apa pun.
-  if (confirmedNullifier) recordLaunch(confirmedNullifier);
+  if (confirmedNullifier) recordLaunch(confirmedNullifier, symbol);
 
   const siblings = findProjectGroup(symbol).filter((p) => p.chainId !== chain.chainId);
 
