@@ -100,7 +100,12 @@ export default function StudioPage() {
    * mengklaim proteksi yang sebenarnya mati. Tokennya diterbitkan server setelah
    * proof lolos; nilainya ikut dikirim di tahap prepare MAUPUN confirm.
    */
-  const [worldIdGate, setWorldIdGate] = useState<{ enabled: boolean; appId: string | null; action: string | null } | null>(null);
+  const [worldIdGate, setWorldIdGate] = useState<{
+    enabled: boolean;
+    appId: string | null;
+    action: string | null;
+    verificationLevel?: "orb" | "device";
+  } | null>(null);
   const [worldIdToken, setWorldIdToken] = useState<string | null>(null);
   const [worldIdError, setWorldIdError] = useState<string | null>(null);
   const [worldIdBusy, setWorldIdBusy] = useState(false);
@@ -177,7 +182,13 @@ export default function StudioPage() {
     fetch("/api/worldid/verify")
       .then((r) => r.json())
       .then((d) => {
-        if (alive) setWorldIdGate({ enabled: Boolean(d?.enabled), appId: d?.appId ?? null, action: d?.action ?? null });
+        if (alive)
+          setWorldIdGate({
+            enabled: Boolean(d?.enabled),
+            appId: d?.appId ?? null,
+            action: d?.action ?? null,
+            verificationLevel: d?.verificationLevel === "device" ? "device" : "orb",
+          });
       })
       .catch(() => {
         // Gagal membaca status BUKAN alasan untuk menganggap gerbang mati; itu
@@ -1101,6 +1112,7 @@ export default function StudioPage() {
                       appId={worldIdGate.appId}
                       action={worldIdGate.action}
                       signal={address ?? ""}
+                      level={worldIdGate.verificationLevel}
                       busy={worldIdBusy}
                       disabled={!isConnected}
                       onProof={submitWorldIdProof}

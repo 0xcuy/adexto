@@ -24,6 +24,7 @@ export async function GET() {
     appId: cfg.enabled ? cfg.appId : null,
     action: cfg.enabled ? cfg.action : null,
     oneLaunchPerHuman: cfg.oneLaunchPerHuman,
+    verificationLevel: cfg.verificationLevel,
     // Dinyatakan terang-terangan supaya UI tidak pernah mengklaim proteksi yang
     // sebenarnya tidak menyala.
     gate: cfg.enabled ? "world-id-zkp" : "wallet-signature-only",

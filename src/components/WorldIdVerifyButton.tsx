@@ -20,18 +20,20 @@ interface Props {
   action: string;
   /** Alamat wallet: mengikat proof ke pemohon, sehingga tidak bisa dipakai ulang wallet lain. */
   signal: string;
+  /** "orb" jauh lebih kuat melawan Sybil; "device" lebih inklusif. Ditentukan server. */
+  level?: "orb" | "device";
   busy: boolean;
   disabled: boolean;
   onProof: (proof: ISuccessResult) => void | Promise<void>;
 }
 
-export default function WorldIdVerifyButton({ appId, action, signal, busy, disabled, onProof }: Props) {
+export default function WorldIdVerifyButton({ appId, action, signal, level = "orb", busy, disabled, onProof }: Props) {
   return (
     <IDKitWidget
       app_id={appId as `app_${string}`}
       action={action}
       signal={signal}
-      verification_level={VerificationLevel.Orb}
+      verification_level={level === "device" ? VerificationLevel.Device : VerificationLevel.Orb}
       onSuccess={(proof) => {
         void onProof(proof);
       }}

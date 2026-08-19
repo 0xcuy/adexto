@@ -43,6 +43,14 @@ export interface WorldIdConfig {
   verifyBase: string;
   /** Bila true, satu manusia hanya boleh meluncurkan satu kali selamanya. */
   oneLaunchPerHuman: boolean;
+  /**
+   * "orb" atau "device".
+   *
+   * Orb adalah jaminan anti-Sybil yang sesungguhnya; device bisa diperbanyak
+   * dengan beberapa ponsel. Tapi Orb juga menutup pintu bagi orang yang belum
+   * pernah ke Orb, jadi pilihannya diserahkan ke operator ketimbang dipaku.
+   */
+  verificationLevel: "orb" | "device";
 }
 
 export function worldIdConfig(): WorldIdConfig {
@@ -54,6 +62,7 @@ export function worldIdConfig(): WorldIdConfig {
     action,
     verifyBase: (process.env.WORLD_ID_VERIFY_URL || DEFAULT_VERIFY_BASE).replace(/\/+$/, ""),
     oneLaunchPerHuman: process.env.WORLD_ID_ONE_LAUNCH_PER_HUMAN === "true",
+    verificationLevel: process.env.NEXT_PUBLIC_WORLD_ID_VERIFICATION_LEVEL === "device" ? "device" : "orb",
   };
 }
 
