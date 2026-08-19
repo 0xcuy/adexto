@@ -13,7 +13,11 @@ export default function DocsPage() {
             yang berjalan: seksi "status jujur" di bawah menyatakan keduanya BELUM aktif.
             Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
             daripada daftar yang lebih pendek. */}
-        <p className="text-sm text-slate-200 mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, sovereign bonding curves, The Graph Network, and Cloudflare Workers x402. World ID and Chainlink CCIP are designed for but not yet active — see the status note below.</p>
+        {/* World ID sudah keluar dari daftar "belum aktif": gerbangnya menyala.
+            Chainlink CCIP tetap disebut belum aktif karena lane-nya memang mati.
+            Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
+            daripada daftar yang lebih pendek. */}
+        <p className="text-sm text-slate-200 mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, sovereign bonding curves, World ID proof of personhood, The Graph Network, and Cloudflare Workers x402. Chainlink CCIP is designed for but not yet active — see the status note below.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -33,12 +37,12 @@ export default function DocsPage() {
           <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-1.5">
             <strong className="text-cyan-300 block font-bold text-sm">World ID proof of personhood</strong>
             <p className="text-slate-300">
-              Launching requires a World ID zero-knowledge proof, verified <strong>server-side</strong> and bound to the
-              launching wallet by its nullifier, so one person cannot farm fresh wallets to launch repeatedly. The wallet
-              signature proves address control; this proves personhood. Active once{" "}
-              <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_APP_ID</code> and{" "}
-              <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_ACTION</code> are set — until then the studio says so
-              plainly instead of implying protection it does not have.
+              Launching requires a <strong>World ID 4.0</strong> zero-knowledge proof, verified <strong>server-side</strong>{" "}
+              and bound to the launching wallet by its nullifier, so one person cannot farm fresh wallets to launch
+              repeatedly. The wallet signature proves address control; this proves personhood. Every proof request is signed
+              by our backend with the registered RP key, so nobody else can borrow this app&apos;s identity to harvest
+              verifications elsewhere. Where the gate is not configured, the studio says so plainly instead of implying
+              protection it does not have.
             </p>
           </div>
 

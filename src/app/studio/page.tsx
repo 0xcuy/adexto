@@ -1209,7 +1209,7 @@ export default function StudioPage() {
                   <div className="bg-[#050912] p-3">
                     <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">One market per chain</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                      Each selected chain gets its own token and pool. Supply, liquidity and price are independent.
+                      Each selected chain gets its own token and curve. Supply, depth and price are independent.
                     </p>
                   </div>
                   <div className="bg-[#050912] p-3">
