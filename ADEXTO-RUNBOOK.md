@@ -222,6 +222,32 @@ ssh -i ~/.ssh/id_ed25519 root@168.144.249.185 \
 
 ---
 
+## 2b. Deploy ke produksi — SATU perintah, wajib tiap kali
+
+```bash
+bash scripts/deploy-vps.sh
+```
+
+**Aturannya: begitu perbaikan lulus uji di lokal, langsung deploy.** Jangan menumpuk perubahan. Berulang kali sebelumnya bug yang "sudah diperbaiki" masih terlihat pengguna di adexto.xyz karena produksi menyajikan build lama — bukan karena perbaikannya salah, tapi karena tidak pernah sampai ke server.
+
+Skrip itu melakukan empat langkah dan **memverifikasi hasilnya**, bukan hanya menjalankan perintah:
+
+1. `rsync` sesuai `.rsyncignore`
+2. `docker compose build`
+3. `docker compose up -d` lalu tampilkan status kontainer
+4. Tunggu kontainer benar-benar melayani, cek 8 rute publik harus 200, dan pastikan kosakata generasi lama tidak tersaji
+
+Yang perlu diingat:
+
+- **`.env.local` TIDAK dikirim** (ada di `.rsyncignore`). Env produksi hidup di VPS dan sengaja tidak ditimpa dari mesin pengembang.
+- **Mengubah env di VPS wajib diikuti build ulang**, bukan sekadar restart. Nilai `NEXT_PUBLIC_*` ter-inline saat `next build`, dan build terjadi di dalam image.
+- Host/kunci/URL bisa ditimpa lewat `ADEXTO_VPS_HOST`, `ADEXTO_VPS_KEY`, `ADEXTO_VPS_DIR`, `ADEXTO_PUBLIC_URL`.
+- Skrip ini menyalin apa adanya; ia tidak menilai benar atau salah. Jalankan setelah uji lokal lulus.
+
+**Keadaan produksi saat tulisan ini dibuat** (terverifikasi setelah deploy): 8 rute 200 · nol kosakata usang · gerbang World ID `wallet-signature-only` karena env-nya kosong (jujur, bukan diam-diam) · `/api/chat` 200 · `/` lewat IP server 200, membuktikan perbaikan middleware ikut terpasang.
+
+**Jebakan di skrip ini yang sempat menipu:** dengan `set -e` dan `pipefail`, `grep` yang tidak menemukan apa pun keluar berstatus 1 dan mematikan skrip — artinya kasus **copy bersih** justru dilaporkan sebagai deploy gagal. Karena itu ada `|| true` pada pemeriksaan copy. Jangan dihapus.
+
 ## 3. Variabel lingkungan
 
 Semua rahasia hanya di `.env.local` (tidak pernah di-commit). Template: `.env.example`.
@@ -500,7 +526,7 @@ Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilang
 2. ~~**Perbaiki perekam video dan tiga harness UI.**~~ **SELESAI** — keempatnya kini menguji alur kurva.
 3. ~~**Jalankan harness di 4 testnet.**~~ **SELESAI** — 0G 54/0, multi-chain 62/0, devchain 75/0 + 23/0.
 4. ~~**Rekam video testnet.**~~ **SELESAI** — lihat §1e-3.
-5. **Deploy UI kurva terbaru ke VPS.** Perbaikan `onchain-trades.ts` (chart kurva) dan seluruh copy baru belum ada di produksi. Butuh rsync + `docker compose build` + `up -d`.
+5. ~~**Deploy UI kurva terbaru ke VPS.**~~ **SELESAI** — produksi sinkron, lihat §2b.
 6. **Broadcast FactoryV3 ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_FACTORY_V3_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
 7. **Luncurkan $ADEXTO** dan rekam demo mainnet.
 
