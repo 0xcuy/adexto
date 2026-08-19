@@ -841,10 +841,52 @@ apa pun**, dan bukan karena satu kesalahan tetapi tiga:
 | Monad | `monad` | **ya** |
 | 0G | — | **tidak ada dalam daftar** |
 
-Jadi rencananya: satu subgraph per chain untuk Base/Arbitrum/Monad di jaringan
-terdesentralisasi, dan **0G tetap dilayani registry sisi-server** — atau Graph
-Node yang di-host sendiri kalau memang mau, karena Graph Node bisa mengindeks
-EVM apa pun.
+#### Kenapa 0G tidak ada, dan kenapa itu BUKAN berarti 0G tak bisa diindeks
+
+Dua hal yang sering dicampur, padahal terpisah:
+
+1. **Tidak ada di daftar = proses tata kelola, bukan batas teknis.** Masuk ke
+   jaringan terdesentralisasi menempuh Chain Integration Process (GIP-0057): tiga
+   tahap, divalidasi di testnet The Graph lebih dulu, lalu Studio, lalu imbalan
+   indexing supaya indexer mau mengalokasikan stake. Yang memulainya adalah **tim
+   chain-nya** — 0G Foundation — bukan kita. Dokumen The Graph sendiri menyatakan
+   bahwa selama chain-nya EVM dan mengekspos JSON-RPC EVM standar, Graph Node
+   semestinya bisa mengindeksnya. *Diparafrasekan dari
+   <https://thegraph.com/docs/en/new-chain-integration/> dan GIP-0057.*
+
+2. **Bisa/tidak diindeks = pertanyaan teknis terpisah, dan jawabannya BISA.**
+
+**Hasil probe RPC 0G** (`https://evmrpc.0g.ai`, Geth v1.15.11-stable, tinggi blok
+~42,1 juta):
+
+| yang Graph Node butuhkan | hasil |
+|---|---|
+| `eth_getBlockByNumber` dengan tx penuh | **lulus** |
+| `eth_getLogs` rentang 2.000 blok | **lulus** |
+| `eth_getLogs` rentang 10.000 blok | gagal — batas **10.000 log**, bukan 10.000 blok |
+| `eth_getBalance` pada blok lama (archive) | **gagal**, `missing trie node` bahkan 1.000 blok ke belakang |
+| `trace_block` / `debug_traceBlockByNumber` | **tidak tersedia** |
+
+Jadi node publiknya **pruned, bukan archive**, dan tanpa trace. Biasanya itu
+mematikan — tapi tidak untuk kasus kita, karena dua hal:
+
+- `subgraph/src/mapping.ts` **nol panggilan kontrak** (tidak ada `.bind()`,
+  tidak ada `try_*`), jadi tidak ada `eth_call` di blok historis.
+- `SovereignCurve.Swap` sudah memancarkan **`nativeReserveAfter` dan
+  `tokenReserveAfter`**, dan `CurveInitialized` memancarkan `virtualNative`,
+  `curveTokens`, `openingPrice`. Artinya seluruh state kurva — reserve, harga
+  spot, depth, lantai harga — bisa **diturunkan dari aliran event saja**.
+
+Itu properti desain kontrak yang kebetulan sangat menguntungkan indexer, dan ia
+menghapus kebutuhan archive sepenuhnya. Jadi:
+
+- **Base / Arbitrum / Monad** → Subgraph Studio, nol infrastruktur tambahan.
+- **0G** → Graph Node yang di-host sendiri BISA jalan hari ini dari RPC publik
+  (Graph Node + Postgres + IPFS, satu compose). Batas 10.000 log hanya berarti
+  ukuran potongan pemindaian perlu dikecilkan.
+- **Jangan** menulis mapping yang memanggil fungsi view di jalur 0G. Begitu satu
+  `.bind()` masuk, kita langsung butuh node archive 0G dan biayanya berubah dari
+  satu kontainer menjadi masalah infrastruktur.
 
 Yang perlu dikerjakan:
 
