@@ -184,7 +184,7 @@ git diff origin/main..HEAD --name-only | grep -iE '\.env|secret|key'
 git diff origin/main..HEAD | grep -cE 'ghp_|github_pat_|sk-[a-f0-9]{8}'
 ```
 
-Catatan: satu kemunculan `sk-9c741a02…` memang ada di diff branch ini, tetapi sebagai baris **yang dihapus** (`-`). Kunci itu tetap ada di riwayat git lama dan **masih harus dirotasi**.
+Catatan: satu kemunculan `sk-9c741a02…` memang ada di diff branch ini, tetapi sebagai baris **yang dihapus** (`-`). Kunci itu tetap ada di riwayat git lama. **Tidak dirotasi atas keputusan pemilik proyek** karena budget kunci sudah dibatasi — lihat §3.
 
 ## 2. Akses VPS produksi
 
@@ -238,7 +238,9 @@ Semua rahasia hanya di `.env.local` (tidak pernah di-commit). Template: `.env.ex
 | `NEXT_PUBLIC_WORLD_ID_APP_ID` | opsional | Kalau diisi, gate studio bisa diupgrade ke World ID ZKP. Selama kosong, gate = attestation tanda tangan alamat (lihat §7). |
 | `NEXT_PUBLIC_DEVCHAIN_RPC`, `NEXT_PUBLIC_FACTORY_V2_DEVCHAIN` | hanya lokal | Mengaktifkan chain uji 31337. **Jangan diset di produksi.** |
 
-> **Rotasi kunci:** `OG_ROUTER_API_KEY` pernah tertulis plaintext di `docker-compose.yml` yang ter-track git. Nilai itu harus dianggap bocor dan diganti.
+> **`OG_ROUTER_API_KEY` — risiko diterima, jangan diangkat lagi.** Kunci ini pernah tertulis plaintext di `docker-compose.yml` yang ter-track git, jadi nilainya harus dianggap bocor dan masih ada di riwayat git. **Pemilik proyek sudah memasang batas budget pada kunci tersebut**, sehingga kerugian maksimum kalau dipakai orang lain sudah terkurung di angka itu. Keputusan: **tidak dirotasi**, dan ini bukan lagi item terbuka. Jangan mengusulkan rotasi di laporan berikutnya.
+>
+> Yang tetap berlaku: fallback kunci di dalam sumber sudah dihapus dan `/api/chat` fail-closed 503 tanpa env, jadi tidak ada kunci baru yang ikut ter-commit. Kalau suatu saat batas budget dinaikkan atau kunci dipakai untuk layanan berbayar lain, keputusan ini perlu ditinjau ulang.
 
 ---
 
@@ -656,7 +658,7 @@ Semua nomor merujuk temuan audit E2E sebelumnya. Semuanya diverifikasi ulang ole
 - `payCurrency` stale hilang: aset bayar diturunkan dari chain market dan dikunci ke native asset pool.
 - World ID palsu → sekarang jujur bernama **deployer address attestation**, tanda tangan diverifikasi server. Disclaimer di UI menyebut eksplisit bahwa ini bukan ZKP dan tidak menjamin 1-human-1-launch.
 - Omnichain 1 tx → loop per chain, dan chain tanpa FactoryV2 ditampilkan terkunci beserta alasan, bukan dilewati diam-diam.
-- **Kunci API 0G tertulis langsung di sumber.** `src/app/api/chat/route.ts` dan `scripts/deploy-real-agent-0g.ts` memakai kunci asli sebagai fallback (`process.env.X || "sk-…"`), dan itu ikut ter-commit. Akibatnya rotasi env **tidak** mencabut kunci lama: siapa pun yang membaca repo tetap bisa memakainya. Fallback sudah dihapus; endpoint chat kini fail-closed 503 bila `OG_ROUTER_API_KEY` tidak ada. **Kunci lama tetap harus dirotasi** karena sudah ada di riwayat git.
+- **Kunci API 0G tertulis langsung di sumber.** `src/app/api/chat/route.ts` dan `scripts/deploy-real-agent-0g.ts` memakai kunci asli sebagai fallback (`process.env.X || "sk-…"`), dan itu ikut ter-commit. Akibatnya rotasi env **tidak** mencabut kunci lama: siapa pun yang membaca repo tetap bisa memakainya. Fallback sudah dihapus; endpoint chat kini fail-closed 503 bila `OG_ROUTER_API_KEY` tidak ada. Kunci lama masih ada di riwayat git, tetapi **sengaja tidak dirotasi**: pemilik proyek sudah membatasi budget kunci itu sehingga kerugian maksimumnya terkurung. Keputusan tercatat di §3 — jangan diangkat lagi sebagai temuan.
 - **Chat agent menampilkan alur berpikir model, bukan jawaban.** glm-5.2 di router 0G mengirim `reasoning_content` dan `content` dalam satu delta; rute memakai `content || reasoning_content`, sehingga yang tampil adalah kalimat berpikir ("Let's write a concise review", "Drafting the Review"). Sekarang hanya `content` yang dialirkan, `reasoning` disimpan dan dipakai hanya bila model tak menghasilkan jawaban sama sekali. Sekalian diperbaiki: `controller.close()` dulu bisa terpanggil dua kali (jalur `[DONE]` + `finally`) dan melempar `TypeError`.
 - **Panel agent menjanjikan "ask me about pool depth" tanpa data pool.** System prompt hanya memuat alamat dan fee, jadi agent menjawab *"once you provide reserves…"*. Sekarang state pool nyata (reserve native/token, spot price, saldo user, rumus buy/sell, sifat pulang-balik `(1-fee)²`) dikirim dari `swap.pool` — data yang memang sudah dibaca komponen dari chain.
 - **Agent menuliskan aritmetika setengah jalan di layar.** Setelah punya angka, glm-5.2 menulis kerja hitungnya di kanal `content` ("Wait, let me just do it directly…"). Ditambahkan kontrak keluaran tegas (jawaban final saja, maksimal 4 poin satu baris, satu angka per poin, larangan "let me"/"wait") dan `temperature: 0.1`. Hasil sesudahnya: 4 poin bersih, nol aritmetika mentah.
@@ -730,7 +732,7 @@ Hal-hal berikut **tidak bisa diubah** tanpa factory baru. Semuanya disengaja, ta
    ```
 
    **Kalau nanti factory perlu diganti lagi, kerugiannya terbatas:** alamat factory hanya sebuah env var, pool yang sudah dibuat tetap berfungsi dan tetap tradable (frontend membaca pool per-market dari registry, bukan dari factory), dan hanya launch baru yang memakai factory baru. Tidak ada migrasi likuiditas yang dipaksa.
-2. **Rotasi `OG_ROUTER_API_KEY`** yang pernah ter-commit.
+2. ~~**Rotasi `OG_ROUTER_API_KEY`**~~ — **DITUTUP, risiko diterima.** Pemilik proyek sudah membatasi budget kunci itu, jadi eksposurnya terkurung dan rotasi tidak dikerjakan. Lihat catatan di §3 (tabel env).
 3. **Migrasi pasar kurasi.** AEGIS/QNOVA/CSENT/MQUANT belum punya pool v2. Pilih: bikin pool baru lewat FactoryV2, atau biarkan sebagai showcase (status sekarang).
 4. **World ID sungguhan** bila anti-Sybil memang jadi syarat: pasang IDKit + verifikasi proof di server, lalu set `NEXT_PUBLIC_WORLD_ID_APP_ID`.
 4b. **Treasury relayer** bila ingin UX "bayar sekali di 0G, aktif di 4 chain" (§1c). Perlu keputusan berapa ETH di Arbitrum/Base dan MON di Monad yang siap diparkir, karena itulah yang membiayai seed pool di chain tujuan. Kontrak CCIP lama (`AdextoCCIPTreasuryRouter`, `AdextoCCIPReceiver`) sebaiknya dianggap tidak terpakai sampai Chainlink membuka lane untuk 0G.
