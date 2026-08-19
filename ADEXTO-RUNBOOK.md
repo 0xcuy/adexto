@@ -779,6 +779,220 @@ membuka studio dan menemukan tombolnya terkunci — dan sesudah itu tidak ada an
 lain di situs yang masih dia percaya. `audit_claims.mjs` sekarang memeriksa
 pasangan pernyataan semacam ini secara eksplisit.
 
+## 4c-quinquies. Dari klaim yang dicabut menjadi fitur yang berjalan
+
+Audit klaim mencabut delapan hal karena tidak benar. Pertanyaan berikutnya bukan
+"bagaimana menulisnya lebih halus" tetapi **bagaimana membuatnya benar**. Bagian
+ini menjawab itu satu per satu, dengan kelayakan yang sudah diperiksa — bukan
+ditebak — beserta rekomendasi jujur mana yang layak dikerjakan dan mana yang tidak.
+
+Urutan di bawah adalah urutan **leverage**, bukan urutan kesulitan.
+
+---
+
+### 1. `WORLD_ID_ONE_LAUNCH_PER_HUMAN` — env, bukan kode. ~5 menit
+
+**Kodenya sudah lengkap.** `src/lib/worldid.ts` sudah menegakkannya di dua tempat
+(`:270` saat verifikasi, `:334` saat prepare) dan mengembalikan
+`WORLDID_ALREADY_LAUNCHED`. Yang kurang hanya satu baris env di VPS:
+
+```bash
+# di /root/adexto/.env.local pada VPS
+WORLD_ID_ONE_LAUNCH_PER_HUMAN=true
+# lalu WAJIB rebuild, bukan restart
+bash scripts/deploy-vps.sh
+```
+
+**Dua hal yang harus disadari sebelum menyalakannya:**
+
+- Penegakannya ada di **store kita**, dikunci per `nullifier` di
+  `ADEXTO_DATA_DIR`. Jadi ia per-deployment, bukan global. Lapisan kedua yang
+  benar-benar global adalah `max_verifications` pada action di portal World —
+  set ke `1` di sana kalau ingin World sendiri yang menolak.
+- **Ini akan memblokir peluncuran $ADEXTO milik proyek sendiri** (§1f) kalau
+  wallet Anda sudah memakai World ID yang sama untuk uji. Itulah alasan ia tidak
+  dijadikan bawaan. Luncurkan $ADEXTO **dulu**, nyalakan flag sesudahnya.
+
+Sesudah menyala, ticker landing boleh kembali berbunyi "one launch per human".
+Jangan mengubah teksnya sebelum `curl -s https://adexto.xyz/api/worldid/verify`
+melaporkan `"oneLaunchPerHuman":true`.
+
+---
+
+### 2. Subgraph — 3 dari 4 chain bisa, 0G tidak. ~1 hari
+
+Subgraph yang ada (`subgraph/subgraph.yaml`) **tidak akan pernah mengindeks
+apa pun**, dan bukan karena satu kesalahan tetapi tiga:
+
+| yang tertulis | masalahnya |
+|---|---|
+| `network: mainnet` | itu Ethereum mainnet; alamat factory-nya ada di 0G |
+| `address: 0xe8E9…F3e0` | factory **v1** |
+| `event: TrinityProjectCreated(...)` | v3 memancarkan `TrinityProjectDeployed`, tanda tangan berbeda |
+| `startBlock: 1` | memindai dari genesis |
+
+**Kelayakan, dari daftar resmi The Graph** (diperiksa di
+<https://thegraph.com/docs/en/supported-networks/>):
+
+| chain | identifier | didukung? |
+|---|---|---|
+| Base | `base` | ya |
+| Arbitrum One | `arbitrum-one` | ya |
+| Monad | `monad` | **ya** |
+| 0G | — | **tidak ada dalam daftar** |
+
+Jadi rencananya: satu subgraph per chain untuk Base/Arbitrum/Monad di jaringan
+terdesentralisasi, dan **0G tetap dilayani registry sisi-server** — atau Graph
+Node yang di-host sendiri kalau memang mau, karena Graph Node bisa mengindeks
+EVM apa pun.
+
+Yang perlu dikerjakan:
+
+1. `subgraph.yaml`: satu `dataSource` per chain, `network` yang benar,
+   `address: <FactoryV3 chain itu>`, `startBlock` = blok deploy factory (ada di
+   `build/deployments.json`).
+2. Event handler untuk `TrinityProjectDeployed`, dan **`SovereignCurve.Swap`
+   sebagai template dataSource** — inilah yang membuat klaim "mengindeks curve
+   depth dan swap" jadi benar. Perhatikan jebakan yang sudah pernah menggigit
+   kita (§1e-2): `SovereignCurve.Swap` punya satu parameter fee lebih banyak
+   daripada `SovereignHook.Swap`, jadi `topic0`-nya berbeda.
+3. `schema.graphql`: buang `teeAttestationRoot` sebagai nama field (itu root 0G
+   DA), tambahkan `Curve`, `Swap`, `BuybackBurn`.
+4. Jadikan subgraph **jalur baca kedua**, bukan pengganti: `/api/graphql` tetap
+   membaca registry lebih dulu lalu jatuh ke subgraph. Membalik urutannya berarti
+   explorer mati setiap kali indexer tertinggal.
+
+**Baru setelah itu** copy di /docs boleh menyebut The Graph sebagai sumber data.
+
+---
+
+### 3. ERC-8004 — paling banyak leverage, dan paling selaras. ~3–5 hari
+
+Ini yang paling menarik: standarnya **sudah masuk `ethereum/ERCs` master**
+(status *Draft*, dibuat 2025-08-13), dan bentuknya bukan "field alamat" seperti
+yang kita klaim — melainkan tiga registry per-chain singleton:
+
+| registry | isinya | pas dengan apa yang SUDAH kita punya |
+|---|---|---|
+| **Identity** | ERC-721 + URIStorage; `agentId` = `tokenId`; `agentURI` menunjuk berkas registrasi | metadata launch sudah kita unggah ke 0G DA |
+| **Reputation** | sinyal umpan balik ber-`agentId`; spec menyebut **bukti pembayaran x402** bisa memperkayanya | gerbang x402 kita sudah ada |
+| **Validation** | hook untuk validator independen, **eksplisit menyebut TEE oracle** | router 0G melaporkan attestation TDX (§4c-quater) |
+
+Identitas agen global berbentuk `eip155:{chainId}:{identityRegistry}` +
+`agentId`. Berkas registrasinya punya struktur wajib dengan array `services[]`
+yang menampung endpoint `web`, `A2A`, dan `MCP`.
+*Diringkas dari <https://github.com/ethereum/ERCs/blob/master/ERCS/erc-8004.md>;
+isi sumber diparafrasekan untuk mematuhi ketentuan lisensi.*
+
+Kenapa ini leverage terbesar: **satu pekerjaan ini menyalakan empat klaim
+sekaligus** — ERC-8004 jadi benar, endpoint x402 dapat tujuan yang sesuai
+standar, attestation TDX dapat tempat untuk dicatat, dan berkas registrasi
+memberi alasan nyata bagi unggahan 0G DA yang saat ini hanya menghasilkan hash.
+
+Langkahnya:
+
+1. `contracts/AdextoIdentityRegistry.sol` — ERC-721 + URIStorage. Deploy sebagai
+   singleton per chain. Catat: kita **memenuhi antarmukanya**, bukan memakai
+   registry kanonik bersama, dan itu harus dinyatakan apa adanya di /docs.
+2. `AdextoTrinityFactoryV3` tidak bisa diubah. Jadi pendaftarannya dilakukan
+   **setelah** launch, dari `/api/deploy` tahap `confirm`, memakai alamat agen
+   yang sudah terkunci di token.
+3. Berkas registrasi disajikan di `https://{ticker}.adexto.xyz/agent.json` —
+   middleware subdomain sudah ada. `services[]` memuat endpoint x402 yang nyata.
+4. Validation Registry: catat apa yang **benar-benar** kita punya, yaitu
+   deklarasi attestation router 0G (`/api/tee`) — bukan quote TDX mentah. Kalau
+   suatu hari quote bisa diambil, di situlah tempatnya.
+
+**Peringatan:** statusnya *Draft*. Menulis "ERC-8004 compliant" untuk standar yang
+masih berubah berisiko basi. Yang aman: "mendaftarkan agen ke Identity Registry
+ERC-8004 (draft)" beserta tautan ke ERC-nya.
+
+---
+
+### 4. Kunci yang benar-benar di dalam enclave. ~1 minggu, dan ada prasyarat
+
+`0x8a3c…ee7D` adalah EOA deployer. Untuk membuat frasa "kunci agen tidak pernah
+meninggalkan hardware" benar, kuncinya harus **dibuat di dalam** enclave dan tidak
+pernah diekspor:
+
+1. Jalankan agen sebagai aplikasi dstack/0G Tapp, bukan sebagai proses di VPS.
+2. Bangkitkan keypair **di dalam** CVM; ekspor hanya alamat publiknya.
+3. Alamat itulah yang dipakai sebagai `agentIdentity` saat launch.
+4. Ambil quote attestation dari runtime, verifikasi dengan verifier dstack,
+   simpan hasilnya — dan barulah kalimat "kami memverifikasi" boleh ditulis.
+
+**Prasyarat yang menentukan:** ini butuh CVM yang kita kendalikan. Kalau agen
+hanya memanggil `router-api.0g.ai`, kunci apa pun tetap ada di sisi kita.
+Jadi item ini sesungguhnya "pindahkan runner agen ke TEE", bukan "perbaiki teks".
+Lihat `scripts/agent-autonomous-runner.ts` sebagai titik awal.
+
+---
+
+### 5. "Zero central points of failure" — sebagian bisa, seluruhnya tidak. ~2–3 hari
+
+Yang bisa dihapus sebagai titik pusat kegagalan:
+
+| titik pusat sekarang | pengganti | catatan |
+|---|---|---|
+| registry `projects.json` di satu volume | 0G Storage + subgraph sebagai pembaca | butuh item 2 |
+| satu kontainer di satu VPS | dua region di belakang DNS gagal-alih | biaya naik |
+| satu kunci router 0G | beberapa penyedia, atau bayar per panggilan on-chain | 0G punya `provider_count` per model |
+| satu Cloudflare Worker | Worker sudah multi-region secara bawaan | sebenarnya bukan titik pusat |
+
+Yang **tidak** bisa dihilangkan: domain, sertifikat, dan build pipeline. Karena itu
+klaim yang jujur setelah semua ini pun bukan "zero", melainkan sesuatu seperti
+"tidak ada satu pun titik yang bisa membekukan perdagangan" — dan itu memang sudah
+benar hari ini, karena kurvanya tanpa fungsi penarikan dan tanpa pemilik.
+Rekomendasi: **jangan kejar frasa "zero"**. Kejar "kalau situs kami mati, pasar
+Anda tetap bisa ditransaksikan langsung ke kontrak" — lalu buktikan dengan
+menerbitkan cuplikan cara swap lewat `cast`/ethers tanpa UI.
+
+---
+
+### 6. Empat tool MCP. ~1 minggu untuk SATU, bukan empat
+
+Rekomendasi jelas: **jangan bangun empat.** Bangun satu yang benar-benar dipakai
+produk ini, lalu daftarkan sebagai `services[].MCP` di berkas registrasi ERC-8004
+(item 3) — sehingga ia punya tempat, bukan sekadar ada.
+
+Kandidat terkuat: **Sentinel** (memeriksa calldata sebelum agen menandatangani).
+Alasannya, itu satu-satunya dari empat yang melindungi hal bernilai, dan agen kita
+memang akan menandatangani transaksi buyback. Signet (generator logo) sudah
+tergantikan `/api/generate-logo`; Helm (cron) tidak butuh MCP; Notary hanya berarti
+setelah item 4 selesai.
+
+---
+
+### 7. "1-Click" — saran saya: jangan dikejar
+
+Empat langkah itu ada karena alasan yang bagus: sambung dompet, tanda tangan
+attestation, proof World ID, lalu satu transaksi per chain. Menghapus salah
+satunya berarti melemahkan gerbang yang justru baru kita bangun.
+
+Yang **bisa** dipangkas tanpa kehilangan apa pun: tanda tangan attestation
+terpisah sebenarnya redundan — pengirim transaksi launch sudah membuktikan
+penguasaan alamat. Menghapusnya membuatnya **tiga** langkah dan menghilangkan satu
+dialog wallet. Itu perbaikan nyata.
+
+Yang **tidak bisa**: satu transaksi untuk empat chain. Tidak ada lapisan pesan di
+0G maupun Monad (§1c), dan EIP-5792 `wallet_sendCalls` hanya membundel dalam satu
+chain. Satu-satunya jalan adalah relayer bertreasuri (§1c), dan itu keputusan
+pendanaan, bukan keputusan teknis.
+
+Rekomendasi copy: berhenti menghitung klik. "Satu transaksi per chain, gas saja"
+lebih kuat **dan** benar.
+
+---
+
+### Urutan yang saya sarankan
+
+1. **Item 1** (env World ID) — 5 menit, tapi luncurkan $ADEXTO lebih dulu.
+2. **Item 3** (ERC-8004) — leverage tertinggi; menyalakan empat klaim sekaligus.
+3. **Item 2** (subgraph) — dibutuhkan item 5, dan memperbaiki explorer.
+4. **Item 6** (satu MCP) — hanya sesudah item 3 memberinya tempat.
+5. **Item 4** (kunci di enclave) — pekerjaan infrastruktur, bukan copy.
+6. **Item 5 dan 7** — jangan dikejar sebagai frasa; kejar propertinya.
+
 ## 4d. Ekonomi beli-jual dengan uang asli
 
 Diukur dengan **transaksi sungguhan** di pool nyata (`audit_roundtrip_econ.mjs`), bukan perkiraan:
