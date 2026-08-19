@@ -1,73 +1,76 @@
 /**
- * World ID (zero-knowledge proof) sebagai gerbang peluncuran.
+ * World ID 4.0 sebagai gerbang peluncuran.
  *
- * Sebelum ini, gerbang launch hanyalah tanda tangan wallet yang diverifikasi di
- * server. Itu membuktikan seseorang menguasai sebuah alamat — bukan bahwa dia
- * manusia yang berbeda. Siapa pun bisa membuat wallet baru tanpa batas, jadi
- * tidak ada hambatan Sybil sama sekali. Berkas ini menambahkan lapisan yang
- * hilang itu: proof World ID diverifikasi di server, lalu `nullifier_hash`-nya
- * dipakai untuk mengikat satu manusia ke satu wallet.
+ * MENGAPA 4.0, BUKAN 3.0
  *
- * Kenapa verifikasi harus di SERVER: proof yang divalidasi di browser tidak
- * bernilai apa-apa, karena penyerang tinggal memanggil `/api/deploy` langsung
- * tanpa membuka UI. Karena itu `/api/deploy` menuntut token yang HANYA bisa
- * diterbitkan oleh route verifikasi ini.
+ * Percobaan pertama memakai `verifyCloudProof` dari idkit 2.x — jalur legacy 3.0
+ * yang hanya butuh `app_id` + `action`. Itu berjalan, tapi membiarkan dua
+ * kredensial yang dimiliki pemilik proyek menganggur: `rp_id` dan `signing_key`.
+ * Keduanya milik World ID 4.0, tempat backend menandatangani SETIAP permintaan
+ * proof. Tanda tangan itu bukan hiasan: ia membuktikan permintaan datang dari
+ * aplikasi kita, sehingga orang lain tidak bisa memakai identitas app ini untuk
+ * memanen verifikasi di situsnya sendiri. Karena itu jalurnya dipindah ke 4.0.
  *
- * Kenapa ada `WORLD_ID_VERIFY_URL`: verifikasi sesungguhnya memanggil layanan
- * Worldcoin, yang tidak bisa dihubungi dari pengujian otomatis tanpa proof orb
- * asli. Env itu memungkinkan harness mengarahkan verifier ke stub lokal,
- * sehingga logika gerbang — nullifier terpakai, proof ditolak, token kedaluwarsa
- * — benar-benar teruji tanpa kredensial produksi.
+ * KUNCI TANDA TANGAN TIDAK PERNAH KE KLIEN
+ *
+ * Klien hanya menerima hasil tanda tangan (`nonce`, `created_at`, `expires_at`,
+ * `signature`) lewat `/api/worldid/signature`. Kunci privatnya tetap di server.
+ *
+ * NULLIFIER DISIMPAN SEBAGAI DESIMAL
+ *
+ * Dokumen World memperingatkan menyimpan nullifier sebagai string hex bisa
+ * menimbulkan celah keamanan karena perbedaan kapitalisasi dan parsing. Versi
+ * sebelumnya di berkas ini memakai hex mentah sebagai kunci penyimpanan, jadi
+ * `0xAB…` dan `0xab…` akan dianggap dua orang berbeda — orang yang sama bisa
+ * lolos dua kali. Sekarang semuanya dinormalkan lewat BigInt ke desimal.
  */
 import crypto from "node:crypto";
-import { verifyCloudProof } from "@worldcoin/idkit-core/backend";
+import { signRequest } from "@worldcoin/idkit-server";
 import { readJson, writeJson } from "@/lib/server-store";
 
 const NULLIFIER_FILE = "worldid-nullifiers.json";
-const DEFAULT_VERIFY_BASE = "https://developer.worldcoin.org";
+const DEFAULT_VERIFY_BASE = "https://developer.world.org";
 /** Token sengaja berumur pendek: ia hanya perlu bertahan dari klik verifikasi ke klik launch. */
 const TOKEN_TTL_SECONDS = 30 * 60;
-
-export interface WorldIdProof {
-  merkle_root: string;
-  nullifier_hash: string;
-  proof: string;
-  verification_level: string;
-}
+/** Umur tanda tangan RP. 5 menit sesuai bawaan protokol. */
+const RP_SIGNATURE_TTL_SECONDS = 300;
 
 export interface WorldIdConfig {
-  /** Gerbang hanya menyala bila app id DAN action terisi. */
+  /** Gerbang menyala hanya bila keempat kredensial lengkap. */
   enabled: boolean;
   appId: string;
+  rpId: string;
   action: string;
   verifyBase: string;
   /** Bila true, satu manusia hanya boleh meluncurkan satu kali selamanya. */
   oneLaunchPerHuman: boolean;
-  /**
-   * "orb" atau "device".
-   *
-   * Orb adalah jaminan anti-Sybil yang sesungguhnya; device bisa diperbanyak
-   * dengan beberapa ponsel. Tapi Orb juga menutup pintu bagi orang yang belum
-   * pernah ke Orb, jadi pilihannya diserahkan ke operator ketimbang dipaku.
-   */
-  verificationLevel: "orb" | "device";
+  /** Menerima proof v3 lama selain v4. Bawaan false: app ini app baru. */
+  allowLegacyProofs: boolean;
+}
+
+function signingKey(): string {
+  return (process.env.WORLD_ID_SIGNING_KEY || "").trim();
 }
 
 export function worldIdConfig(): WorldIdConfig {
   const appId = (process.env.NEXT_PUBLIC_WORLD_ID_APP_ID || "").trim();
+  const rpId = (process.env.WORLD_ID_RP_ID || "").trim();
   const action = (process.env.NEXT_PUBLIC_WORLD_ID_ACTION || "").trim();
   return {
-    enabled: Boolean(appId && action),
+    // Tanpa rp_id atau signing_key, permintaan proof 4.0 tidak bisa ditandatangani,
+    // jadi gerbangnya dianggap mati ketimbang setengah jalan.
+    enabled: Boolean(appId && rpId && action && signingKey()),
     appId,
+    rpId,
     action,
     verifyBase: (process.env.WORLD_ID_VERIFY_URL || DEFAULT_VERIFY_BASE).replace(/\/+$/, ""),
     oneLaunchPerHuman: process.env.WORLD_ID_ONE_LAUNCH_PER_HUMAN === "true",
-    verificationLevel: process.env.NEXT_PUBLIC_WORLD_ID_VERIFICATION_LEVEL === "device" ? "device" : "orb",
+    allowLegacyProofs: process.env.WORLD_ID_ALLOW_LEGACY_PROOFS === "true",
   };
 }
 
 /**
- * Rahasia penanda tangan token.
+ * Rahasia penanda tangan token internal — BEDA dari signing key World ID.
  *
  * Fail-closed: tanpa rahasia, tidak ada token yang bisa diterbitkan maupun
  * diterima. Kalau tidak, token bisa dipalsukan siapa saja dan seluruh gerbang
@@ -78,25 +81,85 @@ function tokenSecret(): string | null {
   return secret.length >= 16 ? secret : null;
 }
 
+/**
+ * Nullifier dinormalkan ke desimal.
+ *
+ * Nullifier adalah bilangan 256-bit yang datang sebagai hex. Membandingkan
+ * bentuk hex-nya secara mentah rapuh: kapitalisasi berbeda, ada-tidaknya awalan
+ * 0x, dan nol di depan semuanya menghasilkan string berbeda untuk ANGKA YANG
+ * SAMA — dan setiap perbedaan itu berarti satu orang bisa terhitung dua kali.
+ */
+export function normalizeNullifier(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!/^(0x)?[0-9a-fA-F]{1,64}$/.test(s)) return null;
+  try {
+    return BigInt(s.startsWith("0x") ? s : `0x${s}`).toString(10);
+  } catch {
+    return null;
+  }
+}
+
 type NullifierEntry = { address: string; firstSeen: string; launches: number };
 type NullifierStore = Record<string, NullifierEntry>;
 
 const readStore = (): NullifierStore => readJson<NullifierStore>(NULLIFIER_FILE, {});
 
-/** Hasil verifikasi proof, sebelum token diterbitkan. */
-export type VerifyResult =
-  | { ok: true; nullifierHash: string; verificationLevel: string }
-  | { ok: false; status: number; error: string; code: string };
+/** Konteks RP yang dibutuhkan widget. Kunci privatnya tidak termasuk. */
+export type RpContextResult =
+  | { ok: true; rpContext: { rp_id: string; nonce: string; created_at: number; expires_at: number; signature: string } }
+  | { ok: false; status: number; code: string; error: string };
 
-export async function verifyWorldIdProof(proof: WorldIdProof, address: string): Promise<VerifyResult> {
+export function issueRpContext(): RpContextResult {
   const cfg = worldIdConfig();
   if (!cfg.enabled) {
     return {
       ok: false,
       status: 503,
       code: "WORLDID_NOT_CONFIGURED",
-      error: "World ID is not configured on this deployment (NEXT_PUBLIC_WORLD_ID_APP_ID / NEXT_PUBLIC_WORLD_ID_ACTION).",
+      error: "World ID is not configured on this deployment.",
     };
+  }
+  try {
+    const signed = signRequest({
+      signingKeyHex: signingKey(),
+      action: cfg.action,
+      ttl: RP_SIGNATURE_TTL_SECONDS,
+    });
+    return {
+      ok: true,
+      rpContext: {
+        rp_id: cfg.rpId,
+        nonce: signed.nonce,
+        created_at: signed.createdAt,
+        expires_at: signed.expiresAt,
+        signature: signed.sig,
+      },
+    };
+  } catch (error) {
+    // Kunci yang salah bentuk terdeteksi di sini, bukan di tengah alur pengguna.
+    return {
+      ok: false,
+      status: 500,
+      code: "WORLDID_SIGNING_FAILED",
+      error: `Could not sign the World ID request: ${(error as Error).message}`,
+    };
+  }
+}
+
+export type VerifyResult =
+  | { ok: true; nullifier: string; protocolVersion: string }
+  | { ok: false; status: number; error: string; code: string };
+
+/**
+ * Verifikasi payload IDKit lewat endpoint v4, lalu tegakkan aturan Sybil.
+ *
+ * Payload diteruskan APA ADANYA sesuai dokumen; bentuknya berbeda antara proof
+ * v3 dan v4, dan merakitnya ulang di sini hanya menambah tempat untuk salah.
+ */
+export async function verifyWorldIdProof(payload: any, address: string): Promise<VerifyResult> {
+  const cfg = worldIdConfig();
+  if (!cfg.enabled) {
+    return { ok: false, status: 503, code: "WORLDID_NOT_CONFIGURED", error: "World ID is not configured on this deployment." };
   }
   if (!tokenSecret()) {
     return {
@@ -109,35 +172,38 @@ export async function verifyWorldIdProof(proof: WorldIdProof, address: string): 
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
     return { ok: false, status: 400, code: "BAD_ADDRESS", error: "A valid wallet address is required." };
   }
-  for (const field of ["merkle_root", "nullifier_hash", "proof", "verification_level"] as const) {
-    if (!proof?.[field] || typeof proof[field] !== "string") {
-      return { ok: false, status: 400, code: "BAD_PROOF", error: `World ID proof is missing ${field}.` };
-    }
+
+  const responses = Array.isArray(payload?.responses) ? payload.responses : [];
+  if (responses.length === 0) {
+    return { ok: false, status: 400, code: "BAD_PROOF", error: "The World ID payload carries no proof responses." };
+  }
+  const nullifier = normalizeNullifier(responses[0]?.nullifier);
+  if (!nullifier) {
+    return { ok: false, status: 400, code: "BAD_PROOF", error: "The World ID payload has no usable nullifier." };
+  }
+  if (!cfg.allowLegacyProofs && payload?.protocol_version !== "4.0") {
+    return {
+      ok: false,
+      status: 400,
+      code: "WORLDID_LEGACY_PROOF",
+      error: `Only World ID 4.0 proofs are accepted here (received ${payload?.protocol_version ?? "unknown"}).`,
+    };
   }
 
-  // `signal` mengikat proof ke alamat wallet yang meminta. Tanpa ini, proof yang
-  // sah untuk satu orang bisa dipotong dari lalu lintas dan dipakai ulang oleh
-  // wallet lain.
-  const signal = address.toLowerCase();
-
-  // Dipakai helper resmi `verifyCloudProof`, bukan HTTP rakitan sendiri: helper
-  // itu yang menghitung `signal_hash` dengan `hashToField` — cara hashing yang
-  // sama seperti sisi klien. Merakit body sendiri berarti menebak detail itu,
-  // dan salah hash membuat setiap proof yang sah ditolak.
   try {
-    const result = await verifyCloudProof(
-      proof as never,
-      cfg.appId as `app_${string}`,
-      cfg.action,
-      signal,
-      `${cfg.verifyBase}/api/v2/verify/${encodeURIComponent(cfg.appId)}`
-    );
-    if (!result.success) {
+    const res = await fetch(`${cfg.verifyBase}/api/v4/verify/${encodeURIComponent(cfg.rpId)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = await res.json().catch(() => ({}) as any);
+    if (!res.ok || body?.success === false) {
       return {
         ok: false,
         status: 401,
         code: "WORLDID_PROOF_REJECTED",
-        error: String(result.detail || result.code || "World ID rejected this proof."),
+        error: String(body?.detail || body?.code || body?.error || `World ID rejected this proof (${res.status}).`),
       };
     }
   } catch (error) {
@@ -151,9 +217,11 @@ export async function verifyWorldIdProof(proof: WorldIdProof, address: string): 
 
   // Nullifier stabil per manusia per action, jadi inilah tempat aturan Sybil
   // ditegakkan. Pengikatan ke satu wallet mencegah satu orang memanen wallet
-  // baru tanpa batas — persis celah yang dibiarkan terbuka sebelumnya.
+  // baru tanpa batas — celah yang dibiarkan terbuka oleh gerbang tanda tangan
+  // wallet saja.
+  const signal = address.toLowerCase();
   const store = readStore();
-  const existing = store[proof.nullifier_hash];
+  const existing = store[nullifier];
   if (existing && existing.address !== signal) {
     return {
       ok: false,
@@ -171,27 +239,27 @@ export async function verifyWorldIdProof(proof: WorldIdProof, address: string): 
     };
   }
 
-  store[proof.nullifier_hash] = {
+  store[nullifier] = {
     address: signal,
     firstSeen: existing?.firstSeen ?? new Date().toISOString(),
     launches: existing?.launches ?? 0,
   };
   writeJson(NULLIFIER_FILE, store);
 
-  return { ok: true, nullifierHash: proof.nullifier_hash, verificationLevel: proof.verification_level };
+  return { ok: true, nullifier, protocolVersion: String(payload?.protocol_version ?? "unknown") };
 }
 
 /** Token pembawa bukti: `<exp>.<nullifier>.<hmac>`, terikat ke alamat. */
-export function issueWorldIdToken(address: string, nullifierHash: string): string | null {
+export function issueWorldIdToken(address: string, nullifier: string): string | null {
   const secret = tokenSecret();
   if (!secret) return null;
   const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
-  const body = `${address.toLowerCase()}|${nullifierHash}|${exp}`;
+  const body = `${address.toLowerCase()}|${nullifier}|${exp}`;
   const mac = crypto.createHmac("sha256", secret).update(body).digest("hex");
-  return `${exp}.${nullifierHash}.${mac}`;
+  return `${exp}.${nullifier}.${mac}`;
 }
 
-export type TokenCheck = { ok: true; nullifierHash: string } | { ok: false; error: string; code: string };
+export type TokenCheck = { ok: true; nullifier: string } | { ok: false; error: string; code: string };
 
 export function verifyWorldIdToken(token: string, address: string): TokenCheck {
   const secret = tokenSecret();
@@ -200,12 +268,12 @@ export function verifyWorldIdToken(token: string, address: string): TokenCheck {
 
   const parts = String(token || "").split(".");
   if (parts.length !== 3) return { ok: false, code: "WORLDID_TOKEN_MALFORMED", error: "World ID verification is required before launching." };
-  const [expRaw, nullifierHash, mac] = parts;
+  const [expRaw, nullifier, mac] = parts;
   const exp = Number(expRaw);
   if (!Number.isFinite(exp)) return { ok: false, code: "WORLDID_TOKEN_MALFORMED", error: "World ID token is malformed." };
   if (exp * 1000 < Date.now()) return { ok: false, code: "WORLDID_TOKEN_EXPIRED", error: "World ID verification expired, please verify again." };
 
-  const expected = crypto.createHmac("sha256", secret).update(`${address.toLowerCase()}|${nullifierHash}|${exp}`).digest("hex");
+  const expected = crypto.createHmac("sha256", secret).update(`${address.toLowerCase()}|${nullifier}|${exp}`).digest("hex");
   // timingSafeEqual menuntut panjang sama, jadi panjangnya diperiksa lebih dulu.
   const a = Buffer.from(mac, "hex");
   const b = Buffer.from(expected, "hex");
@@ -213,7 +281,7 @@ export function verifyWorldIdToken(token: string, address: string): TokenCheck {
     return { ok: false, code: "WORLDID_TOKEN_INVALID", error: "World ID token does not match this wallet." };
   }
 
-  const entry = readStore()[nullifierHash];
+  const entry = readStore()[nullifier];
   if (!entry) return { ok: false, code: "WORLDID_UNKNOWN_NULLIFIER", error: "This World ID verification is no longer on record." };
   if (entry.address !== address.toLowerCase()) {
     return { ok: false, code: "WORLDID_BOUND_ELSEWHERE", error: "This World ID is bound to a different wallet." };
@@ -222,15 +290,15 @@ export function verifyWorldIdToken(token: string, address: string): TokenCheck {
   if (cfg.oneLaunchPerHuman && entry.launches > 0) {
     return { ok: false, code: "WORLDID_ALREADY_LAUNCHED", error: "This World ID has already been used for a launch." };
   }
-  return { ok: true, nullifierHash };
+  return { ok: true, nullifier };
 }
 
 /** Dicatat SETELAH launch berhasil, supaya percobaan yang gagal tidak menghanguskan kuota. */
-export function recordLaunch(nullifierHash: string): void {
+export function recordLaunch(nullifier: string): void {
   const store = readStore();
-  const entry = store[nullifierHash];
+  const entry = store[nullifier];
   if (!entry) return;
   entry.launches += 1;
-  store[nullifierHash] = entry;
+  store[nullifier] = entry;
   writeJson(NULLIFIER_FILE, store);
 }

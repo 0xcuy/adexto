@@ -133,7 +133,7 @@ async function handlePrepare(body: any) {
     if (!check.ok) {
       return NextResponse.json({ error: check.error, code: check.code }, { status: 401 });
     }
-    worldIdNullifier = check.nullifierHash;
+    worldIdNullifier = check.nullifier;
   }
 
   const requested: string[] = Array.isArray(body.targetChains) && body.targetChains.length > 0
@@ -380,7 +380,7 @@ async function handleConfirm(body: any) {
     if (!check.ok) {
       return NextResponse.json({ error: check.error, code: check.code }, { status: 401 });
     }
-    confirmedNullifier = check.nullifierHash;
+    confirmedNullifier = check.nullifier;
   }
 
   // Scoped to this chain, so chains 2..4 of a multi-chain launch are not rejected

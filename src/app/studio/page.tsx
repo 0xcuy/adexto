@@ -104,7 +104,7 @@ export default function StudioPage() {
     enabled: boolean;
     appId: string | null;
     action: string | null;
-    verificationLevel?: "orb" | "device";
+    allowLegacyProofs?: boolean;
   } | null>(null);
   const [worldIdToken, setWorldIdToken] = useState<string | null>(null);
   const [worldIdError, setWorldIdError] = useState<string | null>(null);
@@ -187,7 +187,7 @@ export default function StudioPage() {
             enabled: Boolean(d?.enabled),
             appId: d?.appId ?? null,
             action: d?.action ?? null,
-            verificationLevel: d?.verificationLevel === "device" ? "device" : "orb",
+            allowLegacyProofs: Boolean(d?.allowLegacyProofs),
           });
       })
       .catch(() => {
@@ -216,7 +216,7 @@ export default function StudioPage() {
         const res = await fetch("/api/worldid/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, proof }),
+          body: JSON.stringify({ address, payload: proof }),
         });
         const data = await res.json();
         if (!res.ok || !data?.token) throw new Error(data?.error || `verification failed (${res.status})`);
@@ -1111,8 +1111,7 @@ export default function StudioPage() {
                     <WorldIdVerifyButton
                       appId={worldIdGate.appId}
                       action={worldIdGate.action}
-                      signal={address ?? ""}
-                      level={worldIdGate.verificationLevel}
+                      allowLegacyProofs={worldIdGate.allowLegacyProofs}
                       busy={worldIdBusy}
                       disabled={!isConnected}
                       onProof={submitWorldIdProof}
