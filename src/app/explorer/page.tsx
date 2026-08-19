@@ -307,7 +307,7 @@ export default function ExplorerPage() {
                     tone="cyan"
                   />
                   <Metric
-                    label="Pool"
+                    label="Curve"
                     value={p.tradable ? "live" : "none"}
                     tone={p.tradable ? "emerald" : "amber"}
                   />
@@ -364,7 +364,7 @@ export default function ExplorerPage() {
                     ) : (
                       <span
                         className="text-zinc-500 flex items-center gap-1 cursor-not-allowed"
-                        title="No executable pool for this market yet"
+                        title="No executable curve for this market yet"
                       >
                         Swap <Lock className="w-3 h-3" />
                       </span>

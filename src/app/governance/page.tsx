@@ -31,7 +31,8 @@ const INITIAL_PROPOSALS: ProposalItem[] = [
     title: "AIP-01: Genesis Governance Setup for 0G Mainnet SovereignHook (0x592c...)",
     category: "Fee Parameter",
     proposer: "0x8a3c...ee7D",
-    description: "Initialize initial DAO parameter control on 0G Mainnet: 0.20% LP Rewards and 0.10% Autonomous Agent Buyback Vault directly routing to ADAI pool.",
+    description:
+      "Initialize DAO parameter control on 0G Mainnet: the three-way swap fee split — depth retained by the curve, the creator's direct share, and the Autonomous Agent Buyback Vault.",
     forVotes: 4000000,
     againstVotes: 0,
     totalQuorum: 4000000,
@@ -45,7 +46,7 @@ const INITIAL_PROPOSALS: ProposalItem[] = [
     category: "0G Compute Whitelist",
     proposer: "0x8a3c...ee7D",
     description:
-      "Authorize the 0G Router glm-5.2 TEE enclave (AMD SEV-SNP) to run buyback and rebalancing on each chain's own pool. Scope is per chain: markets are independent and there is no cross-chain messaging layer available on 0G today.",
+      "Authorize the 0G Router glm-5.2 TEE enclave (AMD SEV-SNP) to run buyback and rebalancing on each chain's own curve. Scope is per chain: markets are independent and there is no cross-chain messaging layer available on 0G today.",
     forVotes: 4000000,
     againstVotes: 120000,
     totalQuorum: 4000000,
@@ -55,10 +56,11 @@ const INITIAL_PROPOSALS: ProposalItem[] = [
   },
   {
     id: 3,
-    title: "AIP-03: Deploy Dynamic LP Fee Tier (0.10% to 0.50%) on Monad Sovereign Pool",
+    title: "AIP-03: Deploy Dynamic Swap Fee Tier (0.10% to 0.50%) on Monad Sovereign Curve",
     category: "Fee Parameter",
     proposer: "0x8a3c...ee7D",
-    description: "Activate dynamic volatility-adjusted fee calculation on Monad Mainnet Hook (0xb264...) to maximize creator earnings during high-volume periods.",
+    description:
+      "Allow Monad markets to pick a swap fee tier between 0.10% and 0.50%, with the creator's share scaling inside that total rather than being added on top of it.",
     forVotes: 2850000,
     againstVotes: 50000,
     totalQuorum: 4000000,
@@ -230,7 +232,7 @@ export default function GovernancePage() {
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white">ADEXTO Sovereign Governance</h1>
           <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-xl font-medium">
-            Token-weighted on-chain voting governing SovereignHook fee splits, 0G TEE hardware compute whitelists, and Cross-Chain Treasury Rebalancing.
+            Token-weighted on-chain voting governing curve fee splits, 0G TEE hardware compute whitelists, and Cross-Chain Treasury Rebalancing.
           </p>
         </div>
 
@@ -266,7 +268,9 @@ export default function GovernancePage() {
         <div className="card p-5 space-y-2 font-mono text-xs">
           <span className="text-zinc-400 block text-[10px] uppercase font-bold">Controllable Parameters</span>
           <div className="text-[11px] text-slate-200 space-y-1">
-            <div>• Sovereign AMM Take-Rates (0.10% - 1.00%)</div>
+            {/* Batas atas 0.50%, bukan 1.00%: AdextoTrinityFactoryV3 menolak
+                swapFeeBps > 500, jadi angka 1.00% mustahil dipasang. */}
+            <div>• Curve swap fee tiers (0.10% - 0.50%)</div>
             <div>• 0G TEE Agent Model Whitelisting</div>
             <div>• Cross-chain lanes (blocked: no CCIP router on 0G/Monad)</div>
           </div>
@@ -481,7 +485,7 @@ export default function GovernancePage() {
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. AIP-04: Adjust Liquidity Pool Fee"
+                  placeholder="e.g. AIP-04: Adjust the curve fee split"
                   className="w-full p-3 rounded-xl bg-black/60 border border-white/20 text-white text-xs focus:outline-none focus:border-cyan-400"
                   required
                 />
@@ -494,7 +498,7 @@ export default function GovernancePage() {
                   onChange={(e: any) => setNewCategory(e.target.value)}
                   className="w-full p-3 rounded-xl bg-black/60 border border-white/20 text-cyan-300 text-xs focus:outline-none font-mono font-bold"
                 >
-                  <option value="Fee Parameter">Fee Parameter (SovereignHook)</option>
+                  <option value="Fee Parameter">Fee Parameter (Sovereign Curve)</option>
                   <option value="0G Compute Whitelist">0G Compute Whitelist</option>
                   <option value="Cross-Chain Rebalance">Cross-Chain Rebalance (CCIP)</option>
                 </select>

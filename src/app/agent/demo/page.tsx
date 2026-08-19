@@ -19,11 +19,11 @@ export default function AgentDemoPage() {
   const tools = [
     {
       id: "quant_audit",
-      name: "Quant Liquidity & Pool Health Audit",
+      name: "Quant Depth & Curve Health Audit",
       price: "0.010 USDC",
       mcpServer: "EVIDIQ Sentinel + Aegis",
       edgeRoute: "https://edge.adexto.xyz/audit/v1",
-      description: "Audits multi-chain liquidity depth, slippage impact, and front-running risk inside 0G TEE.",
+      description: "Audits curve depth per chain, slippage impact, and sniper exposure inside 0G TEE.",
     },
     {
       id: "signet_brand",
@@ -78,7 +78,7 @@ export default function AgentDemoPage() {
         proof_signature: "0x38fa8029c7da192834bba72619cd91823749817293847192837491827394817263",
         result_payload: {
           target_chain: selectedChain,
-          pool_health: "Optimal (99.8/100)",
+          curve_health: "Optimal (99.8/100)",
           slippage_risk: "0.01% at 100,000 USDC volume",
           mev_sandwich_shield: "Active (EVIDIQ Sentinel Block-Guard)",
           treasury_buyback_queued: "284.10 AEGIS scheduled at next block",

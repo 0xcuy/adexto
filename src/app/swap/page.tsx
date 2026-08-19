@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Sovereign DEX Swap · ADEXTO",
-  description: "Swap native assets against ADEXTO agent tokens through each project's SovereignHook AMM pool.",
+  description: "Swap native assets against ADEXTO agent tokens through each project's own sovereign bonding curve.",
 };
 
 export default function SwapPage() {

@@ -625,7 +625,16 @@ Diverifikasi lewat `eth_getCode` + `estimateGas` (read-only, tanpa tx):
 | Base 8453 | `0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D` | `0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3` | **revert** |
 | Monad 143 | `0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D` | `0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3` | **revert** |
 
-Governor: 0G `0x5045b117dDF788078c535f37837fDB6384da034d`, Arbitrum `0x33811F9c53da5071A130F18D844f64999dBD43bA`.
+Governor — **keempatnya ada di mainnet**, masing-masing 4.133 byte (diverifikasi `eth_getCode`, lihat `scripts/check-governor-live.mjs`):
+
+| Chain | Governor |
+|---|---|
+| 0G 16661 | `0x5045b117dDF788078c535f37837fDB6384da034d` |
+| Arbitrum 42161 | `0x33811F9c53da5071A130F18D844f64999dBD43bA` |
+| Base 8453 | `0x01b250a2db25561dB185f4628B93C72048D8bc1B` |
+| Monad 143 | `0x01b250a2db25561dB185f4628B93C72048D8bc1B` |
+
+Base dan Monad memakai alamat yang sama karena dideploy dari nonce deployer yang sama di kedua chain. Catatan lama di runbook ini hanya menyebut 0G dan Arbitrum, sehingga badge "4 Chains Live" di `/governance` sempat saya curigai berlebihan — ternyata **klaim UI-nya benar** dan runbook-lah yang kurang lengkap.
 Deployer: `0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D` (0G ≈ 8.9, Arbitrum ≈ 0.000138).
 
 **Catatan data:** `AdextoTrinityFactory.totalProjectsCount()` = **1** di 0G dan **0** di Arbitrum. Artinya QNOVA, CSENT dan MQUANT tidak pernah dibuat lewat factory. Di registry mereka ditandai `verified: false` / `poolLive: false` dan tampil sebagai *showcase entry*, bukan pasar yang bisa ditradingkan. AEGIS (`0xb5A8…0dEd`) kontraknya memang ada di 0G (`verified: true`) tapi tanpa pool v2 juga belum tradable.

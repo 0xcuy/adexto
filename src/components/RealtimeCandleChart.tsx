@@ -180,13 +180,16 @@ export default function RealtimeCandleChart({
   const priceUsd = priceNative * (nativeUsd || 0);
   const changeIsUp = changePct >= 0;
 
+  // Kata "seed" dihindari di label ini: di produk ini kata itu dulu berarti
+  // setoran likuiditas yang sudah ditiadakan, jadi memakainya untuk sumber data
+  // placeholder membuat pembaca menyangka kurvanya disetori.
   const sourceLabel =
     source === "onchain"
       ? "on-chain Swap events"
       : source === "agent"
       ? "agent-reported fills"
       : source === "genesis"
-      ? "genesis seed (no market fills yet)"
+      ? "genesis reference price (no market fills yet)"
       : "no trade history";
 
   return (

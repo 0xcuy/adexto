@@ -59,7 +59,13 @@ export default function HomePage() {
           <div className="glass-panel p-5 rounded-xl border border-white/20">
             <div className="text-zinc-400 text-xs font-bold uppercase">Deployment Status</div>
             <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">Mainnet Ready</div>
-            <span className="text-[11px] text-zinc-300 mt-1 block">Contracts Verified</span>
+            {/* Dulu hanya "Contracts Verified", yang berdampingan dengan "4 Chains
+                Active" mudah dibaca sebagai "perdagangan sudah jalan di 4 mainnet".
+                Kontrak memang terverifikasi, tapi factory peluncuran belum
+                di-broadcast, jadi cakupannya dinyatakan terang-terangan. Klaim yang
+                bisa dibantah dengan satu panggilan RPC lebih merugikan daripada
+                klaim yang lebih kecil tapi tepat. */}
+            <span className="text-[11px] text-zinc-300 mt-1 block">Contracts verified · launch factory pending broadcast</span>
           </div>
 
         <div className="glass-panel p-5 rounded-xl border border-white/20">
@@ -136,7 +142,7 @@ export default function HomePage() {
             <ul className="space-y-3 text-xs sm:text-sm text-slate-200 font-sans">
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">✓</span>
-                <span><strong>100% Fee Sovereignty:</strong> Uniswap v4 Hooks route 0.20% swap fees to LPs and 0.10% directly to the agent's buyback vault.</span>
+                <span><strong>Creator Fee Sovereignty:</strong> every swap pays the creator 0.10% directly, plus 0.05% to the agent buyback vault. No token allocation, so there is nothing to dump.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">✓</span>
@@ -159,7 +165,7 @@ export default function HomePage() {
           </div>
           <h2 className="text-3xl sm:text-4xl font-black text-white">How The Four Pillars Connect</h2>
           <p className="text-zinc-300 text-sm sm:text-base mt-2 leading-relaxed">
-            Every token launched on ADEXTO is backed by autonomous intelligence, sovereign AMM routing, and edge cashflow.
+            Every token launched on ADEXTO is backed by autonomous intelligence, its own bonding curve, and edge cashflow.
           </p>
         </div>
 
@@ -204,14 +210,18 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="text-lg font-black text-white group-hover:text-purple-300 transition-colors">Sovereign DEX</h3>
-                <span className="text-[11px] font-bold text-purple-400 block mt-0.5">Uniswap v4 Hook Pool</span>
+                <span className="text-[11px] font-bold text-purple-400 block mt-0.5">Sovereign Bonding Curve</span>
               </div>
               <p className="text-xs text-slate-300 font-sans leading-relaxed font-normal">
-                Uniswap v4 dynamic hook AMM. Retains 100% creator fee sovereignty: 0.20% swap fee to Liquidity Providers and 0.10% automatically routed to the token buyback vault.
+                A curve that opens against a virtual reserve, so a launch needs no liquidity deposit. The 0.30% swap fee
+                splits three ways on-chain: 0.15% depth stays in the curve, 0.10% to the creator, 0.05% to the buyback vault.
               </p>
             </div>
             <div className="pt-4 border-t border-white/10 text-[11px] text-purple-300 font-bold flex items-center justify-between mt-4">
-              <span>100% Fee Retained</span>
+              {/* Bukan "100% Fee Retained": creator menerima 0.10% dari total fee,
+                  bukan seluruh fee. Protokol mengambil 0.05% (lihat /pitch), dan
+                  sisanya mengendap di kurva. */}
+              <span>Creator paid every swap</span>
               <TrendingUp className="w-4 h-4 text-purple-400" />
             </div>
           </div>
@@ -233,7 +243,8 @@ export default function HomePage() {
                 <span className="text-[11px] font-bold text-pink-400 block mt-0.5">ERC-20 &amp; ERC-8004</span>
               </div>
               <p className="text-xs text-slate-300 font-sans leading-relaxed font-normal">
-                1-Click token minting bound to on-chain agent identity. Features mathematical bonding curves with MEV anti-sniper protection and instant DEX graduation.
+                1-Click token minting bound to on-chain agent identity. 100% of supply enters the curve, tradable from the
+                launch transaction onward, with an anti-sniper cap of 1% of supply during the opening window.
               </p>
             </div>
             <div className="pt-4 border-t border-white/10 text-[11px] text-pink-300 font-bold flex items-center justify-between mt-4">
@@ -259,7 +270,8 @@ export default function HomePage() {
                 <span className="text-[11px] font-bold text-orange-400 block mt-0.5">Cloudflare Workers x402</span>
               </div>
               <p className="text-xs text-slate-300 font-sans leading-relaxed font-normal">
-                Sub-50ms edge paywall verifying EIP-712 auth vouchers globally. Channels machine-to-machine API payments into 1inch &amp; Uniswap v4 auto-buyback loops.
+                Sub-50ms edge paywall verifying EIP-712 auth vouchers globally. Channels machine-to-machine API payments
+                into the token&apos;s own buyback vault, which buys and burns against the curve.
               </p>
             </div>
             <div className="pt-4 border-t border-white/10 text-[11px] text-orange-400 font-bold flex items-center justify-between mt-4">
@@ -296,7 +308,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#060914] border border-white/10">
                   <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-                  <span className="text-slate-200"><strong className="text-white">Auto-Buyback Dispatch:</strong> Accumulated edge revenue periodically bridges into the Sovereign Hook for token buybacks.</span>
+                  <span className="text-slate-200"><strong className="text-white">Auto-Buyback Dispatch:</strong> accumulated edge revenue funds the curve&apos;s buyback vault, which buys tokens and burns them.</span>
                 </div>
               </div>
             </div>
@@ -317,7 +329,7 @@ export default function HomePage() {
                   : "text-zinc-400 hover:text-white bg-white/5"
               }`}
             >
-              AdextoFactory.sol
+              AdextoTrinityFactoryV3.sol
             </button>
             <button 
               onClick={() => setActiveCodeTab("hook")}
@@ -327,7 +339,7 @@ export default function HomePage() {
                   : "text-zinc-400 hover:text-white bg-white/5"
               }`}
             >
-              SovereignHook.sol
+              SovereignCurve.sol
             </button>
             <button 
               onClick={() => setActiveCodeTab("cloudflare")}
@@ -347,27 +359,42 @@ export default function HomePage() {
                   <>
                     <div className="text-zinc-400">// SPDX-License-Identifier: MIT</div>
                     <div className="text-cyan-400">pragma solidity ^0.8.26;</div>
-                    <div className="text-white mt-2 font-bold">contract <span className="text-purple-300">AdextoTokenFactory</span> &#123;</div>
-                    <div className="pl-4 text-zinc-300">event TrinityDeployed(address token, address pool, uint256 agentId);</div>
+                    {/* Tanda tangan ini WAJIB cocok dengan AdextoTrinityFactoryV3.
+                        Perhatikan: TIDAK `payable` — launch tidak menerima pembayaran
+                        apa pun, hanya gas. Versi lama di sini menulis `external payable`
+                        dan nama kontrak yang tidak ada. */}
+                    <div className="text-white mt-2 font-bold">contract <span className="text-purple-300">AdextoTrinityFactoryV3</span> &#123;</div>
+                    <div className="pl-4 text-zinc-300">event TrinityProjectDeployed(address token, address curve, address creator, ...);</div>
                     <div className="pl-4 text-emerald-400 mt-1 font-semibold">function deployTrinity(</div>
-                    <div className="pl-8 text-zinc-200">string calldata name,</div>
-                    <div className="pl-8 text-zinc-200">string calldata symbol,</div>
+                    <div className="pl-8 text-zinc-200">string memory name,</div>
+                    <div className="pl-8 text-zinc-200">string memory symbol,</div>
+                    <div className="pl-8 text-zinc-200">uint256 initialSupply,</div>
+                    <div className="pl-8 text-zinc-200">address agentIdentity,</div>
+                    <div className="pl-8 text-zinc-200">uint256 virtualNative,</div>
                     <div className="pl-8 text-zinc-200">uint256 swapFeeBps,</div>
+                    <div className="pl-8 text-zinc-200">uint256 creatorShareBps,</div>
+                    <div className="pl-8 text-zinc-200">uint256 treasuryShareBps,</div>
                     <div className="pl-8 text-zinc-200">bytes32 teeAttestationRoot</div>
-                    <div className="pl-4 text-emerald-400 font-semibold">) external payable returns (address, address);</div>
+                    <div className="pl-4 text-emerald-400 font-semibold">) external returns (address token, address curve);</div>
                     <div className="text-white font-bold">&#125;</div>
                   </>
                 )}
                 {activeCodeTab === "hook" && (
+                  /* Cuplikan ini WAJIB cocok dengan contracts/SovereignCurve.sol.
+                     Sebelumnya di sini tertulis `contract SovereignHook is BaseHook`
+                     dengan afterSwap dan LP_SPLIT = 70 — kontrak yang tidak pernah
+                     ada di repo ini. Siapa pun yang membuka kontraknya akan tahu
+                     halaman depan menjanjikan sistem yang lain. */
                   <>
-                    <div className="text-zinc-400">// Uniswap v4 Sovereign Hook</div>
-                    <div className="text-purple-300 font-bold">contract SovereignHook is BaseHook &#123;</div>
-                    <div className="pl-4 text-zinc-300">uint256 public constant LP_SPLIT = 70; // 70% to LPs</div>
-                    <div className="pl-4 text-zinc-300">uint256 public constant TREASURY_SPLIT = 30; // 30% to Agent</div>
-                    <div className="pl-4 text-emerald-400 mt-2 font-semibold">function afterSwap(address, PoolKey calldata, BalanceDelta delta)</div>
-                    <div className="pl-4 sm:pl-8 text-zinc-200">external override returns (bytes4, int128) &#123;</div>
-                    <div className="pl-6 sm:pl-12 text-pink-300">_routeToTreasury(delta.amount0());</div>
-                    <div className="pl-6 sm:pl-12 text-pink-300">return (BaseHook.afterSwap.selector, 0);</div>
+                    <div className="text-zinc-400">// SPDX-License-Identifier: MIT</div>
+                    <div className="text-purple-300 font-bold">contract SovereignCurve &#123;</div>
+                    <div className="pl-4 text-zinc-300">uint256 public immutable virtualNative; // reserve pembuka, tanpa setoran</div>
+                    <div className="pl-4 text-zinc-300">uint256 public immutable depthFeeBps; // mengendap di kurva</div>
+                    <div className="pl-4 text-zinc-300">uint256 public immutable creatorFeeBps; // langsung ke creator</div>
+                    <div className="pl-4 text-emerald-400 mt-2 font-semibold">function _buy(uint256 minTokensOut, address recipient)</div>
+                    <div className="pl-4 sm:pl-8 text-zinc-200">private returns (uint256 tokensOut) &#123;</div>
+                    <div className="pl-6 sm:pl-12 text-pink-300">_curveNative += msg.value - creatorFee - treasuryFee;</div>
+                    <div className="pl-6 sm:pl-12 text-pink-300">creatorOwed += creatorFee;</div>
                     <div className="pl-4 sm:pl-8 text-zinc-200">&#125;</div>
                     <div className="text-purple-300 font-bold">&#125;</div>
                   </>
@@ -420,10 +447,18 @@ export default function HomePage() {
 
           <div className="glass-panel p-6 rounded-2xl border border-white/15 space-y-2">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-purple-400" /> How does the Uniswap v4 Hook prevent frontrunning?
+              <HelpCircle className="w-4 h-4 text-purple-400" /> What stops a sniper from taking the whole launch?
             </h3>
+            {/* Jawaban lama menyebut afterSwap, transient storage EIP-1153, dan
+                "0G TEE order validation" — tak satu pun ada di kontrak. Yang benar-benar
+                ada: cap 1% supply selama 5 blok di AdextoToken._update, plus slippage
+                dan deadline di kurva. Klaim yang bisa dibantah dengan membuka satu
+                berkas lebih merugikan daripada klaim yang sederhana tapi benar. */}
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans font-medium">
-              The <code className="text-purple-300">SovereignHook.sol</code> executes afterSwap balance delta calculations within transient storage (EIP-1153). Combined with 0G TEE order validation, sandwich bots are priced out of manipulating block ordering.
+              <code className="text-purple-300">AdextoToken._update</code> caps any single transfer at 1% of supply for the
+              first 5 blocks after launch, so no wallet can take the opening curve in one shot. Every swap also carries a
+              slippage bound and a deadline, and buys are simulated before signing so a trade that would revert never costs
+              gas. There is no mempool-level protection claim here: the cap is enforced on-chain, in the token itself.
             </p>
           </div>
 
@@ -444,7 +479,7 @@ export default function HomePage() {
           Ready to deploy a sovereign agent economy?
         </h2>
         <p className="text-slate-200 text-sm sm:text-base max-w-2xl mx-auto mb-8 font-medium">
-          Deploy an ERC-8004 token, sovereign AMM DEX, and 0G TEE AI Agent in less than 60 seconds.
+          Deploy an ERC-8004 token, its sovereign bonding curve, and a 0G TEE AI Agent in less than 60 seconds.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-4">
           <Link

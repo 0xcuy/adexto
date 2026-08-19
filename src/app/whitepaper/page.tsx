@@ -15,7 +15,7 @@ export default function WhitepaperPage() {
           ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator
         </h1>
         <p className="text-sm sm:text-base text-slate-100 mt-4 leading-relaxed font-normal bg-[#070b16] p-4 rounded-xl border border-white/15">
-          <strong className="text-cyan-300">Abstract:</strong> We present ADEXTO (adexto.xyz), a vertically integrated Web3 infrastructure uniting autonomous AI Agent execution (A), Uniswap v4 Sovereign DEX Hooks (DEX), 1-Click Token Launchpads (T), and protocol economic orchestration (O) backed by 0G Private Computer (TEE) and EVIDIQ MCP Fleet.
+          <strong className="text-cyan-300">Abstract:</strong> We present ADEXTO (adexto.xyz), a vertically integrated Web3 infrastructure uniting autonomous AI Agent execution (A), sovereign bonding-curve markets that require no liquidity deposit (DEX), 1-Click Token Launchpads (T), and protocol economic orchestration (O) backed by 0G Private Computer (TEE) and EVIDIQ MCP Fleet.
         </p>
       </div>
 
@@ -31,7 +31,7 @@ export default function WhitepaperPage() {
           </p>
           <ul className="list-disc pl-6 space-y-2 text-slate-200">
             <li><strong className="text-white font-bold">Zero Autonomous Utility:</strong> Tokens launched have no inherent productivity or underlying cashflow generation.</li>
-            <li><strong className="text-white font-bold">Liquidity Cannibalization:</strong> Post-bonding graduation dumps liquidity into centralized pools with inflexible fee tiers where creators forfeit revenue.</li>
+            <li><strong className="text-white font-bold">Liquidity Cannibalization:</strong> post-bonding graduation dumps liquidity into external pools with inflexible fee tiers where creators forfeit revenue. ADEXTO curves do not graduate: the curve is the permanent venue, which also removes the migration step where most launchpad exploits happen.</li>
             <li><strong className="text-white font-bold">Centralized AI Fragility:</strong> Existing "AI Tokens" run on centralized cloud providers (AWS, OpenAI) vulnerable to private key theft, prompt tampering, and rug-pulls.</li>
           </ul>
         </section>
@@ -50,8 +50,8 @@ export default function WhitepaperPage() {
               <span className="text-slate-200">24/7 AI Agent deployed in 0G TEE Enclave with quantitative trading authority.</span>
             </div>
             <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30">
-              <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign AMM</strong>
-              <span className="text-slate-200">Uniswap v4 Hook capturing custom swap fee splits (e.g., 0.20% LP / 0.10% Treasury).</span>
+              <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
+              <span className="text-slate-200">A per-token bonding curve over a virtual reserve, splitting each swap fee three ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback).</span>
             </div>
             <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30">
               <strong className="text-pink-300 block mb-1 text-sm font-bold">T → Token Factory</strong>
@@ -74,9 +74,9 @@ export default function WhitepaperPage() {
           </p>
           <div className="p-4 rounded-xl bg-[#04060d] border border-white/20 font-mono text-[11px] sm:text-xs text-slate-100 overflow-x-auto">
             <span className="text-emerald-400 font-bold block mb-2">// Revenue Flow Equation</span>
-            R_total = SwapFees(Uniswap_v4) + x402_Micropayments(EVIDIQ)<br />
-            Treasury_Allocation = 0.70 * R_total<br />
-            Buyback_Execution = Uniswap_Hook.swapExactTokensForTokens(Treasury_Allocation, Token_Native, BurnAddress)
+            R_total = SwapFees(SovereignCurve) + x402_Micropayments(EVIDIQ)<br />
+            Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
+            Buyback_Execution = SovereignCurve.executeBuyback(treasuryNative) &rarr; burn
           </div>
         </section>
 
@@ -86,7 +86,16 @@ export default function WhitepaperPage() {
             <span className="text-cyan-400 font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
           </h2>
           <p className="text-slate-200">
-            The protocol native token ($ADEXTO) governs global factory parameters, subsidizes 0G TEE compute enclaves, and receives a 40% protocol fee distribution from all sovereign DEX swaps across 0G and Arbitrum networks.
+            {/* Cakupan dikoreksi ke empat chain (sebelumnya hanya menyebut 0G dan
+                Arbitrum, padahal seluruh materi lain menyebut empat), dan porsi
+                protokol dinyatakan sebagai RENCANA. Kontrak kurva hari ini membagi
+                fee menjadi depth, creator, dan buyback — tidak ada irisan protokol
+                di dalamnya, jadi menuliskannya sebagai penerimaan yang sudah
+                berjalan tidak akan tahan diperiksa. */}
+            The protocol native token ($ADEXTO) governs global factory parameters and subsidizes 0G TEE compute enclaves.
+            A protocol fee share across all four networks is <strong>planned but not yet implemented</strong>: today every
+            curve splits its swap fee between retained depth, the creator, and that token&apos;s own buyback vault, with no
+            protocol cut in the path.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">

@@ -9,7 +9,11 @@ export default function DocsPage() {
       <div className="border-b-2 border-white/20 pb-6 mb-10">
         <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
         <h1 className="text-3xl sm:text-4xl font-black text-white">ADEXTO Enterprise Multi-Chain Infrastructure</h1>
-        <p className="text-sm text-slate-200 mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, Uniswap v4 Hooks, The Graph Network, World ID ZKP, Chainlink CCIP, and Cloudflare Workers x402.</p>
+        {/* Jangan mendaftar World ID ZKP dan Chainlink CCIP sebagai bagian arsitektur
+            yang berjalan: seksi "status jujur" di bawah menyatakan keduanya BELUM aktif.
+            Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
+            daripada daftar yang lebih pendek. */}
+        <p className="text-sm text-slate-200 mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, sovereign bonding curves, The Graph Network, and Cloudflare Workers x402. World ID and Chainlink CCIP are designed for but not yet active — see the status note below.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -27,13 +31,13 @@ export default function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-1.5">
-            <strong className="text-purple-300 block font-bold text-sm">Uniswap v4 Sovereign Hooks</strong>
-            <p className="text-slate-300">Custom Uniswap v4 Sovereign Hooks intercepting <code className="text-purple-300">afterSwap()</code> to split 0.20% LP fees and 0.10% buybacks.</p>
+            <strong className="text-purple-300 block font-bold text-sm">Sovereign Bonding Curve</strong>
+            <p className="text-slate-300">A standalone <code className="text-purple-300">SovereignCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. Each swap splits the fee three ways on-chain: depth stays in the curve, the creator is paid directly, and the rest funds agent buybacks.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30 space-y-1.5">
             <strong className="text-pink-300 block font-bold text-sm">The Graph Decentralized Network</strong>
-            <p className="text-slate-300">Custom subgraphs indexing factory deployments, pool depth, swap transactions, and real-time treasury buyback burns.</p>
+            <p className="text-slate-300">Custom subgraphs indexing factory deployments, curve depth, swap transactions, and real-time treasury buyback burns.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-orange-500/30 space-y-1.5">
@@ -42,32 +46,39 @@ export default function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-blue-500/30 space-y-1.5">
-            <strong className="text-blue-300 block font-bold text-sm">1inch Fusion &amp; AMM Routing</strong>
-            <p className="text-slate-300">Optimal multi-path liquidity routing for automated agent treasury buybacks on secondary markets.</p>
+            <strong className="text-blue-300 block font-bold text-sm">Buyback execution</strong>
+            <p className="text-slate-300">
+              Treasury buybacks execute against the token&apos;s own curve and burn the tokens they buy. There is no external
+              router in the path, so a buyback cannot be sandwiched on a venue we do not control.
+            </p>
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-amber-500/30 space-y-1.5">
-            <strong className="text-amber-300 block font-bold text-sm">Planned: Sybil resistance &amp; cross-chain</strong>
+            <strong className="text-amber-300 block font-bold text-sm">Planned: Sybil resistance, cross-chain &amp; aggregator routing</strong>
+            {/* 1inch dipindahkan ke sini. Sebelumnya "1inch Fusion & AMM Routing"
+                terdaftar sebagai lapisan infrastruktur yang berjalan, padahal string
+                "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
+                hanya di halaman ini. */}
             <p className="text-slate-300">
               The launch gate today is a server-verified wallet signature, not a World ID zero-knowledge proof. Cross-chain
               treasury routing is also not active: Chainlink CCIP publishes no router on 0G or Monad, so those lanes cannot
-              be opened yet.
+              be opened yet. Aggregator routing (1inch Fusion) is designed for but not integrated.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Sovereign AMM Pricing & Bonding Curve Mechanics */}
+      {/* Bonding Curve Pricing Mechanics */}
       <div className="section-block mb-4 space-y-5">
         <div className="kicker">
           <Layers className="w-4 h-4 text-cyan-400" />
-          <span>ON-CHAIN PRICING &amp; SOVEREIGN AMM POOL SPECIFICATION</span>
+          <span>ON-CHAIN PRICING &amp; BONDING CURVE SPECIFICATION</span>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">How Token Pricing &amp; Sovereign Liquidity Pools Work</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">How Token Pricing &amp; Sovereign Curves Work</h2>
         
         <div className="space-y-4 text-xs text-slate-200 leading-relaxed font-medium">
           <p>
-            Unlike traditional launchpads where admin dictates prices or extracts LP exit liquidity, ADEXTO enforces <strong>deterministic on-chain pricing</strong> governed entirely by the token&apos;s SovereignHook AMM pool and bonding curve:
+            Unlike traditional launchpads where an admin dictates prices or drains exit liquidity, ADEXTO enforces <strong>deterministic on-chain pricing</strong> governed entirely by the token&apos;s own bonding curve:
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs pt-2">
@@ -79,16 +90,19 @@ export default function DocsPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-2">
-              <span className="text-purple-300 font-bold block text-sm">2. Instant Genesis Pool</span>
+              <span className="text-purple-300 font-bold block text-sm">2. Tradable From Block One</span>
               <p className="text-slate-300 font-sans text-xs">
-                When deployed from Studio, the factory atomically initializes a Sovereign Uniswap v4 Hook pool with virtual reserve depth—zero creator capital required.
+                The factory deploys the token and its curve in one transaction, opening against a virtual reserve. Zero
+                creator capital: the launch costs gas and nothing else, and 100% of supply sits in the curve.
               </p>
             </div>
 
             <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30 space-y-2">
               <span className="text-pink-300 font-bold block text-sm">3. 0G TEE Auto-Buyback</span>
               <p className="text-slate-300 font-sans text-xs">
-                0.10% of every swap fee routes directly to the token&apos;s 0G TEE Agent treasury. The agent autonomously buys back and burns tokens, defending floor price.
+                On the default 0.30% tier, 0.05% of every swap routes to the token&apos;s 0G TEE Agent treasury, which buys
+                tokens back and burns them. A separate 0.10% goes to the creator, and 0.15% of depth stays in the curve —
+                that retained depth is what lifts the price floor as volume accumulates.
               </p>
             </div>
           </div>
@@ -140,7 +154,7 @@ export default function DocsPage() {
             Inspects every raw calldata payload before the agent signs it. Rejects unbounded token approvals, flash-loan vulnerabilities, and prompt injection drain attacks.
           </p>
           <div className="p-3 rounded-lg bg-[#070a14] border border-white/15 font-mono text-xs text-purple-300 font-bold">
-            sentinel_verify_calldata({`{ target: "0xUniswap...", value: 0 }`})
+            sentinel_verify_calldata({`{ target: "0xCurve...", value: 0 }`})
           </div>
         </div>
 
@@ -159,7 +173,7 @@ export default function DocsPage() {
             Provides reliable 24/7 cron intervals inside 0G TEE without relying on centralized crontabs. Automatically triggers liquidity rebalancing and treasury buybacks.
           </p>
           <div className="p-3 rounded-lg bg-[#070a14] border border-white/15 font-mono text-xs text-pink-300 font-bold">
-            helm_register_cron({`{ interval: "15m", action: "rebalance_pool" }`})
+            helm_register_cron({`{ interval: "15m", action: "rebalance_curve" }`})
           </div>
         </div>
 
@@ -199,9 +213,9 @@ export default function DocsPage() {
           <p className="text-xs text-slate-200 leading-relaxed font-medium">
             A launch can target 1–4 chains in one flow. Each selected chain receives its own{" "}
             <code className="text-cyan-300">AdextoToken</code> and its own{" "}
-            <code className="text-cyan-300">SovereignHook</code> pool, deployed by that chain&apos;s factory in a single
+            <code className="text-cyan-300">SovereignCurve</code>, deployed by that chain&apos;s factory in a single
             transaction. Addresses differ per chain and <strong>supply is not shared</strong>: there is no bridge, so each
-            market has its own liquidity and its own price.
+            market has its own depth and its own price.
           </p>
           <div className="p-2.5 rounded-lg bg-[#070a14] border border-white/10 font-mono text-[11px] text-zinc-300 space-y-1">
             <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>

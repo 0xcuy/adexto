@@ -46,7 +46,7 @@ export default function PitchDeckPage() {
               <span className="text-red-400 font-black text-sm block">2. Launchpad Fee Theft</span>
               <p className="text-slate-300 leading-relaxed">
                 Platforms like Pump.fun and Clanker extract $100M+ in creator fees while creators receive $0 from downstream AMM trading volume.
-                <strong className="text-white block mt-1">ADEXTO Fix: Uniswap v4 Sovereign Hooks give 100% fee routing to project LPs &amp; Agent Buyback Treasuries.</strong>
+                <strong className="text-white block mt-1">ADEXTO Fix: the creator is paid 0.10% of every swap directly by the curve, for as long as the token trades — inside the total fee, not added on top of it.</strong>
               </p>
             </div>
 
@@ -74,8 +74,8 @@ export default function PitchDeckPage() {
               <span className="text-slate-200">Hardware-verified TEE compute on 0G Mainnet (Chain ID 16661). Verifiable inference and 24/7 quant market-making.</span>
             </div>
             <div className="card card-hover p-4 border-purple-500/20">
-              <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign Hook</strong>
-              <span className="text-slate-200">Uniswap v4 dynamic hook AMM capturing 0.20% LP / 0.10% buyback fee splits natively.</span>
+              <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
+              <span className="text-slate-200">A per-token bonding curve over a virtual reserve: 0.15% depth stays in the curve, 0.10% pays the creator, 0.05% funds agent buybacks.</span>
             </div>
             <div className="card card-hover p-4 border-pink-500/20">
               <strong className="text-pink-300 block mb-1 text-sm font-bold">T → Token Factory</strong>
@@ -95,8 +95,12 @@ export default function PitchDeckPage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-[#070a14] border border-white/15 space-y-1.5">
-              <strong className="text-white block font-bold text-sm">1. Sovereign AMM Swap Take-Rate</strong>
-              <p className="text-slate-300">0.05% protocol take-rate on all swap volume across thousands of Sovereign DEXs deployed on Base, 0G, Arbitrum &amp; Monad.</p>
+              <strong className="text-white block font-bold text-sm">1. Curve Swap Take-Rate (planned)</strong>
+              {/* Ditandai "planned": pembagian fee di SovereignCurve hari ini hanya
+                  depth + creator + buyback token itu sendiri. Tidak ada irisan
+                  protokol di kontrak, jadi ini proyeksi monetisasi, bukan penerimaan
+                  yang sudah berjalan. */}
+              <p className="text-slate-300">A 0.05% protocol take-rate on swap volume across thousands of sovereign curves on Base, 0G, Arbitrum &amp; Monad. Not yet enabled in the contracts — today the full fee goes to depth, the creator, and the token&apos;s own buyback vault.</p>
               <span className="text-emerald-400 font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
             </div>
 
@@ -149,7 +153,7 @@ export default function PitchDeckPage() {
                   <td className="py-3 pr-4 font-bold text-white">Creator Trading Revenue</td>
                   <td className="py-3 px-4 text-red-400">0% (Platform takes all)</td>
                   <td className="py-3 px-4 text-zinc-400">Partial pool cut</td>
-                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">100% (Sovereign Hook AMM)</td>
+                  <td className="py-3 pl-4 text-emerald-400 font-bold bg-cyan-950/20">0.10% of every swap, paid by the curve</td>
                 </tr>
                 <tr>
                   <td className="py-3 pr-4 font-bold text-white">Multi-chain launch</td>

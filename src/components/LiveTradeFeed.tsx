@@ -93,7 +93,7 @@ export default function LiveTradeFeed({
               : "text-amber-300 bg-amber-950/60 border-amber-500/40"
           }`}
         >
-          {isLive ? "● on-chain" : source === "agent" ? "agent log" : source === "genesis" ? "genesis seed" : "no fills"}
+          {isLive ? "● on-chain" : source === "agent" ? "agent log" : source === "genesis" ? "genesis reference" : "no fills"}
         </span>
       </div>
 
@@ -145,7 +145,7 @@ export default function LiveTradeFeed({
                 </span>
                 <span className="text-zinc-600 text-[9px]">{ago(t.timestamp)}</span>
                 {t.source === "genesis" ? (
-                  <span className="text-zinc-600 text-[9px]">seed</span>
+                  <span className="text-zinc-600 text-[9px]">reference</span>
                 ) : (
                   <a
                     href={explorerTxUrl(t.chainId, t.txHash)}

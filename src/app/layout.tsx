@@ -9,7 +9,7 @@ import { WalletProvider } from "@/context/WalletContext";
 
 export const metadata: Metadata = {
   title: "ADEXTO — Autonomous Decentralized EXchange & Token Orchestrator",
-  description: "ADEXTO (adexto.xyz): Production infrastructure binding ERC-8004 tokens, Uniswap v4 Sovereign Hooks, and 24/7 0G TEE Agents with Cloudflare Workers x402 edge monetization.",
+  description: "ADEXTO (adexto.xyz): Production infrastructure binding ERC-8004 tokens, sovereign bonding curves that need no liquidity deposit, and 24/7 0G TEE Agents with Cloudflare Workers x402 edge monetization.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
