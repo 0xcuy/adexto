@@ -53,40 +53,42 @@ const buildHtml = (width, height) => {
   @font-face { font-family: "GeistSans"; src: url(data:font/woff2;base64,${sans}) format("woff2"); font-weight: 100 900; }
   @font-face { font-family: "GeistMono"; src: url(data:font/woff2;base64,${mono}) format("woff2"); font-weight: 100 900; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* Palet cream, mengikuti globals.css.
+     Sebelumnya kartu ini hitam kebiruan (#04060a) dengan dua cahaya cyan/ungu dan
+     kisi garis putih. Setelah situsnya jadi cream, kartu itu berarti setiap tautan
+     yang dibagikan memperlihatkan produk yang berbeda dari yang akan dibuka orang.
+     Kisinya juga dihapus, bukan hanya diwarnai ulang: di atas cream ia terlihat
+     seperti kertas grafik, dan kartu ini sudah punya cukup hal untuk dibaca. */
   body {
-    width: ${width}px; height: ${height}px; background: #04060a; color: #f1f5f9;
+    width: ${width}px; height: ${height}px; background: #f4efe4; color: #201810;
     font-family: "GeistSans", sans-serif; position: relative; overflow: hidden;
   }
-  /* Cahaya latar mengikuti palet situs: cyan dan ungu di atas hitam kebiruan. */
-  .glow-a { position: absolute; width: ${px(700)}; height: ${px(700)}; left: ${px(-180)}; top: ${px(-260)};
-    background: radial-gradient(circle, rgba(0,245,255,0.16), transparent 62%); }
-  .glow-b { position: absolute; width: ${px(760)}; height: ${px(760)}; right: ${px(-220)}; bottom: ${px(-320)};
-    background: radial-gradient(circle, rgba(124,58,237,0.20), transparent 62%); }
-  .grid { position: absolute; inset: 0; opacity: 0.35;
-    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: ${px(48)} ${px(48)}; }
+  /* Satu sapuan terang di puncak, sama seperti hero situs. */
+  .glow-a { position: absolute; inset: 0;
+    background: radial-gradient(120% 70% at 50% -18%, #fbf8f1 0%, rgba(251,248,241,0) 58%); }
+  .glow-b { position: absolute; left: ${px(68)}; right: ${px(68)}; bottom: ${px(112)}; height: 1px;
+    background: linear-gradient(90deg, #e7dcc7, rgba(231,220,199,0)); }
   .wrap { position: relative; height: 100%; padding: ${px(56)} ${px(68)};
     display: flex; flex-direction: column; justify-content: space-between; }
   .top { display: flex; align-items: center; gap: ${px(20)}; }
   .top img { width: ${px(78)}; height: ${px(78)}; }
   .name { font-size: ${px(54)}; font-weight: 800; letter-spacing: -0.03em; }
   .badge { font-family: "GeistMono", monospace; font-size: ${px(14)}; font-weight: 700; letter-spacing: 0.14em;
-    color: #67e8f9; border: 1px solid rgba(103,232,249,0.42); border-radius: 999px; padding: ${px(7)} ${px(15)}; }
+    color: #6d28d9; border: 1px solid rgba(124,58,237,0.34); border-radius: 999px; padding: ${px(7)} ${px(15)}; }
   h1 { font-size: ${px(50)}; line-height: 1.09; font-weight: 750; letter-spacing: -0.032em; max-width: ${px(1010)}; }
   /* white-space nowrap menjaga "no liquidity deposit" tetap satu potongan. Tanpa
      itu frasa inti terpecah jadi "with no" lalu "liquidity deposit", dan
      kalimatnya kehilangan tekanan justru di bagian yang paling ingin dibaca.
      Catatan: JANGAN pakai backtick di komentar ini — isi berkas ini adalah
      template literal, dan backtick akan mengakhirinya di tengah CSS. */
-  h1 em { font-style: normal; color: #67e8f9; white-space: nowrap; }
+  h1 em { font-style: normal; color: #7c3aed; white-space: nowrap; }
   .facts { display: flex; gap: ${px(13)}; font-family: "GeistMono", monospace; font-size: ${px(16)}; font-weight: 600; }
-  .fact { border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.035);
-    border-radius: ${px(14)}; padding: ${px(13)} ${px(18)}; color: #cbd5e1; white-space: nowrap; }
-  .fact b { color: #ffffff; font-weight: 750; }
+  .fact { border: 1px solid #e7dcc7; background: #fbf8f1;
+    border-radius: ${px(14)}; padding: ${px(13)} ${px(18)}; color: #6b5c48; white-space: nowrap; }
+  .fact b { color: #201810; font-weight: 750; }
   .foot { display: flex; align-items: center; justify-content: space-between;
-    font-family: "GeistMono", monospace; font-size: ${px(17)}; color: #94a3b8; }
-  .chains { color: #a5b4fc; }
+    font-family: "GeistMono", monospace; font-size: ${px(17)}; color: #736550; }
+  .chains { color: #6d28d9; }
 </style></head><body>
   <div class="glow-a"></div><div class="glow-b"></div><div class="grid"></div>
   <div class="wrap">

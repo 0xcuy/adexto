@@ -4,7 +4,6 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import Live3DBackground from "@/components/Live3DBackground";
 import { WalletProvider } from "@/context/WalletContext";
 
 export const metadata: Metadata = {
@@ -62,10 +61,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark ${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="bg-[#04060a] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      {/*
+        Latar sebelumnya adalah <Live3DBackground />: swarm 180 titik three.js
+        dengan inti ikosahedron berputar, dipasang fixed di belakang SEMUA halaman.
+        Di tema gelap itu terbaca sebagai kedalaman. Di atas cream, garis cyan dan
+        ungu 18% opasitas itu berubah jadi corat-coret di belakang teks — dan pada
+        halaman trading ia bersaing langsung dengan grafik lilin, satu-satunya
+        gambar di layar yang benar-benar membawa data.
+        Penggantinya berupa satu gradasi cream yang sangat halus di globals.css.
+        Komponennya dihapus, bukan disembunyikan, supaya tidak ada canvas WebGL
+        yang tetap ikut dirender di setiap muat halaman.
+      */}
+      <body className="bg-cream text-ink min-h-screen flex flex-col antialiased selection:bg-accent-soft selection:text-accent">
         <WalletProvider>
-          <Live3DBackground />
           <div className="relative z-10 flex flex-col min-h-screen">
             <Navbar />
             <main className="flex-1">{children}</main>

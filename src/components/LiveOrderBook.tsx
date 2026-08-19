@@ -125,65 +125,65 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
 
   return (
     <div className="w-full h-full flex flex-col font-mono text-[11px]">
-      <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2 shrink-0">
-        <span className="text-zinc-400 font-bold text-[10px] uppercase">Curve depth ladder</span>
-        {asks.length > 0 && <span className="text-zinc-500 text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}
+      <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
+        <span className="text-ink-soft font-bold text-[10px] uppercase">Curve depth ladder</span>
+        {asks.length > 0 && <span className="text-ink-faint text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}
       </div>
 
       {!pool ? (
-        <div className="flex-1 flex items-center justify-center text-zinc-500 text-[11px]">Loading pool state…</div>
+        <div className="flex-1 flex items-center justify-center text-ink-faint text-[11px]">Loading pool state…</div>
       ) : !pool.tradable ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-3">
-          <Info className="w-4 h-4 text-amber-400" />
-          <span className="text-amber-300 font-bold text-[10px] uppercase">No executable pool</span>
-          <span className="text-zinc-400 text-[10px] leading-relaxed">{pool.reason}</span>
+          <Info className="w-4 h-4 text-warn" />
+          <span className="text-warn font-bold text-[10px] uppercase">No executable pool</span>
+          <span className="text-ink-soft text-[10px] leading-relaxed">{pool.reason}</span>
         </div>
       ) : (
         <div className="flex-1 flex flex-col justify-between">
           <div className="space-y-1">
             {asks.map((a, idx) => (
-              <div key={`ask-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-red-950/20 relative overflow-hidden">
+              <div key={`ask-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-danger/10 relative overflow-hidden">
                 <div
-                  className="absolute right-0 top-0 bottom-0 bg-red-500/10 pointer-events-none"
+                  className="absolute right-0 top-0 bottom-0 bg-danger/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (a.sizeToken / maxSize) * 100)}%` }}
                 />
-                <span className="text-red-400 font-semibold relative z-10">{fmtPrice(a.priceNative)}</span>
-                <span className="text-zinc-300 relative z-10">{fmtSize(a.sizeToken)}</span>
-                <span className="text-zinc-500 text-[10px] relative z-10">
+                <span className="text-danger font-semibold relative z-10">{fmtPrice(a.priceNative)}</span>
+                <span className="text-ink-soft relative z-10">{fmtSize(a.sizeToken)}</span>
+                <span className="text-ink-faint text-[10px] relative z-10">
                   {a.notionalNative.toFixed(4)} {nativeSymbol}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="my-1.5 py-1 px-2 rounded-lg bg-[#070b18] border border-cyan-500/30 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-black text-cyan-300">
-              <ArrowUp className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="my-1.5 py-1 px-2 rounded-lg bg-white border border-accent/30 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+              <ArrowUp className="w-3.5 h-3.5 text-ok" />
               <span>{fmtPrice(spot)}</span>
-              <span className="text-[9px] text-zinc-500 font-normal">{nativeSymbol}</span>
+              <span className="text-[9px] text-ink-faint font-normal">{nativeSymbol}</span>
             </div>
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-[10px] text-ink-soft">
               {nativeUsd > 0 ? `≈ $${(spot * nativeUsd).toFixed(6)}` : ""}
             </span>
           </div>
 
           <div className="space-y-1">
             {bids.map((b, idx) => (
-              <div key={`bid-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-emerald-950/20 relative overflow-hidden">
+              <div key={`bid-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-ok/10 relative overflow-hidden">
                 <div
-                  className="absolute right-0 top-0 bottom-0 bg-emerald-500/10 pointer-events-none"
+                  className="absolute right-0 top-0 bottom-0 bg-ok/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (b.sizeToken / maxSize) * 100)}%` }}
                 />
-                <span className="text-emerald-400 font-semibold relative z-10">{fmtPrice(b.priceNative)}</span>
-                <span className="text-zinc-300 relative z-10">{fmtSize(b.sizeToken)}</span>
-                <span className="text-zinc-500 text-[10px] relative z-10">
+                <span className="text-ok font-semibold relative z-10">{fmtPrice(b.priceNative)}</span>
+                <span className="text-ink-soft relative z-10">{fmtSize(b.sizeToken)}</span>
+                <span className="text-ink-faint text-[10px] relative z-10">
                   {b.notionalNative.toFixed(4)} {nativeSymbol}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="pt-2 mt-1 border-t border-white/5 flex items-center justify-between text-[9px] text-zinc-500">
+          <div className="pt-2 mt-1 border-t border-line flex items-center justify-between text-[9px] text-ink-faint">
             <span className="flex items-center gap-1">
               <ArrowDown className="w-2.5 h-2.5" /> Reserves
             </span>

@@ -79,18 +79,63 @@ for (const vp of WIDTHS) {
       const expo = body.match(/\d\.\d+e[-+]\d+/g) || [];
       const indo = idWords.filter((w) => lower.includes(w));
 
-      // Kontras rendah: teks abu di atas latar gelap.
+      /**
+       * Kontras rendah, diukur sebagai RASIO terhadap latar sesungguhnya.
+       *
+       * Versi sebelumnya hanya menguji `luminance < 78` pada warna teks, yaitu
+       * "teks terlalu gelap". Aturan itu benar selama situsnya bertema gelap dan
+       * SALAH ARAH begitu palet dibalik ke cream: di atas cream, teks gelap justru
+       * yang benar, jadi pemeriksaannya akan menandai seluruh badan teks yang sehat
+       * sementara cacat yang sebenarnya — teks putih yang tertinggal di atas cream —
+       * lolos tanpa suara. Rasio WCAG tidak bergantung pada arah tema.
+       */
+      const parseRgb = (v) => {
+        const m = (v || "").match(/[\d.]+/g);
+        if (!m) return null;
+        const [r, g, b, a] = m.map(Number);
+        if (a !== undefined && a < 0.5) return null; // dianggap tembus pandang
+        return [r, g, b];
+      };
+      const relLum = ([r, g, b]) => {
+        const f = (c) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      /** Latar efektif: warna tak-transparan pertama saat menaiki pohon DOM. */
+      const bgOf = (el) => {
+        let n = el;
+        while (n && n !== document.documentElement) {
+          const c = parseRgb(getComputedStyle(n).backgroundColor);
+          if (c) return c;
+          n = n.parentElement;
+        }
+        return [244, 239, 228]; // cream
+      };
+
       const faint = [];
-      for (const el of document.querySelectorAll("p,span,div,li")) {
+      for (const el of document.querySelectorAll("p,span,div,li,dt,dd,h1,h2,h3,button,a")) {
         if (el.children.length > 0) continue;
         const t = (el.textContent || "").trim();
         if (t.length < 8) continue;
         const s = getComputedStyle(el);
-        const m = s.color.match(/\d+/g);
-        if (!m) continue;
-        const [r, g, b] = m.map(Number);
-        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        if (lum < 78) faint.push(`${t.slice(0, 40)} (lum ${Math.round(lum)})`);
+        if (s.visibility === "hidden" || s.opacity === "0") continue;
+        const fg = parseRgb(s.color);
+        if (!fg) continue;
+        const bg = bgOf(el);
+        const l1 = relLum(fg);
+        const l2 = relLum(bg);
+        const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+        // 4.5:1 adalah ambang AA untuk teks normal; teks besar dikecualikan pada 3:1.
+        const px = parseFloat(s.fontSize) || 14;
+        const bold = (parseInt(s.fontWeight, 10) || 400) >= 700;
+        const threshold = px >= 24 || (px >= 18.66 && bold) ? 3 : 4.5;
+        // Warna depan dan latar ikut dilaporkan: tanpa itu, temuan hanya memberi
+        // rasio dan pencariannya harus diulang dengan tangan di peramban.
+        const hex = ([r, g, b]) => `#${[r, g, b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+        if (ratio < threshold)
+          faint.push(`${t.slice(0, 32)} ${ratio.toFixed(1)}:1 ${hex(fg)} on ${hex(bg)} @${px}px`);
       }
 
       return { overflowX, clipped: clipped.slice(0, 6), expo: [...new Set(expo)].slice(0, 6), indo, faint: faint.slice(0, 5) };
@@ -103,7 +148,9 @@ for (const vp of WIDTHS) {
     if (report.clipped.length) problems.push(`teks terpotong: ${report.clipped.join(" | ")}`);
     if (report.expo.length) problems.push(`notasi eksponensial: ${report.expo.join(", ")}`);
     if (report.indo.length) problems.push(`bahasa Indonesia: ${report.indo.join(", ")}`);
-    if (report.faint.length) problems.push(`kontras rendah: ${report.faint.length} elemen`);
+    // Isi daftarnya ikut dicetak. Sebelumnya hanya jumlahnya, sehingga temuan
+    // kontras tidak bisa ditindak tanpa menjalankan ulang pemeriksaan dengan tangan.
+    if (report.faint.length) problems.push(`kontras rendah: ${report.faint.join(" | ")}`);
     if (errs.length) problems.push(`pageerror: ${errs.length}`);
 
     if (problems.length === 0) {

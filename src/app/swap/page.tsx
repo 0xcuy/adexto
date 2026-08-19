@@ -12,7 +12,7 @@ export default function SwapPage() {
   return (
     <Suspense
       fallback={
-        <div className="max-w-md mx-auto px-4 py-24 text-center font-mono text-sm text-zinc-400">
+        <div className="max-w-md mx-auto px-4 py-24 text-center font-mono text-sm text-ink-soft">
           Loading markets…
         </div>
       }

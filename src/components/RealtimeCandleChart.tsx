@@ -194,28 +194,28 @@ export default function RealtimeCandleChart({
 
   return (
     <div className="w-full flex flex-col h-full justify-between">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-1 border-b border-white/10 shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-1 border-b border-line shrink-0">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="text-base sm:text-lg font-black text-white font-mono flex items-center gap-2">
+          <div className="text-base sm:text-lg font-semibold text-ink font-mono flex items-center gap-2">
             <span>
               ${symbol}/{nativeSymbol}
             </span>
             <span
               className={`text-xs font-bold px-2 py-0.5 rounded border ${
                 changeIsUp
-                  ? "text-emerald-400 bg-emerald-950/60 border-emerald-500/30"
-                  : "text-red-400 bg-red-950/60 border-red-500/30"
+                  ? "text-ok bg-ok/10 border-ok/30"
+                  : "text-danger bg-danger/10 border-danger/30"
               }`}
             >
               {changeIsUp ? "+" : ""}
               {changePct.toFixed(2)}%
             </span>
           </div>
-          <span className="text-xs sm:text-sm font-mono text-cyan-300 font-bold">
+          <span className="text-xs sm:text-sm font-mono text-accent font-bold">
             {priceNative > 0 ? formatSmallNumber(priceNative) : "—"} {nativeSymbol}
           </span>
           {priceUsd > 0 && (
-            <span className="text-[11px] font-mono text-zinc-400">
+            <span className="text-[11px] font-mono text-ink-soft">
               ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
             </span>
           )}
@@ -229,8 +229,8 @@ export default function RealtimeCandleChart({
               onClick={() => setIntervalSeconds(i.seconds)}
               className={`px-2 py-0.5 rounded font-bold border transition-colors ${
                 interval === i.seconds
-                  ? "bg-cyan-950 text-cyan-300 border-cyan-500/40"
-                  : "bg-white/5 text-zinc-400 border-transparent hover:text-white"
+                  ? "bg-accent-soft text-accent border-accent/30"
+                  : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
               }`}
             >
               {i.label}
@@ -241,12 +241,12 @@ export default function RealtimeCandleChart({
 
       <div ref={containerRef} className="w-full flex-1 min-h-[300px] overflow-hidden rounded-xl" />
 
-      <div className="pt-1.5 flex items-center justify-between text-[10px] font-mono text-zinc-500 shrink-0">
+      <div className="pt-1.5 flex items-center justify-between text-[10px] font-mono text-ink-faint shrink-0">
         <span>
-          Source: <span className={source === "onchain" ? "text-emerald-400" : "text-amber-400"}>{sourceLabel}</span>
+          Source: <span className={source === "onchain" ? "text-ok" : "text-warn"}>{sourceLabel}</span>
           {tradeCount > 0 ? ` · ${tradeCount} fills` : ""}
         </span>
-        <span className={poolLive ? "text-emerald-400" : "text-amber-400"}>
+        <span className={poolLive ? "text-ok" : "text-warn"}>
           {poolLive ? "pool live" : "pool not tradable"}
         </span>
       </div>

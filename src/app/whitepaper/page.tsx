@@ -5,75 +5,75 @@ export default function WhitepaperPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Document Header */}
-      <div className="border-b-2 border-white/20 pb-8 mb-10">
-        <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 font-bold mb-2">
+      <div className="border-b-2 border-line pb-8 mb-10">
+        <div className="flex items-center gap-2 text-xs font-mono text-accent font-bold mb-2">
           <span>ADEXTO PROTOCOL SPECIFICATION</span>
           <span>•</span>
           <span>VERSION 2.4.0 (AUGUST 2026)</span>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+        <h1 className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight leading-tight">
           ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator
         </h1>
-        <p className="text-sm sm:text-base text-slate-100 mt-4 leading-relaxed font-normal bg-[#070b16] p-4 rounded-xl border border-white/15">
-          <strong className="text-cyan-300">Abstract:</strong> We present ADEXTO (adexto.xyz), a vertically integrated Web3 infrastructure uniting autonomous AI Agent execution (A), sovereign bonding-curve markets that require no liquidity deposit (DEX), 1-Click Token Launchpads (T), and protocol economic orchestration (O) backed by 0G Private Computer (TEE) and EVIDIQ MCP Fleet.
+        <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-white p-4 rounded-xl border border-line">
+          <strong className="text-accent">Abstract:</strong> We present ADEXTO (adexto.xyz), a vertically integrated Web3 infrastructure uniting autonomous AI Agent execution (A), sovereign bonding-curve markets that require no liquidity deposit (DEX), 1-Click Token Launchpads (T), and protocol economic orchestration (O) backed by 0G Private Computer (TEE) and EVIDIQ MCP Fleet.
         </p>
       </div>
 
       {/* Sections */}
-      <div className="space-y-12 text-slate-100 text-sm sm:text-base leading-relaxed">
+      <div className="space-y-12 text-ink text-sm sm:text-base leading-relaxed">
         {/* Section 1 */}
         <section className="section-block space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-cyan-400 font-mono">§1.</span> The Problem: The Launchpad Trap
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <span className="text-accent font-mono">§1.</span> The Problem: The Launchpad Trap
           </h2>
-          <p className="text-slate-200">
+          <p className="text-ink">
             Current token launchpads (e.g., Pump.fun, Clanker) suffer from extreme structural misalignment:
           </p>
-          <ul className="list-disc pl-6 space-y-2 text-slate-200">
-            <li><strong className="text-white font-bold">Zero Autonomous Utility:</strong> Tokens launched have no inherent productivity or underlying cashflow generation.</li>
-            <li><strong className="text-white font-bold">Liquidity Cannibalization:</strong> post-bonding graduation dumps liquidity into external pools with inflexible fee tiers where creators forfeit revenue. ADEXTO curves do not graduate: the curve is the permanent venue, which also removes the migration step where most launchpad exploits happen.</li>
-            <li><strong className="text-white font-bold">Centralized AI Fragility:</strong> Existing "AI Tokens" run on centralized cloud providers (AWS, OpenAI) vulnerable to private key theft, prompt tampering, and rug-pulls.</li>
+          <ul className="list-disc pl-6 space-y-2 text-ink">
+            <li><strong className="text-ink font-bold">Zero Autonomous Utility:</strong> Tokens launched have no inherent productivity or underlying cashflow generation.</li>
+            <li><strong className="text-ink font-bold">Liquidity Cannibalization:</strong> post-bonding graduation dumps liquidity into external pools with inflexible fee tiers where creators forfeit revenue. ADEXTO curves do not graduate: the curve is the permanent venue, which also removes the migration step where most launchpad exploits happen.</li>
+            <li><strong className="text-ink font-bold">Centralized AI Fragility:</strong> Existing "AI Tokens" run on centralized cloud providers (AWS, OpenAI) vulnerable to private key theft, prompt tampering, and rug-pulls.</li>
           </ul>
         </section>
 
         {/* Section 2 */}
         <section className="section-block space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-cyan-400 font-mono">§2.</span> The ADEXTO Architecture Mapping
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <span className="text-accent font-mono">§2.</span> The ADEXTO Architecture Mapping
           </h2>
-          <p className="text-slate-200">
+          <p className="text-ink">
             ADEXTO solves this by executing atomic synchronization across all four functional primitives:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs my-4">
-            <div className="p-4 rounded-xl bg-[#070a14] border border-cyan-500/30">
-              <strong className="text-cyan-300 block mb-1 text-sm font-bold">A → Autonomous</strong>
-              <span className="text-slate-200">24/7 AI Agent deployed in 0G TEE Enclave with quantitative trading authority.</span>
+            <div className="p-4 rounded-xl bg-white border border-accent/30">
+              <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
+              <span className="text-ink">24/7 AI Agent deployed in 0G TEE Enclave with quantitative trading authority.</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30">
-              <strong className="text-purple-300 block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
-              <span className="text-slate-200">A per-token bonding curve over a virtual reserve, splitting each swap fee three ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback).</span>
+            <div className="p-4 rounded-xl bg-white border border-accent/30">
+              <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
+              <span className="text-ink">A per-token bonding curve over a virtual reserve, splitting each swap fee three ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback).</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-pink-500/30">
-              <strong className="text-pink-300 block mb-1 text-sm font-bold">T → Token Factory</strong>
-              <span className="text-slate-200">ERC-20 with ERC-8004 metadata binding. Encodes immutable agent ownership.</span>
+            <div className="p-4 rounded-xl bg-white border border-accent/30">
+              <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
+              <span className="text-ink">ERC-20 with ERC-8004 metadata binding. Encodes immutable agent ownership.</span>
             </div>
-            <div className="p-4 rounded-xl bg-[#070a14] border border-emerald-500/30">
-              <strong className="text-emerald-300 block mb-1 text-sm font-bold">O → Orchestrator</strong>
-              <span className="text-slate-200">Master coordinator managing automated buyback, burns, and x402 revenue distribution.</span>
+            <div className="p-4 rounded-xl bg-white border border-ok/30">
+              <strong className="text-ok block mb-1 text-sm font-bold">O → Orchestrator</strong>
+              <span className="text-ink">Master coordinator managing automated buyback, burns, and x402 revenue distribution.</span>
             </div>
           </div>
         </section>
 
         {/* Section 3 */}
         <section className="section-block space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-cyan-400 font-mono">§3.</span> The x402 Micropayment Engine &amp; Auto-Buyback
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <span className="text-accent font-mono">§3.</span> The x402 Micropayment Engine &amp; Auto-Buyback
           </h2>
-          <p className="text-slate-200">
+          <p className="text-ink">
             Every ADEXTO agent exposes an HTTP 402 Payment Required endpoint. When external users, bots, or DAOs query the agent for quantitative signals, security audits, or generative assets, the agent accepts USDC/USDT0 micropayments via EIP-712 cryptographic signatures.
           </p>
-          <div className="p-4 rounded-xl bg-[#04060d] border border-white/20 font-mono text-[11px] sm:text-xs text-slate-100 overflow-x-auto">
-            <span className="text-emerald-400 font-bold block mb-2">// Revenue Flow Equation</span>
+          <div className="p-4 rounded-xl bg-white border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
+            <span className="text-ok font-bold block mb-2">// Revenue Flow Equation</span>
             R_total = SwapFees(SovereignCurve) + x402_Micropayments(EVIDIQ)<br />
             Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
             Buyback_Execution = SovereignCurve.executeBuyback(treasuryNative) &rarr; burn
@@ -82,10 +82,10 @@ export default function WhitepaperPage() {
 
         {/* Section 4 */}
         <section className="section-block space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="text-cyan-400 font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <span className="text-accent font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
           </h2>
-          <p className="text-slate-200">
+          <p className="text-ink">
             {/* Cakupan dikoreksi ke empat chain (sebelumnya hanya menyebut 0G dan
                 Arbitrum, padahal seluruh materi lain menyebut empat), dan porsi
                 protokol dinyatakan sebagai RENCANA. Kontrak kurva hari ini membagi
@@ -98,34 +98,34 @@ export default function WhitepaperPage() {
             protocol cut in the path.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
-            <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">
-              <div className="text-xl font-black text-white">40%</div>
-              <div className="text-[11px] text-zinc-300 font-bold">Community Stakers</div>
+            <div className="p-3.5 rounded-lg bg-white border border-line">
+              <div className="text-xl font-semibold text-ink">40%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Community Stakers</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">
-              <div className="text-xl font-black text-white">25%</div>
-              <div className="text-[11px] text-zinc-300 font-bold">Ecosystem Grants</div>
+            <div className="p-3.5 rounded-lg bg-white border border-line">
+              <div className="text-xl font-semibold text-ink">25%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Ecosystem Grants</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">
-              <div className="text-xl font-black text-white">20%</div>
-              <div className="text-[11px] text-zinc-300 font-bold">Core Developers</div>
+            <div className="p-3.5 rounded-lg bg-white border border-line">
+              <div className="text-xl font-semibold text-ink">20%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Core Developers</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-[#070a14] border border-white/15">
-              <div className="text-xl font-black text-white">15%</div>
-              <div className="text-[11px] text-zinc-300 font-bold">Liquidity Reserve</div>
+            <div className="p-3.5 rounded-lg bg-white border border-line">
+              <div className="text-xl font-semibold text-ink">15%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Liquidity Reserve</div>
             </div>
           </div>
         </section>
       </div>
 
       {/* CTA Footer */}
-      <div className="mt-16 pt-8 border-t border-white/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <Link href="/docs" className="text-xs font-bold text-cyan-300 hover:text-cyan-200 font-mono flex items-center gap-1.5">
+      <div className="mt-16 pt-8 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
+        <Link href="/docs" className="text-xs font-bold text-accent hover:text-accent font-mono flex items-center gap-1.5">
           Explore EVIDIQ MCP Documentation →
         </Link>
         <Link
           href="/studio"
-          className="px-6 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-purple-600/30"
+          className="px-6 py-3 rounded-xl font-bold text-xs bg-accent hover:bg-accent-strong text-white shadow-lg shadow-accent/10"
         >
           Launch in Studio
         </Link>

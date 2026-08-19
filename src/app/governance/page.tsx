@@ -224,14 +224,14 @@ export default function GovernancePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-white/20 pb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-line pb-8">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/80 text-purple-300 border border-purple-500/40 text-xs font-mono font-bold mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold mb-2">
             <Vote className="w-3.5 h-3.5" />
             <span>ON-CHAIN DAO GOVERNANCE (0G MAINNET)</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">ADEXTO Sovereign Governance</h1>
-          <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-xl font-medium">
+          <h1 className="text-3xl sm:text-4xl font-semibold text-ink">ADEXTO Sovereign Governance</h1>
+          <p className="text-xs sm:text-sm text-ink mt-1 max-w-xl font-medium">
             Token-weighted on-chain voting governing curve fee splits, 0G TEE hardware compute whitelists, and Cross-Chain Treasury Rebalancing.
           </p>
         </div>
@@ -239,7 +239,7 @@ export default function GovernancePage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 font-mono"
+            className="px-5 py-3 rounded-xl bg-accent hover:bg-accent-strong text-white font-bold text-xs shadow-lg shadow-accent/10 transition-all flex items-center gap-2 font-mono"
           >
             <Sparkles className="w-4 h-4" /> Create Proposal
           </button>
@@ -250,24 +250,24 @@ export default function GovernancePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* User Voting Power */}
         <div className="card p-5 space-y-2 font-mono text-xs">
-          <span className="text-zinc-400 block text-[10px] uppercase font-bold">Your Voting Power</span>
-          <div className="text-2xl font-black text-cyan-300">{isConnected ? `${votingPower} ADAI` : "0.00 ADAI"}</div>
-          <span className="text-[10px] text-zinc-300 block">
+          <span className="text-ink-soft block text-[10px] uppercase font-bold">Your Voting Power</span>
+          <div className="text-2xl font-semibold text-accent">{isConnected ? `${votingPower} ADAI` : "0.00 ADAI"}</div>
+          <span className="text-[10px] text-ink-soft block">
             {isConnected ? "✓ Eligible to cast on-chain votes" : "Connect wallet to participate in voting"}
           </span>
         </div>
 
         {/* Quorum & Thresholds */}
         <div className="card p-5 space-y-2 font-mono text-xs">
-          <span className="text-zinc-400 block text-[10px] uppercase font-bold">DAO Rule Constants</span>
-          <div className="text-sm font-bold text-purple-200">Quorum: <strong>4.0M ADAI</strong> (4%)</div>
-          <div className="text-[11px] text-zinc-300">Proposal Threshold: <strong>100k ADAI</strong> • Period: <strong>3 Days</strong></div>
+          <span className="text-ink-soft block text-[10px] uppercase font-bold">DAO Rule Constants</span>
+          <div className="text-sm font-bold text-accent">Quorum: <strong>4.0M ADAI</strong> (4%)</div>
+          <div className="text-[11px] text-ink-soft">Proposal Threshold: <strong>100k ADAI</strong> • Period: <strong>3 Days</strong></div>
         </div>
 
         {/* Governance Scope */}
         <div className="card p-5 space-y-2 font-mono text-xs">
-          <span className="text-zinc-400 block text-[10px] uppercase font-bold">Controllable Parameters</span>
-          <div className="text-[11px] text-slate-200 space-y-1">
+          <span className="text-ink-soft block text-[10px] uppercase font-bold">Controllable Parameters</span>
+          <div className="text-[11px] text-ink space-y-1">
             {/* Batas atas 0.50%, bukan 1.00%: AdextoTrinityFactoryV3 menolak
                 swapFeeBps > 500, jadi angka 1.00% mustahil dipasang. */}
             <div>• Curve swap fee tiers (0.10% - 0.50%)</div>
@@ -280,57 +280,57 @@ export default function GovernancePage() {
       {/* ── 4-CHAIN GOVERNOR CONTRACT MATRIX ─────────────────────────────── */}
       <div className="space-y-3 font-mono text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-400 font-bold uppercase text-[10px] flex items-center gap-1.5">
-            <Network className="w-3.5 h-3.5 text-cyan-400" /> Active DAO Governor Contracts (4 Chains Live)
+          <span className="text-ink-soft font-bold uppercase text-[10px] flex items-center gap-1.5">
+            <Network className="w-3.5 h-3.5 text-accent" /> Active DAO Governor Contracts (4 Chains Live)
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 0G */}
-          <div className="p-3.5 rounded-xl bg-[#060a17] border border-cyan-500/30 space-y-1">
+          <div className="p-3.5 rounded-xl bg-white border border-accent/30 space-y-1">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-cyan-300 font-bold">0G Mainnet (16661)</span>
-              <span className="text-emerald-400 font-bold">LIVE</span>
+              <span className="text-accent font-bold">0G Mainnet (16661)</span>
+              <span className="text-ok font-bold">LIVE</span>
             </div>
-            <a href={`https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white font-bold flex items-center justify-between text-[11px]">
+            <a href={`https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-ink font-bold flex items-center justify-between text-[11px]">
               <span>{ADEXTO_CONTRACTS.og.governorAddress.slice(0, 6)}...{ADEXTO_CONTRACTS.og.governorAddress.slice(-4)}</span>
-              <ExternalLink className="w-3 h-3 text-cyan-400" />
+              <ExternalLink className="w-3 h-3 text-accent" />
             </a>
           </div>
 
           {/* Arbitrum */}
-          <div className="p-3.5 rounded-xl bg-[#060a17] border border-sky-500/30 space-y-1">
+          <div className="p-3.5 rounded-xl bg-white border border-accent/30 space-y-1">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-sky-300 font-bold">Arbitrum One (42161)</span>
-              <span className="text-emerald-400 font-bold">LIVE</span>
+              <span className="text-accent font-bold">Arbitrum One (42161)</span>
+              <span className="text-ok font-bold">LIVE</span>
             </div>
-            <a href={`https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white font-bold flex items-center justify-between text-[11px]">
+            <a href={`https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-ink font-bold flex items-center justify-between text-[11px]">
               <span>{ADEXTO_CONTRACTS.arbitrum.governorAddress.slice(0, 6)}...{ADEXTO_CONTRACTS.arbitrum.governorAddress.slice(-4)}</span>
-              <ExternalLink className="w-3 h-3 text-sky-400" />
+              <ExternalLink className="w-3 h-3 text-accent" />
             </a>
           </div>
 
           {/* Monad */}
-          <div className="p-3.5 rounded-xl bg-[#060a17] border border-purple-500/30 space-y-1">
+          <div className="p-3.5 rounded-xl bg-white border border-accent/30 space-y-1">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-purple-300 font-bold">Monad Mainnet (143)</span>
-              <span className="text-emerald-400 font-bold">LIVE</span>
+              <span className="text-accent font-bold">Monad Mainnet (143)</span>
+              <span className="text-ok font-bold">LIVE</span>
             </div>
-            <a href={`https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white font-bold flex items-center justify-between text-[11px]">
+            <a href={`https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-ink font-bold flex items-center justify-between text-[11px]">
               <span>{ADEXTO_CONTRACTS.monad.governorAddress.slice(0, 6)}...{ADEXTO_CONTRACTS.monad.governorAddress.slice(-4)}</span>
-              <ExternalLink className="w-3 h-3 text-purple-400" />
+              <ExternalLink className="w-3 h-3 text-accent" />
             </a>
           </div>
 
           {/* Base */}
-          <div className="p-3.5 rounded-xl bg-[#060a17] border border-blue-500/30 space-y-1">
+          <div className="p-3.5 rounded-xl bg-white border border-accent/30 space-y-1">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-blue-300 font-bold">Base Mainnet (8453)</span>
-              <span className="text-emerald-400 font-bold">LIVE</span>
+              <span className="text-accent font-bold">Base Mainnet (8453)</span>
+              <span className="text-ok font-bold">LIVE</span>
             </div>
-            <a href={`https://basescan.org/address/${ADEXTO_CONTRACTS.base.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white font-bold flex items-center justify-between text-[11px]">
+            <a href={`https://basescan.org/address/${ADEXTO_CONTRACTS.base.governorAddress}`} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-ink font-bold flex items-center justify-between text-[11px]">
               <span>{ADEXTO_CONTRACTS.base.governorAddress.slice(0, 6)}...{ADEXTO_CONTRACTS.base.governorAddress.slice(-4)}</span>
-              <ExternalLink className="w-3 h-3 text-blue-400" />
+              <ExternalLink className="w-3 h-3 text-accent" />
             </a>
           </div>
         </div>
@@ -338,20 +338,20 @@ export default function GovernancePage() {
 
       {/* ── PROPOSALS STREAM & FILTER TABS ───────────────────────────────── */}
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4">
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
             <span>Governance Proposals</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-mono">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/30 font-mono">
               {filteredProposals.length}
             </span>
           </h2>
 
           {/* Filter Tabs */}
-          <div className="flex items-center gap-1.5 font-mono text-xs bg-[#070a14] p-1 rounded-xl border border-white/10">
+          <div className="flex items-center gap-1.5 font-mono text-xs bg-white p-1 rounded-xl border border-line">
             <button
               onClick={() => setFilterStatus("all")}
               className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                filterStatus === "all" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "text-zinc-400 hover:text-white"
+                filterStatus === "all" ? "bg-accent-soft text-accent border border-accent/30" : "text-ink-soft hover:text-ink"
               }`}
             >
               All
@@ -359,7 +359,7 @@ export default function GovernancePage() {
             <button
               onClick={() => setFilterStatus("Active")}
               className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                filterStatus === "Active" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "text-zinc-400 hover:text-white"
+                filterStatus === "Active" ? "bg-accent-soft text-accent border border-accent/30" : "text-ink-soft hover:text-ink"
               }`}
             >
               Active
@@ -367,7 +367,7 @@ export default function GovernancePage() {
             <button
               onClick={() => setFilterStatus("Passed")}
               className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                filterStatus === "Passed" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "text-zinc-400 hover:text-white"
+                filterStatus === "Passed" ? "bg-ok/10 text-ok border border-ok/30" : "text-ink-soft hover:text-ink"
               }`}
             >
               Passed
@@ -375,7 +375,7 @@ export default function GovernancePage() {
             <button
               onClick={() => setFilterStatus("Executed")}
               className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                filterStatus === "Executed" ? "bg-purple-500/20 text-purple-300 border border-purple-500/40" : "text-zinc-400 hover:text-white"
+                filterStatus === "Executed" ? "bg-accent-soft text-accent border border-accent/30" : "text-ink-soft hover:text-ink"
               }`}
             >
               Executed
@@ -391,59 +391,59 @@ export default function GovernancePage() {
             const hasUserVoted = votedMap[p.id];
 
             return (
-              <div key={p.id} className="glass-panel p-6 sm:p-8 rounded-2xl border border-white/10 space-y-5 relative shadow-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div key={p.id} className="glass-panel p-6 sm:p-8 rounded-2xl border border-line space-y-5 relative shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">
+                      <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-accent-soft text-accent border border-accent/30">
                         {p.category}
                       </span>
-                      <span className="text-xs font-mono text-zinc-400">Target: {p.targetChain}</span>
+                      <span className="text-xs font-mono text-ink-soft">Target: {p.targetChain}</span>
                     </div>
-                    <h3 className="text-lg font-black text-white">{p.title}</h3>
+                    <h3 className="text-lg font-semibold text-ink">{p.title}</h3>
                   </div>
 
                   <div>
                     <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold border ${
-                      p.status === "Active" ? "bg-cyan-950/80 text-cyan-300 border-cyan-500/40"
-                      : p.status === "Passed" ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
-                      : "bg-purple-950/80 text-purple-300 border-purple-500/40"
+                      p.status === "Active" ? "bg-accent-soft text-accent border-accent/30"
+                      : p.status === "Passed" ? "bg-ok/10 text-ok border-ok/30"
+                      : "bg-accent-soft text-accent border-accent/30"
                     }`}>
                       {p.status}
                     </span>
                   </div>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+                <p className="text-xs sm:text-sm text-ink leading-relaxed font-medium">
                   {p.description}
                 </p>
 
                 {/* Progress & Quorum */}
                 <div className="space-y-2 font-mono text-xs">
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-ink-soft">
                     <span>For: <strong>{(p.forVotes / 1e6).toFixed(2)}M ADAI ({forPct}%)</strong></span>
                     <span>Against: <strong>{(p.againstVotes / 1e6).toFixed(2)}M ADAI</strong></span>
                   </div>
 
-                  <div className="w-full h-2.5 rounded-full bg-black/60 overflow-hidden flex">
-                    <div style={{ width: `${forPct}%` }} className="bg-emerald-500 h-full" />
-                    <div style={{ width: `${100 - Number(forPct)}%` }} className="bg-red-500 h-full" />
+                  <div className="w-full h-2.5 rounded-full bg-cream-2 overflow-hidden flex">
+                    <div style={{ width: `${forPct}%` }} className="bg-ok/10 h-full" />
+                    <div style={{ width: `${100 - Number(forPct)}%` }} className="bg-danger/10 h-full" />
                   </div>
 
-                  <div className="flex justify-between text-[11px] text-zinc-400 pt-1">
+                  <div className="flex justify-between text-[11px] text-ink-soft pt-1">
                     <span>Quorum: {quorumPct}% (Threshold: 4.0M ADAI)</span>
                     <span>Ends: {p.endsIn}</span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                  <span className="text-[11px] text-zinc-400 font-mono">Proposer: {p.proposer}</span>
+                <div className="flex items-center justify-between pt-2 border-t border-line">
+                  <span className="text-[11px] text-ink-soft font-mono">Proposer: {p.proposer}</span>
 
                   {p.status === "Active" && (
                     <div className="flex items-center gap-3">
                       {hasUserVoted ? (
-                        <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-1">
+                        <span className="text-xs font-mono text-ok font-bold flex items-center gap-1">
                           <CheckCircle2 className="w-4 h-4" /> Voted {hasUserVoted.toUpperCase()}
                         </span>
                       ) : (
@@ -451,14 +451,14 @@ export default function GovernancePage() {
                           <button
                             onClick={() => handleVote(p.id, true)}
                             disabled={isVoting === p.id}
-                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono transition-all flex items-center gap-1.5"
+                            className="px-4 py-2 rounded-xl bg-ok hover:bg-ok/90 text-white font-bold text-xs font-mono transition-colors flex items-center gap-1.5"
                           >
                             {isVoting === p.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Vote FOR"}
                           </button>
                           <button
                             onClick={() => handleVote(p.id, false)}
                             disabled={isVoting === p.id}
-                            className="px-4 py-2 rounded-xl bg-red-600/80 hover:bg-red-500 text-white font-bold text-xs font-mono transition-all"
+                            className="px-4 py-2 rounded-xl bg-white hover:bg-cream-3 text-danger border border-danger/30 font-bold text-xs font-mono transition-colors"
                           >
                             Vote AGAINST
                           </button>
@@ -475,28 +475,28 @@ export default function GovernancePage() {
 
       {/* Create Proposal Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-white/10 max-w-lg w-full space-y-4">
-            <h3 className="text-xl font-bold text-white">Create On-Chain DAO Proposal</h3>
+        <div className="fixed inset-0 z-50 bg-cream-2 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-line max-w-lg w-full space-y-4">
+            <h3 className="text-xl font-bold text-ink">Create On-Chain DAO Proposal</h3>
             <form onSubmit={handleCreateProposal} className="space-y-4">
               <div>
-                <label className="text-xs font-mono text-zinc-300 block mb-1">Proposal Title</label>
+                <label className="text-xs font-mono text-ink-soft block mb-1">Proposal Title</label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. AIP-04: Adjust the curve fee split"
-                  className="w-full p-3 rounded-xl bg-black/60 border border-white/20 text-white text-xs focus:outline-none focus:border-cyan-400"
+                  className="w-full p-3 rounded-xl bg-cream-2 border border-line text-ink text-xs focus:outline-none focus:border-accent/30"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs font-mono text-zinc-300 block mb-1">Category</label>
+                <label className="text-xs font-mono text-ink-soft block mb-1">Category</label>
                 <select
                   value={newCategory}
                   onChange={(e: any) => setNewCategory(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-black/60 border border-white/20 text-cyan-300 text-xs focus:outline-none font-mono font-bold"
+                  className="w-full p-3 rounded-xl bg-cream-2 border border-line text-accent text-xs focus:outline-none font-mono font-bold"
                 >
                   <option value="Fee Parameter">Fee Parameter (Sovereign Curve)</option>
                   <option value="0G Compute Whitelist">0G Compute Whitelist</option>
@@ -505,13 +505,13 @@ export default function GovernancePage() {
               </div>
 
               <div>
-                <label className="text-xs font-mono text-zinc-300 block mb-1">Proposal Description</label>
+                <label className="text-xs font-mono text-ink-soft block mb-1">Proposal Description</label>
                 <textarea
                   rows={4}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Detailed rationale and smart contract parameters..."
-                  className="w-full p-3 rounded-xl bg-black/60 border border-white/20 text-white text-xs focus:outline-none focus:border-cyan-400"
+                  className="w-full p-3 rounded-xl bg-cream-2 border border-line text-ink text-xs focus:outline-none focus:border-accent/30"
                   required
                 />
               </div>
@@ -520,13 +520,13 @@ export default function GovernancePage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-zinc-400 hover:text-white text-xs font-bold font-mono"
+                  className="px-4 py-2 rounded-xl text-ink-soft hover:text-ink text-xs font-bold font-mono"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-xs font-bold font-mono shadow-md"
+                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-strong text-white text-xs font-bold font-mono shadow-md"
                 >
                   Submit Proposal
                 </button>

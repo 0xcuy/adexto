@@ -12,6 +12,39 @@ export default {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        /**
+         * Warna semantik palet cream.
+         *
+         * Dipakai supaya pembalikan tema terjadi lewat NAMA, bukan lewat hex yang
+         * tersebar di ~1.270 tempat. Kalau nanti palet digeser lagi, yang berubah
+         * hanya token di globals.css — bukan setiap komponen.
+         *
+         * Perhatikan hanya ada SATU aksen. Sebelumnya ada enam warna hiasan, dan
+         * akibatnya tidak ada warna tersisa untuk menandakan keadaan. Sekarang
+         * ok/warn/danger dipesan khusus untuk status sungguhan.
+         */
+        cream: {
+          DEFAULT: "rgb(var(--cream-rgb) / <alpha-value>)",
+          2: "rgb(var(--cream-2-rgb) / <alpha-value>)",
+          3: "rgb(var(--cream-3-rgb) / <alpha-value>)",
+        },
+        ink: {
+          DEFAULT: "rgb(var(--ink-rgb) / <alpha-value>)",
+          soft: "rgb(var(--ink-soft-rgb) / <alpha-value>)",
+          faint: "rgb(var(--ink-faint-rgb) / <alpha-value>)",
+        },
+        line: {
+          DEFAULT: "rgb(var(--line-rgb) / <alpha-value>)",
+          strong: "rgb(var(--line-strong-rgb) / <alpha-value>)",
+        },
+        accent: {
+          DEFAULT: "rgb(var(--accent-rgb) / <alpha-value>)",
+          strong: "rgb(var(--accent-strong-rgb) / <alpha-value>)",
+          soft: "rgb(var(--accent-rgb) / 0.1)",
+        },
+        ok: "rgb(var(--ok-rgb) / <alpha-value>)",
+        warn: "rgb(var(--warn-rgb) / <alpha-value>)",
+        danger: "rgb(var(--danger-rgb) / <alpha-value>)",
         primary: {
           50: "#f5f3ff",
           100: "#ede9fe",

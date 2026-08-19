@@ -69,7 +69,7 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
           disabled={isConnecting}
           aria-haspopup={many ? "menu" : undefined}
           aria-expanded={many ? open : undefined}
-          className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 font-black text-white shadow-lg shadow-purple-500/20 transition-all hover:shadow-cyan-500/30 disabled:opacity-60 ${
+          className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent hover:bg-accent-strong font-semibold text-white shadow-lg shadow-accent/10 transition-all hover:shadow-accent/10 disabled:opacity-60 ${
             compact ? "w-full justify-center py-2.5 text-xs" : "px-3.5 py-2 text-[11px] sm:text-xs"
           }`}
         >
@@ -81,9 +81,9 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
         {open && many && (
           <div
             role="menu"
-            className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-white/15 bg-[#080b14] p-1.5 shadow-2xl"
+            className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-2xl"
           >
-            <p className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            <p className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-ink-faint">
               {availableWallets.length} wallets detected
             </p>
             {availableWallets.map((w) => (
@@ -95,12 +95,12 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
                   setOpen(false);
                   connectWallet(w.info.rdns);
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-xs font-bold text-white hover:bg-white/10"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-xs font-bold text-ink hover:bg-cream-3"
               >
                 {w.info.icon ? (
                   <img src={w.info.icon} alt="" className="h-5 w-5 rounded" />
                 ) : (
-                  <Wallet className="h-5 w-5 text-cyan-300" />
+                  <Wallet className="h-5 w-5 text-accent" />
                 )}
                 <span className="truncate">{w.info.name}</span>
               </button>
@@ -122,7 +122,7 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
         aria-haspopup="menu"
         aria-expanded={open}
         title="Wallet options"
-        className={`inline-flex items-center gap-2 rounded-xl border border-white/15 bg-[#0a0e1a] transition-colors hover:border-cyan-500/40 ${
+        className={`inline-flex items-center gap-2 rounded-xl border border-line bg-white transition-colors hover:border-accent/30 ${
           compact ? "w-full justify-between px-3 py-2" : "px-2.5 py-1.5"
         }`}
       >
@@ -130,28 +130,28 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
           {activeWallet?.icon ? (
             <img src={activeWallet.icon} alt="" className="h-4 w-4 rounded shrink-0" />
           ) : (
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-ok" />
           )}
-          <span className="truncate font-mono text-[11px] font-bold text-white">
+          <span className="truncate font-mono text-[11px] font-bold text-ink">
             {address?.slice(0, 6)}…{address?.slice(-4)}
           </span>
         </span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-zinc-400" />
+        <ChevronDown className="h-3 w-3 shrink-0 text-ink-soft" />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-white/15 bg-[#080b14] p-1.5 shadow-2xl"
+          className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-line bg-white p-1.5 shadow-2xl"
         >
-          <div className="border-b border-white/10 px-2 pb-2 pt-1.5">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+          <div className="border-b border-line px-2 pb-2 pt-1.5">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">
               {activeWallet?.name ?? "Injected wallet"}
             </p>
-            <p className="mt-0.5 break-all font-mono text-[10px] text-zinc-300">{address}</p>
-            <p className="mt-1 font-mono text-[10px] text-cyan-300">
+            <p className="mt-0.5 break-all font-mono text-[10px] text-ink-soft">{address}</p>
+            <p className="mt-1 font-mono text-[10px] text-accent">
               {chainName}
-              {walletChainId !== null && <span className="text-zinc-500"> · wallet on {walletChainId}</span>}
+              {walletChainId !== null && <span className="text-ink-faint"> · wallet on {walletChainId}</span>}
             </p>
           </div>
 
@@ -159,9 +159,9 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
             type="button"
             role="menuitem"
             onClick={copy}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-bold text-zinc-200 hover:bg-white/10"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-bold text-ink hover:bg-cream-3"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Address copied" : "Copy address"}
           </button>
 
@@ -172,15 +172,15 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
               setOpen(false);
               changeAccount();
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-bold text-zinc-200 hover:bg-white/10"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-bold text-ink hover:bg-cream-3"
           >
-            <Users className="h-3.5 w-3.5 text-cyan-300" />
+            <Users className="h-3.5 w-3.5 text-accent" />
             Change account
           </button>
 
           {others.length > 0 && (
             <>
-              <p className="px-2 pb-1 pt-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+              <p className="px-2 pb-1 pt-2 text-[10px] font-mono uppercase tracking-wider text-ink-faint">
                 Switch wallet
               </p>
               {others.map((w) => (
@@ -192,7 +192,7 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
                     setOpen(false);
                     switchWallet(w.info.rdns);
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-xs font-bold text-zinc-200 hover:bg-white/10"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-xs font-bold text-ink hover:bg-cream-3"
                 >
                   {w.info.icon ? (
                     <img src={w.info.icon} alt="" className="h-4 w-4 rounded" />
@@ -212,7 +212,7 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
               setOpen(false);
               disconnectWallet();
             }}
-            className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-white/10 px-2 py-2 text-left text-xs font-bold text-red-300 hover:bg-red-950/40"
+            className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-line px-2 py-2 text-left text-xs font-bold text-danger hover:bg-danger/10"
           >
             <LogOut className="h-3.5 w-3.5" />
             Disconnect

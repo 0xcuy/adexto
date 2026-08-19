@@ -667,68 +667,77 @@ export default function StudioPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
       {/* Top strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-white/[0.08] shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-line/[0.08] shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-white flex items-center gap-1.5 font-mono">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> ADEXTO STUDIO
+          <span className="text-xs font-bold text-ink flex items-center gap-1.5 font-mono">
+            <Sparkles className="w-3.5 h-3.5 text-accent" /> ADEXTO STUDIO
           </span>
-          <span className="text-zinc-600 text-xs">/</span>
+          <span className="text-ink-faint text-xs">/</span>
           {isConnected ? (
-            <span className="text-emerald-400 font-mono text-xs font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-ok font-mono text-xs font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
               {address?.slice(0, 6)}…{address?.slice(-4)}
             </span>
           ) : (
             <button
               onClick={() => connectWallet()}
               disabled={isConnecting}
-              className="text-amber-300 hover:text-amber-200 font-mono text-xs font-medium flex items-center gap-1.5 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded"
+              className="text-warn hover:text-warn font-mono text-xs font-medium flex items-center gap-1.5 bg-warn/10 border border-warn/30 px-2 py-0.5 rounded"
             >
-              <Lock className="w-3 h-3 text-amber-400" /> {isConnecting ? "Connecting…" : "Connect wallet"}
+              <Lock className="w-3 h-3 text-warn" /> {isConnecting ? "Connecting…" : "Connect wallet"}
             </button>
           )}
         </div>
 
         <div className="flex items-center gap-2 font-mono text-xs">
-          <div className="hidden md:flex items-center bg-[#070913] p-1 rounded-lg">
+          {/* Tiga tombol ini mengisi SELURUH formulir sekaligus, tapi dulu berdiri
+              sebagai tiga kata lepas — "Quant AI  Viral Meme  DeFi Yield" — tanpa
+              petunjuk bahwa mengkliknya menimpa nama, ticker, tier fee, dan mandat
+              agen. Sekarang bergaris dan berlabel.
+              Kelas hover-nya juga dibuat statis. Sebelumnya `hover:${color}` disusun
+              dari variabel, jadi pemindai Tailwind tidak bisa melihatnya; kelasnya
+              hanya ada di CSS karena kebetulan dipakai berkas lain. */}
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-line bg-white p-1">
+            <span className="pl-1.5 pr-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Presets</span>
             {(
               [
-                ["quant", "Quant AI", "text-cyan-300"],
-                ["meme", "Viral Meme", "text-pink-300"],
-                ["defi", "DeFi Yield", "text-purple-300"],
+                ["quant", "Quant AI"],
+                ["meme", "Viral Meme"],
+                ["defi", "DeFi Yield"],
               ] as const
-            ).map(([key, label, color]) => (
+            ).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => applyPreset(key)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold text-zinc-400 hover:${color}`}
+                title={`Fill the whole form with the ${label} template`}
+                className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
               >
                 {label}
               </button>
             ))}
           </div>
 
-          <div className="relative flex items-center bg-[#070913] rounded-lg px-2.5 py-1">
-            <Cpu className="w-3.5 h-3.5 text-purple-400 mr-1.5 shrink-0" />
+          <div className="relative flex items-center bg-white rounded-lg px-2.5 py-1">
+            <Cpu className="w-3.5 h-3.5 text-accent mr-1.5 shrink-0" />
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-transparent text-purple-300 font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none max-w-[150px] truncate"
+              className="bg-transparent text-accent font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none max-w-[150px] truncate"
             >
               {MODELS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-[#0b0f19] text-purple-300">
+                <option key={m.id} value={m.id} className="bg-white text-accent">
                   {m.label}
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3 h-3 text-purple-400/60 absolute right-2 pointer-events-none" />
+            <ChevronDown className="w-3 h-3 text-accent/60 absolute right-2 pointer-events-none" />
           </div>
         </div>
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-0">
         {/* Left: launch control */}
-        <div className="lg:col-span-7 bg-[#070913] rounded-2xl border border-white/[0.06] p-3 sm:p-4 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-line/[0.06] p-3 sm:p-4 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
           {finished ? (
             <DeployReport
               results={results}
@@ -740,24 +749,38 @@ export default function StudioPage() {
             />
           ) : (
             <div className="space-y-3">
+              <StepRail
+                steps={[
+                  { id: "step-chains", label: "Chains", done: launchTargets.length > 0 },
+                  {
+                    id: "step-token",
+                    label: "Token",
+                    done: Boolean(tokenName.trim()) && Boolean(tokenTicker.trim()) && supplyNumber > 0 && ticker.available !== false,
+                  },
+                  { id: "step-curve", label: "Curve", done: totalSwapFee > 0 },
+                  { id: "step-agent", label: "Agent", done: Boolean(agentPersona.trim()) },
+                  { id: "step-verify", label: "Verify", done: Boolean(attestation) && worldIdSatisfied },
+                ]}
+              />
+
               {liveChains.length === 0 && (
-                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start gap-2 text-[11px] font-mono text-amber-200">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <div className="p-3 rounded-xl bg-warn/10 border border-warn/30 flex items-start gap-2 text-[11px] font-mono text-warn">
+                  <AlertTriangle className="w-4 h-4 text-warn mt-0.5 shrink-0" />
                   <span>
                     <strong>Launching is disabled.</strong> No launch factory is deployed on any chain yet, so a launch
                     could not create a tradable curve. Broadcast it with{" "}
-                    <code className="text-cyan-300">node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast</code>{" "}
-                    and set <code className="text-cyan-300">NEXT_PUBLIC_FACTORY_V3_0G</code>.
+                    <code className="text-accent">node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast</code>{" "}
+                    and set <code className="text-accent">NEXT_PUBLIC_FACTORY_V3_0G</code>.
                   </span>
                 </div>
               )}
 
               {/* Chain matrix */}
-              <div className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black border border-cyan-500/30 space-y-2">
+              <div id="step-chains" className="scroll-mt-3 p-2.5 rounded-xl bg-accent-soft border border-accent/30 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-cyan-400" />
-                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                    Launch chains ({launchTargets.length}/{liveChains.length}) — one market per chain
+                  <Globe className="w-4 h-4 text-accent" />
+                  <span className="text-xs font-mono font-bold text-ink uppercase tracking-wider">
+                    1. Chains ({launchTargets.length}/{liveChains.length}) — one market per chain
                   </span>
                 </div>
 
@@ -782,18 +805,18 @@ export default function StudioPage() {
                         }
                         className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                           !selectable
-                            ? "bg-black/50 border-white/5 text-zinc-600 cursor-not-allowed"
+                            ? "bg-cream-2 border-line text-ink-faint cursor-not-allowed"
                             : selected
-                            ? "bg-cyan-950/60 border-cyan-500/50 text-cyan-200"
-                            : "bg-black/40 border-white/10 text-zinc-400"
+                            ? "bg-accent-soft border-accent/30 text-accent"
+                            : "bg-cream-2 border-line text-ink-soft"
                         }`}
                       >
                         <span className="flex items-center gap-1.5 min-w-0">
                           {selectable ? (
                             selected ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-accent shrink-0" />
                             ) : (
-                              <span className="w-3.5 h-3.5 rounded border border-white/20 shrink-0" />
+                              <span className="w-3.5 h-3.5 rounded border border-line shrink-0" />
                             )
                           ) : (
                             <Lock className="w-3.5 h-3.5 shrink-0" />
@@ -807,7 +830,7 @@ export default function StudioPage() {
                 </div>
 
                 {offlineChains.length > 0 && (
-                  <p className="text-[10px] font-mono text-zinc-500 flex items-start gap-1.5">
+                  <p className="text-[10px] font-mono text-ink-faint flex items-start gap-1.5">
                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
                     {offlineChains.map((c) => c.key).join(", ")} unavailable: no launch factory deployed, so a launch
                     there would produce a token with no curve.
@@ -816,13 +839,13 @@ export default function StudioPage() {
               </div>
 
               {/* Token */}
-              <Section title="1. Token (ERC-8004)" tone="pink">
+              <Section id="step-token" title="2. Token (ERC-8004)">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <Field label="Name">
                     <input
                       value={tokenName}
                       onChange={(e) => setTokenName(e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none"
+                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink font-semibold focus:outline-none"
                     />
                   </Field>
                   <Field
@@ -849,8 +872,8 @@ export default function StudioPage() {
                         setTokenTicker(value);
                         setCustomSubdomain(value.toLowerCase());
                       }}
-                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border text-pink-300 font-bold focus:outline-none ${
-                        ticker.available === false ? "border-red-500/60" : "border-white/[0.06] focus:border-pink-400"
+                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border text-accent font-bold focus:outline-none ${
+                        ticker.available === false ? "border-danger/30" : "border-line/[0.06] focus:border-accent/30"
                       }`}
                     />
                   </Field>
@@ -858,26 +881,26 @@ export default function StudioPage() {
                     <input
                       value={tokenSupply}
                       onChange={(e) => setTokenSupply(e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-pink-400 text-white font-semibold focus:outline-none"
+                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink font-semibold focus:outline-none"
                     />
                   </Field>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[#040814] border border-white/10 flex items-center justify-between gap-3">
+                <div className="p-2.5 rounded-xl bg-white border border-line flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#05070D] border border-cyan-500/40 p-1 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-accent/30 p-1 flex items-center justify-center shrink-0">
                       <img src={generatedLogo ?? "/logo.svg"} alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold text-white font-mono">0G z-image-turbo</div>
-                      <span className="text-[10px] text-zinc-400">Generate an emblem for the token</span>
+                      <div className="text-[11px] font-bold text-ink font-mono">0G z-image-turbo</div>
+                      <span className="text-[10px] text-ink-soft">Generate an emblem for the token</span>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={handleGenerateLogo}
                     disabled={isGeneratingLogo}
-                    className="px-3 py-1.5 rounded-lg bg-pink-950/60 hover:bg-pink-900 text-pink-300 border border-pink-500/40 text-xs font-mono font-bold flex items-center gap-1.5 shrink-0"
+                    className="px-3 py-1.5 rounded-lg bg-accent-soft hover:bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold flex items-center gap-1.5 shrink-0"
                   >
                     {isGeneratingLogo ? (
                       <>
@@ -897,11 +920,11 @@ export default function StudioPage() {
                   here. Both are gone: the curve needs no native deposit, and 100%
                   of supply enters it, so there is nothing left to configure and
                   nothing for the creator to dump. */}
-              <Section title="2. Bonding curve" tone="purple">
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-2.5 flex items-start gap-2 text-[10px] font-mono">
-                  <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                  <span className="text-slate-300">
-                    <strong className="text-emerald-300">No liquidity deposit.</strong> The curve opens with a virtual
+              <Section id="step-curve" title="3. Bonding curve">
+                <div className="rounded-xl border border-ok/30 bg-ok/10 p-2.5 flex items-start gap-2 text-[10px] font-mono">
+                  <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" />
+                  <span className="text-ink-soft">
+                    <strong className="text-ok">No liquidity deposit.</strong> The curve opens with a virtual
                     reserve, so you pay gas only — typically under $0.10 per chain. Every token is tradable from the
                     launch transaction onward.
                   </span>
@@ -915,14 +938,14 @@ export default function StudioPage() {
                   <Row label="Your token allocation" value="0 — you earn from fees" />
                 </div>
 
-                <div className="p-2 rounded-xl bg-black/40 flex items-start gap-2 text-[10px] font-mono text-zinc-400">
-                  <Droplets className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                <div className="p-2 rounded-xl bg-cream-2 flex items-start gap-2 text-[10px] font-mono text-ink-soft">
+                  <Droplets className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
                   <span>
                     {/* USD didahulukan: itu satu-satunya angka yang berarti sama di
                         keempat chain. Jumlah native-nya berbeda per chain justru
                         AGAR nilai USD-nya sama. */}
                     Opening market cap{" "}
-                    <strong className="text-cyan-300">≈ ${OPENING_MARKET_CAP_USD.toLocaleString("en-US")}</strong> on
+                    <strong className="text-accent">≈ ${OPENING_MARKET_CAP_USD.toLocaleString("en-US")}</strong> on
                     every chain you select
                     {virtualNativeFor(primaryChain) > 0 && (
                       <>
@@ -938,7 +961,7 @@ export default function StudioPage() {
                       {primaryChain.nativeSymbol} per token.
                     </span>
                     <br />
-                    <span className="text-amber-300/90">
+                    <span className="text-warn/90">
                       The curve has no withdrawal function, so nobody can drain it — not you either. The depth share of
                       each fee stays in the curve, which raises the price floor as volume accumulates.
                     </span>
@@ -966,83 +989,93 @@ export default function StudioPage() {
                       }}
                       className={`p-2 rounded-xl text-left transition-all border ${
                         feeTier === tier
-                          ? "bg-purple-950/50 text-white border-purple-500/30"
-                          : "bg-black/30 text-zinc-400 border-transparent hover:text-white"
+                          ? "bg-accent-soft text-ink border-accent/30"
+                          : "bg-cream-2 text-ink-soft border-transparent hover:text-ink"
                       }`}
                     >
-                      <span className="font-bold block text-[11px] text-purple-200">{label}</span>
-                      <span className="text-[9px] text-zinc-400">
+                      <span className="font-bold block text-[11px] text-accent">{label}</span>
+                      <span className="text-[9px] text-ink-soft">
                         {(fee - creator - cut).toFixed(2)}% depth · {creator.toFixed(2)}% you · {cut.toFixed(2)}% buyback
                       </span>
                     </button>
                   ))}
                 </div>
 
-                <div className="p-2 rounded-xl bg-black/40 space-y-1">
+                <div className="p-2 rounded-xl bg-cream-2 space-y-1">
                   <div className="flex flex-wrap justify-between gap-x-3 text-[10px] font-mono">
-                    <span className="text-cyan-300 font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
-                    <span className="text-emerald-300 font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
-                    <span className="text-pink-400 font-medium">Buyback: {treasuryCut.toFixed(2)}%</span>
+                    <span className="text-accent font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
+                    <span className="text-ok font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
+                    <span className="text-accent font-medium">Buyback: {treasuryCut.toFixed(2)}%</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden flex">
-                    <div className="bg-cyan-400 h-full" style={{ width: `${(depthCut / totalSwapFee) * 100}%` }} />
-                    <div className="bg-emerald-400 h-full" style={{ width: `${(creatorCut / totalSwapFee) * 100}%` }} />
-                    <div className="bg-pink-500 h-full" style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }} />
+                  <div className="h-1.5 rounded-full bg-cream-3/[0.05] overflow-hidden flex">
+                    <div className="bg-accent-soft h-full" style={{ width: `${(depthCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-ok/10 h-full" style={{ width: `${(creatorCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-accent-soft h-full" style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }} />
                   </div>
-                  <span className="block text-[9px] font-mono text-emerald-300/80">
+                  <span className="block text-[9px] font-mono text-ok/80">
                     You earn {creatorCut.toFixed(2)}% of every swap, streamed to your wallet. You receive no free tokens,
                     so there is nothing you could dump.
                   </span>
-                  <span className="text-[9px] font-mono text-zinc-500 block">
+                  <span className="text-[9px] font-mono text-ink-faint block">
                     Subdomain: {customSubdomain || "myswap"}.adexto.xyz
                   </span>
                 </div>
               </Section>
 
               {/* Agent */}
-              <Section title="3. 0G TEE agent" tone="cyan">
+              <Section id="step-agent" title="4. 0G TEE agent">
                 <Field label="Mandate">
                   <input
                     value={agentPersona}
                     onChange={(e) => setAgentPersona(e.target.value)}
-                    className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-black/40 border border-white/[0.06] focus:border-cyan-400 text-white focus:outline-none"
+                    className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink focus:outline-none"
                   />
                 </Field>
                 <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-500/20">
+                  <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
                     AMD SEV-SNP enclave
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-orange-950/40 text-orange-300 border border-orange-500/20">
+                  {/* Amber dipesan untuk peringatan; ini nama fitur. */}
+                  <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
                     Cloudflare x402
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-purple-950/40 text-purple-300 border border-purple-500/20">
+                  <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
                     0G DA attestation
                   </span>
                 </div>
               </Section>
 
+              {/* Verifikasi — dua gerbang yang berbeda, dikelompokkan jadi satu langkah.
+                  Sebelumnya keduanya berupa dua kotak lepas tanpa judul di antara
+                  seksi bernomor, sehingga terbaca seperti catatan pinggir alih-alih
+                  syarat yang menahan tombol launch. */}
+              <div id="step-verify" className="scroll-mt-3 space-y-2">
+              <span className="block text-xs font-mono font-bold uppercase tracking-wider text-ink">
+                5. Verify
+              </span>
+
               {/* Attestation */}
-              <div className="p-3 rounded-xl bg-black/40 border border-white/[0.08] space-y-2">
+              <div className="p-3 rounded-xl bg-cream-2 border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <ShieldCheck className={`w-5 h-5 shrink-0 ${attestation ? "text-emerald-400" : "text-zinc-500"}`} />
+                    <ShieldCheck className={`w-5 h-5 shrink-0 ${attestation ? "text-ok" : "text-ink-faint"}`} />
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
+                      <div className="text-xs font-bold text-ink flex items-center gap-1.5 flex-wrap">
                         <span>Deployer address attestation</span>
                         {attestation && (
-                          <span className="text-[10px] px-1.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono font-bold">
+                          <span className="text-[10px] px-1.5 rounded bg-ok/10 text-ok border border-ok/30 font-mono font-bold">
                             SIGNED
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-ink-soft">
                         Signature verified server-side and bound to your address
                       </span>
                     </div>
                   </div>
 
                   {attestation ? (
-                    <span className="text-emerald-400 text-xs font-mono font-bold flex items-center gap-1 shrink-0">
+                    <span className="text-ok text-xs font-mono font-bold flex items-center gap-1 shrink-0">
                       <CheckCircle2 className="w-4 h-4" /> Ready
                     </span>
                   ) : (
@@ -1050,11 +1083,11 @@ export default function StudioPage() {
                       type="button"
                       onClick={handleAttest}
                       disabled={attesting}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-bold border border-white/20 flex items-center gap-1 shrink-0"
+                      className="px-3 py-1.5 rounded-lg bg-cream-3 hover:bg-cream-3 text-ink font-mono text-[11px] font-bold border border-line flex items-center gap-1 shrink-0"
                     >
                       {attesting ? (
                         <>
-                          <RefreshCw className="w-3 h-3 animate-spin text-cyan-300" /> Signing…
+                          <RefreshCw className="w-3 h-3 animate-spin text-accent" /> Signing…
                         </>
                       ) : (
                         "Sign attestation"
@@ -1063,7 +1096,7 @@ export default function StudioPage() {
                   )}
                 </div>
 
-                <p className="text-[10px] font-mono text-amber-300/90 flex items-start gap-1.5 pt-1 border-t border-white/5">
+                <p className="text-[10px] font-mono text-warn/90 flex items-start gap-1.5 pt-1 border-t border-line">
                   <Info className="w-3 h-3 mt-0.5 shrink-0" />
                   {/* Teks WAJIB dibungkus satu <span>. Induknya adalah flex container,
                       jadi tanpa pembungkus ini setiap potongan teks, <strong>, dan <code>
@@ -1077,27 +1110,27 @@ export default function StudioPage() {
               </div>
 
               {/* World ID — lapisan anti-Sybil yang sebenarnya */}
-              <div className="p-3 rounded-xl bg-black/40 border border-white/[0.08] space-y-2">
+              <div className="p-3 rounded-xl bg-cream-2 border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <Fingerprint
-                      className={`w-5 h-5 shrink-0 ${worldIdToken ? "text-emerald-400" : worldIdGate?.enabled ? "text-zinc-400" : "text-zinc-600"}`}
+                      className={`w-5 h-5 shrink-0 ${worldIdToken ? "text-ok" : worldIdGate?.enabled ? "text-ink-soft" : "text-ink-faint"}`}
                     />
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
+                      <div className="text-xs font-bold text-ink flex items-center gap-1.5 flex-wrap">
                         <span>World ID proof of personhood</span>
                         {worldIdToken && (
-                          <span className="text-[10px] px-1.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono font-bold">
+                          <span className="text-[10px] px-1.5 rounded bg-ok/10 text-ok border border-ok/30 font-mono font-bold">
                             VERIFIED
                           </span>
                         )}
                         {worldIdGate && !worldIdGate.enabled && (
-                          <span className="text-[10px] px-1.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/40 font-mono font-bold">
+                          <span className="text-[10px] px-1.5 rounded bg-warn/10 text-warn border border-warn/30 font-mono font-bold">
                             NOT CONFIGURED
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-ink-soft">
                         {worldIdGate === null
                           ? "Checking whether this deployment enforces World ID…"
                           : worldIdGate.enabled
@@ -1118,21 +1151,21 @@ export default function StudioPage() {
                     />
                   )}
                   {worldIdToken && (
-                    <span className="text-emerald-400 text-xs font-mono font-bold flex items-center gap-1 shrink-0">
+                    <span className="text-ok text-xs font-mono font-bold flex items-center gap-1 shrink-0">
                       <CheckCircle2 className="w-4 h-4" /> Unique
                     </span>
                   )}
                 </div>
 
                 {worldIdError && (
-                  <p className="text-[10px] font-mono text-red-300 flex items-start gap-1.5 pt-1 border-t border-white/5">
+                  <p className="text-[10px] font-mono text-danger flex items-start gap-1.5 pt-1 border-t border-line">
                     <XCircle className="w-3 h-3 mt-0.5 shrink-0" />
                     <span>{worldIdError}</span>
                   </p>
                 )}
 
                 {worldIdGate?.enabled && (
-                  <p className="text-[10px] font-mono text-zinc-500 flex items-start gap-1.5 pt-1 border-t border-white/5">
+                  <p className="text-[10px] font-mono text-ink-faint flex items-start gap-1.5 pt-1 border-t border-line">
                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
                     {/* Aturan satu-peluncuran ditegakkan oleh World sendiri lewat
                         `max_verifications` pada action, bukan oleh kode kita. Dinyatakan
@@ -1147,10 +1180,12 @@ export default function StudioPage() {
                 )}
 
               </div>
+              </div>
+              {/* ↑ tutup #step-verify */}
 
               {globalError && (
-                <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-500/40 text-[11px] font-mono text-red-200 flex items-start gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                <div className="p-2.5 rounded-xl bg-danger/10 border border-danger/30 text-[11px] font-mono text-danger flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
                   <span>{globalError}</span>
                 </div>
               )}
@@ -1166,7 +1201,12 @@ export default function StudioPage() {
               <button
                 onClick={handleDeploy}
                 disabled={deploying || !canDeploy}
-                className="w-full py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                /* Keadaan nonaktif tidak lagi memakai `opacity-40`. Ungu pekat yang
+                   diredupkan sampai 40% dengan teks putih di atasnya menghasilkan
+                   rasio kontras di bawah 2:1 — dan justru di keadaan inilah
+                   tombolnya WAJIB terbaca, karena tulisannya adalah satu-satunya
+                   tempat yang memberi tahu apa yang masih kurang. */
+                className="w-full py-3 rounded-xl font-bold text-xs bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
               >
                 {deploying ? (
                   <>
@@ -1182,7 +1222,7 @@ export default function StudioPage() {
                   </>
                 ) : !attestation ? (
                   <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" /> Sign attestation to unlock
+                    <ShieldCheck className="w-3.5 h-3.5 text-warn" /> Sign attestation to unlock
                   </>
                 ) : launchTargets.length === 0 ? (
                   <>
@@ -1197,48 +1237,48 @@ export default function StudioPage() {
               </button>
 
               {skippedTargets.length > 0 && (
-                <p className="text-[10px] font-mono text-amber-300/90 flex items-start gap-1.5">
+                <p className="text-[10px] font-mono text-warn/90 flex items-start gap-1.5">
                   <Info className="w-3 h-3 mt-0.5 shrink-0" />
                   {skippedTargets.map((c) => c.key).join(", ")} will be skipped: this ticker already has a market there.
                 </p>
               )}
 
-              <div className="rounded-xl border border-white/10 bg-[#050912] overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2">
-                  <Info className="h-3 w-3 text-cyan-300" />
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-200">
+              <div className="rounded-xl border border-line bg-white overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-line bg-cream-3/[0.03] px-3 py-2">
+                  <Info className="h-3 w-3 text-accent" />
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink">
                     How a multi-chain launch works
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-px bg-white/5 sm:grid-cols-3">
-                  <div className="bg-[#050912] p-3">
-                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">One market per chain</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                <div className="grid grid-cols-1 gap-px bg-cream-3 sm:grid-cols-3">
+                  <div className="bg-white p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-ink-faint">One market per chain</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Each selected chain gets its own token and curve. Supply, depth and price are independent.
                     </p>
                   </div>
-                  <div className="bg-[#050912] p-3">
-                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">No bridging</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                  <div className="bg-white p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-ink-faint">No bridging</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Nothing moves between chains, so the price on 0G and Base can differ. Arbitrage is up to the market.
                     </p>
                   </div>
-                  <div className="bg-[#050912] p-3">
-                    <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">Per-chain cost</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                  <div className="bg-white p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-ink-faint">Per-chain cost</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Gas only, usually under $0.10. You need a little of each chain&apos;s native asset to pay it —
-                      <span className="text-emerald-300"> no liquidity deposit</span>.
+                      <span className="text-ok"> no liquidity deposit</span>.
                     </p>
                   </div>
                 </div>
-                <p className="border-t border-white/10 px-3 py-2 font-mono text-[10px] text-zinc-500">
+                <p className="border-t border-line px-3 py-2 font-mono text-[10px] text-ink-faint">
                   A chain without enough gas is skipped on its own — the others still launch.
                 </p>
               </div>
 
-              <p className="text-[9px] font-mono text-zinc-500 leading-relaxed">
+              <p className="text-[9px] font-mono text-ink-faint leading-relaxed">
                 Each selected chain gets its own transaction to{" "}
-                <code className="text-cyan-400">deployTrinityProject</code>, simulated first so a revert costs no gas. The
+                <code className="text-accent">deployTrinityProject</code>, simulated first so a revert costs no gas. The
                 token and pool addresses come from the receipt event and are verified server-side before the market is
                 registered.
               </p>
@@ -1247,33 +1287,33 @@ export default function StudioPage() {
         </div>
 
         {/* Right: co-pilot */}
-        <div className="lg:col-span-5 bg-[#070913] rounded-2xl border border-white/[0.06] flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
-          <div className="p-2.5 border-b border-white/[0.06] bg-black/30 flex items-center justify-between shrink-0">
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-line/[0.06] flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
+          <div className="p-2.5 border-b border-line/[0.06] bg-cream-2 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white">
+              <div className="w-5 h-5 rounded bg-accent flex items-center justify-center text-white">
                 <Bot className="w-3 h-3" />
               </div>
-              <span className="font-bold text-white text-xs">0G TEE Co-Pilot</span>
-              <span className="text-[9px] font-mono text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded font-bold">
+              <span className="font-bold text-ink text-xs">0G TEE Co-Pilot</span>
+              <span className="text-[9px] font-mono text-accent bg-accent-soft px-1.5 py-0.5 rounded font-bold">
                 {selectedModel}
               </span>
             </div>
             <button
               onClick={() => setMessages((prev) => prev.slice(0, 1))}
-              className="p-1 text-zinc-500 hover:text-white"
+              className="p-1 text-ink-faint hover:text-ink"
               title="Reset chat"
             >
               <RefreshCw className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="px-3 py-1 bg-black/40 border-b border-white/[0.02] flex items-center justify-between text-[10px] font-mono text-zinc-400">
+          <div className="px-3 py-1 bg-cream-2 border-b border-line/[0.02] flex items-center justify-between text-[10px] font-mono text-ink-soft">
             <span>
-              Target: <strong className="text-purple-300 font-bold">{customSubdomain || "myswap"}.adexto.xyz</strong>
+              Target: <strong className="text-accent font-bold">{customSubdomain || "myswap"}.adexto.xyz</strong>
             </span>
             <span>
               Chains:{" "}
-              <strong className="text-cyan-300 font-bold">
+              <strong className="text-accent font-bold">
                 {liveChains.length === 0
                   ? "none live"
                   : liveChains
@@ -1284,29 +1324,29 @@ export default function StudioPage() {
             </span>
           </div>
 
-          <div ref={chatRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs bg-black/20">
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs bg-cream-2">
             {messages.map((m, idx) => (
               <div key={idx} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
-                  <div className="w-5 h-5 rounded bg-purple-500/10 text-purple-300 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-5 h-5 rounded bg-accent-soft text-accent flex items-center justify-center shrink-0 mt-0.5">
                     <Cpu className="w-3 h-3" />
                   </div>
                 )}
                 <div
                   className={`max-w-[90%] rounded-xl p-2.5 leading-relaxed ${
                     m.role === "user"
-                      ? "bg-purple-900/30 border border-purple-400/20 text-white"
-                      : "bg-[#0b0e1b] border border-white/[0.04] text-slate-200"
+                      ? "bg-accent-soft border border-accent/30 text-ink"
+                      : "bg-white border border-line/[0.04] text-ink"
                   }`}
                 >
-                  <span className="text-[9px] font-mono font-bold block mb-1 uppercase tracking-wider text-zinc-500">
+                  <span className="text-[9px] font-mono font-bold block mb-1 uppercase tracking-wider text-ink-faint">
                     {m.role === "user" ? "You" : `0G TEE (${selectedModel})`}
                   </span>
                   <div className="text-xs">
                     {m.content ? (
                       <FormattedMarkdown text={m.content} />
                     ) : chatLoading && idx === messages.length - 1 ? (
-                      <span className="flex items-center gap-1 text-cyan-300 font-mono text-xs">
+                      <span className="flex items-center gap-1 text-accent font-mono text-xs">
                         <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G…
                       </span>
                     ) : null}
@@ -1316,19 +1356,19 @@ export default function StudioPage() {
             ))}
           </div>
 
-          <form onSubmit={sendMessage} className="p-2 border-t border-white/[0.06] bg-black/30 flex gap-2 shrink-0">
+          <form onSubmit={sendMessage} className="p-2 border-t border-line/[0.06] bg-cream-2 flex gap-2 shrink-0">
             <input
               type="text"
               placeholder="Ask the 0G co-pilot…"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               disabled={chatLoading}
-              className="flex-1 rounded-lg px-2.5 py-1.5 text-white font-sans text-xs bg-black/40 border border-white/[0.06] focus:border-cyan-400 focus:outline-none"
+              className="flex-1 rounded-lg px-2.5 py-1.5 text-ink font-sans text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 focus:outline-none"
             />
             <button
               type="submit"
               disabled={chatLoading || !inputMessage.trim()}
-              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gradient-to-r from-cyan-500 to-purple-600 text-white disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-accent hover:bg-accent-strong text-white disabled:opacity-50"
             >
               <Send className="w-3 h-3" />
             </button>
@@ -1341,22 +1381,86 @@ export default function StudioPage() {
 
 // ─── presentational helpers ──────────────────────────────────────────────────
 
+/**
+ * Pembungkus satu langkah peluncuran.
+ *
+ * Prop `tone` dihapus. Ia dulu menerima "pink" | "purple" | "cyan" dan memilih
+ * warna tepi serta judul — tetapi setelah palet disatukan menjadi satu aksen,
+ * ketiga cabangnya mengembalikan kelas yang sama persis. Yang tertinggal hanyalah
+ * ternary yang menyaran ada perbedaan padahal tidak ada, dan setiap pemanggil
+ * harus memilih salah satu warna tanpa akibat apa pun.
+ *
+ * `id` ditambahkan supaya rel langkah di atas panel bisa menggulir ke sini.
+ */
 function Section({
+  id,
   title,
-  tone,
   children,
 }: {
+  id: string;
   title: string;
-  tone: "pink" | "purple" | "cyan";
   children: React.ReactNode;
 }) {
-  const border = tone === "pink" ? "border-pink-500/30" : tone === "purple" ? "border-purple-500/30" : "border-cyan-500/30";
-  const text = tone === "pink" ? "text-pink-300" : tone === "purple" ? "text-purple-300" : "text-cyan-300";
   return (
-    <div className={`space-y-2 p-3 rounded-xl bg-black/30 border ${border}`}>
-      <span className={`text-xs font-mono font-bold uppercase tracking-wider ${text}`}>{title}</span>
+    <div id={id} className="scroll-mt-3 space-y-2 rounded-xl border border-line bg-cream-2 p-3">
+      <span className="text-xs font-mono font-bold uppercase tracking-wider text-ink">{title}</span>
       {children}
     </div>
+  );
+}
+
+/**
+ * Rel langkah.
+ *
+ * Sebelumnya panel kiri adalah satu kolom bergulir setinggi ~2.400 px berisi
+ * spanduk peringatan, matriks chain, tiga seksi bernomor, dua kotak verifikasi,
+ * tombol launch, lalu tabel penjelasan — tanpa satu pun penunjuk posisi. Efeknya:
+ * tidak terlihat ada berapa langkah, di langkah mana kita berada, dan yang paling
+ * merugikan, APA yang masih menahan tombol launch. Tombolnya sendiri hanya bisa
+ * menyebut satu penghalang sekaligus ("Sign attestation to unlock"), jadi
+ * penghalang berikutnya baru muncul setelah yang pertama beres.
+ *
+ * Rel ini murni pembacaan: setiap `done` dihitung dari state yang sudah ada dan
+ * tidak ada nilai baru yang mengalir ke `canDeploy`, ke calldata, atau ke server.
+ */
+function StepRail({
+  steps,
+}: {
+  steps: Array<{ id: string; label: string; done: boolean }>;
+}) {
+  return (
+    <nav aria-label="Launch steps" className="sticky top-0 z-10 -mx-3 mb-1 bg-white/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
+      <ol className="flex flex-wrap items-center gap-x-1 gap-y-1.5 font-mono text-[10px]">
+        {steps.map((step, i) => (
+          <li key={step.id} className="flex items-center gap-1">
+            <a
+              href={`#${step.id}`}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors ${
+                step.done
+                  ? "border-ok/30 bg-ok/10 text-ok"
+                  : "border-line bg-cream-2 text-ink-soft hover:text-ink"
+              }`}
+            >
+              {step.done ? (
+                <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-current text-[7px] font-bold"
+                >
+                  {i + 1}
+                </span>
+              )}
+              <span className="font-bold uppercase tracking-wider">{step.label}</span>
+              <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+            </a>
+            {i < steps.length - 1 && (
+              <span aria-hidden="true" className="h-px w-2 bg-line-strong" />
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 }
 
@@ -1371,11 +1475,11 @@ function Field({
   hintTone?: "ok" | "error" | "muted";
   children: React.ReactNode;
 }) {
-  const hintColor = hintTone === "ok" ? "text-emerald-400" : hintTone === "error" ? "text-red-400" : "text-zinc-500";
+  const hintColor = hintTone === "ok" ? "text-ok" : hintTone === "error" ? "text-danger" : "text-ink-faint";
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-medium text-zinc-400">{label}</span>
+        <span className="text-[10px] font-medium text-ink-soft">{label}</span>
         {hint && <span className={`text-[9px] font-mono ${hintColor} truncate`}>{hint}</span>}
       </div>
       {children}
@@ -1386,19 +1490,19 @@ function Field({
 function ResultRow({ result }: { result: ChainResult }) {
   const tone =
     result.status === "success"
-      ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+      ? "bg-ok/10 border-ok/30 text-ok"
       : result.status === "failed"
-      ? "bg-red-950/30 border-red-500/40 text-red-200"
-      : "bg-white/[0.03] border-white/10 text-zinc-300";
+      ? "bg-danger/10 border-danger/30 text-danger"
+      : "bg-cream-3/[0.03] border-line text-ink-soft";
 
   return (
     <div className={`p-2 rounded-xl border flex items-center justify-between gap-2 font-mono text-[10px] ${tone}`}>
       <span className="font-bold shrink-0">{result.chainName}</span>
       <span className="flex items-center gap-1.5 min-w-0">
         {result.status === "success" ? (
-          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+          <CheckCircle2 className="w-3 h-3 text-ok shrink-0" />
         ) : result.status === "failed" ? (
-          <XCircle className="w-3 h-3 text-red-400 shrink-0" />
+          <XCircle className="w-3 h-3 text-danger shrink-0" />
         ) : (
           <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
         )}
@@ -1425,17 +1529,17 @@ function DeployReport({
     <div className="space-y-4 my-auto">
       <div
         className={`p-4 rounded-2xl border space-y-1 ${
-          allFailed ? "bg-red-950/20 border-red-500/40" : "bg-emerald-950/20 border-emerald-500/30"
+          allFailed ? "bg-danger/10 border-danger/30" : "bg-ok/10 border-ok/30"
         }`}
       >
-        <div className={`flex items-center gap-2 font-bold text-sm ${allFailed ? "text-red-300" : "text-emerald-300"}`}>
-          {allFailed ? <XCircle className="w-5 h-5 text-red-400" /> : <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+        <div className={`flex items-center gap-2 font-bold text-sm ${allFailed ? "text-danger" : "text-ok"}`}>
+          {allFailed ? <XCircle className="w-5 h-5 text-danger" /> : <CheckCircle2 className="w-5 h-5 text-ok" />}
           {allFailed
             ? `Launch failed on all ${results.length} chain(s)`
             : `${symbol} live on ${successes.length} of ${results.length} chain(s)`}
         </div>
         {failures.length > 0 && !allFailed && (
-          <p className="text-[11px] font-mono text-amber-300">
+          <p className="text-[11px] font-mono text-warn">
             {failures.length} chain(s) failed — details below. Nothing was registered for those.
           </p>
         )}
@@ -1446,14 +1550,14 @@ function DeployReport({
           <div
             key={r.chainId}
             className={`p-3 rounded-xl border space-y-1.5 ${
-              r.status === "success" ? "bg-black/40 border-emerald-500/20" : "bg-black/40 border-red-500/20"
+              r.status === "success" ? "bg-cream-2 border-ok/30" : "bg-cream-2 border-danger/30"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-white">
-                {r.chainName} <span className="text-zinc-500">({r.chainId})</span>
+              <span className="font-bold text-ink">
+                {r.chainName} <span className="text-ink-faint">({r.chainId})</span>
               </span>
-              <span className={r.status === "success" ? "text-emerald-400" : "text-red-400"}>{r.status}</span>
+              <span className={r.status === "success" ? "text-ok" : "text-danger"}>{r.status}</span>
             </div>
 
             {r.status === "success" ? (
@@ -1465,14 +1569,14 @@ function DeployReport({
                     href={r.explorerTx}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline block"
+                    className="text-accent hover:underline block"
                   >
                     View launch transaction →
                   </a>
                 )}
               </div>
             ) : (
-              <p className="text-[11px] text-red-300 leading-relaxed">{r.message}</p>
+              <p className="text-[11px] text-danger leading-relaxed">{r.message}</p>
             )}
           </div>
         ))}
@@ -1481,14 +1585,14 @@ function DeployReport({
       <div className="flex flex-col sm:flex-row gap-3 pt-2 font-sans">
         <button
           onClick={onReset}
-          className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all"
+          className="flex-1 py-2.5 rounded-xl bg-cream-3 hover:bg-cream-3 text-ink font-semibold text-xs transition-all"
         >
           Launch another
         </button>
         {successes.length > 0 && (
           <Link
             href={`/token/${symbol.toLowerCase()}`}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-semibold text-xs text-center flex items-center justify-center gap-1"
+            className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-strong text-white font-semibold text-xs text-center flex items-center justify-center gap-1"
           >
             Open ${symbol} terminal →
           </Link>
@@ -1501,8 +1605,8 @@ function DeployReport({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-2">
-      <span className="text-zinc-400 shrink-0">{label}:</span>
-      <span className="text-cyan-300 font-bold truncate">{value}</span>
+      <span className="text-ink-soft shrink-0">{label}:</span>
+      <span className="text-accent font-bold truncate">{value}</span>
     </div>
   );
 }

@@ -1,43 +1,90 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 /* ============================================================================
-   Dasar desain
+   Dasar desain — palet cream
    ----------------------------------------------------------------------------
-   Sebelumnya file ini hanya 54 baris dan seluruh gaya ditulis inline per elemen,
-   sehingga tidak ada satu pun aturan bersama: jarak antar seksi acak, label
-   kicker berganti warna tanpa sistem, dan angka bergeser-geser karena font
-   proporsional. Blok di bawah menetapkan token dan primitif yang dipakai semua
-   halaman. Murni presentasi — tidak ada logika yang berubah.
+   Sebelumnya seluruh situs bertema gelap dengan enam warna aksen, tiga gradien,
+   dan latar konstelasi beranimasi. Masing-masing wajar; bersama-sama halaman itu
+   terbaca "proyek crypto", bukan "infrastruktur". Perbandingan langsung dengan
+   halaman launcher arus utama memastikannya: yang mereka lakukan berbeda bukan
+   pada kecanggihan, melainkan pada MENAHAN DIRI — satu warna aksen, satu tombol
+   utama, banyak ruang kosong.
+   Palet di bawah mengikuti sistem cream yang sudah terbukti dipakai di proyek
+   EVIDIQ milik pemilik yang sama, supaya kedua produk terasa sekeluarga.
+   Murni presentasi — tidak ada logika yang berubah.
    ========================================================================== */
-
 :root {
-  --background: #04060a;
-  --foreground: #f8fafc;
+  /* Nilai KANAL, bukan hex.
+     Tailwind v3 hanya bisa menerapkan modifier opasitas (`border-line/30`,
+     `bg-ok/10`) bila warnanya berbentuk `rgb(var(--x) / <alpha-value>)`. Kalau
+     variabelnya menyimpan hex, setiap modifier itu menghasilkan CSS tidak valid
+     dan warnanya hilang begitu saja — tanpa error, jadi tidak terlihat sampai
+     halamannya dibuka. Karena itu kanal dan hex disimpan berpasangan. */
+  --cream-rgb: 244 239 228;
+  --cream-2-rgb: 251 248 241;
+  --cream-3-rgb: 239 232 218;
+  --ink-rgb: 32 24 16;
+  --ink-soft-rgb: 107 92 72;
+  /* Digelapkan dari #9a8b76.
+     Ketiga nilai di bawah — ink-faint, ok, warn — dipilih dengan mengukur rasio
+     WCAG terhadap PERMUKAAN TERGELAP tempat teks berdiri (--cream-3), bukan
+     terhadap putih. Versi pertama palet ini disetel dengan mata dan hasilnya
+     3,6:1 sampai 4,4:1: lulus untuk judul, gagal untuk teks normal — dan justru
+     token inilah yang dipakai pada tulisan terkecil di seluruh situs (kicker,
+     label kolom, satuan, status). Angka sekarang: 4,65:1 di cream-3, 4,94:1 di
+     cream, 5,67:1 di putih; masih satu langkah lebih terang dari --ink-soft
+     (5,30:1) sehingga hierarki tiga tingkatnya tetap terbaca.
+     audit_visual_sweep.mjs menjaganya: rasio di bawah ambang AA dilaporkan
+     beserta warna depan, warna latar, dan ukuran hurufnya. */
+  --ink-faint-rgb: 115 101 80;
+  --line-rgb: 231 220 199;
+  --line-strong-rgb: 217 203 176;
+  --accent-rgb: 124 58 237;
+  --accent-strong-rgb: 109 40 217;
+  --ok-rgb: 20 108 52;
+  --warn-rgb: 154 68 8;
+  --danger-rgb: 185 28 28;
 
-  /* Permukaan, dari paling dalam ke paling menonjol */
-  --surface-0: #04060a;
-  --surface-1: #070b14;
-  --surface-2: #0a0f1c;
-  --surface-3: #0e1424;
+  /* Permukaan, dari paling dalam ke paling menonjol. Berlawanan arah dengan tema
+     gelap: di tema terang, permukaan yang lebih MENONJOL adalah yang lebih PUTIH. */
+  --cream: #f4efe4;
+  --cream-2: #fbf8f1;
+  --cream-3: #efe8da;
+  --surface-0: var(--cream);
+  --surface-1: var(--cream-2);
+  --surface-2: #ffffff;
+  --surface-3: var(--cream-3);
 
-  --hairline: rgba(255, 255, 255, 0.07);
-  --hairline-strong: rgba(255, 255, 255, 0.12);
+  --ink: #201810;
+  --ink-soft: #6b5c48;
+  --ink-faint: #736550;
+  --background: var(--cream);
+  --foreground: var(--ink);
 
-  --accent: #22d3ee;
-  --accent-soft: rgba(34, 211, 238, 0.12);
-  --violet: #c084fc;
+  --line: #e7dcc7;
+  --hairline: #e7dcc7;
+  --hairline-strong: #d9cbb0;
+
+  /* SATU warna aksen. Dulu ada enam, dan karena warna dipakai sebagai hiasan,
+     tidak ada warna tersisa untuk menandakan KEADAAN. Sekarang aksen dipakai
+     hemat, dan hijau/amber/merah hanya untuk status sungguhan. */
+  --accent: #7c3aed;
+  --accent-strong: #6d28d9;
+  --accent-soft: rgba(124, 58, 237, 0.1);
+  --ok: #146c34;
+  --warn: #9a4408;
+  --danger: #b91c1c;
 
   /* tailwind.config memakai var(--font-sans) dan var(--font-mono), tetapi keduanya
      tidak pernah didefinisikan — jadi setiap kelas font-sans/font-mono jatuh ke
      font sistem. Di sini keduanya dipetakan ke Geist. */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-
   /* Ritme vertikal tunggal, supaya seksi tidak lagi mengapung acak */
   --section-y: 4.5rem;
   --gap: 1rem;
+  color-scheme: light;
 }
 
 @media (min-width: 1024px) {
@@ -52,8 +99,13 @@ html {
 
 html,
 body {
-  color: var(--foreground);
-  background: var(--surface-0);
+  color: var(--ink);
+  /* Pengganti <Live3DBackground />. Satu sapuan terang di puncak halaman supaya
+     hero terasa punya cahaya, lalu turun ke cream rata. Tidak beranimasi dan
+     tidak ada canvas: latar tidak boleh bersaing dengan grafik harga. */
+  background: radial-gradient(120% 70% at 50% -15%, var(--cream-2) 0%, rgba(251, 248, 241, 0) 55%),
+    var(--cream);
+  background-attachment: fixed;
   /* Diisi oleh next/font di layout; fallback sistem hanya untuk keadaan darurat. */
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
@@ -127,14 +179,13 @@ input[type="number"],
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.28);
-  color: #fff;
+  background: rgba(124, 58, 237, 0.22);
+  color: var(--ink);
 }
 
-/* Latar select bawaan agar tidak putih di tema terang sistem */
 select option {
-  background-color: #0b0f19;
-  color: var(--foreground);
+  background-color: #ffffff;
+  color: var(--ink);
 }
 
 /* ============================================================================
@@ -144,28 +195,23 @@ select option {
 /* Panel.
    Masalah terbesar tata letak sebelumnya adalah kotak-di-dalam-kotak: setiap
    seksi berupa panel bergaris berisi kartu bergaris, sehingga halaman jadi
-   tumpukan bingkai ganda dan terasa seperti dashboard admin. Perbaikan yang
-   benar bukan menipiskan garisnya, melainkan **melepas bingkai luarnya**:
-   panel seksi sekarang tanpa border dan hampir tanpa latar, cukup dipisahkan
-   ruang. Bingkai hanya dipakai pada elemen yang benar-benar sebuah objek —
-   kartu, tabel, panel trading. */
+   tumpukan bingkai ganda. Bingkai hanya dipakai pada elemen yang benar-benar
+   sebuah objek — kartu, tabel, panel trading.
+   Di tema terang, kedalaman datang dari BAYANGAN HALUS, bukan dari latar yang
+   makin gelap. */
 .glass-panel {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 120px),
-    var(--surface-2);
-  border: 1px solid var(--hairline);
-  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -24px rgba(0, 0, 0, 0.9);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(32, 24, 16, 0.04), 0 12px 32px -20px rgba(32, 24, 16, 0.18);
 }
 
-/* Pembungkus seksi halaman naratif: TANPA bingkai.
-   Bingkai luar hanya dipakai untuk objek nyata — kartu, tabel, panel trading. */
+/* Pembungkus seksi halaman naratif: TANPA bingkai. */
 .section-block {
   position: relative;
   padding-top: 2.75rem;
 }
 
-/* Garis tipis di atas seksi, menggantikan bingkai sebagai pemisah. Jauh lebih
-   tenang daripada menumpuk kotak. */
 .section-block + .section-block::before,
 .section-block[data-rule]::before {
   content: "";
@@ -174,7 +220,7 @@ select option {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--hairline-strong) 12%, var(--hairline-strong) 88%, transparent);
+  background: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
 }
 
 @media (min-width: 1024px) {
@@ -183,24 +229,23 @@ select option {
   }
 }
 
-/* Kartu di dalam panel: lebih gelap dari induknya, bukan lebih terang.
-   Menumpuk permukaan yang makin terang membuat border ganda terlihat kotor. */
+/* Kartu di dalam panel. Di tema gelap kartu dibuat lebih GELAP dari induknya;
+   di tema terang justru lebih PUTIH, supaya urutan kedalamannya tetap terbaca. */
 .card {
-  background: var(--surface-1);
-  border: 1px solid var(--hairline);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 0.85rem;
 }
 
 .card-hover {
-  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .card-hover:hover {
   border-color: var(--hairline-strong);
-  background: var(--surface-2);
+  box-shadow: 0 2px 4px rgba(32, 24, 16, 0.05), 0 16px 36px -22px rgba(32, 24, 16, 0.22);
 }
 
-/* Kicker / eyebrow. Satu bentuk untuk semua halaman, menggantikan label yang
-   sebelumnya berganti-ganti warna dan ukuran tanpa alasan. */
+/* Kicker / eyebrow. Satu bentuk untuk semua halaman. */
 .kicker {
   display: inline-flex;
   align-items: center;
@@ -210,7 +255,7 @@ select option {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgb(148 163 184);
+  color: var(--ink-faint);
 }
 
 .kicker::before {
@@ -234,16 +279,14 @@ select option {
 .hairline {
   height: 1px;
   border: 0;
-  background: linear-gradient(90deg, transparent, var(--hairline-strong) 15%, var(--hairline-strong) 85%, transparent);
+  background: linear-gradient(90deg, transparent, var(--line) 15%, var(--line) 85%, transparent);
 }
 
+/* Dulu ini gradien tiga warna cyan→ungu→merah — sinyal memecoin paling kuat di
+   seluruh halaman. Sekarang satu warna aksen saja. */
 .gradient-text {
-  background: linear-gradient(135deg, #00f5ff 0%, #c084fc 50%, #f43f5e 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--accent);
   display: inline-block;
-  /* Descender ("g", "y") terpotong tanpa ini karena background-clip: text */
   padding-bottom: 0.06em;
 }
 
@@ -257,13 +300,13 @@ select option {
 .table-clean td {
   padding: 0.6rem 0.75rem;
   text-align: left;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--line);
 }
 .table-clean thead th {
   font-size: 0.625rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgb(100 116 139);
+  color: var(--ink-faint);
   font-weight: 700;
 }
 .table-clean tbody tr:last-child td {
@@ -273,7 +316,7 @@ select option {
   transition: background-color 140ms ease;
 }
 .table-clean tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(32, 24, 16, 0.025);
 }
 
 /* Alamat kontrak dan hash: monospace yang bisa dipilih dengan nyaman. */
@@ -282,6 +325,62 @@ select option {
   font-size: 0.6875rem;
   letter-spacing: 0.01em;
   word-break: break-all;
+}
+
+/* ============================================================================
+   Ticker stack ekosistem
+   ----------------------------------------------------------------------------
+   Dua baris berlawanan arah. Tiap baris menggandakan isinya di DOM supaya loop
+   -50% menyambung tanpa lompatan, dan separuhnya selalu lebih lebar dari
+   viewport supaya tidak pernah ada celah kosong.
+   ========================================================================== */
+@keyframes adexto-marquee-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes adexto-marquee-right {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.adexto-row {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+
+.adexto-row-left {
+  animation: adexto-marquee-left 60s linear infinite;
+}
+
+.adexto-row-right {
+  animation: adexto-marquee-right 60s linear infinite;
+}
+
+/* Dijeda saat kursor masuk, supaya orang bisa membaca nama yang sedang lewat. */
+.adexto-marquee-wrap:hover .adexto-row {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adexto-row {
+    animation: none;
+  }
+}
+
+/* Tepi ticker dibuat memudar, bukan terpotong tajam. */
+.adexto-marquee-wrap {
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
 }
 
 /* Scrollbar */
@@ -293,14 +392,14 @@ select option {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--hairline-strong);
   border-radius: 99px;
-  border: 2px solid var(--surface-0);
+  border: 2px solid var(--cream);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: var(--ink-faint);
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1e293b transparent;
+  scrollbar-color: var(--hairline-strong) transparent;
 }

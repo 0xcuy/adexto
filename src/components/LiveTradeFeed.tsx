@@ -81,16 +81,16 @@ export default function LiveTradeFeed({
 
   return (
     <div className="w-full h-full flex flex-col font-mono text-[11px]">
-      <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2 shrink-0">
+      <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <div className="flex items-center gap-1.5">
-          <Activity className={`w-3.5 h-3.5 ${isLive ? "text-emerald-400 animate-pulse" : "text-amber-400"}`} />
-          <span className="text-white font-bold text-[10px] uppercase">Trade Feed</span>
+          <Activity className={`w-3.5 h-3.5 ${isLive ? "text-ok animate-pulse" : "text-warn"}`} />
+          <span className="text-ink font-bold text-[10px] uppercase">Trade Feed</span>
         </div>
         <span
           className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
             isLive
-              ? "text-emerald-400 bg-emerald-950/80 border-emerald-500/40"
-              : "text-amber-300 bg-amber-950/60 border-amber-500/40"
+              ? "text-ok bg-ok/10 border-ok/30"
+              : "text-warn bg-warn/10 border-warn/30"
           }`}
         >
           {isLive ? "● on-chain" : source === "agent" ? "agent log" : source === "genesis" ? "genesis reference" : "no fills"}
@@ -99,11 +99,11 @@ export default function LiveTradeFeed({
 
       <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[170px] pr-1">
         {!loaded ? (
-          <div className="h-full flex items-center justify-center text-zinc-500 text-[11px]">Loading…</div>
+          <div className="h-full flex items-center justify-center text-ink-faint text-[11px]">Loading…</div>
         ) : trades.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-1.5 text-center px-3">
-            <Info className="w-4 h-4 text-zinc-500" />
-            <span className="text-zinc-400 text-[10px]">No trades recorded for ${symbol} yet.</span>
+            <Info className="w-4 h-4 text-ink-faint" />
+            <span className="text-ink-soft text-[10px]">No trades recorded for ${symbol} yet.</span>
           </div>
         ) : (
           trades.slice(0, 12).map((t) => (
@@ -111,47 +111,47 @@ export default function LiveTradeFeed({
               key={t.id}
               className={`p-1.5 rounded-xl border flex items-center justify-between gap-2 ${
                 t.type === "AUTO_BUYBACK"
-                  ? "bg-purple-950/30 border-purple-500/40"
+                  ? "bg-accent-soft border-accent/30"
                   : t.type === "BUY"
-                  ? "bg-emerald-950/20 border-emerald-500/30"
-                  : "bg-red-950/20 border-red-500/30"
+                  ? "bg-ok/10 border-ok/30"
+                  : "bg-danger/10 border-danger/30"
               }`}
             >
               <div className="flex items-center gap-1.5 min-w-0">
                 {t.type === "AUTO_BUYBACK" ? (
-                  <span className="px-1.5 rounded bg-pink-950 text-pink-400 border border-pink-500/40 font-black text-[9px] flex items-center gap-0.5 shrink-0">
+                  <span className="px-1.5 rounded bg-accent-soft text-accent border border-accent/30 font-semibold text-[9px] flex items-center gap-0.5 shrink-0">
                     <Flame className="w-2.5 h-2.5" /> BURN
                   </span>
                 ) : (
                   <span
-                    className={`px-1.5 rounded font-black text-[9px] border shrink-0 ${
+                    className={`px-1.5 rounded font-semibold text-[9px] border shrink-0 ${
                       t.type === "BUY"
-                        ? "bg-emerald-950 text-emerald-400 border-emerald-500/40"
-                        : "bg-red-950 text-red-400 border-red-500/40"
+                        ? "bg-ok/10 text-ok border-ok/30"
+                        : "bg-danger/10 text-danger border-danger/30"
                     }`}
                   >
                     {t.type}
                   </span>
                 )}
-                <span className="font-bold text-white text-[10px] truncate">
+                <span className="font-bold text-ink text-[10px] truncate">
                   {fmtToken(t.amountToken)} ${t.symbol}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-zinc-300 text-[10px]">
+                <span className="text-ink-soft text-[10px]">
                   {t.amountNative.toFixed(4)} {t.nativeSymbol}
                   {nativeUsd > 0 ? ` · $${(t.amountNative * nativeUsd).toFixed(2)}` : ""}
                 </span>
-                <span className="text-zinc-600 text-[9px]">{ago(t.timestamp)}</span>
+                <span className="text-ink-faint text-[9px]">{ago(t.timestamp)}</span>
                 {t.source === "genesis" ? (
-                  <span className="text-zinc-600 text-[9px]">reference</span>
+                  <span className="text-ink-faint text-[9px]">reference</span>
                 ) : (
                   <a
                     href={explorerTxUrl(t.chainId, t.txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline text-[9px] flex items-center gap-0.5"
+                    className="text-accent hover:underline text-[9px] flex items-center gap-0.5"
                   >
                     {t.txHash.slice(0, 6)}
                     <ExternalLink className="w-2.5 h-2.5" />

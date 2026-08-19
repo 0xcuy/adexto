@@ -7,7 +7,7 @@ export function FormattedMarkdown({ text }: { text: string }) {
   const lines = text.split("\n");
 
   return (
-    <div className="space-y-1.5 text-xs text-slate-200 leading-relaxed font-sans">
+    <div className="space-y-1.5 text-xs text-ink leading-relaxed font-sans">
       {lines.map((line, lIdx) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={lIdx} className="h-1" />;
@@ -22,14 +22,14 @@ export function FormattedMarkdown({ text }: { text: string }) {
         const renderedLine = parts.map((part, pIdx) => {
           if (part.startsWith("**") && part.endsWith("**")) {
             return (
-              <strong key={pIdx} className="font-bold text-cyan-300">
+              <strong key={pIdx} className="font-bold text-accent">
                 {part.slice(2, -2)}
               </strong>
             );
           }
           if (part.startsWith("`") && part.endsWith("`")) {
             return (
-              <code key={pIdx} className="px-1 py-0.5 rounded bg-black/50 border border-white/10 text-pink-300 font-mono text-[11px]">
+              <code key={pIdx} className="px-1 py-0.5 rounded bg-cream-2 border border-line text-accent font-mono text-[11px]">
                 {part.slice(1, -1)}
               </code>
             );
@@ -40,7 +40,7 @@ export function FormattedMarkdown({ text }: { text: string }) {
         if (isBullet) {
           return (
             <div key={lIdx} className="flex items-start gap-1.5 pl-1">
-              <span className="text-cyan-400 font-bold">•</span>
+              <span className="text-accent font-bold">•</span>
               <div>{renderedLine}</div>
             </div>
           );
