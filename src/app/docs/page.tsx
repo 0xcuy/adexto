@@ -8,7 +8,7 @@ export default function DocsPage() {
       {/* Header */}
       <div className="border-b-2 border-line pb-6 mb-10">
         <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">ADEXTO Enterprise Multi-Chain Infrastructure</h1>
+        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">Technical status, component by component</h1>
         {/* Jangan mendaftar World ID ZKP dan Chainlink CCIP sebagai bagian arsitektur
             yang berjalan: seksi "status jujur" di bawah menyatakan keduanya BELUM aktif.
             Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
@@ -17,7 +17,7 @@ export default function DocsPage() {
             Chainlink CCIP tetap disebut belum aktif karena lane-nya memang mati.
             Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
             daripada daftar yang lebih pendek. */}
-        <p className="text-sm text-ink mt-2 font-medium">Production-grade architecture uniting 0G TEE Compute, sovereign bonding curves, World ID proof of personhood, The Graph Network, and Cloudflare Workers x402. Chainlink CCIP is designed for but not yet active — see the status note below.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve and factory contracts, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: the mainnet launch factory, x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -31,7 +31,7 @@ export default function DocsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-medium">
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">0G Compute &amp; DA Turbo</strong>
-            <p className="text-ink-soft">Hardware TEE compute on AMD SEV-SNP (anti-rug agent) + 50GB/s decentralized data availability and long-term memory storage.</p>
+            <p className="text-ink-soft">Agent inference through the 0G Compute router, plus 0G DA for anchoring launch metadata. The enclave claim is 0G&apos;s, not ours — see the execution note below.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -53,7 +53,7 @@ export default function DocsPage() {
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">The Graph Decentralized Network</strong>
-            <p className="text-ink-soft">Custom subgraphs indexing factory deployments, curve depth, swap transactions, and real-time treasury buyback burns.</p>
+            <p className="text-ink-soft">A subgraph is published on the decentralized network, but it still indexes the v1 factory. The explorer reads a server-side registry instead, so nothing on this site is served by The Graph today.</p>
           </div>
 
           {/* Amber di kartu ini dulu menempatkan Cloudflare x402 sederet dengan
@@ -62,7 +62,7 @@ export default function DocsPage() {
               memang belum berjalan. */}
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
-            <p className="text-ink-soft">Sub-50ms edge pay-per-call micropayments settling EIP-712 auth vouchers across 330+ edge locations globally.</p>
+            <p className="text-ink-soft">An HTTP 402 challenge served from Cloudflare&apos;s edge, quoting the price and settlement vault for an agent call. Voucher verification returns 501: settlement is not implemented.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -106,7 +106,7 @@ export default function DocsPage() {
             <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-2">
               <span className="text-accent font-bold block text-sm">1. Market-Driven Price</span>
               <p className="text-ink-soft font-sans text-xs">
-                Prices are determined 100% algorithmically by supply and demand. Every buy order locks native currency (0G / ETH) and releases tokens along the exponential curve.
+                Prices are determined 100% algorithmically by supply and demand. Every buy order locks native currency (0G / ETH) and releases tokens along the constant-product curve (x·y=k over a virtual reserve).
               </p>
             </div>
 
@@ -133,10 +133,28 @@ export default function DocsPage() {
       {/* Delapan kartu di bawah sebelumnya mengapung tanpa judul seksi, sementara
           semua seksi lain punya kicker + judul. Hierarkinya jadi timpang. */}
       <div className="mb-5 mt-2">
-        <div className="kicker">Protocol surface · MCP tools &amp; standards</div>
+        <div className="kicker">Planned MCP surface</div>
         <h2 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
-          What each component actually does
+          Specified, not shipped
         </h2>
+        {/* Judul lama: "What each component actually does" — dan kata "actually"
+            membuatnya lebih buruk, karena keempat tool di bawah TIDAK ADA. Pencarian
+            untuk `signet_generate_brand`, `sentinel_verify_calldata`,
+            `helm_register_cron` dan `notary_anchor_receipt` di seluruh repo hanya
+            menemukan halaman ini. Tanda tangan fungsinya ditulis dalam gaya yang
+            sama seperti API yang berjalan, jadi seorang pembaca akan mencoba
+            memanggilnya.
+            Kartunya tidak dihapus — desainnya masih menjadi arah yang dituju — tapi
+            seksinya sekarang menyatakan statusnya di judul dan di spanduk. */}
+        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-warn/30 bg-warn/10 p-4">
+          <ShieldCheck className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+          <p className="text-xs leading-relaxed text-ink-soft">
+            <strong className="text-ink">None of the four tools below exist yet.</strong> No MCP server ships in
+            this repository and the function names are design sketches, not callable endpoints. They are kept
+            here because they are the intended surface, and removing them would hide where the project is
+            heading — but do not build against them.
+          </p>
+        </div>
       </div>
 
       {/* Grid of MCP tools */}
@@ -210,7 +228,13 @@ export default function DocsPage() {
             </div>
           </div>
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Signs every agent inference and trading decision with the agent's enclave key (`0x8a3c...ee7D`), anchoring the cryptographic proof directly to 0G DA and Storage.
+            {/* `0x8a3c…ee7D` disebut "the agent's enclave key". Itu alamat DOMPET
+                DEPLOYER proyek ini — sebuah EOA biasa yang kunci privatnya ada di
+                mesin pengembang. Menyebutnya kunci enclave adalah pernyataan palsu
+                tentang di mana kunci itu berada. */}
+            Would sign each agent decision and anchor the receipt to 0G DA. Nothing is signed this way today,
+            and the address this card used to attribute to secure hardware is in fact the project deployer
+            wallet — an ordinary EOA whose key sits on a developer machine.
           </p>
           <div className="p-3 rounded-lg bg-white border border-line font-mono text-xs text-ok font-bold">
             notary_anchor_receipt({`{ root: "0xa793...", chain: "0g-mainnet" }`})
@@ -254,12 +278,12 @@ export default function DocsPage() {
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-base">ERC-8004 Token Standard</h3>
-              <span className="text-xs font-mono text-accent font-bold">Anti-Sniper &amp; Enclave-Bound Execution</span>
+              <h3 className="font-bold text-ink text-base">Agent-bound token</h3>
+              <span className="text-xs font-mono text-accent font-bold">Opening-window cap &amp; agent-only buyback</span>
             </div>
           </div>
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Enforces a strict 1% supply transaction limit during the first 5 blocks to eliminate MEV bot snipers. Grants atomic <code className="text-accent">executeTreasuryBuyback()</code> authorization exclusively to the token&apos;s verified 0G TEE Agent address.
+            Caps any single transfer at 1% of supply for the first 5 blocks, so no wallet can take the opening curve in one shot. This lives in <code className="text-accent">AdextoToken._update</code> and is unrelated to any token standard. <code className="text-accent">executeTreasuryBuyback()</code> is restricted to the immutable agent address set at launch.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
             modifier onlyAgent() &#123; require(msg.sender == agentIdentity); _ &#125;
@@ -274,11 +298,11 @@ export default function DocsPage() {
             </div>
             <div>
               <h3 className="font-bold text-ink text-base">Cloudflare x402 Protocol Flow</h3>
-              <span className="text-xs font-mono text-accent font-bold">Sub-50ms Edge Monetization (HTTP 402)</span>
+              <span className="text-xs font-mono text-accent font-bold">Payment challenge live · settlement pending</span>
             </div>
           </div>
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Secures Agent inference APIs behind HTTP 402 Payment Required status. Users provide cryptographic EIP-712 payment signatures, settled trustlessly at 330+ edge PoPs without incurring blockchain gas latency.
+            Puts an HTTP 402 gate in front of an agent API so another machine can read the price and the settlement vault without a blockchain call. A signed EIP-712 voucher is checked for authenticity, but settlement is not built, so the gateway answers 501 rather than pretending payment occurred.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
             Authorization: x402-v1 EIP712Sig(0x1234...USDC)
@@ -297,36 +321,63 @@ export default function DocsPage() {
             </div>
           </div>
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into dedicated sovereign terminal workspaces. Governed on-chain with 4M ADAI quorum and 100k ADAI proposal threshold.
+            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token terminal. The Governor is deployed on all four chains with a 4,000,000-token quorum and a 100,000-token proposal threshold — but the token those numbers are denominated in does not exist yet, so no vote can be cast.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
-            Quorum: 4,000,000 ADAI | Voting Period: 3 Days
+            Quorum: 4,000,000 tokens | Period: 3 days | Governance token: not deployed
           </div>
         </div>
       </div>
 
       {/* 0G TEE Architecture Section */}
+      {/* Seksi ini dulu berjudul "0G Private Computer (TEE) Hardware Specification"
+          dan berbunyi: "The agent private keys never leave the secure hardware
+          boundary, ensuring zero developer tampering and strict compliance for
+          institutional VC capital", dengan kartu "Attestation Protocol: Remote
+          Quote SEV-SNP".
+
+          Tidak ada satu baris pun di repo ini yang mengambil, mengurai, atau
+          memverifikasi laporan attestation SEV-SNP — sudah dicari dengan grep di
+          seluruh src/, cloudflare-worker/, dan scripts/. Jalur agennya adalah
+          `fetch` HTTPS biasa ke router-api.0g.ai. Menyebut "Remote Quote SEV-SNP"
+          sebagai protokol attestation KAMI, di halaman berjudul spesifikasi, adalah
+          klaim yang runtuh pada pertanyaan pertama.
+
+          Juga: "Intel SGX / AMD SEV-SNP" menyebut dua teknologi yang berbeda
+          sekaligus, yang menandakan tidak ada satu pun yang benar-benar diperiksa.
+          Dan `teeAttestationRoot` di calldata factory sebenarnya root penyimpanan
+          0G DA — dinamai seolah attestation. Nama itu tidak bisa diubah lagi tanpa
+          factory baru, jadi minimal ia dijelaskan di sini. */}
       <section className="section-block space-y-4">
         <h2 className="text-lg font-bold text-ink flex items-center gap-2">
           <Cpu className="w-5 h-5 text-accent" />
-          0G Private Computer (TEE) Hardware Specification
+          Agent execution: what we verify, and what we do not
         </h2>
-        <p className="text-xs sm:text-sm text-ink leading-relaxed font-medium">
-          ADEXTO agents execute within Intel SGX / AMD SEV-SNP enclaves provisioned by 0G Private Computer. The agent private keys never leave the secure hardware boundary, ensuring zero developer tampering and strict compliance for institutional VC capital.
+        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
+          Agent inference is an HTTPS request from our server to the 0G Compute router. 0G states that inference
+          runs inside AMD SEV-SNP enclaves; ADEXTO does not fetch or check an attestation report, so we present
+          that as their statement rather than a guarantee of ours. If you need attested execution as a hard
+          requirement, treat this as unverified.
+        </p>
+        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
+          One naming trap worth stating plainly: the factory parameter{" "}
+          <code className="text-accent">teeAttestationRoot</code> holds the 0G DA storage root of the launch
+          metadata. It is a content hash of what was uploaded, not a hardware attestation. The name is fixed in
+          a deployed contract signature and cannot be corrected without a new factory.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
           <div className="p-3.5 rounded-lg bg-white border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Inference Host</span>
-            <span className="text-accent font-bold text-sm">pc.0g.ai/v1</span>
+            <span className="text-ink-soft block text-[11px] font-bold">Inference endpoint</span>
+            <span className="text-ink font-bold text-sm">router-api.0g.ai/v1</span>
           </div>
           <div className="p-3.5 rounded-lg bg-white border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Attestation Protocol</span>
-            <span className="text-accent font-bold text-sm">Remote Quote SEV-SNP</span>
+            <span className="text-ink-soft block text-[11px] font-bold">Attestation checked by us</span>
+            <span className="text-warn font-bold text-sm">None</span>
           </div>
           <div className="p-3.5 rounded-lg bg-white border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Settlement Asset</span>
-            <span className="text-ok font-bold text-sm">USDC (EIP-3009) / USDT0</span>
+            <span className="text-ink-soft block text-[11px] font-bold">Metadata anchored to</span>
+            <span className="text-ink font-bold text-sm">0G DA storage root</span>
           </div>
         </div>
       </section>

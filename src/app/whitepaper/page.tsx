@@ -15,7 +15,18 @@ export default function WhitepaperPage() {
           ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator
         </h1>
         <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-white p-4 rounded-xl border border-line">
-          <strong className="text-accent">Abstract:</strong> We present ADEXTO (adexto.xyz), a vertically integrated Web3 infrastructure uniting autonomous AI Agent execution (A), sovereign bonding-curve markets that require no liquidity deposit (DEX), 1-Click Token Launchpads (T), and protocol economic orchestration (O) backed by 0G Private Computer (TEE) and EVIDIQ MCP Fleet.
+          {/* Abstrak lama menyebut "1-Click Token Launchpads" dan "backed by 0G
+              Private Computer (TEE)". Peluncuran menuntut sambung dompet, tanda
+              tangan attestation, proof World ID, lalu satu transaksi per chain —
+              bukan satu klik. Dan bagian TEE-nya adalah klaim 0G yang tidak kami
+              verifikasi. */}
+          <strong className="text-accent">Abstract:</strong> ADEXTO (adexto.xyz) deploys, in one transaction
+          per chain, an agent-bound ERC-20 and a bonding curve that opens against a virtual reserve — so a
+          launch costs gas and nothing else, and 100% of supply is tradable immediately. The creator receives no
+          allocation; instead a fixed slice of every swap fee is paid to them on-chain for as long as the market
+          trades. The curve never graduates to an external pool and has no withdrawal function. Agent inference
+          runs on the 0G Compute router; where this paper describes hardware isolation, that is 0G&apos;s
+          statement about their infrastructure and not a property ADEXTO verifies.
         </p>
       </div>
 
@@ -47,7 +58,9 @@ export default function WhitepaperPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs my-4">
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
-              <span className="text-ink">24/7 AI Agent deployed in 0G TEE Enclave with quantitative trading authority.</span>
+              <span className="text-ink">
+                An agent address fixed at launch, running its mandate against the 0G Compute router.
+              </span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
@@ -55,7 +68,10 @@ export default function WhitepaperPage() {
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
-              <span className="text-ink">ERC-20 with ERC-8004 metadata binding. Encodes immutable agent ownership.</span>
+              {/* Bukan "ERC-8004": satu address immutable, tanpa registry standar. */}
+              <span className="text-ink">
+                ERC-20 whose transfer hook is bound to one immutable agent address.
+              </span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-ok/30">
               <strong className="text-ok block mb-1 text-sm font-bold">O → Orchestrator</strong>

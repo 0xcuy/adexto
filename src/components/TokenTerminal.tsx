@@ -206,7 +206,7 @@ export default function TokenTerminal({
           // alamat dan fee, sehingga agent menjawab "once you provide reserves…" —
           // janji yang tidak pernah dipenuhi aplikasi.
           systemPrompt:
-            `You are ${project.name} ($${project.symbol}), an ERC-8004 agent on ${chain.name} (chainId ${chain.chainId}). ` +
+            `You are ${project.name} ($${project.symbol}), the agent bound to this token on ${chain.name} (chainId ${chain.chainId}). ` +
             `Mandate: ${project.agentPersona}. Token ${project.tokenAddress}. ` +
             `Curve ${project.poolAddress ?? "not deployed"}. Fees ${(project.lpFeeBps / 100).toFixed(2)}% depth retained by the curve / ${(project.treasuryBuybackBps / 100).toFixed(2)}% agent buyback` +
             (swap.pool ? ` / ${(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% to the creator` : "") +

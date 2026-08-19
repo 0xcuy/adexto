@@ -33,14 +33,29 @@ const STACK: StackEntry[] = [
   // tujuh digit berputar di layar — angka yang tidak bisa dipakai pembaca untuk
   // apa pun sambil bergerak. Footer sudah memuat tabel nama-plus-ID yang berdiam
   // di tempat, dan di sana angka itu memang berguna.
-  { name: CHAINS["0G"].name, role: "TEE agent compute", live: true },
-  { name: CHAINS.Base.name, role: "launch + curve", live: true },
-  { name: CHAINS.Arbitrum.name, role: "launch + curve", live: true },
-  { name: CHAINS.Monad.name, role: "launch + curve", live: true },
-  { name: "World ID", role: "one launch per human", live: true },
-  { name: "Cloudflare Workers", role: "x402 edge paywall", live: true },
-  { name: "ERC-8004", role: "agent identity", live: true },
+  //
+  // Empat baris chain ini SEBELUMNYA berbunyi "launch + curve" dan ditandai live.
+  // Itu salah, dan salahnya jenis terburuk: catatan di hero — dua inci di atas
+  // ticker ini — sudah menyatakan "launch factory pending broadcast". Jadi
+  // halaman yang sama mengatakan peluncuran jalan di tiga mainnet DAN belum jalan
+  // di mana pun. Pembaca akan memercayai yang lebih berani, lalu membuka studio
+  // dan menemukan tombolnya terkunci. Yang benar-benar berjalan di keempat chain
+  // hari ini: dompet, harga, tautan explorer, dan kontrak Governor.
+  { name: CHAINS["0G"].name, role: "agent router · launch pending", live: false },
+  { name: CHAINS.Base.name, role: "curve ready · launch pending", live: false },
+  { name: CHAINS.Arbitrum.name, role: "curve ready · launch pending", live: false },
+  { name: CHAINS.Monad.name, role: "curve ready · launch pending", live: false },
+  // Bukan "one launch per human": produksi menjalankan
+  // WORLD_ID_ONE_LAUNCH_PER_HUMAN=false, jadi yang ditegakkan adalah nullifier
+  // yang terikat ke satu wallet — bukan satu peluncuran per orang selamanya.
+  { name: "World ID", role: "proof of personhood", live: true },
+  { name: "Cloudflare Workers", role: "x402 payment challenge", live: true },
   { name: "CoinGecko", role: "native price feed", live: true },
+  // ERC-8004 dikeluarkan dari ticker. AdextoToken hanya menyimpan satu
+  // `address immutable agentIdentity`; tidak ada supportsInterface, tidak ada
+  // registry identitas/reputasi/validasi seperti yang standar itu tetapkan.
+  // Menyebutnya "ERC-8004" adalah klaim kepatuhan yang tidak bisa ditunjukkan.
+  { name: "0G DA", role: "launch metadata anchored", live: true },
   { name: "Chainlink CCIP", role: "receiver deployed · lanes idle", live: false },
 ];
 
@@ -49,13 +64,12 @@ function Chip({ entry }: { entry: StackEntry }) {
     <span className="mr-3 flex shrink-0 items-center gap-3 rounded-full border border-line bg-cream-2 px-5 py-2.5">
       <span className="whitespace-nowrap text-sm font-semibold tracking-tight text-ink">{entry.name}</span>
       <span aria-hidden="true" className="h-3.5 w-px bg-line-strong" />
-      <span
-        className={`whitespace-nowrap font-mono text-[11px] tracking-wide ${
-          entry.live ? "text-ink-faint" : "text-warn"
-        }`}
-      >
-        {entry.role}
-      </span>
+      {/* Yang belum berjalan ditandai satu titik amber, bukan seluruh teksnya
+          diberi warna peringatan. Lima dari sembilan entri memang belum berjalan,
+          dan mewarnai kelimanya membuat barisan ini terbaca seperti dinding
+          peringatan alih-alih daftar status. */}
+      {!entry.live && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />}
+      <span className="whitespace-nowrap font-mono text-[11px] tracking-wide text-ink-faint">{entry.role}</span>
     </span>
   );
 }
@@ -85,8 +99,14 @@ function Row({ dir }: { dir: "left" | "right" }) {
 export default function StackMarquee() {
   return (
     <section className="w-full border-y border-line bg-cream-3/50 py-12">
-      <p className="mb-8 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
-        What a launch actually runs on
+      {/* Judulnya dulu "What a launch actually runs on" — kalimat yang menyiratkan
+          peluncuran sudah terjadi. Belum ada satu pun di mainnet. */}
+      <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
+        The stack, stated plainly
+      </p>
+      <p className="mb-8 flex items-center justify-center gap-2 text-center text-[11px] text-ink-soft">
+        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
+        marks what is deployed but not yet carrying traffic
       </p>
 
       <div className="adexto-marquee-wrap flex flex-col gap-3 overflow-hidden">

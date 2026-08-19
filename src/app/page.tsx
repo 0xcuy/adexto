@@ -73,9 +73,9 @@ export default function HomePage() {
             <dd className="text-[11px] text-ink-soft mt-0.5">of every swap, forever</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Agent runtime</dt>
-            <dd className="mt-1.5 text-lg font-semibold text-ink">0G TEE</dd>
-            <dd className="text-[11px] text-ink-soft mt-0.5">AMD SEV-SNP enclave</dd>
+            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Creator allocation</dt>
+            <dd className="mt-1.5 text-lg font-semibold text-ink" data-numeric>Zero</dd>
+            <dd className="text-[11px] text-ink-soft mt-0.5">nothing to unlock or dump</dd>
           </div>
           <div>
             {/* Dulu "Mainnet Ready" berwarna hijau bersebelahan dengan "4 Chains
@@ -99,51 +99,102 @@ export default function HomePage() {
     {/* ── THE PROBLEM & THE SOLUTION (VC PERSPECTIVE) ────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-danger/10 text-danger border border-danger/30 text-xs font-mono font-bold mb-3">
-            MARKET PROBLEM VS ADEXTO SOLUTION
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">The Web3 Launchpad Trap vs Sovereign Ownership</h2>
+          {/* Lencana merah "MARKET PROBLEM VS ADEXTO SOLUTION" dihapus: merah
+              dipesan untuk keadaan galat, dan seksi ini bukan galat. Judulnya juga
+              diturunkan dari "The Web3 Launchpad Trap" — bahasa kampanye — menjadi
+              pernyataan tentang apa yang sedang dibandingkan. */}
+          <p className="kicker justify-center mb-3">Design comparison</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">Where the money comes from</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Problem */}
           <div className="glass-panel p-8 rounded-2xl border border-danger/30 space-y-4">
+            {/* Tiga klaim di kolom ini diperbaiki karena yang pertama SALAH dan
+                dua lainnya tidak bisa dipertahankan.
+
+                "Creators receive 0% of ongoing swaps" tidak benar sejak 2025:
+                pump.fun membayar creator bagian fee trading secara real-time, dan
+                angkanya naik ke 0,3% untuk token di bonding curve. Itu sudah
+                tercatat di riset kami sendiri (runbook §1d, dengan sumber). Menuduh
+                pesaing soal hal yang justru mereka kerjakan adalah cara tercepat
+                kehilangan kepercayaan pembaca yang paham bidangnya — dan pembaca
+                yang paham bidangnya adalah target halaman ini.
+
+                Yang tetap benar dan cukup kuat untuk disebut: bagian creator di
+                pump.fun dibiayai fee TAMBAHAN yang dibebankan ke trader, bukan
+                dipotong dari total yang sudah ada. Perbedaan itulah yang nyata.
+
+                Kata "Ponzi" juga dibuang. Itu tuduhan hukum, bukan pengamatan
+                desain, dan tidak menambah satu pun argumen teknis. */}
             <div className="flex items-center gap-2 text-danger font-bold text-sm font-mono">
-              <AlertCircle className="w-4 h-4" /> THE BROKEN INDUSTRY STANDARD (Pump.fun, Clanker)
+              <AlertCircle className="w-4 h-4" /> WHERE INCENTIVES BREAK
             </div>
             <ul className="space-y-3 text-xs sm:text-sm text-ink-soft font-sans">
               <li className="flex items-start gap-2">
                 <span className="text-danger font-bold">✕</span>
-                <span><strong>Zero Creator Retention:</strong> Launchpads take all the fees; creators receive 0% of ongoing liquidity pool swaps.</span>
+                <span>
+                  <strong>Creator revenue bolted on top.</strong> Pump.fun does pay creators a share of
+                  trading fees, but it funds that share with an extra fee charged to traders rather than
+                  taking it out of the fee that already exists.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-danger font-bold">✕</span>
-                <span><strong>Fake AI Bots:</strong> Agents run on AWS with hardcoded API keys; developers can rug the private key anytime.</span>
+                <span>
+                  <strong>The allocation is the exit.</strong> When a creator holds a slice of supply, the
+                  cheapest way to get paid is to sell it — so the incentive to dump is built into the cap
+                  table, no matter how the fees are arranged.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-danger font-bold">✕</span>
-                <span><strong>Zero Utility Ponzi:</strong> No real revenue stream. Tokens bleed to zero as soon as speculative volume moves away.</span>
+                <span>
+                  <strong>Graduation is the attack surface.</strong> Migrating a curve into an external pool
+                  is where most launchpad exploits have happened, and it is a step the market has to trust.
+                </span>
               </li>
             </ul>
           </div>
 
           {/* Solution */}
           <div className="glass-panel p-8 rounded-2xl border border-ok/30 space-y-4">
+            {/* "Verifiable 0G TEE — no human can extract private keys" dihapus.
+                Tidak ada satu baris pun di repo ini yang mengambil, mengurai, atau
+                memverifikasi laporan attestation SEV-SNP; `/api/chat` adalah
+                permintaan HTTPS biasa ke router-api.0g.ai. Jadi isolasi hardware
+                itu klaim 0G, bukan klaim yang kami buktikan, dan kata "verifiable"
+                menjanjikan sesuatu yang tidak bisa ditunjukkan pembaca. Lebih buruk
+                lagi: `teeAttestationRoot` di calldata sebenarnya adalah root
+                penyimpanan 0G DA, dinamai seolah attestation.
+                Penggantinya adalah tiga hal yang bisa diperiksa dengan membuka
+                kontraknya. */}
             <div className="flex items-center gap-2 text-ok font-bold text-sm font-mono">
-              <CheckCircle2 className="w-4 h-4" /> THE ADEXTO ARCHITECTURAL MOAT
+              <CheckCircle2 className="w-4 h-4" /> WHAT THE CONTRACT ENFORCES
             </div>
             <ul className="space-y-3 text-xs sm:text-sm text-ink font-sans">
               <li className="flex items-start gap-2">
                 <span className="text-ok font-bold">✓</span>
-                <span><strong>Creator Fee Sovereignty:</strong> every swap pays the creator 0.10% directly, plus 0.05% to the agent buyback vault. No token allocation, so there is nothing to dump.</span>
+                <span>
+                  <strong>The creator holds nothing.</strong> 100% of supply enters the curve, so there is no
+                  allocation to sell. Income arrives as 0.10% of each swap, taken from inside the existing
+                  0.30% fee, not added to it.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-ok font-bold">✓</span>
-                <span><strong>Verifiable 0G TEE:</strong> Hardware-isolated execution on AMD SEV-SNP. No human (including the dev) can extract private keys.</span>
+                <span>
+                  <strong>No withdrawal function exists.</strong> Nobody can drain a curve — not the creator,
+                  not us. The depth share of every fee stays inside, which raises the price floor as volume
+                  accumulates.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-ok font-bold">✓</span>
-                <span><strong>Real Cashflow Flywheel:</strong> Cloudflare x402 edge paywalls charge external agents per API call, funding continuous buybacks.</span>
+                <span>
+                  <strong>No graduation step.</strong> The curve is the permanent venue, so the migration that
+                  most launchpad exploits target simply is not in the design.
+                </span>
               </li>
             </ul>
           </div>
@@ -153,12 +204,15 @@ export default function HomePage() {
       {/* ── THE 4 PILLARS (A - DEX - T - O) ────────────────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold mb-3">
-            THE 4-IN-1 CORE ARCHITECTURE
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">How The Four Pillars Connect</h2>
+          {/* "Every token launched on ADEXTO is backed by…" dihapus: nol token
+              pernah diluncurkan di mainnet, jadi kalimat itu menyiratkan populasi
+              yang belum ada. Diganti menjadi deskripsi apa yang dibuat satu
+              transaksi peluncuran. */}
+          <p className="kicker justify-center mb-3">Architecture</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">What one launch creates</h2>
           <p className="text-ink-soft text-sm sm:text-base mt-2 leading-relaxed">
-            Every token launched on ADEXTO is backed by autonomous intelligence, its own bonding curve, and edge cashflow.
+            Four parts, deployed together in a single transaction: the agent, its market, the token, and the
+            paywall that bills other machines for the agent&apos;s time.
           </p>
         </div>
 
@@ -177,15 +231,23 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Autonomous Agent</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">0G Compute TEE Enclave</span>
+                <span className="text-[11px] font-bold text-accent block mt-0.5">0G Compute router</span>
               </div>
+              {/* Kartu ini dulu berbunyi "24/7 AI agents execute inside
+                  hardware-isolated AMD SEV-SNP enclaves" dengan lencana "Hardware
+                  Attested". Kami tidak pernah mengambil maupun memeriksa laporan
+                  attestation: agennya memanggil router 0G lewat HTTPS. Menyebut
+                  sesuatu "attested" sementara tidak ada attestation yang diperiksa
+                  adalah klaim yang runtuh pada pertanyaan pertama seorang auditor. */}
               <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                24/7 AI agents execute inside hardware-isolated AMD SEV-SNP enclaves. Private keys and prompt memory cannot be extracted, manipulated, or rugged by developers.
+                Each token is bound to an agent address at launch, and the agent runs its mandate against
+                0G Compute. 0G states that inference runs in AMD SEV-SNP enclaves; ADEXTO does not verify
+                that attestation itself, so we report it as their claim, not ours.
               </p>
             </div>
-            <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              <span>Hardware Attested</span>
-              <ShieldCheck className="w-4 h-4 text-accent" />
+            <div className="pt-4 border-t border-line text-[11px] text-ink-soft font-bold flex items-center justify-between mt-4">
+              <span>Agent address fixed at launch</span>
+              <ShieldCheck className="w-4 h-4 text-ink-faint" />
             </div>
           </div>
 
@@ -233,15 +295,24 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Token Factory</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">ERC-20 &amp; ERC-8004</span>
+                <span className="text-[11px] font-bold text-accent block mt-0.5">ERC-20, agent-bound</span>
               </div>
+              {/* Dua koreksi.
+                  "ERC-8004": AdextoToken hanya menyimpan satu `address immutable
+                  agentIdentity`. Tidak ada supportsInterface, tidak ada registry
+                  identitas/reputasi/validasi seperti yang ditetapkan standar itu.
+                  Menyebutnya kepatuhan ERC-8004 tidak bisa ditunjukkan, jadi yang
+                  ditulis sekarang adalah apa yang benar-benar dilakukan field itu.
+                  "1-Click": peluncuran menuntut sambung dompet, tanda tangan
+                  attestation, proof World ID, lalu satu transaksi PER chain. */}
               <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                1-Click token minting bound to on-chain agent identity. 100% of supply enters the curve, tradable from the
-                launch transaction onward, with an anti-sniper cap of 1% of supply during the opening window.
+                An ERC-20 whose transfer hook is bound to one immutable agent address, so the binding cannot
+                be reassigned later. 100% of supply enters the curve and is tradable from the launch
+                transaction onward, with a 1%-of-supply transfer cap for the first 5 blocks.
               </p>
             </div>
             <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              <span>ERC-8004 Identity</span>
+              <span>Agent binding immutable</span>
               <Lock className="w-4 h-4 text-accent" />
             </div>
           </div>
@@ -263,13 +334,14 @@ export default function HomePage() {
                 <span className="text-[11px] font-bold text-accent block mt-0.5">Cloudflare Workers x402</span>
               </div>
               <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                Sub-50ms edge paywall verifying EIP-712 auth vouchers globally. Channels machine-to-machine API payments
-                into the token&apos;s own buyback vault, which buys and burns against the curve.
+                An HTTP 402 gate in front of the agent&apos;s API, so another machine can discover the price and
+                the settlement vault without a human in the loop. The buyback vault and its burn path exist in
+                the curve; connecting edge revenue to it is still to come.
               </p>
             </div>
-            <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              <span>Sub-50ms Global Edge</span>
-              <Globe className="w-4 h-4 text-accent" />
+            <div className="pt-4 border-t border-line text-[11px] text-ink-soft font-bold flex items-center justify-between mt-4">
+              <span>402 challenge live · settlement pending</span>
+              <Globe className="w-4 h-4 text-ink-faint" />
             </div>
           </div>
         </div>
@@ -283,25 +355,47 @@ export default function HomePage() {
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-accent/10 text-accent border border-accent/30 text-xs font-mono font-bold mb-3">
                 <CloudLightning className="w-3.5 h-3.5" /> CLOUDFLARE WORKERS x402 ENGINE
               </div>
+              {/* Seksi ini dulu menjanjikan tiga hal, dan hanya satu yang benar.
+                  Yang benar: Worker mengembalikan tantangan HTTP 402 dengan harga
+                  dan alamat vault penyelesaian — hidup sekarang, bisa dicoba dengan
+                  satu curl. Yang belum ada: verifikasi tanda tangan EIP-712 yang
+                  sesungguhnya, penyelesaian multi-token, dan penyaluran otomatis ke
+                  vault buyback. Ketiganya tertulis sebagai fitur berjalan.
+                  Angkanya juga bertengkar sendiri: pilar dan judul menyebut
+                  "sub-50ms", FAQ di bawah menyebut "<35ms". Sekarang satu angka,
+                  dan angka itu milik jaringan Cloudflare, bukan hasil pengukuran
+                  kami — jadi disebut apa adanya. */}
               <h2 className="text-3xl sm:text-4xl font-semibold text-ink mb-4">
-                Sub-50ms Global Edge Pay-Per-Call
+                An API that bills other machines
               </h2>
-              <p className="text-ink text-sm leading-relaxed mb-6 font-medium">
-                We discarded slow centralized payment relays. ADEXTO runs x402 payment verification on Cloudflare Workers deployed across 330+ cities worldwide. When any agent or consumer calls an API, payment challenges settle at the edge in milliseconds.
+              <p className="text-ink-soft text-sm leading-relaxed mb-6">
+                Every agent endpoint answers an unpaid request with HTTP 402 Payment Required, quoting its
+                price and the vault that should receive payment. The challenge is served from Cloudflare&apos;s
+                edge, so a caller learns the terms without touching an RPC node.
               </p>
 
               <div className="space-y-3.5 text-xs sm:text-sm font-mono">
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
-                  <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                  <span className="text-ink"><strong className="text-ink">Edge Facilitator:</strong> Cloudflare Worker verifies EIP-712 auth and releases data payload instantly.</span>
+                  <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                  <span className="text-ink">
+                    <strong className="text-ink">Live now:</strong> the 402 challenge, with price, accepted
+                    assets and settlement vault. Try it below on the agent demo page.
+                  </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
-                  <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                  <span className="text-ink"><strong className="text-ink">Multi-Token Settlement:</strong> Accepts USDC, USDT, and native gas tokens on Base &amp; 0G.</span>
+                  <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                  <span className="text-ink">
+                    <strong className="text-ink">Not wired yet:</strong> EIP-712 voucher verification and
+                    on-chain settlement. The endpoint quotes terms; it does not yet take payment.
+                  </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
-                  <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                  <span className="text-ink"><strong className="text-ink">Auto-Buyback Dispatch:</strong> accumulated edge revenue funds the curve&apos;s buyback vault, which buys tokens and burns them.</span>
+                  <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                  <span className="text-ink">
+                    <strong className="text-ink">Not wired yet:</strong> routing that revenue into the
+                    curve&apos;s buyback vault. The vault and its burn path exist on-chain; the edge does not
+                    feed it.
+                  </span>
                 </div>
               </div>
             </div>
@@ -408,11 +502,15 @@ export default function HomePage() {
               </div>
 
               <div className="mt-4 pt-4 border-t border-line flex items-center justify-between text-xs text-ink-soft">
-                <span className="flex items-center gap-1.5 text-ink font-semibold">
-                  <ShieldCheck className="w-4 h-4 text-ok" />
-                  Cloudflare Edge Verified
+                {/* "Cloudflare Edge Verified" adalah lencana tanpa makna — tidak
+                    ada badan yang memverifikasi apa pun di situ. Diganti dengan
+                    pernyataan yang bisa diperiksa: cuplikan di atas memang tanda
+                    tangan fungsi yang ada di berkas kontraknya. */}
+                <span className="flex items-center gap-1.5 text-ink-soft">
+                  <ShieldCheck className="w-4 h-4 text-ink-faint" />
+                  Signatures match contracts/ in the repo
                 </span>
-                <span className="font-mono text-accent font-bold">adexto.xyz</span>
+                <span className="font-mono text-ink-faint">adexto.xyz</span>
               </div>
             </div>
           </div>
@@ -431,10 +529,22 @@ export default function HomePage() {
         <div className="space-y-4 text-left">
           <div className="glass-panel p-6 rounded-2xl border border-line space-y-2">
             <h3 className="text-base font-bold text-ink flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-accent" /> Why not just use OpenAI API on AWS?
+              <HelpCircle className="w-4 h-4 text-accent" /> What actually stops the developer from rugging the agent?
             </h3>
+            {/* Jawaban lama: "ADEXTO runs in 0G AMD SEV-SNP enclaves, making it
+                physically impossible for developers to tamper with agent state."
+                Dua masalah. Pertama, kami tidak memverifikasi attestation apa pun,
+                jadi bagian enclave-nya bukan klaim kami. Kedua, "physically
+                impossible" tidak benar bahkan untuk TEE sungguhan — serangan
+                side-channel terhadap SEV-SNP sudah dipublikasikan. Yang memang
+                menahan rug di sistem ini ada di kontrak, dan itu bisa diperiksa
+                siapa pun. */}
             <p className="text-xs sm:text-sm text-ink-soft leading-relaxed font-sans font-medium">
-              Centralized cloud hosting creates a single point of failure. The developer holds the private keys and prompt weights, creating severe rug-pull and subpoena risks. ADEXTO runs in 0G AMD SEV-SNP enclaves, making it physically impossible for developers to tamper with agent state.
+              Not the enclave — the cap table. The creator receives zero tokens, so there is no position to
+              dump, and the curve has no withdrawal function, so the reserve cannot be drained by anyone
+              including us. The agent address is fixed at launch and cannot be reassigned. Agent inference
+              itself runs on 0G Compute, and 0G states that runs inside AMD SEV-SNP; ADEXTO does not check
+              that attestation, so treat it as their claim rather than a guarantee from us.
             </p>
           </div>
 
@@ -457,10 +567,19 @@ export default function HomePage() {
 
           <div className="glass-panel p-6 rounded-2xl border border-line space-y-2">
             <h3 className="text-base font-bold text-ink flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-accent" /> Why Cloudflare Workers instead of an RPC node for x402?
+              <HelpCircle className="w-4 h-4 text-accent" /> Why serve the payment challenge from the edge?
             </h3>
+            {/* Angka "<35ms" dihapus. Ia bertentangan dengan "sub-50ms" di seksi
+                atas pada halaman yang sama, dan tidak satu pun dari keduanya pernah
+                kami ukur — keduanya mengutip jaringan Cloudflare. Sebuah angka yang
+                bertengkar dengan dirinya sendiri di satu halaman lebih merugikan
+                daripada tidak ada angka. */}
             <p className="text-xs sm:text-sm text-ink-soft leading-relaxed font-sans font-medium">
-              Querying EVM RPCs for every HTTP request adds 500ms–2000ms latency. Cloudflare Workers verify cryptographic EIP-712 vouchers at the edge in &lt;35ms, releasing payload access with zero node bottleneck.
+              Because quoting a price should not require a blockchain read. A caller that has never seen the
+              agent before needs one round trip to learn what it costs and where to pay; asking an EVM RPC for
+              that turns a discovery step into a multi-hundred-millisecond dependency on a node being up. The
+              challenge is static data, so it belongs at the edge. Settlement, when it lands, does need
+              on-chain confirmation.
             </p>
           </div>
         </div>
@@ -477,8 +596,8 @@ export default function HomePage() {
           Ready to launch?
         </h2>
         <p className="text-ink-soft text-sm sm:text-base max-w-xl mx-auto mb-9 leading-relaxed">
-          An ERC-8004 token, its own bonding curve, and a 0G TEE agent deploy in one transaction. You pay gas
-          and nothing else.
+          A token, its own bonding curve and its agent binding deploy in one transaction per chain. You pay
+          gas and nothing else.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
           <Link

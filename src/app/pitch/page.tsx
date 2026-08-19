@@ -11,14 +11,18 @@ export default function PitchDeckPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Header */}
       <div className="border-b-2 border-line pb-8 mb-12 text-center max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ok/10 text-ok border border-ok/30 text-xs font-mono font-bold mb-4">
-          VC DUE DILIGENCE &amp; GRANT PROPOSAL MEMORANDUM
-        </div>
+        {/* Lencana hijau dihapus: hijau menandakan keadaan sehat, bukan jenis
+            dokumen. "$100B AI Agent Economy" juga dihapus — angka pasar tanpa
+            sumber di judul adalah hal pertama yang dicoret pembaca due diligence,
+            dan ia tidak menambah satu pun fakta tentang produk ini. */}
+        <p className="kicker justify-center mb-4">Grant &amp; pre-seed memorandum</p>
         <h1 className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight leading-tight">
-          ADEXTO PROTOCOL: The Sovereign Infrastructure for the $100B AI Agent Economy
+          A launchpad where the creator holds no tokens
         </h1>
-        <p className="text-ink text-sm sm:text-base mt-4 leading-relaxed font-medium">
-          Ecosystem Grant &amp; Pre-Seed Memorandum • Target: $150K–$500K Grants • August 2026 • adexto.xyz • Targeting 0G Foundation Tier-1 Grants &amp; Base Ecosystem Fund
+        <p className="text-ink-soft text-sm sm:text-base mt-4 leading-relaxed">
+          August 2026 · adexto.xyz · seeking $150K–$500K in ecosystem grants, primarily 0G and Base.
+          Contracts are written and tested; the mainnet factory is not broadcast yet, and this memo says so
+          wherever it matters.
         </p>
       </div>
 
@@ -27,34 +31,60 @@ export default function PitchDeckPage() {
       <div>
         {/* ── VC TEAR-DOWN: THE HARD TRUTHS ──────────────────────────────────── */}
         <div className="section-block space-y-5">
-          <div className="kicker text-danger/90">
+          {/* Tiga kartu ini diperbaiki karena masing-masing punya masalah.
+
+              1. "100% 0G TEE hardware isolation — developer cannot access keys":
+                 kami tidak memverifikasi attestation apa pun, jadi ini klaim 0G,
+                 bukan klaim kami.
+              2. "creators receive $0 from downstream AMM volume": tidak benar sejak
+                 2025 — pump.fun membayar creator bagian fee trading. Riset kami
+                 sendiri sudah mencatatnya. Perbedaan yang NYATA adalah dari mana
+                 uangnya diambil.
+              3. "Ponzi Trap": tuduhan hukum, bukan pengamatan desain, dan ia
+                 menuntut sesuatu yang tidak bisa dibuktikan halaman ini.
+
+              Judulnya juga diturunkan. "Why 99% of crypto x AI is uninvestable" dan
+              "The Three Fatal Flaws We Annihilate" ditulis untuk timeline, bukan
+              untuk ruang due diligence. */}
+          <div className="kicker">
             <ShieldAlert className="w-3.5 h-3.5" />
-            <span>Executive summary — why 99% of crypto x AI is uninvestable</span>
+            <span>Executive summary</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">The Three Fatal Flaws We Annihilate</h2>
-          
+          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+            Three design choices, and what each one costs us
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
-            <div className="card card-hover p-4 space-y-2 border-danger/30">
-              <span className="text-danger font-semibold text-sm block">1. The Fake AI Problem</span>
+            <div className="card card-hover p-4 space-y-2">
+              <span className="text-ink font-semibold text-sm block">1. The creator gets no allocation</span>
               <p className="text-ink-soft leading-relaxed">
-                Most "AI tokens" are centralized wrappers running on AWS with hardcoded OpenAI keys. When the developer gets subpoenaed or rugged, the agent dies. 
-                <strong className="text-ink block mt-1">ADEXTO Fix: 100% 0G TEE hardware isolation (AMD SEV-SNP). Developer cannot access keys or prompt memory.</strong>
+                100% of supply enters the curve, so there is no position to sell and nothing to vest. Income is
+                0.10% of every swap, taken from inside the existing 0.30% fee rather than added on top of it.
+                <strong className="text-ink block mt-1">
+                  Cost to us: a creator who wanted a fast exit has no reason to pick this.
+                </strong>
               </p>
             </div>
 
-            <div className="card card-hover p-4 space-y-2 border-danger/30">
-              <span className="text-danger font-semibold text-sm block">2. Launchpad Fee Theft</span>
+            <div className="card card-hover p-4 space-y-2">
+              <span className="text-ink font-semibold text-sm block">2. No deposit, and no graduation</span>
               <p className="text-ink-soft leading-relaxed">
-                Platforms like Pump.fun and Clanker extract $100M+ in creator fees while creators receive $0 from downstream AMM trading volume.
-                <strong className="text-ink block mt-1">ADEXTO Fix: the creator is paid 0.10% of every swap directly by the curve, for as long as the token trades — inside the total fee, not added on top of it.</strong>
+                The curve opens against a virtual reserve, so a launch costs gas only, and it never migrates to
+                an external pool — removing the step most launchpad exploits target.
+                <strong className="text-ink block mt-1">
+                  Cost to us: liquidity can never be deepened by a partner, only by trading volume.
+                </strong>
               </p>
             </div>
 
-            <div className="card card-hover p-4 space-y-2 border-danger/30">
-              <span className="text-danger font-semibold text-sm block">3. Zero Real Revenue (Ponzi Trap)</span>
+            <div className="card card-hover p-4 space-y-2">
+              <span className="text-ink font-semibold text-sm block">3. Machine-payable agent endpoints</span>
               <p className="text-ink-soft leading-relaxed">
-                Tokens with 0 cashflow inevitably dump to zero when retail hype moves on.
-                <strong className="text-ink block mt-1">ADEXTO Fix: Cloudflare Workers x402 edge paywall generates cashflow per API query, funding continuous buybacks.</strong>
+                Each agent answers unpaid calls with HTTP 402 and a price, so revenue can come from other
+                software rather than from speculation.
+                <strong className="text-ink block mt-1">
+                  Status: the challenge is live; verification and settlement are not built yet.
+                </strong>
               </p>
             </div>
           </div>
@@ -62,8 +92,8 @@ export default function PitchDeckPage() {
 
         {/* ── THE 4-IN-1 ORCHESTRATION ARCHITECTURE ──────────────────────────── */}
         <div className="section-block space-y-5">
-          <div className="kicker">Pillar architecture · the ADEXTO advantage</div>
-          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Full-Stack Sovereignty: The ADEXTO Moat</h2>
+          <div className="kicker">Pillar architecture</div>
+          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">What the four letters do</h2>
           
           {/* Paragraf penjelas tidak boleh monospace. Kelas `font-mono` di sini
               membuat empat kartu pilar terbaca seperti keluaran terminal, dan itu
@@ -71,7 +101,11 @@ export default function PitchDeckPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-[13px]">
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
-              <span className="text-ink">Hardware-verified TEE compute on 0G Mainnet (Chain ID 16661). Verifiable inference and 24/7 quant market-making.</span>
+              {/* Bukan "hardware-verified" dan bukan "verifiable inference": tidak
+                  ada attestation yang kami ambil atau periksa. */}
+              <span className="text-ink">
+                Agent inference on the 0G Compute router, bound to one immutable agent address per token.
+              </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
@@ -79,11 +113,21 @@ export default function PitchDeckPage() {
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
-              <span className="text-ink">ERC-8004 metadata binding with dynamic mathematical bonding curves &amp; anti-sniper protection.</span>
+              {/* "ERC-8004" dihapus: token hanya menyimpan satu address immutable,
+                  tanpa supportsInterface dan tanpa registry yang standar itu minta. */}
+              <span className="text-ink">
+                An ERC-20 whose transfer hook is bound to the agent address, plus a 1%-of-supply transfer cap
+                for the first 5 blocks.
+              </span>
             </div>
-            <div className="card card-hover p-4 border-ok/30">
-              <strong className="text-ok block mb-1 text-sm font-bold">O → Orchestrator</strong>
-              <span className="text-ink">Cloudflare Workers x402 edge gate settling global machine micropayments in sub-50ms.</span>
+            <div className="card card-hover p-4 border-accent/30">
+              <strong className="text-accent block mb-1 text-sm font-bold">O → Orchestrator</strong>
+              {/* Bukan "settling": worker mengutip harga, belum menyelesaikan
+                  pembayaran. Angka sub-50ms juga bukan hasil ukuran kami. */}
+              <span className="text-ink">
+                A Cloudflare Worker that answers unpaid agent calls with HTTP 402 and a price. Settlement is not
+                implemented.
+              </span>
             </div>
           </div>
         </div>
@@ -101,25 +145,28 @@ export default function PitchDeckPage() {
                   protokol di kontrak, jadi ini proyeksi monetisasi, bukan penerimaan
                   yang sudah berjalan. */}
               <p className="text-ink-soft">A 0.05% protocol take-rate on swap volume across thousands of sovereign curves on Base, 0G, Arbitrum &amp; Monad. Not yet enabled in the contracts — today the full fee goes to depth, the creator, and the token&apos;s own buyback vault.</p>
-              <span className="text-ok font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
               <strong className="text-ink block font-bold text-sm">2. Cloudflare x402 Micropayment Split</strong>
               <p className="text-ink-soft">10% facilitation take-rate on paid agent API calls settled between machines at the global edge.</p>
-              <span className="text-ok font-mono font-bold block pt-1">Target: $120k/mo at 12M monthly tool calls</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $120k/mo at 12M monthly tool calls</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
               <strong className="text-ink block font-bold text-sm">3. 0G TEE SaaS Enclave Subscriptions</strong>
               <p className="text-ink-soft">Tiered hosting for dedicated 0G private compute: $29/mo (Starter), $149/mo (Pro), $499/mo (Sovereign Fleet).</p>
-              <span className="text-ok font-mono font-bold block pt-1">Target: $185k/mo ARR across 2,500 active enclaves</span>
+              {/* Dulu "$185k/mo ARR" — ARR itu tahunan, jadi "per bulan ARR" bukan
+                  satuan yang ada. Salah satuan di halaman proyeksi keuangan adalah
+                  hal yang paling cepat membuat seluruh tabel diragukan. */}
+              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $185k MRR across 2,500 active enclaves</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
               <strong className="text-ink block font-bold text-sm">4. EVIDIQ MCP Tool Marketplace</strong>
               <p className="text-ink-soft">Revenue split on premium agent security (Sentinel), brand assets (Signet), and schedulers (Helm).</p>
-              <span className="text-ok font-mono font-bold block pt-1">Target: $80k/mo in addon subscriptions</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $80k/mo in addon subscriptions</span>
             </div>
           </div>
         </div>
@@ -130,7 +177,10 @@ export default function PitchDeckPage() {
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Competitive moat &amp; benchmark matrix</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Why ADEXTO Dominates the Next Cycle</h2>
+          {/* "Why ADEXTO Dominates the Next Cycle" dihapus. Kami belum meluncurkan
+              satu token pun di mainnet; mengklaim dominasi siklus dari posisi itu
+              melemahkan tabel di bawahnya, yang sebenarnya isinya baik. */}
+          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">How the designs differ</h2>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left font-mono text-xs border-collapse">
@@ -143,37 +193,59 @@ export default function PitchDeckPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line text-ink">
+                {/* Baris "Creator Trading Revenue: Pump.fun 0% (Platform takes all)"
+                    SALAH dan sudah diperbaiki. Mereka membayar creator bagian fee
+                    trading; perbedaannya ada pada dari mana uang itu diambil.
+                    Baris "AI Hardware Isolation" juga diubah: mengklaim TEE sebagai
+                    keunggulan kami sementara tidak ada attestation yang diperiksa
+                    berarti membandingkan sesuatu yang tidak bisa kami tunjukkan. */}
                 <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">AI Hardware Isolation</td>
-                  <td className="py-3 px-4 text-danger">None (Meme only)</td>
-                  <td className="py-3 px-4 text-ink-soft">Cloud Web2 API</td>
-                  <td className="py-3 pl-4 text-ok font-bold bg-accent-soft">0G AMD SEV-SNP TEE</td>
+                  <td className="py-3 pr-4 font-bold text-ink">Creator allocation</td>
+                  <td className="py-3 px-4 text-ink-soft">Creator may hold supply</td>
+                  <td className="py-3 px-4 text-ink-soft">Creator may hold supply</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">None — 100% into the curve</td>
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">Creator Trading Revenue</td>
-                  <td className="py-3 px-4 text-danger">0% (Platform takes all)</td>
-                  <td className="py-3 px-4 text-ink-soft">Partial pool cut</td>
-                  <td className="py-3 pl-4 text-ok font-bold bg-accent-soft">0.10% of every swap, paid by the curve</td>
+                  <td className="py-3 pr-4 font-bold text-ink">Where creator revenue comes from</td>
+                  <td className="py-3 px-4 text-ink-soft">Extra fee added for traders</td>
+                  <td className="py-3 px-4 text-ink-soft">Share of pool fees</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">0.10% from inside the existing fee</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-ink">Cost to open a market</td>
+                  <td className="py-3 px-4 text-ink-soft">Gas</td>
+                  <td className="py-3 px-4 text-ink-soft">100 $VIRTUAL</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">Gas only, no deposit</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-ink">Graduation to an external pool</td>
+                  <td className="py-3 px-4 text-ink-soft">Yes</td>
+                  <td className="py-3 px-4 text-ink-soft">Yes</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">Never — the curve is permanent</td>
                 </tr>
                 <tr>
                   <td className="py-3 pr-4 font-bold text-ink">Multi-chain launch</td>
-                  <td className="py-3 px-4 text-danger">Single chain only</td>
-                  <td className="py-3 px-4 text-ink-soft">Base only</td>
-                  <td className="py-3 pl-4 text-ok font-bold bg-accent-soft">
-                    1–4 chains, one market per chain
+                  <td className="py-3 px-4 text-ink-soft">Single chain</td>
+                  <td className="py-3 px-4 text-ink-soft">Base</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">1–4 chains, one market each</td>
+                </tr>
+                {/* "ERC-8004 1% Genesis Limit" salah label: cap itu ada di
+                    AdextoToken._update dan tidak berhubungan dengan standar mana pun. */}
+                <tr>
+                  <td className="py-3 pr-4 font-bold text-ink">Opening-window guard</td>
+                  <td className="py-3 px-4 text-ink-soft">None</td>
+                  <td className="py-3 px-4 text-ink-soft">Cooldown</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">
+                    1% transfer cap, 5 blocks, in the token
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">Edge Micro-Monetization</td>
-                  <td className="py-3 px-4 text-danger">None</td>
-                  <td className="py-3 px-4 text-danger">None</td>
-                  <td className="py-3 pl-4 text-ok font-bold bg-accent-soft">Cloudflare Workers x402</td>
-                </tr>
-                <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">Anti-Sniper Defense</td>
-                  <td className="py-3 px-4 text-danger">Rampant Bot Dumps</td>
-                  <td className="py-3 px-4 text-ink-soft">Basic cooldown</td>
-                  <td className="py-3 pl-4 text-ok font-bold bg-accent-soft">ERC-8004 1% Genesis Limit</td>
+                  <td className="py-3 pr-4 font-bold text-ink">Agent API billing</td>
+                  <td className="py-3 px-4 text-ink-soft">None</td>
+                  <td className="py-3 px-4 text-ink-soft">None</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">
+                    HTTP 402 quote live · settlement pending
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -187,11 +259,20 @@ export default function PitchDeckPage() {
           
         <div className="space-y-3 text-xs sm:text-sm font-mono">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-line">
+            {/* Lencana "LIVE" dihapus dari Phase 1. Tabel registry kontrak yang
+                berada tepat di bawah blok ini menyatakan factory kurva belum
+                di-broadcast dan peluncuran serta trading terkunci. Satu halaman
+                tidak boleh mengeluarkan dua putusan yang bertentangan. */}
             <div>
-              <strong className="text-ink block text-sm">Phase 1 (Live Now - August 2026):</strong>
-              <span className="text-ink-soft text-xs">0G Mainnet + Arbitrum One Core Contracts + Cloudflare Workers x402 + 0G TEE Enclaves</span>
+              <strong className="text-ink block text-sm">Phase 1 — contracts and app</strong>
+              <span className="text-ink-soft text-xs">
+                Curve and factory written, tested on five EVMs; app complete end to end; x402 quote endpoint
+                deployed
+              </span>
             </div>
-            <span className="px-3 py-1 rounded bg-ok/10 text-ok font-bold text-xs">LIVE</span>
+            <span className="px-3 py-1 rounded bg-warn/10 text-warn border border-warn/30 font-bold text-xs">
+              MAINNET BROADCAST PENDING
+            </span>
           </div>
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-line">

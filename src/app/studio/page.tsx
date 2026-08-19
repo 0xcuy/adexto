@@ -839,7 +839,7 @@ export default function StudioPage() {
               </div>
 
               {/* Token */}
-              <Section id="step-token" title="2. Token (ERC-8004)">
+              <Section id="step-token" title="2. Token">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <Field label="Name">
                     <input
@@ -1032,15 +1032,18 @@ export default function StudioPage() {
                   />
                 </Field>
                 <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
-                    AMD SEV-SNP enclave
+                  <span
+                    className="px-2 py-0.5 rounded bg-cream-3 text-ink-soft border border-line"
+                    title="0G states inference runs in SEV-SNP enclaves. ADEXTO does not verify that attestation."
+                  >
+                    0G Compute router
                   </span>
                   {/* Amber dipesan untuk peringatan; ini nama fitur. */}
                   <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
                     Cloudflare x402
                   </span>
                   <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
-                    0G DA attestation
+                    0G DA metadata anchor
                   </span>
                 </div>
               </Section>

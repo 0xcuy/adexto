@@ -16,12 +16,22 @@ export default function Footer() {
                 <span className="text-[10px] font-mono text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
               </div>
             </div>
+            {/* Dulu kalimat ini mengulang nama panjangnya lalu menambahkan
+                "powered by 0G Private Computer (TEE)". Pengulangannya sudah ada di
+                baris di atas, dan bagian TEE-nya adalah klaim yang tidak kami
+                verifikasi. Diganti dengan apa yang benar-benar dilakukan produk. */}
             <p className="text-ink-soft leading-relaxed text-xs">
-              Autonomous Decentralized EXchange &amp; Token Orchestrator powered by 0G Private Computer (TEE) &amp; Cloudflare Workers Edge x402.
+              Launch an agent token on a bonding curve that needs no liquidity deposit, on 0G, Base,
+              Arbitrum or Monad. The creator is paid out of every swap instead of holding an allocation.
             </p>
             <div className="flex items-center gap-2 pt-2">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-ok/10 text-ok border border-ok/30">
-                ● 0G TEE Mainnet Ready
+              {/* Dulu "● 0G TEE Mainnet Ready" dengan titik hijau — dan titik hijau
+                  di footer berarti "sedang berjalan". Yang benar: agen memanggil
+                  router 0G lewat HTTPS biasa, dan tidak ada satu baris kode pun di
+                  repo ini yang mengambil atau memverifikasi attestation SEV-SNP.
+                  Jadi TEE-nya adalah klaim 0G, bukan klaim yang kami buktikan. */}
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cream-3 text-ink-soft border border-line">
+                0G Compute router
               </span>
               {/* Amber di sini dulu terbaca sebagai peringatan. Cloudflare x402
                   adalah nama fitur, bukan keadaan, jadi warna peringatan
@@ -47,19 +57,31 @@ export default function Footer() {
             <ul className="space-y-2 text-ink-soft">
               <li><Link href="/whitepaper" className="hover:text-accent transition-colors">Whitepaper &amp; Tokenomics</Link></li>
               <li><Link href="/pitch" className="hover:text-accent transition-colors">VC Memorandum &amp; Grants</Link></li>
-              <li><Link href="/docs" className="hover:text-accent transition-colors">EVIDIQ MCP Suite</Link></li>
-              <li><Link href="/docs#0g-tee" className="hover:text-accent transition-colors">0G TEE Verifiable Compute</Link></li>
+              {/* Dua label ini menjanjikan lebih dari yang ada. Suite MCP belum
+                  dibangun sama sekali, dan "Verifiable Compute" menyiratkan kami
+                  memeriksa attestation — tidak. Halaman docs sekarang menyatakan
+                  status keduanya, jadi tautannya diberi nama sesuai isinya. */}
+              <li><Link href="/docs" className="hover:text-accent transition-colors">Technical status</Link></li>
+              <li><Link href="/pitch" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-bold text-ink mb-3 uppercase tracking-wider text-xs">Supported EVM Chains</h4>
+            <h4 className="font-bold text-ink mb-3 uppercase tracking-wider text-xs">EVM chains</h4>
             {/* Dulu empat baris berkotak dengan border cyan/sky/ungu/biru dan empat
                 titik berkedip. Kolom footer lain berupa daftar polos, jadi kotak
                 pelangi ini terlihat seperti tabel yang tersesat — dan empat animasi
                 berkedip sekaligus hanya menarik mata tanpa memberi informasi.
                 Sekarang: satu daftar, pemisah hairline, angka rata kanan. */}
-            <ul className="divide-y divide-line/[0.06] text-xs">
+            {/* Kata "Live" dihapus dari keempat baris.
+                Kolom ini dulu berbunyi "0G Mainnet 16661 Live" di keempat chain,
+                dua inci di bawah catatan hero yang menyatakan factory peluncuran
+                BELUM di-broadcast. Dua pernyataan itu tidak bisa keduanya benar,
+                dan pembaca akan memercayai yang lebih berani. Yang benar: keempat
+                chain didukung oleh aplikasi ini, tetapi belum ada satu pun yang
+                bisa meluncurkan token. Judul kolomnya juga diubah dari "Supported"
+                — kata itu tidak menjanjikan apa-apa — menjadi pernyataan status. */}
+            <ul className="divide-y divide-line text-xs">
               {[
                 { name: "0G Mainnet", id: "16661" },
                 { name: "Arbitrum One", id: "42161" },
@@ -68,17 +90,27 @@ export default function Footer() {
               ].map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="text-ink-soft">{c.name}</span>
-                  <span className="font-mono text-[11px] text-ink-faint">
-                    {c.id} <span className="text-ok/90">Live</span>
-                  </span>
+                  <span className="font-mono text-[11px] text-ink-faint">{c.id}</span>
                 </li>
               ))}
             </ul>
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
+              Wallets, prices and explorer links work on all four. Launching is
+              disabled everywhere until the curve factory is broadcast.
+            </p>
           </div>
         </div>
 
       <div className="mt-8 pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-soft">
-        <p>© 2026 ADEXTO (adexto.xyz). All rights reserved. Zero central points of failure.</p>
+        {/* "Zero central points of failure" dihapus. Itu tidak benar dan mudah
+            dibantah: aplikasi ini satu kontainer di satu VPS di belakang satu
+            Caddy, registry-nya satu berkas JSON di satu volume, /api/chat
+            bergantung pada satu kunci router, dan gerbang x402 satu Worker.
+            Yang memang tanpa titik pusat kegagalan adalah KONTRAKNYA — kurva
+            tidak punya fungsi penarikan dan tidak punya pemilik yang bisa
+            menghentikannya. Itu klaim yang bisa dipertahankan, jadi itu yang
+            ditulis. */}
+        <p>© 2026 ADEXTO (adexto.xyz). Curves are immutable and have no withdrawal function.</p>
         <div className="flex items-center gap-4">
           <a
             href="https://x.com/adexto_"
