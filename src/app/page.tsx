@@ -352,9 +352,9 @@ export default function HomePage() {
         <div className="glass-panel p-8 sm:p-12 rounded-2xl border border-line">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-accent/10 text-accent border border-accent/30 text-xs font-mono font-bold mb-3">
-                <CloudLightning className="w-3.5 h-3.5" /> CLOUDFLARE WORKERS x402 ENGINE
-              </div>
+              <p className="kicker mb-3">
+                <CloudLightning className="w-3.5 h-3.5" /> Agent monetisation
+              </p>
               {/* Seksi ini dulu menjanjikan tiga hal, dan hanya satu yang benar.
                   Yang benar: Worker mengembalikan tantangan HTTP 402 dengan harga
                   dan alamat vault penyelesaian — hidup sekarang, bisa dicoba dengan
@@ -520,10 +520,8 @@ export default function HomePage() {
       {/* ── FAQ SECTION (ANSWERING HARD VC QUESTIONS) ─────────────────────────── */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold mb-3">
-            TECHNICAL &amp; ARCHITECTURAL FAQ
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">Frequently Asked Questions</h2>
+          <p className="kicker justify-center mb-3">Questions we get asked</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">The three hard ones</h2>
         </div>
 
         <div className="space-y-4 text-left">

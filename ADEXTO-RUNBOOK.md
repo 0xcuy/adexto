@@ -662,6 +662,88 @@ lilin — satu-satunya gambar di layar yang membawa data. Penggantinya satu grad
 cream di `globals.css`. Efek samping: three.js keluar dari bundel bersama, First
 Load JS turun 116 kB → 103 kB di setiap rute.
 
+## 4c-quater. Audit klaim UI — apa yang boleh ditulis di permukaan
+
+Satu putaran audit di domain live menemukan bahwa masalah terbesar situs ini bukan
+tampilan, melainkan **dua halaman yang menampilkan data karangan** dan satu klaim
+inti yang tidak pernah diverifikasi. Semuanya sudah diperbaiki; bagian ini ada
+supaya tidak kembali.
+
+**Penjaga:** `node audit_claims.mjs` (butuh `BASE_URL`). Ia mengambil teks yang
+benar-benar TERLIHAT di sembilan rute — memakai peramban, karena separuh permukaan
+situs dirender setelah hidrasi — lalu:
+
+1. menolak 16 frasa terlarang, masing-masing beserta alasannya;
+2. mendeteksi **pasangan pernyataan yang tidak mungkin keduanya benar** dalam satu
+   halaman (kelas cacat yang paling mudah lolos);
+3. membuktikan `/agent/demo` benar-benar melakukan permintaan jaringan dan
+   menampilkan status HTTP yang sesungguhnya.
+
+`node audit_copy_review.mjs` menarik teks tiap rute ke berkas untuk ditinjau
+manusia. `node audit_governance_truth.mjs` membaca keempat Governor dari chain.
+
+### Aturan yang tidak boleh dilanggar
+
+- **Jangan pernah menampilkan data yang ditulis tangan sebagai keadaan langsung.**
+  `/governance` dulu memuat tiga proposal dengan perolehan suara sebagai array
+  konstan di berkas komponen, di bawah judul "ON-CHAIN DAO GOVERNANCE", sementara
+  `proposalCount` on-chain **nol di keempat chain**. Tombol "Vote FOR"-nya mengirim
+  transaksi sungguhan untuk proposal yang tidak ada. `/agent/demo` dulu nol
+  permintaan jaringan: `setTimeout` mencetak log tetap lalu menampilkan objek
+  "attestation proof" karangan, di halaman berjudul "Live … in real-time".
+- **Kalau pembacaan gagal, katakan gagal.** Halaman governance lama menjatuhkan
+  "Your Voting Power" ke `"100,000.00"` saat RPC error.
+- **TEE adalah klaim 0G, bukan klaim kita.** Nol kode di `src/`,
+  `cloudflare-worker/`, atau `scripts/` yang mengambil atau memverifikasi laporan
+  attestation SEV-SNP; jalur agen adalah `fetch` HTTPS ke `router-api.0g.ai`.
+  Dilarang: "Hardware Attested", "AMD SEV-SNP ACTIVE", "Remote Quote SEV-SNP",
+  "physically impossible". Perhatikan juga: parameter `teeAttestationRoot` di
+  calldata factory sebenarnya **root penyimpanan 0G DA** — namanya terpaku di
+  kontrak yang sudah ter-deploy.
+- **Token tata kelola tidak ada.** "ADAI" hanya muncul sebagai komentar pada dua
+  konstanta di `AdextoGovernor.sol`. `governanceToken` menunjuk SovereignHook v1 di
+  0G dan Arbitrum, dan alamat nol di Base dan Monad — jadi `castVote` **pasti
+  revert** di keempat chain.
+- **ERC-8004 tidak dipenuhi.** `AdextoToken` hanya menyimpan satu
+  `address immutable agentIdentity`; tidak ada `supportsInterface`, tidak ada
+  registry. Cap 1%/5-blok ada di `AdextoToken._update` dan tidak berhubungan dengan
+  standar mana pun.
+- **World ID: "proof of personhood", bukan "one launch per human".** Produksi
+  menjalankan `WORLD_ID_ONE_LAUNCH_PER_HUMAN=false`; yang ditegakkan adalah
+  nullifier terikat satu wallet.
+- **Jangan menuduh pesaing soal hal yang mereka kerjakan.** "Pump.fun creators
+  receive 0%" SALAH — mereka membayar bagian fee trading (§1d, dengan sumber).
+  Perbedaan yang nyata: bagian itu dibiayai fee **tambahan** ke trader, sementara
+  kita memotong dari total yang sudah ada.
+- **Kurvanya produk-konstan (x·y=k), bukan eksponensial.**
+- **Satu angka latensi, atau tidak ada.** Halaman depan pernah menyebut "sub-50ms"
+  dan "<35ms" sekaligus; keduanya mengutip jaringan Cloudflare, bukan ukuran kita.
+- **x402 hari ini = separuh PENEMUAN saja.** Tantangan 402 hidup dan benar.
+  Verifikasi voucher membalas **501**; penyelesaian on-chain, dispatch agen, dan
+  penyaluran ke vault buyback belum dibangun. Worker-nya dulu membalas 200 dengan
+  "AMD SEV-SNP Quote Valid" untuk header berisi `{}`.
+- **`edge.adexto.xyz` belum dipasang** (HTTP 525). URL gerbang yang benar:
+  `https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/<agent>`.
+- **Empat tool MCP tidak ada.** `signet_generate_brand`,
+  `sentinel_verify_calldata`, `helm_register_cron`, `notary_anchor_receipt` hanya
+  muncul di halaman docs. Seksinya berjudul "Specified, not shipped".
+- **Subgraph tidak menyajikan apa pun.** Masih mengindeks factory v1; explorer
+  membaca registry sisi-server.
+- **`0x8a3c…ee7D` adalah dompet deployer**, bukan "enclave key".
+- **Jangan menulis "Zero central points of failure".** Satu kontainer, satu VPS,
+  satu berkas registry, satu kunci router, satu Worker. Yang memang tanpa titik
+  pusat kegagalan adalah kontraknya.
+- **Satuan keuangan harus benar.** "$185k/mo ARR" pernah tayang; ARR itu tahunan.
+
+### Kelas cacat yang paling merugikan: halaman yang membantah dirinya sendiri
+
+Ticker landing menandai Base/Arbitrum/Monad "launch + curve" **dua inci di bawah**
+catatan hero "launch factory pending broadcast", dan footer memperkuat yang salah
+dengan "Live" di keempat chain. Pembaca akan memercayai yang lebih berani, lalu
+membuka studio dan menemukan tombolnya terkunci — dan sesudah itu tidak ada angka
+lain di situs yang masih dia percaya. `audit_claims.mjs` sekarang memeriksa
+pasangan pernyataan semacam ini secara eksplisit.
+
 ## 4d. Ekonomi beli-jual dengan uang asli
 
 Diukur dengan **transaksi sungguhan** di pool nyata (`audit_roundtrip_econ.mjs`), bukan perkiraan:
