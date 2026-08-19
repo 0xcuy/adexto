@@ -595,6 +595,73 @@ Yang diperbaiki pada pass ini:
 - **Tiga CTA "Connect wallet" bertumpuk** di satu layar (navbar + strip wallet + tombol utama). Strip wallet sekarang hanya muncul setelah tersambung — yaitu saat fungsinya memang dibutuhkan untuk berganti wallet tanpa meninggalkan halaman trading.
 - **Badge "LIVE ON-CHAIN" pada registry kontrak** padahal `/api/deploy` melaporkan `dexLive: false` di semua chain. Alamat di sana adalah generasi **v1**; factory v2 yang eksekutabel belum di-broadcast. Badge diubah menjadi `<chain> factory · v1` / `<chain> hook · v1`, judul jadi "Deployed contract registry", dan disebutkan eksplisit bahwa launching serta trading tetap terkunci sampai v2 di-broadcast.
 
+## 4c-ter. Sistem warna cream — aturan yang harus dipatuhi saat mengubah UI
+
+Palet hidup di `src/app/globals.css` (token) dan diberi nama di `tailwind.config.ts`.
+**Jangan menulis hex di komponen.** Pembalikan tema sebelumnya menyentuh ~1.270
+tempat; itu hanya bisa dikerjakan sekali karena warnanya diberi NAMA.
+
+| Token | Nilai | Untuk |
+|---|---|---|
+| `--cream` / `cream-2` / `cream-3` | `#f4efe4` / `#fbf8f1` / `#efe8da` | permukaan; yang lebih PUTIH lebih menonjol |
+| `--ink` / `ink-soft` / `ink-faint` | `#201810` / `#6b5c48` / `#736550` | teks, tiga tingkat |
+| `--line` / `line-strong` | `#e7dcc7` / `#d9cbb0` | garis, bukan teks |
+| `--accent` / `accent-strong` | `#7c3aed` / `#6d28d9` | **satu-satunya** aksen |
+| `--ok` / `--warn` / `--danger` | `#146c34` / `#9a4408` / `#b91c1c` | **hanya keadaan sungguhan** |
+
+**Empat aturan:**
+
+1. **Satu aksen.** Dulu ada enam warna hiasan, akibatnya tidak ada warna tersisa
+   untuk menandakan status. `ok`/`warn`/`danger` dipesan untuk keadaan: pool belum
+   executable, chain wallet tidak cocok, price impact >5%, showcase entry, lane CCIP
+   belum dibuka. **Nama fitur bukan keadaan** — "Cloudflare Workers x402" pernah
+   tampil dengan warna peringatan di enam halaman karena pemetaan mekanis
+   mengirim setiap oranye ke `warn`.
+
+2. **Warna disimpan sebagai kanal RGB berpasangan dengan hex.** Tailwind v3 hanya
+   bisa menerapkan modifier opasitas (`border-line/30`, `bg-ok/10`) bila warnanya
+   `rgb(var(--x) / <alpha-value>)`. Kalau variabelnya hex, setiap modifier
+   menghasilkan CSS tidak valid dan warnanya hilang **tanpa error**.
+
+3. **Isian pekat butuh `text-white`, bukan `text-ink`.** `bg-accent` + `text-ink`
+   adalah sekitar 2:1. Keadaan nonaktif jangan pakai `opacity-40` pada tombol yang
+   tulisannya menjelaskan apa yang kurang — pakai `disabled:bg-cream-3
+   disabled:text-ink-soft`.
+
+4. **Kontras diukur terhadap `--cream-3`, permukaan tergelap tempat teks berdiri.**
+   Bukan terhadap putih. Versi pertama palet ini disetel dengan mata dan hasilnya
+   3,6:1–4,4:1 pada token yang justru dipakai untuk tulisan terkecil di seluruh
+   situs. `audit_visual_sweep.mjs` menjaganya dan melaporkan warna depan, warna
+   latar, serta ukuran huruf. Catatan: pemeriksa lamanya menguji `luminance < 78`
+   pada warna teks — benar untuk tema gelap, **salah arah** setelah palet dibalik.
+
+**Ticker stack (`src/components/StackMarquee.tsx`).** Sebuah nama hanya masuk kalau
+ADEXTO benar-benar berjalan di atasnya, dan labelnya menyebut pemakaiannya secara
+harfiah. Uniswap **tidak boleh masuk** meski diminta: integrasinya nol (§6), jadi
+logonya adalah klaim yang bisa dibantah dengan satu pencarian di repo. Chainlink
+masuk dengan label apa adanya: `receiver deployed · lanes idle`. Nama chain dibaca
+dari `CHAINS`, bukan ditulis ulang, supaya ticker ikut berkata "0G Testnet" bila
+`NEXT_PUBLIC_CHAIN_OVERRIDES` aktif.
+
+**Skrip pemetaan tersimpan**, bukan riwayat shell: `scripts/repalette-to-cream.sh`
+(pemetaan nilai kelas) dan `scripts/repalette-contrast-fix.sh` (dua cacat yang
+tidak bisa ditangkap pemetaan per token: tombol aksen penuh, dan titik status yang
+menjadi 10% sehingga tak terlihat). Keduanya idempoten.
+
+**Jebakan build yang sempat menipu:** satu build lokal memanggang
+`NEXT_PUBLIC_CHAIN_OVERRIDES` yang **bocor dari shell IDE**, dan ticker jujur
+melaporkannya — halaman depan produksi-uji berbunyi "0G Testnet · 16602". Nilai
+`NEXT_PUBLIC_*` ter-inline saat build, jadi build rilis lokal harus dijalankan
+dengan `env -u NEXT_PUBLIC_CHAIN_OVERRIDES -u NEXT_PUBLIC_DEVCHAIN_RPC`. Periksa
+`env | grep NEXT_PUBLIC` sebelum menyimpulkan kode salah. Produksi tidak
+terpengaruh: `deploy-vps.sh` membangun di dalam image dengan `.env.local` milik VPS.
+
+**Latar.** `Live3DBackground` (swarm 180 titik three.js) sudah **dihapus**. Di atas
+cream ia corat-coret di belakang teks, dan di halaman trading bersaing dengan grafik
+lilin — satu-satunya gambar di layar yang membawa data. Penggantinya satu gradasi
+cream di `globals.css`. Efek samping: three.js keluar dari bundel bersama, First
+Load JS turun 116 kB → 103 kB di setiap rute.
+
 ## 4d. Ekonomi beli-jual dengan uang asli
 
 Diukur dengan **transaksi sungguhan** di pool nyata (`audit_roundtrip_econ.mjs`), bukan perkiraan:
