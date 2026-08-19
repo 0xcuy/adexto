@@ -1,8 +1,15 @@
 import Link from "next/link";
 import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
-import { ShieldCheck, Cpu, Database, Zap, Lock, Terminal, Layers, Sparkles, CloudLightning, Award, Network, Globe } from "lucide-react";
+import { ShieldCheck, Cpu, Database, Zap, Lock, Terminal, Layers, Sparkles, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
+import { agentAttestation } from "@/lib/og-attestation";
 
-export default function DocsPage() {
+/**
+ * Halaman ini server component, jadi status attestation dibaca langsung dari
+ * router 0G saat render — tanpa perjalanan tambahan lewat peramban dan tanpa
+ * kunci API pernah meninggalkan server.
+ */
+export default async function DocsPage() {
+  const tee = await agentAttestation();
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Header */}
@@ -31,7 +38,7 @@ export default function DocsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-medium">
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">0G Compute &amp; DA Turbo</strong>
-            <p className="text-ink-soft">Agent inference through the 0G Compute router, plus 0G DA for anchoring launch metadata. The enclave claim is 0G&apos;s, not ours — see the execution note below.</p>
+            <p className="text-ink-soft">Agent inference through the 0G Compute router, plus 0G DA for anchoring launch metadata. The router reports Intel TDX attestation via dstack for every model we call — read live in the table below, not asserted here.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -348,22 +355,108 @@ export default function DocsPage() {
           Dan `teeAttestationRoot` di calldata factory sebenarnya root penyimpanan
           0G DA — dinamai seolah attestation. Nama itu tidak bisa diubah lagi tanpa
           factory baru, jadi minimal ia dijelaskan di sini. */}
+      {/* Seksi ini sudah dua kali salah, ke dua arah berlawanan.
+          Mula-mula ia berbunyi "The agent private keys never leave the secure
+          hardware boundary… Attestation Protocol: Remote Quote SEV-SNP" tanpa satu
+          pun pemeriksaan. Lalu saya menghapus klaim TEE-nya seluruhnya — juga
+          salah, karena router 0G MEMANG menyatakan attestation, per model, dalam
+          bentuk yang bisa dibaca mesin.
+          Yang benar ada di tengah, dan sekarang DIBACA, bukan ditulis: tabel di
+          bawah datang dari `GET /v1/models` di router. Perhatikan juga hardware-nya
+          Intel TDX, bukan AMD SEV-SNP seperti yang situs ini klaim selama berbulan. */}
       <section className="section-block space-y-4">
         <h2 className="text-lg font-bold text-ink flex items-center gap-2">
           <Cpu className="w-5 h-5 text-accent" />
-          Agent execution: what we verify, and what we do not
+          Agent execution: read from the router, not asserted here
         </h2>
+
+        <div
+          className={`flex items-start gap-3 rounded-2xl border p-4 ${
+            tee.live && tee.allAttested ? "border-ok/30 bg-ok/10" : "border-warn/30 bg-warn/10"
+          }`}
+        >
+          {tee.live && tee.allAttested ? (
+            <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+          )}
+          <p className="text-xs leading-relaxed text-ink-soft">
+            {!tee.live ? (
+              <>
+                <strong className="text-ink">The 0G router did not answer.</strong> Attestation status is
+                unknown right now — this page will not present that as safe.
+              </>
+            ) : tee.allAttested ? (
+              <>
+                <strong className="text-ink">Every model this app can use reports TEE attestation.</strong>{" "}
+                Read live from the router when this page rendered. Verify it yourself with{" "}
+                <code className="text-ink">curl -s https://adexto.xyz/api/tee</code>.
+              </>
+            ) : (
+              <>
+                <strong className="text-ink">At least one selectable model is not reported as attested.</strong>{" "}
+                See the table below.
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+          <table className="table-clean min-w-[560px]">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Attested</th>
+                <th>Tier</th>
+                <th>Hardware</th>
+                <th>Verifier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tee.models.map((m) => (
+                <tr key={m.id}>
+                  <td className="font-mono text-[11px] text-ink">{m.id}</td>
+                  <td className="font-mono text-[11px]">
+                    {m.attested === true ? (
+                      <span className="text-ok">yes</span>
+                    ) : m.attested === false ? (
+                      <span className="text-danger">no</span>
+                    ) : (
+                      <span className="text-warn">not reported</span>
+                    )}
+                  </td>
+                  <td className="font-mono text-[11px] text-ink-soft">{m.tier ?? "—"}</td>
+                  <td className="font-mono text-[11px] text-ink-soft">{m.teeType ?? "—"}</td>
+                  <td className="font-mono text-[11px] text-ink-soft">{m.verifier ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-          Agent inference is an HTTPS request from our server to the 0G Compute router. 0G states that inference
-          runs inside AMD SEV-SNP enclaves; ADEXTO does not fetch or check an attestation report, so we present
-          that as their statement rather than a guarantee of ours. If you need attested execution as a hard
-          requirement, treat this as unverified.
+          The two tiers mean different things, and 0G draws the line themselves:{" "}
+          <strong className="text-ink">TeeML</strong> is 0G&apos;s own model in 0G&apos;s own enclave, with the
+          inference attested inside it. <strong className="text-ink">TeeTLS</strong> is a third party running the
+          weights while 0G attests the transport, so the routing path is provable rather than the inference
+          itself. All three models above are TeeML.
         </p>
+
+        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
+          <strong className="text-ink">Where our verification stops.</strong> The table is the router&apos;s
+          declaration, not a raw Intel TDX quote. There is no attestation endpoint on the router — every likely
+          path returns 404 — and completion responses carry no attestation material, so ADEXTO cannot
+          independently prove the enclave for a specific answer. Doing that would mean running the dstack
+          verifier against a quote we cannot currently obtain. What each response does carry is the serving
+          provider&apos;s on-chain address in an <code className="text-accent">x-provider</code> header, which
+          names who answered even though it does not attest how.
+        </p>
+
         <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
           One naming trap worth stating plainly: the factory parameter{" "}
           <code className="text-accent">teeAttestationRoot</code> holds the 0G DA storage root of the launch
-          metadata. It is a content hash of what was uploaded, not a hardware attestation. The name is fixed in
-          a deployed contract signature and cannot be corrected without a new factory.
+          metadata. It is a content hash of what was uploaded, not a hardware attestation. The name is fixed in a
+          deployed contract signature and cannot be corrected without a new factory.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
@@ -372,12 +465,12 @@ export default function DocsPage() {
             <span className="text-ink font-bold text-sm">router-api.0g.ai/v1</span>
           </div>
           <div className="p-3.5 rounded-lg bg-white border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Attestation checked by us</span>
-            <span className="text-warn font-bold text-sm">None</span>
+            <span className="text-ink-soft block text-[11px] font-bold">Attestation source</span>
+            <span className="text-ink font-bold text-sm">router declaration</span>
           </div>
           <div className="p-3.5 rounded-lg bg-white border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Metadata anchored to</span>
-            <span className="text-ink font-bold text-sm">0G DA storage root</span>
+            <span className="text-ink-soft block text-[11px] font-bold">Raw quote verified by us</span>
+            <span className="text-warn font-bold text-sm">No</span>
           </div>
         </div>
       </section>

@@ -30,9 +30,13 @@ export default function Footer() {
                   router 0G lewat HTTPS biasa, dan tidak ada satu baris kode pun di
                   repo ini yang mengambil atau memverifikasi attestation SEV-SNP.
                   Jadi TEE-nya adalah klaim 0G, bukan klaim yang kami buktikan. */}
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cream-3 text-ink-soft border border-line">
-                0G Compute router
-              </span>
+              <Link
+                href="/docs"
+                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cream-3 text-ink-soft border border-line hover:text-ink"
+                title="0G router reports Intel TDX attestation via dstack. ADEXTO reads that declaration; it does not verify the raw quote."
+              >
+                0G TeeML · TDX reported
+              </Link>
               {/* Amber di sini dulu terbaca sebagai peringatan. Cloudflare x402
                   adalah nama fitur, bukan keadaan, jadi warna peringatan
                   dikembalikan untuk keperluan aslinya. */}

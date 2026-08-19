@@ -231,24 +231,28 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Autonomous Agent</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">0G Compute router</span>
+                <span className="text-[11px] font-bold text-accent block mt-0.5">0G Compute · TeeML</span>
               </div>
-              {/* Kartu ini dulu berbunyi "24/7 AI agents execute inside
-                  hardware-isolated AMD SEV-SNP enclaves" dengan lencana "Hardware
-                  Attested". Kami tidak pernah mengambil maupun memeriksa laporan
-                  attestation: agennya memanggil router 0G lewat HTTPS. Menyebut
-                  sesuatu "attested" sementara tidak ada attestation yang diperiksa
-                  adalah klaim yang runtuh pada pertanyaan pertama seorang auditor. */}
+              {/* Kartu ini sudah dua kali salah. Mula-mula: "hardware-isolated AMD
+                  SEV-SNP enclaves" dengan lencana "Hardware Attested", tanpa satu pun
+                  pemeriksaan. Lalu saya menghapus klaim TEE-nya seluruhnya, dan itu
+                  juga salah — router 0G memang menyatakan attestation per model.
+                  Hardware-nya juga bukan SEV-SNP: router berkata Intel TDX, diverifikasi
+                  lewat dstack. Halaman /docs membaca deklarasi itu langsung dari router
+                  saat render, dan /api/tee menyajikannya mentah supaya bisa dicek. */}
               <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                Each token is bound to an agent address at launch, and the agent runs its mandate against
-                0G Compute. 0G states that inference runs in AMD SEV-SNP enclaves; ADEXTO does not verify
-                that attestation itself, so we report it as their claim, not ours.
+                Each token is bound to an agent address at launch. The agent runs on 0G Compute, whose
+                router reports Intel TDX attestation via dstack for every model we call. We read that
+                declaration rather than assert it — but we do not verify the raw quote ourselves.
               </p>
             </div>
-            <div className="pt-4 border-t border-line text-[11px] text-ink-soft font-bold flex items-center justify-between mt-4">
-              <span>Agent address fixed at launch</span>
-              <ShieldCheck className="w-4 h-4 text-ink-faint" />
-            </div>
+            <Link
+              href="/docs"
+              className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4 hover:underline"
+            >
+              <span>See the live attestation table</span>
+              <ShieldCheck className="w-4 h-4 text-accent" />
+            </Link>
           </div>
 
           {/* Pillar 2: DEX */}
@@ -538,11 +542,13 @@ export default function HomePage() {
                 menahan rug di sistem ini ada di kontrak, dan itu bisa diperiksa
                 siapa pun. */}
             <p className="text-xs sm:text-sm text-ink-soft leading-relaxed font-sans font-medium">
-              Not the enclave — the cap table. The creator receives zero tokens, so there is no position to
-              dump, and the curve has no withdrawal function, so the reserve cannot be drained by anyone
-              including us. The agent address is fixed at launch and cannot be reassigned. Agent inference
-              itself runs on 0G Compute, and 0G states that runs inside AMD SEV-SNP; ADEXTO does not check
-              that attestation, so treat it as their claim rather than a guarantee from us.
+              Mostly the cap table, not the enclave. The creator receives zero tokens, so there is no
+              position to dump; the curve has no withdrawal function, so the reserve cannot be drained by
+              anyone including us; and the agent address is fixed at launch and cannot be reassigned. Those
+              three are enforced in the contracts and you can read them. The enclave is a real second layer
+              — 0G&apos;s router reports Intel TDX attestation through dstack for every model we call, and{" "}
+              <Link href="/docs" className="text-accent hover:underline">/docs shows that read live</Link> —
+              but we cannot obtain the raw quote, so do not treat it as something ADEXTO proved.
             </p>
           </div>
 

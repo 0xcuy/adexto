@@ -25,8 +25,9 @@ export default function WhitepaperPage() {
           launch costs gas and nothing else, and 100% of supply is tradable immediately. The creator receives no
           allocation; instead a fixed slice of every swap fee is paid to them on-chain for as long as the market
           trades. The curve never graduates to an external pool and has no withdrawal function. Agent inference
-          runs on the 0G Compute router; where this paper describes hardware isolation, that is 0G&apos;s
-          statement about their infrastructure and not a property ADEXTO verifies.
+          runs on the 0G Compute router, which reports Intel TDX attestation through dstack for every model
+          this protocol calls; ADEXTO reads that declaration per model but does not verify the raw quote,
+          and this paper marks the difference wherever it matters.
         </p>
       </div>
 
@@ -59,7 +60,8 @@ export default function WhitepaperPage() {
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
               <span className="text-ink">
-                An agent address fixed at launch, running its mandate against the 0G Compute router.
+                An agent address fixed at launch, running its mandate against the 0G Compute router
+                (TeeML tier: 0G&apos;s own enclave, Intel TDX, verified by dstack).
               </span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">

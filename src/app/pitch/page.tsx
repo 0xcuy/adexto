@@ -104,7 +104,8 @@ export default function PitchDeckPage() {
               {/* Bukan "hardware-verified" dan bukan "verifiable inference": tidak
                   ada attestation yang kami ambil atau periksa. */}
               <span className="text-ink">
-                Agent inference on the 0G Compute router, bound to one immutable agent address per token.
+                Agent inference on the 0G Compute router — TeeML tier, Intel TDX attested via dstack — bound
+                to one immutable agent address per token.
               </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">

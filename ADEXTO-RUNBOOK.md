@@ -693,13 +693,48 @@ manusia. `node audit_governance_truth.mjs` membaca keempat Governor dari chain.
   "attestation proof" karangan, di halaman berjudul "Live … in real-time".
 - **Kalau pembacaan gagal, katakan gagal.** Halaman governance lama menjatuhkan
   "Your Voting Power" ke `"100,000.00"` saat RPC error.
-- **TEE adalah klaim 0G, bukan klaim kita.** Nol kode di `src/`,
-  `cloudflare-worker/`, atau `scripts/` yang mengambil atau memverifikasi laporan
-  attestation SEV-SNP; jalur agen adalah `fetch` HTTPS ke `router-api.0g.ai`.
-  Dilarang: "Hardware Attested", "AMD SEV-SNP ACTIVE", "Remote Quote SEV-SNP",
-  "physically impossible". Perhatikan juga: parameter `teeAttestationRoot` di
-  calldata factory sebenarnya **root penyimpanan 0G DA** — namanya terpaku di
-  kontrak yang sudah ter-deploy.
+- **TEE: dibaca, bukan diklaim — dan hardware-nya Intel TDX, bukan AMD SEV-SNP.**
+  Ini pernah salah **dua kali, ke arah berlawanan**, dan keduanya perlu dicatat.
+
+  Mula-mula situs menulis "Hardware Attested", "AMD SEV-SNP ACTIVE", dan
+  "Attestation Protocol: Remote Quote SEV-SNP" tanpa satu pun pemeriksaan. Saat
+  audit menemukannya, saya menghapus klaim TEE seluruhnya — dan itu juga salah.
+
+  Fakta, dari probe langsung ke router (`GET /v1/models`, 29 model):
+
+  | field | nilai untuk model kita |
+  |---|---|
+  | `verifiability` | `TeeML` |
+  | `tee_attested` | `true` |
+  | `tee_type` | **`TDX`** (Intel, bukan AMD SEV-SNP) |
+  | `tee_verifier` | `dstack` |
+
+  Ketiga model yang dipakai app — `glm-5.2`, `0gm-1.0-35b-a3b`,
+  `0gm-1.0-35b-a3b-sia` — semuanya `TeeML`. Bedanya penting dan 0G sendiri yang
+  menariknya: **TeeML** = model dan enklave milik 0G, inferensinya ter-attestasi di
+  dalam; **TeeTLS** = bobot dijalankan pihak lain dan 0G meng-attestasi
+  transportnya, jadi yang terbukti adalah jalur routing, bukan inferensinya.
+  Diparafrasekan dari [blog 0G](https://0g.ai/blog/deepseek-v4-pro-live-on-0g-private-computer).
+
+  Router yang sama juga menyajikan model **tanpa** field TEE sama sekali (`claude-*`,
+  `gpt-*`), jadi menambah model ke studio tanpa memeriksa field itu akan diam-diam
+  menghilangkan properti ini.
+
+  Karena itu `src/lib/og-attestation.ts` MEMBACA deklarasi tersebut, `/api/tee`
+  menyajikannya mentah (`curl -s https://adexto.xyz/api/tee`), dan `/docs`
+  menampilkannya sebagai tabel yang dirender dari pembacaan itu. Kalau router mati,
+  hasilnya `live: false` dan UI berkata "tidak diketahui" — bukan "aman".
+
+  **Batas yang tetap berlaku:** tidak ada quote TDX mentah yang bisa kita ambil.
+  Sudah diperiksa — `/v1/attestation`, `/v1/tee/report`, `/v1/quote` dan sejenisnya
+  semuanya 404, dan badan respons chat completion nol kemunculan "tee", "attest",
+  "quote", "signature". Yang ikut per respons: header `x-provider` berisi alamat
+  on-chain penyedia dan `x_0g_trace.request_id`. Jadi boleh menulis "router
+  melaporkan attestation TDX via dstack"; **tidak boleh** menulis "kami
+  memverifikasi quote-nya". Verifikasi sungguhan butuh verifier dstack.
+
+  Perhatikan juga: parameter `teeAttestationRoot` di calldata factory sebenarnya
+  **root penyimpanan 0G DA** — namanya terpaku di kontrak yang sudah ter-deploy.
 - **Token tata kelola tidak ada.** "ADAI" hanya muncul sebagai komentar pada dua
   konstanta di `AdextoGovernor.sol`. `governanceToken` menunjuk SovereignHook v1 di
   0G dan Arbitrum, dan alamat nol di Base dan Monad — jadi `castVote` **pasti

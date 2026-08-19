@@ -31,8 +31,12 @@ const BANNED = [
   ["ERC-8004", "token hanya menyimpan satu address immutable; tidak ada registry standar"],
   ["1-Click", "peluncuran butuh sambung dompet, attestation, World ID, lalu satu tx per chain"],
   ["physically impossible", "tidak ada jaminan sekuat itu yang bisa kami tunjukkan"],
-  ["Hardware Attested", "tidak ada laporan attestation yang diambil atau diperiksa"],
-  ["AMD SEV-SNP ACTIVE", "sama; dan 'ACTIVE' menyiratkan pemeriksaan langsung"],
+  ["Hardware Attested", "lencana itu mengaku KAMI yang memverifikasi; kami hanya membaca deklarasi router"],
+  // Hardware-nya salah, dan salah ini bertahan berbulan-bulan di enam halaman.
+  // Router 0G menyatakan Intel TDX lewat dstack — bukan AMD SEV-SNP. Sekali sebuah
+  // nama hardware ditulis salah, tidak ada pembaca teknis yang mempercayai sisanya.
+  ["SEV-SNP", "router 0G melaporkan Intel TDX via dstack, bukan AMD SEV-SNP"],
+  ["Intel SGX", "sama; menyebut dua teknologi sekaligus menandakan tak satu pun diperiksa"],
   ["enclave key", "alamat yang dimaksud adalah EOA deployer"],
   ["ADAI", "token tata kelola tidak ada di chain mana pun"],
   ["exponential curve", "kurvanya produk-konstan, x*y=k"],

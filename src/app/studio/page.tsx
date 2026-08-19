@@ -1032,12 +1032,17 @@ export default function StudioPage() {
                   />
                 </Field>
                 <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
-                  <span
-                    className="px-2 py-0.5 rounded bg-cream-3 text-ink-soft border border-line"
-                    title="0G states inference runs in SEV-SNP enclaves. ADEXTO does not verify that attestation."
+                  {/* Pil ini dulu berbunyi "AMD SEV-SNP enclave" sebagai fakta.
+                      Router 0G berkata Intel TDX lewat dstack, dan tier untuk model
+                      kita adalah TeeML — enklave milik 0G sendiri. Tautannya ke /docs
+                      karena di sana angkanya dibaca langsung dari router. */}
+                  <a
+                    href="/docs"
+                    className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30 hover:underline"
+                    title="0G router reports Intel TDX attestation via dstack for this model. ADEXTO reads that declaration but does not verify the raw quote."
                   >
-                    0G Compute router
-                  </span>
+                    0G TeeML · TDX reported
+                  </a>
                   {/* Amber dipesan untuk peringatan; ini nama fitur. */}
                   <span className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30">
                     Cloudflare x402
