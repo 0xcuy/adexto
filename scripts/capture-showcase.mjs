@@ -21,9 +21,14 @@ const OUT = process.env.OUT_DIR || path.join(process.cwd(), "public", "showcase"
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
-// 1600x1000 memberi rasio lebar yang lazim untuk galeri, dan teks tetap terbaca
-// tanpa harus diperbesar oleh peninjau.
-const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
+/**
+ * 1600x1000 memberi rasio lebar yang lazim untuk galeri, dan teks tetap terbaca.
+ *
+ * deviceScaleFactor DIBIARKAN 1. Dengan 2x, dua dari tiga gambar keluar di 682 KB
+ * dan 562 KB — melewati batas 500 KB portal, jadi akan ditolak. Skala 1 pada
+ * lebar 1600 masih tajam untuk ditinjau, dan berkasnya jauh di bawah batas.
+ */
+const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();
 
 /** Wallet shim: studio hanya menampilkan panel World ID dan target launch bila tersambung. */
@@ -82,5 +87,49 @@ for (const shot of shots) {
   console.log(`  ${shot.file.padEnd(24)} ${shot.route.padEnd(11)} ${kb} KB`);
 }
 
+/**
+ * Meta tag image (OpenGraph) — WAJIB kotak.
+ *
+ * Portal memakainya saat tautan app dibagikan, dan jatuh ke logo bila tidak diisi.
+ * Dibuat dari public/logo.svg yang memang sudah 512x512, dirender di peramban agar
+ * gradiennya ikut — ImageMagick sering kehilangan gradien SVG karena butuh
+ * delegate terpisah.
+ *
+ * Dua ukuran dibuat: 512 untuk pemakaian umum, dan 200 kalau portal menuntut
+ * ukuran kecil yang persis.
+ */
+const logoSvg = fs.readFileSync(path.join(process.cwd(), "public", "logo.svg"), "utf8");
+const logoData = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`;
+
+for (const size of [512, 200]) {
+  const square = await ctx.newPage();
+  await square.setViewportSize({ width: size, height: size });
+  await square.setContent(`
+    <html><body style="margin:0;width:${size}px;height:${size}px;background:#04060A;display:flex;align-items:center;justify-content:center">
+      <img src="${logoData}" style="width:100%;height:100%;display:block" />
+    </body></html>
+  `);
+  await square.waitForTimeout(600);
+  const out = path.join(OUT, `meta-${size}x${size}.png`);
+  await square.screenshot({ path: out });
+  await square.close();
+  const kb = (fs.statSync(out).size / 1024).toFixed(0);
+  console.log(`  ${`meta-${size}x${size}.png`.padEnd(24)} ${"(logo)".padEnd(11)} ${kb} KB`);
+}
+
 await browser.close();
+
+// Batas 500 KB portal diperiksa di sini, bukan diserahkan ke penolakan unggahan.
+console.log("");
+let over = 0;
+for (const f of fs.readdirSync(OUT).sort()) {
+  const kb = fs.statSync(path.join(OUT, f)).size / 1024;
+  const flag = kb > 500 ? "MELEBIHI 500 KB" : "aman";
+  if (kb > 500) over++;
+  console.log(`  ${f.padEnd(24)} ${kb.toFixed(0).padStart(4)} KB  ${flag}`);
+}
 console.log(`\nselesai -> ${OUT}`);
+if (over > 0) {
+  console.log(`${over} berkas melewati batas portal — turunkan viewport atau deviceScaleFactor`);
+  process.exit(1);
+}
