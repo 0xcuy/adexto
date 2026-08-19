@@ -31,6 +31,18 @@ export default function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-1.5">
+            <strong className="text-cyan-300 block font-bold text-sm">World ID proof of personhood</strong>
+            <p className="text-slate-300">
+              Launching requires a World ID zero-knowledge proof, verified <strong>server-side</strong> and bound to the
+              launching wallet by its nullifier, so one person cannot farm fresh wallets to launch repeatedly. The wallet
+              signature proves address control; this proves personhood. Active once{" "}
+              <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_APP_ID</code> and{" "}
+              <code className="text-cyan-300">NEXT_PUBLIC_WORLD_ID_ACTION</code> are set — until then the studio says so
+              plainly instead of implying protection it does not have.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#070a14] border border-purple-500/30 space-y-1.5">
             <strong className="text-purple-300 block font-bold text-sm">Sovereign Bonding Curve</strong>
             <p className="text-slate-300">A standalone <code className="text-purple-300">SovereignCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. Each swap splits the fee three ways on-chain: depth stays in the curve, the creator is paid directly, and the rest funds agent buybacks.</p>
           </div>
@@ -54,15 +66,16 @@ export default function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-[#070a14] border border-amber-500/30 space-y-1.5">
-            <strong className="text-amber-300 block font-bold text-sm">Planned: Sybil resistance, cross-chain &amp; aggregator routing</strong>
+            <strong className="text-amber-300 block font-bold text-sm">Planned: cross-chain &amp; aggregator routing</strong>
             {/* 1inch dipindahkan ke sini. Sebelumnya "1inch Fusion & AMM Routing"
                 terdaftar sebagai lapisan infrastruktur yang berjalan, padahal string
                 "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
-                hanya di halaman ini. */}
+                hanya di halaman ini. World ID sudah keluar dari daftar ini karena
+                kini benar-benar terpasang. */}
             <p className="text-slate-300">
-              The launch gate today is a server-verified wallet signature, not a World ID zero-knowledge proof. Cross-chain
-              treasury routing is also not active: Chainlink CCIP publishes no router on 0G or Monad, so those lanes cannot
-              be opened yet. Aggregator routing (1inch Fusion) is designed for but not integrated.
+              Cross-chain treasury routing is not active: Chainlink CCIP publishes no router on 0G or Monad, so those lanes
+              cannot be opened yet — the receiver contracts are deployed but idle. Aggregator routing (1inch Fusion) is
+              designed for but not integrated.
             </p>
           </div>
         </div>

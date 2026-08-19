@@ -429,6 +429,43 @@ Asersi baru yang penting: harness kini membuktikan **kebalikan** dari model lama
 
 Adegan 8a sengaja ditambahkan karena itu inti model ekonominya: creator dibayar dari fee, bukan dari alokasi token. Verifikasi tidak berhenti di exit code — frame diekstrak dengan `ffmpeg` dan diperiksa satu per satu; dua putaran perekaman dibuang karena frame masih memperlihatkan copy lama dan cacat layout di atas.
 
+## 1h. World ID: proof of personhood sebagai gerbang peluncuran
+
+Sebelum ini gerbangnya hanya tanda tangan wallet. Itu membuktikan seseorang menguasai **sebuah alamat** — dan alamat baru bisa dibuat tanpa batas, jadi tidak ada hambatan Sybil sama sekali. Sekarang ada lapisan kedua yang sesungguhnya.
+
+**Aliran:** studio membaca status gerbang dari `GET /api/worldid/verify` → widget IDKit menghasilkan proof → `POST /api/worldid/verify` memverifikasi di **server** → server menerbitkan token ber-HMAC terikat alamat → `/api/deploy` menolak launch tanpa token itu.
+
+| Berkas | Peran |
+|---|---|
+| `src/lib/worldid.ts` | Verifikasi proof, penyimpanan nullifier, terbit/periksa token |
+| `src/app/api/worldid/verify/route.ts` | `GET` status gerbang · `POST` verifikasi proof |
+| `src/components/WorldIdVerifyButton.tsx` | Widget IDKit, dimuat dinamis |
+| `audit_worldid_gate.mjs` | Harness dua mode dengan stub verifier lokal |
+
+**Keputusan yang perlu diketahui:**
+
+- **Verifikasi WAJIB di server.** Proof yang divalidasi di browser tidak bernilai apa pun: penyerang tinggal memanggil `/api/deploy` langsung tanpa membuka UI.
+- **Ditegakkan di DUA tahap** `/api/deploy`: `prepare` dan `confirm`. Tahap `confirm`-lah yang menulis ke registry dan ia bisa dipanggil langsung, jadi memeriksa hanya di `prepare` menyisakan pintu samping yang lebar.
+- **Dipakai helper resmi `verifyCloudProof`** dari `@worldcoin/idkit-core/backend`, bukan HTTP rakitan sendiri. Helper itu yang menghitung `signal_hash` dengan `hashToField` — cara hashing yang sama seperti sisi klien. Merakit body sendiri berarti menebak detail itu, dan salah hash membuat **setiap proof yang sah ditolak**. Helper itu juga menerima override endpoint, yang dipakai harness.
+- **`signal` = alamat wallet.** Mengikat proof ke pemohon, sehingga proof sah tidak bisa dipotong dari lalu lintas lalu dipakai wallet lain.
+- **Nullifier diikat ke satu wallet**, bukan satu-launch-selamanya. Pengikatan itulah yang menutup celah utama — memanen wallet baru tanpa batas. Mode ketat tersedia: `WORLD_ID_ONE_LAUNCH_PER_HUMAN=true`. Ditolak sebagai bawaan karena akan memblokir pengujian dan peluncuran $ADEXTO milik proyek sendiri.
+- **`recordLaunch` dipanggil SETELAH registry tercatat**, bukan saat verifikasi. Kalau dicatat lebih awal, tx yang revert atau RPC yang putus akan menghanguskan hak launch seseorang tanpa dia mendapat apa pun.
+- **Fail-closed:** tanpa `WORLD_ID_TOKEN_SECRET` (minimal 16 karakter) tidak ada token yang diterbitkan maupun diterima. Tanpa rahasia, token bisa dipalsukan siapa saja dan seluruh gerbang jadi hiasan. Jatuh ke `ADEXTO_TELEMETRY_SECRET` bila tidak diisi.
+- **Nullifier tidak dikembalikan utuh ke klien** — itu pengenal stabil per manusia, menyiarkannya mempermudah korelasi antar layanan. Hanya prefiks yang dikirim.
+
+**Hasil uji** (`node audit_worldid_gate.mjs`, stub verifier lokal di port 3199):
+
+| Mode | Hasil | Yang dibuktikan |
+|---|---|---|
+| Gerbang aktif | **22 / 0** | Launch tanpa token ditolak · proof palsu tidak menghasilkan token · proof sah meloloskan prepare · token wallet lain ditolak · nullifier yang sama di wallet lain ditolak (409) · HMAC dirusak / bentuk salah / kedaluwarsa ditolak · tombol launch di UI terkunci walau attestation sudah ada |
+| Gerbang mati | **7 / 0** | Server melaporkan `wallet-signature-only` · `appId` tidak dibocorkan · launch tidak menuntut token · studio menandai **NOT CONFIGURED** dan tidak menawarkan tombol yang mustahil |
+
+Stub-nya juga menolak permintaan yang tidak menyertakan `action` dan `signal_hash`, jadi kedua field itu terbukti benar-benar dikirim server.
+
+**Yang masih perlu Anda lakukan:** buat app di [Worldcoin Developer Portal](https://developer.worldcoin.org), buat **Incognito Action**, lalu isi `NEXT_PUBLIC_WORLD_ID_APP_ID`, `NEXT_PUBLIC_WORLD_ID_ACTION`, dan `WORLD_ID_TOKEN_SECRET` di `.env.local` VPS, lalu **rebuild** (nilai `NEXT_PUBLIC_*` ter-inline saat build). Selama kosong, gerbang tetap mati dan studio menyatakannya apa adanya. Nama action harus **sama persis** dengan di portal: `nullifier_hash` bersifat per-action, jadi salah nama berarti keunikan dihitung terhadap ruang yang berbeda.
+
+**Jebakan yang sempat menipu saat menguji:** asersi "tombol launch terkunci" mula-mula lolos karena alasan yang salah — dengan konfigurasi produksi tidak ada chain berfactory, jadi tombolnya **tidak dirender sama sekali** dan pemeriksaan `isDisabled()` dilewati. Harness kini mewajibkan tombolnya ada lebih dulu, dan servernya dijalankan dengan override chain testnet.
+
 ## 1f. Rencana peluncuran $ADEXTO di mainnet
 
 Token milik proyek sendiri, dipakai sekaligus sebagai demo mainnet.
@@ -644,7 +681,7 @@ Dijawab dengan `eth_getCode`, bukan ingatan. Jalankan `node --experimental-strip
 |---|---|---|
 | **Uniswap v4** | **Tidak pernah ada.** Bukan "mati", memang tidak dibangun. | Nol dependency Uniswap di `package.json`. `SovereignHook.sol` mendeklarasikan `IPoolManager` **buatan sendiri** dan punya `afterSwap` bertanda tangan `(address, PoolKey, int128, int128, bytes)` — beda dari `afterSwap` Uniswap v4 yang sesungguhnya, jadi `PoolManager` asli tidak akan pernah memanggilnya. Tidak mewarisi `BaseHook`, tidak ada alamat `PoolManager`, dan bit izin hook tidak di-mine. `SovereignCurve.sol` (generasi v3 yang dipakai sekarang) **nol** singgungan Uniswap. |
 | **Chainlink CCIP** | Kontrak **ter-deploy**, jalurnya **mati**. | `ccipReceiver` ada di keempat mainnet (1.318 byte). Tapi Chainlink tidak menerbitkan router untuk 0G maupun Monad, jadi lane tidak bisa dibuka. Aplikasi **tidak pernah** memanggil `ccipReceiverAddress` — alamatnya hanya tercatat di config dan tampil di registry kontrak. |
-| **World ID / ZKP** | **Tidak terpasang sama sekali.** | Nol paket `@worldcoin/idkit` di `package.json`, nol pemanggilan `verifyProof`/`nullifier_hash` di `src/`. Yang ada hanya nama env `NEXT_PUBLIC_WORLD_ID_APP_ID` dan komentar TODO. Gerbang peluncuran hari ini = tanda tangan wallet yang diverifikasi di server: membuktikan **kendali atas sebuah alamat**, bukan satu-manusia-satu-launch. |
+| **World ID / ZKP** | **TERPASANG** (lihat §1h). Menyala begitu `NEXT_PUBLIC_WORLD_ID_APP_ID` dan `NEXT_PUBLIC_WORLD_ID_ACTION` terisi. | Sebelumnya nol paket dan nol verifikasi — kini `@worldcoin/idkit` terpasang, proof diverifikasi di server lewat `verifyCloudProof`, dan `/api/deploy` menolak launch tanpa token. Uji: `audit_worldid_gate.mjs` — **22/0** saat aktif, **7/0** saat mati. |
 
 Catatan tambahan: `sovereignHook` yang ter-deploy di keempat mainnet berukuran **1.495 byte** — itu generasi **v1** yang belum punya `buy`/`sell`/`receive`, konsisten dengan kolom "Terima native? → **revert**" di tabel atas. Jadi walau alamat hook ada di mainnet, tidak ada perdagangan yang bisa settle di sana.
 
