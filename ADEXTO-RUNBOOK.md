@@ -625,7 +625,7 @@ Diverifikasi lewat `eth_getCode` + `estimateGas` (read-only, tanpa tx):
 | Base 8453 | `0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D` | `0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3` | **revert** |
 | Monad 143 | `0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D` | `0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3` | **revert** |
 
-Governor — **keempatnya ada di mainnet**, masing-masing 4.133 byte (diverifikasi `eth_getCode`, lihat `scripts/check-governor-live.mjs`):
+Governor — **keempatnya ada di mainnet**, masing-masing 4.133 byte (diverifikasi `eth_getCode`, lihat `scripts/check-integrations-live.mjs`):
 
 | Chain | Governor |
 |---|---|
@@ -635,6 +635,20 @@ Governor — **keempatnya ada di mainnet**, masing-masing 4.133 byte (diverifika
 | Monad 143 | `0x01b250a2db25561dB185f4628B93C72048D8bc1B` |
 
 Base dan Monad memakai alamat yang sama karena dideploy dari nonce deployer yang sama di kedua chain. Catatan lama di runbook ini hanya menyebut 0G dan Arbitrum, sehingga badge "4 Chains Live" di `/governance` sempat saya curigai berlebihan — ternyata **klaim UI-nya benar** dan runbook-lah yang kurang lengkap.
+
+### Status tiga integrasi yang sering dipertanyakan
+
+Dijawab dengan `eth_getCode`, bukan ingatan. Jalankan `node --experimental-strip-types scripts/check-integrations-live.mjs` untuk mengulang pemeriksaan.
+
+| Integrasi | Status sebenarnya | Bukti |
+|---|---|---|
+| **Uniswap v4** | **Tidak pernah ada.** Bukan "mati", memang tidak dibangun. | Nol dependency Uniswap di `package.json`. `SovereignHook.sol` mendeklarasikan `IPoolManager` **buatan sendiri** dan punya `afterSwap` bertanda tangan `(address, PoolKey, int128, int128, bytes)` — beda dari `afterSwap` Uniswap v4 yang sesungguhnya, jadi `PoolManager` asli tidak akan pernah memanggilnya. Tidak mewarisi `BaseHook`, tidak ada alamat `PoolManager`, dan bit izin hook tidak di-mine. `SovereignCurve.sol` (generasi v3 yang dipakai sekarang) **nol** singgungan Uniswap. |
+| **Chainlink CCIP** | Kontrak **ter-deploy**, jalurnya **mati**. | `ccipReceiver` ada di keempat mainnet (1.318 byte). Tapi Chainlink tidak menerbitkan router untuk 0G maupun Monad, jadi lane tidak bisa dibuka. Aplikasi **tidak pernah** memanggil `ccipReceiverAddress` — alamatnya hanya tercatat di config dan tampil di registry kontrak. |
+| **World ID / ZKP** | **Tidak terpasang sama sekali.** | Nol paket `@worldcoin/idkit` di `package.json`, nol pemanggilan `verifyProof`/`nullifier_hash` di `src/`. Yang ada hanya nama env `NEXT_PUBLIC_WORLD_ID_APP_ID` dan komentar TODO. Gerbang peluncuran hari ini = tanda tangan wallet yang diverifikasi di server: membuktikan **kendali atas sebuah alamat**, bukan satu-manusia-satu-launch. |
+
+Catatan tambahan: `sovereignHook` yang ter-deploy di keempat mainnet berukuran **1.495 byte** — itu generasi **v1** yang belum punya `buy`/`sell`/`receive`, konsisten dengan kolom "Terima native? → **revert**" di tabel atas. Jadi walau alamat hook ada di mainnet, tidak ada perdagangan yang bisa settle di sana.
+
+Temuan kecil di `SovereignHook.afterSwap`: fungsi itu `external` **tanpa kontrol akses**, dan menaikkan `totalTreasuryFeesCollected` dari angka yang dikirim pemanggil. Siapa pun bisa menggelembungkan penghitung itu. Dampaknya terbatas — tidak ada dana yang berpindah dan aplikasi tidak pernah membaca `totalTreasuryFeesCollected` (sudah dicek) — tapi jangan pernah menampilkan angka itu sebagai statistik. Di `SovereignCurve` masalah ini tidak ada karena tidak ada callback semacam itu.
 Deployer: `0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D` (0G ≈ 8.9, Arbitrum ≈ 0.000138).
 
 **Catatan data:** `AdextoTrinityFactory.totalProjectsCount()` = **1** di 0G dan **0** di Arbitrum. Artinya QNOVA, CSENT dan MQUANT tidak pernah dibuat lewat factory. Di registry mereka ditandai `verified: false` / `poolLive: false` dan tampil sebagai *showcase entry*, bukan pasar yang bisa ditradingkan. AEGIS (`0xb5A8…0dEd`) kontraknya memang ada di 0G (`verified: true`) tapi tanpa pool v2 juga belum tradable.
