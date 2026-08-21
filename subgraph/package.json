@@ -1,0 +1,25 @@
+{
+  "name": "adexto-subgraph",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Indexes AdextoCurveFactory launches and per-token SovereignCurve swaps, creator fee claims and agent buyback burns.",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "reset": "node reset-manifest.mjs",
+    "networks": "python3 ../scripts/gen-subgraph-networks.py",
+    "list": "node graph-ops.mjs list",
+    "graph": "node graph-ops.mjs",
+    "build:all": "node graph-ops.mjs build-all",
+    "deploy:all": "node graph-ops.mjs deploy-all",
+    "deploy:studio": "node graph-ops.mjs deploy-all --studio",
+    "deploy:self-hosted": "node graph-ops.mjs deploy-all --self-hosted",
+    "node:up": "docker compose up -d",
+    "node:down": "docker compose down",
+    "node:logs": "docker compose logs -f graph-node"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "0.98.1",
+    "@graphprotocol/graph-ts": "0.38.1"
+  }
+}

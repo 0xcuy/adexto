@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Overlay env untuk menguji FactoryV3 (bonding curve) di devchain lokal.
+# Overlay env untuk menguji AdextoCurveFactory (bonding curve) di devchain lokal.
 #
 # Pemakaian:
 #   cd devchain && npx hardhat node --port 8545     # terminal 1
@@ -18,7 +18,7 @@ export NEXT_PUBLIC_DEVCHAIN_SYMBOL="ETH"
 
 # Alamat deploy pertama dari akun #0 Hardhat bersifat deterministik, jadi nilai ini
 # stabil setiap kali node di-restart lalu factory dideploy ulang.
-export NEXT_PUBLIC_FACTORY_V3_DEVCHAIN="0x5FbDB2315678afecb367f032d93F642f64180aa3"
+export NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN="0x5FbDB2315678afecb367f032d93F642f64180aa3"
 
 # Sengaja TIDAK menyetel NEXT_PUBLIC_FACTORY_V2_DEVCHAIN: generasi berseed sudah
 # ditinggalkan, dan chains.ts memilih v3 bila keduanya ada.
@@ -36,4 +36,4 @@ unset NEXT_PUBLIC_CHAIN_OVERRIDES
 # produksi kontainer (/app/data) yang bahkan tidak ada di host.
 export ADEXTO_DATA_DIR="${ADEXTO_DEVCHAIN_DATA_DIR:-/tmp/adexto-devchain-data}"
 
-echo "devchain env: chainId 31337 · FactoryV3 ${NEXT_PUBLIC_FACTORY_V3_DEVCHAIN}"
+echo "devchain env: chainId 31337 · curve factory ${NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN}"

@@ -5,7 +5,7 @@ import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
 import { checkSymbolAvailable, findProjectGroup, registerProject, listProjects } from "@/lib/registry";
-import { FACTORY_V3_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
+import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
 import { recordLaunch, verifyWorldIdToken, worldIdConfig } from "@/lib/worldid";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
         chainKey: c.key,
         chainId: c.chainId,
         chainName: c.name,
-        factoryV2: c.factoryV2Address, factoryV3: c.factoryV3Address, launchGeneration: c.launchGeneration,
+        factoryV2: c.factoryV2Address, curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
         dexLive: c.dexLive,
       })),
       registered: listProjects().map((p) => p.symbol),
@@ -173,10 +173,10 @@ async function handlePrepare(body: any) {
   }
 
   const allowed = chains.filter((c) => !blocked.some((b) => b.chain.chainId === c.chainId));
-  const deployable = allowed.filter((c) => c.dexLive && (c.factoryV3Address || c.factoryV2Address));
+  const deployable = allowed.filter((c) => c.dexLive && (c.curveFactoryAddress || c.factoryV2Address));
   const unavailable = [
     ...allowed
-      .filter((c) => !c.dexLive || !(c.factoryV3Address || c.factoryV2Address))
+      .filter((c) => !c.dexLive || !(c.curveFactoryAddress || c.factoryV2Address))
       .map((c) => ({
         chainKey: c.key,
         chainId: c.chainId,
@@ -251,7 +251,7 @@ async function handlePrepare(body: any) {
       chainKey: c.key,
       chainId: c.chainId,
       chainName: c.name,
-      factoryV2: c.factoryV2Address, factoryV3: c.factoryV3Address, launchGeneration: c.launchGeneration,
+      factoryV2: c.factoryV2Address, curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
       nativeSymbol: c.nativeSymbol,
       virtualNative: String(openings[c.chainId].virtualNative),
       nativePriceUsd: openings[c.chainId].priceUsd,
@@ -405,7 +405,7 @@ async function handleConfirm(body: any) {
   }
 
   // Recover token + pool from the factory event rather than trusting the client.
-  const iface = new ethers.Interface(FACTORY_V3_ABI);
+  const iface = new ethers.Interface(CURVE_FACTORY_ABI);
   let tokenAddress: string | null = null;
   let poolAddress: string | null = null;
   let onChainSymbol: string | null = null;

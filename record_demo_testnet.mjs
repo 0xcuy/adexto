@@ -42,7 +42,7 @@ const CHAIN = {
   sym: "0G",
 };
 /**
- * Tidak ada lagi DEMO_SEED. FactoryV3 memakai bonding curve dengan reserve
+ * Tidak ada lagi DEMO_SEED. AdextoCurveFactory memakai bonding curve dengan reserve
  * virtual, jadi tidak ada setoran likuiditas — dan field seed-nya sudah tidak ada
  * di studio, sehingga mengisinya akan membuat perekaman macet.
  */

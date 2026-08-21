@@ -9,7 +9,13 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # Client bundle needs these at build time.
+        # Client bundle needs these at build time. Curve factory (0.9.0) first,
+        # then the older seeded factory; chains.ts prefers the curve generation
+        # when both are present.
+        NEXT_PUBLIC_CURVE_FACTORY_0G: ${NEXT_PUBLIC_CURVE_FACTORY_0G:-}
+        NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM: ${NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM:-}
+        NEXT_PUBLIC_CURVE_FACTORY_BASE: ${NEXT_PUBLIC_CURVE_FACTORY_BASE:-}
+        NEXT_PUBLIC_CURVE_FACTORY_MONAD: ${NEXT_PUBLIC_CURVE_FACTORY_MONAD:-}
         NEXT_PUBLIC_FACTORY_V2_0G: ${NEXT_PUBLIC_FACTORY_V2_0G:-}
         NEXT_PUBLIC_FACTORY_V2_ARBITRUM: ${NEXT_PUBLIC_FACTORY_V2_ARBITRUM:-}
         NEXT_PUBLIC_FACTORY_V2_BASE: ${NEXT_PUBLIC_FACTORY_V2_BASE:-}
@@ -37,4 +43,10 @@ volumes:
 
 networks:
   adexto-network:
+    # Explicit name, not the compose-generated `<project>_adexto-network`. The
+    # self-hosted Graph Node in subgraph/docker-compose.yml joins this network as
+    # `external` so the web container can reach it as http://graph-node:8000
+    # without publishing the indexer on a host port. A generated name would
+    # depend on the directory name, which differs between local and the VPS.
+    name: adexto-net
     driver: bridge

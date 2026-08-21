@@ -1,0 +1,175 @@
+# Self-hosted Graph Node for the chains The Graph does not serve.
+#
+# WHY THIS STACK EXISTS
+#
+# Checked against graphprotocol/networks-registry v0.7.111:
+#
+#   base, base-sepolia          Subgraphs served -> Subgraph Studio, no infra of ours
+#   arbitrum-one, -sepolia      Subgraphs served -> Subgraph Studio, no infra of ours
+#   monad, monad-testnet        listed, Subgraphs NOT served -> here
+#   0g, 0g-testnet              absent from the registry entirely -> here
+#
+# It is not a 0G-only problem and it is not a testnet-only problem: 0G and Monad
+# have nowhere else to go on mainnet either. Which chains this node actually
+# indexes is not written here -- it comes from subgraph/chains.json via the
+# generated graph-node.toml, so a mainnet broadcast needs no edit to this file.
+#
+# START
+#   cp .env.example .env            # only to change the Postgres password
+#   docker compose up -d
+#   npm run networks                # regenerate graph-node.toml + networks.json
+#   npm run deploy:self-hosted      # every self-hosted chain that has a factory
+#
+#   npm run list                    # what exists and where each one deploys
+#
+# This stack is deliberately NOT part of ../docker-compose.yml and NOT started by
+# scripts/deploy-vps.sh. An indexer holds tens of gigabytes of chain state; tying
+# it to the web deploy would mean rebuilding it on every copy tweak. Bring it up
+# once and leave it running.
+#
+# After editing chains.json, run `npm run networks` and then restart this service
+# -- graph-node reads the TOML once at startup.
+#
+# NETWORK EXPOSURE
+#
+# Every published port is bound to 127.0.0.1 on purpose. The GraphQL query API,
+# the admin JSON-RPC on 8020 and the IPFS API on 5001 are ALL unauthenticated:
+# 8020 accepts subgraph_create and subgraph_deploy from anyone who can reach it,
+# and 5001 accepts arbitrary pin/add. On a public VPS these must never bind
+# 0.0.0.0. The web app does not use the host ports at all -- it joins the shared
+# bridge network below and reaches the node as http://graph-node:8000.
+
+services:
+  graph-node:
+    image: graphprotocol/graph-node:v0.45.0
+    container_name: adexto-graph-node
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
+    extra_hosts:
+      # Only for the `devchain` entry in chains.json, whose RPC is a hardhat node
+      # running on the host. Harmless for the public chains.
+      - "host.docker.internal:host-gateway"
+    ports:
+      # GraphQL queries. The app uses the service name, this is for operators.
+      - "127.0.0.1:8000:8000"
+      # GraphQL subscriptions (websocket).
+      - "127.0.0.1:8001:8001"
+      # Admin JSON-RPC. `graph create` / `graph deploy` target this. UNAUTHENTICATED.
+      - "127.0.0.1:8020:8020"
+      # Index node status API: sync progress, chain head, subgraph errors.
+      - "127.0.0.1:8030:8030"
+      # Prometheus metrics.
+      - "127.0.0.1:8040:8040"
+    environment:
+      # Underscores, not hyphens. The image rewrites hyphens in node_id to
+      # underscores unless GRAPH_NODE_ID_USE_LITERAL_VALUE is set, and the name
+      # here must match `[chains] ingestor` plus the deployment rule in
+      # graph-node.toml. Using underscores from the start removes the mismatch.
+      node_id: adexto_index_0
+      # THIS LINE IS LOAD-BEARING. docker/start sets DISABLE_BLOCK_INGESTOR=true
+      # whenever node_id != BLOCK_INGESTOR. Omit it and the node comes up clean,
+      # answers queries, logs nothing alarming, and never ingests a single block
+      # -- the subgraph just sits at 0% forever.
+      BLOCK_INGESTOR: adexto_index_0
+      node_role: combined-node
+      GRAPH_NODE_CONFIG: /etc/graph-node/config.toml
+      ipfs: "ipfs:5001"
+      # Expanded by graph-node inside the Postgres connection string in the TOML.
+      POSTGRES_PASSWORD: ${GRAPH_POSTGRES_PASSWORD:-graph-local-only}
+      GRAPH_LOG: info
+      # Reorg depth. 250 (the default) is meaningless on a sub-second chain like
+      # Monad and wasteful on 0G; both finalise far faster than 250 blocks of
+      # history is worth keeping hot.
+      ETHEREUM_REORG_THRESHOLD: "50"
+      # Keep the store from growing without bound. `indexerHints: prune: auto` in
+      # the manifest asks for pruning; this sets the floor of retained history.
+      GRAPH_MIN_HISTORY_BLOCKS: "1000"
+      # Public RPCs answer bursts with rate limits, not data. Batch writes so a
+      # slow provider does not also mean a write-amplified Postgres.
+      GRAPH_STORE_WRITE_BATCH_DURATION: "60"
+      # A runaway query should not be able to hold a connection open forever.
+      GRAPH_GRAPHQL_QUERY_TIMEOUT: "30"
+      GRAPH_GRAPHQL_MAX_COMPLEXITY: "2000000"
+      GRAPH_GRAPHQL_MAX_DEPTH: "20"
+    volumes:
+      - ./graph-node.toml:/etc/graph-node/config.toml:ro
+    networks:
+      - graph-internal
+      - adexto-shared
+    healthcheck:
+      # The index node status API is the only endpoint that answers before any
+      # subgraph is deployed, so it is the only usable liveness probe here.
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O- --post-data='{\"query\":\"{ __typename }\"}' --header='Content-Type: application/json' http://127.0.0.1:8030/graphql >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: adexto-graph-postgres
+    restart: unless-stopped
+    command:
+      - postgres
+      - -cshared_preload_libraries=pg_stat_statements
+      - -cmax_connections=200
+    environment:
+      POSTGRES_USER: graph
+      POSTGRES_PASSWORD: ${GRAPH_POSTGRES_PASSWORD:-graph-local-only}
+      POSTGRES_DB: graph
+      # graph-node requires a C locale database. With any other collation,
+      # deployment fails at schema creation with a locale error.
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - graph-postgres:/var/lib/postgresql/data
+    networks:
+      - graph-internal
+    # No published ports. Nothing outside this compose project needs Postgres.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graph -d graph"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ipfs:
+    # Pinned. graph-cli uploads the manifest, schema and wasm here, and
+    # graph-node reads them back by hash; a version bump that changes the CID
+    # computation would orphan already-deployed subgraphs.
+    image: ipfs/kubo:v0.30.0
+    container_name: adexto-graph-ipfs
+    restart: unless-stopped
+    ports:
+      # API only, loopback only. UNAUTHENTICATED -- anyone who reaches it can
+      # pin arbitrary data. `graph deploy` needs it from the host shell.
+      - "127.0.0.1:5001:5001"
+    environment:
+      IPFS_PROFILE: server
+    volumes:
+      - graph-ipfs:/data/ipfs
+    networks:
+      - graph-internal
+
+volumes:
+  graph-postgres:
+  graph-ipfs:
+
+networks:
+  # Private to this stack: Postgres and IPFS are only ever reached from here.
+  graph-internal:
+    driver: bridge
+  # Shared with ../docker-compose.yml so the Next.js container can resolve
+  # `graph-node` by name. Declared external with an explicit name because a
+  # compose-generated name would depend on the other project's directory name,
+  # which is not the same on the VPS as it is locally.
+  adexto-shared:
+    external: true
+    name: adexto-net

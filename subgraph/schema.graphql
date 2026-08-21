@@ -1,22 +1,200 @@
+# Skema subgraph ADEXTO.
+#
+# KENAPA SKEMA LAMA DIGANTI SELURUHNYA
+#
+# Yang sebelumnya ada hanya `Project` dan `GlobalStats`, diisi dari satu event
+# factory generasi v1 (`TrinityProjectCreated`) — dan bahkan itu tidak pernah
+# berjalan, karena manifestnya menunjuk `network: mainnet` untuk alamat yang
+# sesungguhnya ada di 0G. Sementara itu halaman /docs mengklaim subgraph
+# "mengindeks curve depth, swap transactions, dan real-time treasury buyback
+# burns". Tak satu pun dari ketiganya punya tempat di skema lama.
+#
+# KENAPA TIDAK BUTUH `eth_call` SAMA SEKALI
+#
+# Ini yang menentukan seluruh bentuk skema ini. `SovereignCurve.Swap` memancarkan
+# `nativeReserveAfter` dan `tokenReserveAfter` — keadaan reserve SESUDAH tiap
+# perdagangan — dan `CurveInitialized` memancarkan `virtualNative`, `curveTokens`,
+# serta `openingPrice`. Artinya seluruh keadaan kurva bisa dipelihara dari aliran
+# event saja.
+#
+# Itu bukan kenyamanan kecil: RPC publik 0G berjalan pruned, bukan archive
+# (`eth_getBalance` gagal dengan `missing trie node` bahkan 1.000 blok ke
+# belakang), dan tidak menyediakan `trace_block`. Subgraph yang memanggil fungsi
+# view akan mati di sana. Karena itu ada satu aturan pemeliharaan yang tidak boleh
+# dilanggar: JANGAN menambahkan `.bind()` atau `try_*` ke mapping mana pun.
+# Begitu satu panggilan kontrak masuk, jalur 0G langsung menuntut node archive dan
+# biayanya berubah dari satu kontainer menjadi masalah infrastruktur.
+#
+# `metadataRoot`, BUKAN `teeAttestationRoot`
+#
+# Field ini dulu bernama `teeAttestationRoot` di skema maupun di kontrak. Nilainya
+# adalah root penyimpanan 0G DA dari metadata launch — sebuah hash konten. Ia bukan
+# laporan attestation hardware, dan nama lamanyalah yang membuat halaman produk
+# mengklaim attestation yang tidak pernah diverifikasi siapa pun.
+
+"""
+Satu peluncuran.
+
+TIDAK ADA `chainId` DI SINI, DAN ITU DISENGAJA. `ethereum.Event` tidak
+menyediakannya dan graph-ts tidak mengekspornya, jadi satu-satunya cara mengisinya
+adalah menebak atau memakukannya per deployment — keduanya cara yang bagus untuk
+membuat dua pasar dari chain berbeda tampak sebagai satu. Sebuah subgraph selalu
+satu jaringan, jadi chainId adalah metadata tentang DEPLOYMENT-nya, bukan tentang
+entitas ini. `/api/graphql` menempelkannya dari sisi server, tempat nilainya
+memang diketahui dengan pasti.
+"""
 type Project @entity(immutable: false) {
-  id: ID! # Token Address
-  tokenAddress: Bytes!
+  "Alamat token, huruf kecil."
+  id: ID!
+  token: Bytes!
+  curve: Curve!
   creator: Bytes!
   name: String!
   symbol: String!
-  swapFeeBps: BigInt!
-  treasuryShareBps: BigInt!
-  teeAttestationRoot: Bytes!
-  deployedAt: BigInt!
+  "Supply dalam satuan utuh seperti yang dikirim ke factory."
+  initialSupply: BigInt!
+  "Token yang benar-benar masuk kurva. Sama dengan seluruh supply ter-mint."
+  curveTokens: BigInt!
+  "Root penyimpanan 0G DA dari metadata launch. Bukan attestation hardware."
+  metadataRoot: Bytes!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  createdAtTx: Bytes!
+}
+
+type Curve @entity(immutable: false) {
+  "Alamat kurva, huruf kecil."
+  id: ID!
+  project: Project
+  "Diisi dari CurveInitialized. Reserve pembuka yang tidak pernah berupa uang nyata."
+  virtualNative: BigInt!
+  "Token yang dimuat ke kurva saat inisialisasi (T)."
+  curveTokens: BigInt!
+  openingPriceNative: BigInt!
+
+  # ── Keadaan langsung, seluruhnya diturunkan dari event ───────────────────
+  "virtualNative + native nyata. Diambil dari nativeReserveAfter swap terakhir."
+  reserveNative: BigInt!
+  "curveTokens - tokensSold. Diambil dari tokenReserveAfter swap terakhir."
+  reserveToken: BigInt!
+  tokensSold: BigInt!
+  "reserveNative / reserveToken. Inilah harga spot yang dipakai UI."
+  spotPriceNative: BigDecimal!
+
+  # ── Pembagian fee, tetap sejak deployment ────────────────────────────────
+  depthFeeBps: BigInt!
+  creatorFeeBps: BigInt!
+  treasuryBuybackBps: BigInt!
+
+  # ── Akumulasi ────────────────────────────────────────────────────────────
+  "Fee depth yang mengendap di kurva. Inilah yang mengangkat lantai harga."
+  totalDepthFees: BigInt!
+  totalCreatorFees: BigInt!
+  totalTreasuryFees: BigInt!
+  totalCreatorFeesClaimed: BigInt!
+  volumeNative: BigInt!
+  swapCount: BigInt!
+  buyCount: BigInt!
+  sellCount: BigInt!
+  tokensBurned: BigInt!
+  """
+  Harga terendah yang bisa dicapai kurva, yaitu saat setiap token beredar dijual
+  kembali: (virtualNative + totalDepthFees) / curveTokens. Naik monoton seiring
+  volume, dan itu properti yang membedakan kurva ini — jadi ia dihitung di sini
+  alih-alih dibiarkan dihitung ulang setiap klien.
+  """
+  floorPriceNative: BigDecimal!
+
+  initialized: Boolean!
+  createdAtBlock: BigInt!
+  lastSwapTimestamp: BigInt
+
+  swaps: [Swap!]! @derivedFrom(field: "curve")
+  buybacks: [BuybackBurn!]! @derivedFrom(field: "curve")
+  dayData: [CurveDayData!]! @derivedFrom(field: "curve")
+}
+
+type Swap @entity(immutable: true) {
+  "txHash-logIndex."
+  id: ID!
+  curve: Curve!
+  project: Project
+  trader: Bytes!
+  recipient: Bytes!
+  "true = native masuk, token keluar."
+  isBuy: Boolean!
+  amountIn: BigInt!
+  amountOut: BigInt!
+  depthFee: BigInt!
+  creatorFee: BigInt!
+  treasuryFee: BigInt!
+  "Reserve sesudah perdagangan, langsung dari event. Tanpa eth_call."
+  reserveNativeAfter: BigInt!
+  reserveTokenAfter: BigInt!
+  "Harga sesudah perdagangan. Inilah bahan lilin grafik."
+  priceNativeAfter: BigDecimal!
   blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  timestamp: BigInt!
+  txHash: Bytes!
+  logIndex: BigInt!
+}
+
+type BuybackBurn @entity(immutable: true) {
+  id: ID!
+  curve: Curve!
+  "Native dari vault buyback yang dibelanjakan di kurva."
+  amountInNative: BigInt!
+  "Token yang dibeli lalu dibakar, sehingga supply benar-benar berkurang."
+  tokensBurned: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+type CreatorFeeClaim @entity(immutable: true) {
+  id: ID!
+  curve: Curve!
+  to: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Agregat harian per kurva.
+
+Ada supaya explorer bisa menampilkan volume 24 jam dan rentang harga tanpa
+memindai setiap swap di klien — itu justru pekerjaan yang seharusnya dilakukan
+indexer. `open`/`high`/`low`/`close` memakai harga sesudah swap, jadi lilinnya
+konsisten dengan apa yang benar-benar terjadi di kurva.
+"""
+type CurveDayData @entity(immutable: false) {
+  "curveAddress-dayStartTimestamp."
+  id: ID!
+  curve: Curve!
+  dayStartTimestamp: BigInt!
+  volumeNative: BigInt!
+  swapCount: BigInt!
+  openPriceNative: BigDecimal!
+  highPriceNative: BigDecimal!
+  lowPriceNative: BigDecimal!
+  closePriceNative: BigDecimal!
+  depthFees: BigInt!
+  creatorFees: BigInt!
+  treasuryFees: BigInt!
 }
 
 type GlobalStats @entity(immutable: false) {
+  "Selalu 'global'."
   id: ID!
   totalProjects: BigInt!
-  totalVolumeUSD: BigDecimal!
-  totalFeesGeneratedUSD: BigDecimal!
-  totalBuybacksUSD: BigDecimal!
+  totalCurves: BigInt!
+  totalSwaps: BigInt!
+  totalVolumeNative: BigInt!
+  totalDepthFees: BigInt!
+  totalCreatorFees: BigInt!
+  totalTreasuryFees: BigInt!
+  totalTokensBurned: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }

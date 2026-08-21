@@ -8,7 +8,7 @@
  *   1. cd devchain && npx hardhat node
  *   2. node scripts/compile-contracts.mjs --via-ir
  *   3. node scripts/deploy-sovereign-dex.mjs --chain devchain --broadcast
- *   4. next start with NEXT_PUBLIC_DEVCHAIN_RPC + NEXT_PUBLIC_FACTORY_V3_DEVCHAIN
+ *   4. next start with NEXT_PUBLIC_DEVCHAIN_RPC + NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN
  *
  * The injected wallet is a thin proxy onto the devchain's unlocked account #0, so
  * eth_sendTransaction and personal_sign are handled by the node itself.
@@ -227,7 +227,7 @@ window.ethereum = {
 
   await page.locator('input[value="Aegis Quant AI"]').first().fill("E2E Verified Agent");
 
-  // FactoryV3 memakai kurva dengan reserve virtual, jadi tidak ada field seed
+  // AdextoCurveFactory memakai kurva dengan reserve virtual, jadi tidak ada field seed
   // untuk diisi. Yang diuji sekarang justru ketiadaannya — kalau field itu
   // muncul lagi, berarti UI diam-diam kembali ke generasi berseed.
   const studioBody = await page.evaluate(() => document.body.innerText);

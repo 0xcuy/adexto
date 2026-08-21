@@ -1,15 +1,28 @@
 /**
  * Canonical on-chain addresses for the ADEXTO Protocol.
  *
- * `factoryV2Address` points at AdextoTrinityFactoryV2, which deploys a real
- * executable SovereignHook AMM per launch. It is read from the environment so a
- * broadcast does not require a code change:
+ * Dua generasi factory dibaca dari environment, supaya sebuah broadcast tidak
+ * menuntut perubahan kode:
  *
- *   NEXT_PUBLIC_FACTORY_V2_0G / _ARBITRUM / _BASE / _MONAD
+ *   NEXT_PUBLIC_CURVE_FACTORY_0G / _ARBITRUM / _BASE / _MONAD   AdextoCurveFactory
+ *   NEXT_PUBLIC_FACTORY_V2_0G   / _ARBITRUM / _BASE / _MONAD    AdextoTrinityFactoryV2
+ *
+ * `chains.ts` memilih curve factory bila keduanya ada, karena itulah generasi
+ * tanpa setoran.
+ *
+ * BUG YANG DITUTUP DI SINI
+ *
+ * `NEXT_PUBLIC_CURVE_FACTORY_*` sebelumnya TIDAK PERNAH DIBACA di berkas ini.
+ * Studio menyuruh pengguna menyetel `NEXT_PUBLIC_FACTORY_V3_0G` saat peluncuran
+ * mati, dan tidak ada satu baris kode pun yang membacanya — satu-satunya jalur
+ * yang benar-benar bekerja adalah `NEXT_PUBLIC_CHAIN_OVERRIDES`, yang justru
+ * WAJIB kosong di produksi (§3 runbook). Akibatnya: mem-broadcast factory ke
+ * mainnet lalu menyetel variabel yang disarankan UI tidak akan mengaktifkan
+ * apa pun, dan penyebabnya tidak akan terlihat di mana pun.
  *
  * `sovereignHookAddress` is the legacy v1 hook. It has no `receive()` and no swap
  * entrypoint, so it cannot settle trades — the UI treats a chain without a
- * `factoryV2Address` as "DEX not live yet" instead of sending doomed transactions.
+ * factory as "DEX not live yet" instead of sending doomed transactions.
  */
 
 const env = (key: string): string | null => {
@@ -26,6 +39,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://chainscan.0g.ai",
     factoryAddress: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0",
     factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_0G"),
+    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_0G"),
     sovereignHookAddress: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
     governorAddress: "0x5045b117dDF788078c535f37837fDB6384da034d",
     ccipReceiverAddress: "0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4",
@@ -39,6 +53,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://arbiscan.io",
     factoryAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_ARBITRUM"),
+    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM"),
     sovereignHookAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     governorAddress: "0x33811F9c53da5071A130F18D844f64999dBD43bA",
     ccipReceiverAddress: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
@@ -52,6 +67,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://basescan.org",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_BASE"),
+    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_BASE"),
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
@@ -65,6 +81,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://monadvision.com",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_MONAD"),
+    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_MONAD"),
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",

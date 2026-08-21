@@ -1,0 +1,129 @@
+{
+  "_README": [
+    "Per-network indexing metadata. THE ONLY hand-maintained file in the subgraph",
+    "toolchain. Everything else is generated from this plus build/deployments.json:",
+    "",
+    "  networks.json    address + startBlock per network   (graph-cli reads it)",
+    "  graph-node.toml  chain sections for self-hosted     (graph-node reads it)",
+    "",
+    "  regenerate both:  npm run networks",
+    "",
+    "WHY THIS FILE EXISTS AT ALL",
+    "",
+    "The first cut of this toolchain hardcoded testnet names into npm script names",
+    "(build:0g-testnet, deploy:monad-testnet, ...) and into two hand-written chain",
+    "sections in graph-node.toml. That meant broadcasting a mainnet factory would",
+    "have required renaming scripts and hand-editing TOML -- exactly the kind of",
+    "work that gets skipped, leaving a stack that says testnet while indexing",
+    "mainnet. Mainnet entries are already here, complete, waiting for an address.",
+    "",
+    "target = studio       deployed to Subgraph Studio, no infrastructure of ours",
+    "target = self-hosted  deployed to our own Graph Node (subgraph/docker-compose.yml)",
+    "",
+    "`target` is not a preference. It is what The Graph does and does not serve,",
+    "checked against graphprotocol/networks-registry v0.7.111. A network with no",
+    "Subgraphs support cannot go to Studio no matter how much we would like it to.",
+    "",
+    "maxBlockRange is the eth_getLogs ceiling the RPC actually enforces, probed",
+    "directly rather than assumed -- see the `probed` field on each entry. Set it",
+    "too high and every request fails; too low and a backfill takes days.",
+    "Only meaningful for self-hosted networks; Studio runs its own providers."
+  ],
+
+  "0g": {
+    "deploymentKey": "0g",
+    "chainId": 16661,
+    "label": "0G Mainnet",
+    "target": "self-hosted",
+    "rpc": "https://evmrpc.0g.ai",
+    "maxBlockRange": 2000,
+    "pollingInterval": 2000,
+    "probed": "2026-08-18 Geth/v1.15.11: eth_getLogs 10000-block span OK, genesis header OK, eth_getBlockReceipts OK, trace_block and debug_traceBlockByNumber both -32601. Pruned, not archive: eth_getBalance on old blocks fails with 'missing trie node'. Range held at 2000 because the 10000 ceiling is a log-count limit, not a block limit, and a busy contract would blow past it.",
+    "registry": "absent from graphprotocol/networks-registry entirely"
+  },
+
+  "0g-testnet": {
+    "deploymentKey": "0g-testnet",
+    "chainId": 16602,
+    "label": "0G Galileo Testnet",
+    "target": "self-hosted",
+    "rpc": "https://evmrpc-testnet.0g.ai",
+    "maxBlockRange": 2000,
+    "pollingInterval": 2000,
+    "probed": "2026-08-18 Geth/v1.15.11, chainId 0x40da: eth_getLogs 10000-block span OK, genesis header OK, eth_getBlockReceipts OK, no traces.",
+    "registry": "absent from graphprotocol/networks-registry entirely"
+  },
+
+  "monad": {
+    "deploymentKey": "monad",
+    "chainId": 143,
+    "label": "Monad Mainnet",
+    "target": "self-hosted",
+    "rpc": "https://rpc.monad.xyz",
+    "maxBlockRange": 100,
+    "pollingInterval": 500,
+    "probed": "2026-08-18 Monad/0.15.1, chainId 0x8f: eth_getLogs HARD CAP at 100 blocks -- HTTP 413 with {\"code\":-32614,\"message\":\"eth_getLogs is limited to a 100 range\"} for 500 and above. genesis header OK, eth_getBlockReceipts OK, trace_block -32601 (debug_traceBlockByNumber does answer, unused). A paid provider lifts the 100 cap; raise maxBlockRange only after re-probing.",
+    "registry": "listed, but Subgraphs not served (Firehose and Substreams only)"
+  },
+
+  "monad-testnet": {
+    "deploymentKey": "monad-testnet",
+    "chainId": 10143,
+    "label": "Monad Testnet",
+    "target": "self-hosted",
+    "rpc": "https://testnet-rpc.monad.xyz",
+    "maxBlockRange": 100,
+    "pollingInterval": 500,
+    "probed": "2026-08-18 Monad/0.16.0, chainId 0x279f: same 100-block eth_getLogs cap as mainnet. genesis header OK, eth_getBlockReceipts OK.",
+    "registry": "listed, no Graph services at all"
+  },
+
+  "base": {
+    "deploymentKey": "base",
+    "chainId": 8453,
+    "label": "Base Mainnet",
+    "target": "studio",
+    "studioSlug": "adexto-base",
+    "registry": "Subgraphs served, indexing rewards enabled"
+  },
+
+  "base-sepolia": {
+    "deploymentKey": "base-sepolia",
+    "chainId": 84532,
+    "label": "Base Sepolia",
+    "target": "studio",
+    "studioSlug": "adexto-base-sepolia",
+    "registry": "Subgraphs served, indexing rewards enabled"
+  },
+
+  "arbitrum-one": {
+    "deploymentKey": "arbitrum",
+    "chainId": 42161,
+    "label": "Arbitrum One",
+    "target": "studio",
+    "studioSlug": "adexto-arbitrum",
+    "registry": "Subgraphs served, indexing rewards enabled"
+  },
+
+  "arbitrum-sepolia": {
+    "deploymentKey": "arbitrum-sepolia",
+    "chainId": 421614,
+    "label": "Arbitrum Sepolia",
+    "target": "studio",
+    "studioSlug": "adexto-arbitrum-sepolia",
+    "registry": "Subgraphs served, indexing rewards enabled"
+  },
+
+  "devchain": {
+    "deploymentKey": "devchain",
+    "chainId": 31337,
+    "label": "Local Hardhat devchain",
+    "target": "self-hosted",
+    "rpc": "http://host.docker.internal:8545",
+    "maxBlockRange": 2000,
+    "pollingInterval": 1000,
+    "probed": "not probed; local node, no limits",
+    "registry": "n/a",
+    "note": "Named `devchain`, NOT `mainnet`. The usual hardhat-with-graph-node convention is to call chainId 31337 `mainnet`, which then shows up as the network on every local deployment and in every status query. graph-node does not require that name -- it only requires the manifest and this config to agree."
+  }
+}

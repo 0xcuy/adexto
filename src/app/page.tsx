@@ -31,7 +31,14 @@ export default function HomePage() {
           membuat fakta terlihat seperti hiasan. Catatan "factory pending
           broadcast" tetap dipertahankan kata demi kata. */}
       <section className="relative w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
-        <p className="kicker justify-center mb-6">ADEXTO Protocol v1.0.0</p>
+        {/* v0.9.0, bukan v1.0.0.
+            Semver menyatakan 1.0.0 berarti API publiknya sudah stabil, dan major
+            nol berarti masih pengembangan awal di mana apa pun boleh berubah. Yang
+            kedua adalah keadaan kita: curve factory belum di-broadcast ke mainnet
+            dan peluncuran terkunci di keempat chain. Angka ini naik ke 1.0.0 saat
+            factory-nya benar-benar hidup dan satu peluncuran nyata berhasil —
+            supaya angkanya berarti sesuatu. */}
+        <p className="kicker justify-center mb-6">ADEXTO Protocol v0.9.0</p>
 
         <h1 className="text-[2.5rem] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.06] text-ink mb-6">
           Launch an AI agent token with no liquidity deposit.{" "}
@@ -420,7 +427,7 @@ export default function HomePage() {
                   : "text-ink-soft hover:text-ink bg-cream-3"
               }`}
             >
-              AdextoTrinityFactoryV3.sol
+              AdextoCurveFactory.sol
             </button>
             <button 
               onClick={() => setActiveCodeTab("hook")}
@@ -450,11 +457,11 @@ export default function HomePage() {
                   <>
                     <div className="text-ink-soft">// SPDX-License-Identifier: MIT</div>
                     <div className="text-accent">pragma solidity ^0.8.26;</div>
-                    {/* Tanda tangan ini WAJIB cocok dengan AdextoTrinityFactoryV3.
+                    {/* Tanda tangan ini WAJIB cocok dengan AdextoCurveFactory.
                         Perhatikan: TIDAK `payable` — launch tidak menerima pembayaran
                         apa pun, hanya gas. Versi lama di sini menulis `external payable`
                         dan nama kontrak yang tidak ada. */}
-                    <div className="text-ink mt-2 font-bold">contract <span className="text-accent">AdextoTrinityFactoryV3</span> &#123;</div>
+                    <div className="text-ink mt-2 font-bold">contract <span className="text-accent">AdextoCurveFactory</span> &#123;</div>
                     <div className="pl-4 text-ink-soft">event TrinityProjectDeployed(address token, address curve, address creator, ...);</div>
                     <div className="pl-4 text-ok mt-1 font-semibold">function deployTrinity(</div>
                     <div className="pl-8 text-ink">string memory name,</div>

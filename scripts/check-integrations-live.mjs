@@ -38,7 +38,7 @@ for (const { key, rpc, c } of CHAINS) {
     ["governor", c.governorAddress],
     ["ccipReceiver", c.ccipReceiverAddress],
     ["sovereignHook", c.sovereignHookAddress],
-    ["factoryV3", c.factoryV3Address],
+    ["curveFactory", c.curveFactoryAddress],
   ]) {
     if (!addr) {
       console.log(`${key.padEnd(9)} ${name.padEnd(14)} ${"-".padEnd(42)}  TIDAK DISET`);

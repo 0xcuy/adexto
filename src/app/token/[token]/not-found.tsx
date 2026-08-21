@@ -12,7 +12,7 @@ export default function TokenNotFound() {
         <h1 className="text-2xl sm:text-3xl font-semibold text-ink">Market not found</h1>
         <p className="text-sm text-ink-soft max-w-md mx-auto leading-relaxed">
           No ADEXTO market is registered under this ticker. Only tokens minted by{" "}
-          <code className="text-accent font-mono text-xs">AdextoTrinityFactoryV3</code> and confirmed on-chain get a
+          <code className="text-accent font-mono text-xs">AdextoCurveFactory</code> and confirmed on-chain get a
           terminal page, so an unknown ticker will never render a tradable market.
         </p>
       </div>

@@ -84,11 +84,11 @@ export const SOVEREIGN_CURVE_ABI = [
 ];
 
 /**
- * FactoryV3. Not payable: requiring native to launch is exactly the barrier this
+ * AdextoCurveFactory. Not payable: requiring native to launch is exactly the barrier this
  * generation removes. `virtualNative` equals the opening market cap in native
  * terms because 100% of supply enters the curve.
  */
-export const FACTORY_V3_ABI = [
+export const CURVE_FACTORY_ABI = [
   "function deployTrinity(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 virtualNative, uint256 swapFeeBps, uint256 creatorShareBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot) returns (address token, address curve)",
   "function isSymbolAvailable(string symbol) view returns (bool)",
   "function totalProjectsCount() view returns (uint256)",

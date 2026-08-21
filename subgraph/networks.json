@@ -1,0 +1,32 @@
+{
+  "0g-testnet": {
+    "AdextoCurveFactory": {
+      "address": "0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632",
+      "startBlock": 50153336
+    }
+  },
+  "monad-testnet": {
+    "AdextoCurveFactory": {
+      "address": "0x516D005367045b1fc18c9c9a0Ff7bf8653d1B4e3",
+      "startBlock": 54903915
+    }
+  },
+  "base-sepolia": {
+    "AdextoCurveFactory": {
+      "address": "0x921E03288ADA4192bF592B603e86A147c6D2f6e7",
+      "startBlock": 45660561
+    }
+  },
+  "arbitrum-sepolia": {
+    "AdextoCurveFactory": {
+      "address": "0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A",
+      "startBlock": 299561994
+    }
+  },
+  "devchain": {
+    "AdextoCurveFactory": {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "startBlock": 1
+    }
+  }
+}

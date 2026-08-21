@@ -15,6 +15,16 @@
 /build/
 /typechain-types/
 
+# Subgraph workspace. All three are regenerated:
+#   node_modules/  -> npm install (484 packages)
+#   generated/     -> npx graph codegen
+#   build/         -> npx graph build
+# These paths are NOT covered by the root-anchored /node_modules and /build
+# rules above, so without these lines `git add` would sweep in the whole
+# subgraph dependency tree.
+/subgraph/node_modules/
+/subgraph/build/
+
 # Production & Environment Variables (NEVER COMMIT SENSITIVE SECRETS)
 .env
 .env*.local

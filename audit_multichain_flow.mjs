@@ -130,7 +130,7 @@ async function launchViaStudio(page, { ticker, name, chainKeys }) {
 
   await page.locator('input[value="AQUANT"]').first().fill(ticker);
   await page.locator('input[value="Aegis Quant AI"]').first().fill(name);
-  // Tidak ada field seed lagi: FactoryV3 memakai kurva dengan reserve virtual.
+  // Tidak ada field seed lagi: AdextoCurveFactory memakai kurva dengan reserve virtual.
   await page.waitForTimeout(2200);
 
   const signBtn = page.getByRole("button", { name: "Sign attestation", exact: true });

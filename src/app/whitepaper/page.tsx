@@ -9,7 +9,12 @@ export default function WhitepaperPage() {
         <div className="flex items-center gap-2 text-xs font-mono text-accent font-bold mb-2">
           <span>ADEXTO PROTOCOL SPECIFICATION</span>
           <span>•</span>
-          <span>VERSION 2.4.0 (AUGUST 2026)</span>
+          {/* Semver dibuang. "VERSION 2.4.0" menyiratkan pernah ada 1.0 dan 2.0
+              yang dipublikasikan; tidak pernah ada. Sebuah whitepaper juga tidak
+              punya API untuk distabilkan, jadi tanggal sudah cukup — dan tanggal
+              memberi pembaca hal yang benar-benar mereka butuhkan: seberapa basi
+              dokumen ini. */}
+          <span>REVISED AUGUST 2026</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight leading-tight">
           ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator

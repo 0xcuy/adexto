@@ -112,7 +112,7 @@ async function solvent(curve, label) {
 
 // ── 1. Deploy factory & launch tanpa native ─────────────────────────────────
 step("1) LAUNCH tanpa setoran native");
-const facArt = ART("AdextoTrinityFactoryV3");
+const facArt = ART("AdextoCurveFactory");
 const factory = await new ethers.ContractFactory(facArt.abi, facArt.bytecode, wallet).deploy();
 await factory.waitForDeployment();
 const factoryAddr = await factory.getAddress();

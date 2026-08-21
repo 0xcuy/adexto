@@ -10,33 +10,70 @@ interface IERC20Approve {
 }
 
 /**
- * @title AdextoTrinityFactoryV3
- * @notice Zero-deposit 1-click launch for ADEXTO (adexto.xyz).
+ * @title AdextoCurveFactory
+ * @notice Zero-deposit launch for ADEXTO (adexto.xyz): token + bonding curve in
+ *         one transaction, no liquidity deposit.
  *
- * @dev WHAT CHANGED FROM V2, AND WHY
+ * @dev KENAPA NAMANYA BUKAN LAGI `AdextoTrinityFactoryV3`
  *
- * v2 required a native seed (`require(msg.value > 0, "Factory: native liquidity
- * required")`) that was locked forever, and it split supply between the pool and
- * the creator via `poolTokenBps`. Both of those were wrong for a launchpad:
+ * Berkas ini sebelumnya bernama itu, dan angka 3-nya jujur secara internal: v1
+ * tidak punya pool sama sekali, v2 mewajibkan seed native yang terkunci selamanya,
+ * v3 memakai kurva bervirtual-reserve. Tiga generasi itu memang ada.
  *
- *   1. Measured on Base, the seed was ~16x the launch gas cost, and a four-chain
- *      launch needed it again in each chain's native asset. That is the largest
- *      barrier to anyone launching at all.
- *   2. Handing the creator a free slice of supply is a dump vector. It is also
- *      the exact mechanism that made rug pulls routine on other launchpads, where
- *      selling their own allocation was a creator's only way to earn.
+ * Masalahnya, generasi adalah artefak pengembangan KAMI, bukan informasi yang
+ * berguna bagi siapa pun yang memakai kontrak ini. Dan nama kontrak bersifat
+ * PERMANEN begitu diverifikasi di explorer: ia tertanam di source terverifikasi
+ * dan di setiap ABI yang orang integrasikan. Menyematkan "V3" berarti setiap
+ * perbaikan berikutnya memaksa nama baru lagi — V4, V5 — dan konsumen harus
+ * mengejar nama, bukan alamat.
  *
- * v3 therefore:
- *   - deploys a `SovereignCurve` with virtual reserves, so no native is required;
- *   - puts 100% of supply into the curve, so the creator holds nothing to dump;
- *   - pays the creator from a fee share on every swap instead, streamed to an
- *     address locked into the curve at deployment.
+ * Karena factory ini BELUM di-broadcast ke mainnet (baru 4 testnet + devchain),
+ * inilah kesempatan terakhir memperbaikinya secara gratis. Namanya sekarang
+ * menyebut apa yang ia lakukan; nomor versinya pindah ke `VERSION` di bawah,
+ * tempat ia bisa berubah tanpa mengubah identitas kontrak.
  *
- * `virtualNative` is passed per launch because it sets the opening price, and
- * since all supply is in the curve it equals the opening market capitalisation in
- * the chain's native asset.
+ * `SovereignCurve` sejak awal tidak pernah membawa suffix versi, jadi hanya
+ * factory ini yang menyimpang.
+ *
+ * KENAPA `deployTrinity` DAN NAMA EVENT TETAP
+ *
+ * Mengubah nama fungsi mengubah selector-nya, dan mengubah nama event mengubah
+ * apa yang harus dicocokkan pembaca. Keduanya bukan perbaikan kejujuran — hanya
+ * kosmetik dengan biaya nyata pada ABI, harness, dan indexer. Nama fungsi dan
+ * event dibiarkan.
+ *
+ * `metadataRoot` ADALAH PERBAIKAN NAMA YANG NYATA
+ *
+ * Parameter ini dulu bernama `teeAttestationRoot`, dan itu keliru: nilainya adalah
+ * root penyimpanan 0G DA dari metadata launch — sebuah hash konten — bukan laporan
+ * attestation hardware. Nama lamanya membuat halaman produk mengklaim attestation
+ * yang tidak pernah diperiksa siapa pun.
+ *
+ * Nama PARAMETER tidak masuk hitungan selector fungsi maupun `topic0` event —
+ * keduanya diturunkan dari TIPE saja. Jadi penggantian nama ini tidak memutus
+ * kompatibilitas ABI: calldata dan filter log yang sudah ada tetap cocok.
+ *
+ * SIFAT EKONOMI YANG DIPERTAHANKAN DARI GENERASI SEBELUMNYA
+ *
+ *   - tanpa setoran native: kurva membuka terhadap reserve virtual;
+ *   - 100% supply masuk kurva, jadi creator tidak memegang apa pun untuk dijual;
+ *   - creator dibayar dari irisan fee setiap swap, ke alamat yang terkunci di
+ *     kurva sejak deployment.
+ *
+ * `virtualNative` dikirim per launch karena ia menetapkan harga pembukaan, dan
+ * karena seluruh supply ada di kurva, ia SAMA DENGAN market cap pembukaan dalam
+ * aset native chain itu.
  */
-contract AdextoTrinityFactoryV3 {
+contract AdextoCurveFactory {
+    /**
+     * @notice Versi factory, dibaca on-chain.
+     * @dev Di sinilah nomor versi tinggal, bukan di nama kontrak. `0.y.z` berarti
+     *      pengembangan awal: API publiknya belum boleh dianggap stabil. Naik ke
+     *      1.0.0 hanya setelah factory ini benar-benar ter-broadcast ke mainnet
+     *      dan satu peluncuran nyata berhasil — supaya angkanya berarti sesuatu.
+     */
+    string public constant VERSION = "0.9.0";
+
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_SUPPLY = 1_000_000_000_000; // 1e12 whole tokens
     /// @dev Anti-sniper window: 1% max transaction for the first blocks.
@@ -52,7 +89,8 @@ contract AdextoTrinityFactoryV3 {
         uint256 depthFeeBps;
         uint256 creatorFeeBps;
         uint256 treasuryBuybackBps;
-        bytes32 teeAttestationRoot;
+        /// @dev Root penyimpanan 0G DA dari metadata launch. Bukan attestation.
+        bytes32 metadataRoot;
         uint256 deployedAt;
     }
 
@@ -66,7 +104,7 @@ contract AdextoTrinityFactoryV3 {
         address indexed token,
         address indexed creator,
         string symbol,
-        bytes32 teeAttestationRoot
+        bytes32 metadataRoot
     );
     event TrinityProjectDeployed(
         address indexed token,
@@ -80,7 +118,7 @@ contract AdextoTrinityFactoryV3 {
         uint256 depthFeeBps,
         uint256 creatorFeeBps,
         uint256 treasuryBuybackBps,
-        bytes32 teeAttestationRoot
+        bytes32 metadataRoot
     );
 
     /**
@@ -90,8 +128,9 @@ contract AdextoTrinityFactoryV3 {
      * @param swapFeeBps Total fee, split three ways by the two share parameters.
      * @param creatorShareBps Portion of `swapFeeBps` streamed to the creator.
      * @param treasuryShareBps Portion of `swapFeeBps` routed to the agent vault.
+     * @param metadataRoot 0G DA storage root of the launch metadata.
      * @dev Deliberately NOT payable. Requiring native here is precisely the
-     *      barrier v3 exists to remove.
+     *      barrier this generation exists to remove.
      */
     function deployTrinity(
         string memory name,
@@ -102,7 +141,7 @@ contract AdextoTrinityFactoryV3 {
         uint256 swapFeeBps,
         uint256 creatorShareBps,
         uint256 treasuryShareBps,
-        bytes32 teeAttestationRoot
+        bytes32 metadataRoot
     ) external returns (address token, address curve) {
         require(bytes(symbol).length > 0 && bytes(symbol).length <= 12, "Factory: bad symbol");
         require(bytes(name).length > 0 && bytes(name).length <= 64, "Factory: bad name");
@@ -166,13 +205,13 @@ contract AdextoTrinityFactoryV3 {
                 depthFeeBps: depthFeeBps,
                 creatorFeeBps: creatorShareBps,
                 treasuryBuybackBps: treasuryShareBps,
-                teeAttestationRoot: teeAttestationRoot,
+                metadataRoot: metadataRoot,
                 deployedAt: block.timestamp
             })
         );
         userDeployments[msg.sender].push(token);
 
-        emit TrinityProjectCreated(token, msg.sender, symbol, teeAttestationRoot);
+        emit TrinityProjectCreated(token, msg.sender, symbol, metadataRoot);
         emit TrinityProjectDeployed(
             token,
             curve,
@@ -185,7 +224,7 @@ contract AdextoTrinityFactoryV3 {
             depthFeeBps,
             creatorShareBps,
             treasuryShareBps,
-            teeAttestationRoot
+            metadataRoot
         );
     }
 

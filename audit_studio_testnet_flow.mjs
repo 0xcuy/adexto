@@ -170,7 +170,7 @@ window.ethereum = {
   await page.waitForTimeout(1600);
   check("ticker dinyatakan tersedia", (await page.locator("text=available").first().count()) > 0);
 
-  // Tidak ada lagi field seed untuk diisi: FactoryV3 memakai kurva dengan reserve
+  // Tidak ada lagi field seed untuk diisi: AdextoCurveFactory memakai kurva dengan reserve
   // virtual. Yang harus dibuktikan justru sebaliknya — bahwa UI menyatakan nol
   // setoran dan nol alokasi token untuk creator.
   const studioBody = await page.evaluate(() => document.body.innerText);
@@ -226,8 +226,8 @@ window.ethereum = {
 
   // Dulu ini membaca NEXT_PUBLIC_FACTORY_V2_DEVCHAIN — nama env yang salah sama
   // sekali untuk uji 0G, dengan fallback ke alamat FactoryV2 lama. Sekarang
-  // menunjuk FactoryV3 0G, dan bisa ditimpa lewat TEST_FACTORY untuk chain lain.
-  // FactoryV3 menamai pemetaannya `curveOf`, bukan `poolOf` seperti V2. Memanggil
+  // menunjuk AdextoCurveFactory 0G, dan bisa ditimpa lewat TEST_FACTORY untuk chain lain.
+  // AdextoCurveFactory menamai pemetaannya `curveOf`, bukan `poolOf` seperti V2. Memanggil
   // poolOf pada V3 revert tanpa data, yang tampak seperti kegagalan jaringan.
   const factory = new ethers.Contract(
     process.env.TEST_FACTORY || "0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632",

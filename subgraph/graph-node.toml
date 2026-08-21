@@ -1,0 +1,93 @@
+# GENERATED FILE -- DO NOT EDIT BY HAND
+#
+# Written by scripts/gen-subgraph-networks.py from subgraph/chains.json and
+# build/deployments.json. Edit chains.json and re-run `npm run networks`.
+#
+# WHY A TOML FILE INSTEAD OF THE `ethereum:` ENV VAR
+#
+# The chains indexed here have eth_getLogs ceilings that differ by two orders of
+# magnitude (0G accepts a 2000-block span, Monad hard-caps at 100 and answers
+# HTTP 413 above it). `GRAPH_ETHEREUM_MAX_BLOCK_RANGE_SIZE` is a single global
+# env var: set it to 100 for Monad and the 0G backfill does 20x the requests it
+# needs; leave it at the default and every Monad request fails. Per-chain
+# `max_block_range_size` is the only way to serve both from one process.
+#
+# NO `traces` AND NO `archive` IN ANY features LIST
+#
+# No RPC here serves them, and 0G's is pruned rather than archive. Declaring a
+# feature the provider lacks does not enable it -- it makes graph-node issue
+# calls that fail and stall the subgraph. The mappings need neither: every curve
+# value is derived from event payloads, with zero `.bind()` and zero `try_*`.
+# Keep it that way. One contract call and this stack needs an archive node.
+#
+# Every chain below does support eth_getBlockReceipts, which graph-node probes
+# for at startup and prefers over per-transaction receipt fetches.
+
+[store]
+[store.primary]
+connection = "postgresql://graph:${POSTGRES_PASSWORD}@postgres:5432/graph"
+pool_size = 10
+
+[chains]
+ingestor = "adexto_index_0"
+# Blocks kept cached from chain head. Must exceed the reorg threshold.
+cache_size = 500
+
+[chains."0g-testnet"]
+# 0G Galileo Testnet, chainId 16602.
+# 2026-08-18 Geth/v1.15.11, chainId 0x40da: eth_getLogs 10000-block span OK,
+# genesis header OK, eth_getBlockReceipts OK, no traces.
+shard = "primary"
+polling_interval = 2000
+max_block_range_size = 2000
+max_event_only_range = 2000
+block_batch_size = 5
+target_triggers_per_block_range = 100
+json_rpc_timeout = 120
+request_retries = 15
+# Default is 1000 concurrent receipt requests, which a small
+# public RPC answers with rate limits rather than data.
+block_ingestor_max_concurrent_json_rpc_calls = 16
+provider = [
+  { label = "0g-testnet", url = "https://evmrpc-testnet.0g.ai", features = [] },
+]
+[chains."monad-testnet"]
+# Monad Testnet, chainId 10143.
+# 2026-08-18 Monad/0.16.0, chainId 0x279f: same 100-block eth_getLogs cap as
+# mainnet. genesis header OK, eth_getBlockReceipts OK.
+shard = "primary"
+polling_interval = 500
+max_block_range_size = 100
+max_event_only_range = 100
+block_batch_size = 5
+target_triggers_per_block_range = 100
+json_rpc_timeout = 120
+request_retries = 15
+# Default is 1000 concurrent receipt requests, which a small
+# public RPC answers with rate limits rather than data.
+block_ingestor_max_concurrent_json_rpc_calls = 16
+provider = [
+  { label = "monad-testnet", url = "https://testnet-rpc.monad.xyz", features = [] },
+]
+[chains."devchain"]
+# Local Hardhat devchain, chainId 31337.
+# not probed; local node, no limits
+shard = "primary"
+polling_interval = 1000
+max_block_range_size = 2000
+max_event_only_range = 2000
+block_batch_size = 5
+target_triggers_per_block_range = 100
+json_rpc_timeout = 120
+request_retries = 15
+# Default is 1000 concurrent receipt requests, which a small
+# public RPC answers with rate limits rather than data.
+block_ingestor_max_concurrent_json_rpc_calls = 16
+provider = [
+  { label = "devchain", url = "http://host.docker.internal:8545", features = [] },
+]
+
+[deployment]
+[[deployment.rule]]
+# No `match`, so every deployment lands here. Single node, single shard.
+indexers = ["adexto_index_0"]

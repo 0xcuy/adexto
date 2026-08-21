@@ -27,7 +27,7 @@ export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Devchain";
  */
 const DEVCHAIN_RPC = process.env.NEXT_PUBLIC_DEVCHAIN_RPC || "";
 const DEVCHAIN_FACTORY = process.env.NEXT_PUBLIC_FACTORY_V2_DEVCHAIN || "";
-const DEVCHAIN_FACTORY_V3 = process.env.NEXT_PUBLIC_FACTORY_V3_DEVCHAIN || "";
+const DEVCHAIN_CURVE_FACTORY = process.env.NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN || "";
 export const DEVCHAIN_ENABLED = Boolean(DEVCHAIN_RPC);
 export const DEVCHAIN_ID = Number(process.env.NEXT_PUBLIC_DEVCHAIN_CHAIN_ID || 31337);
 const DEVCHAIN_NAME = process.env.NEXT_PUBLIC_DEVCHAIN_NAME || "Local Devchain";
@@ -48,12 +48,17 @@ export interface ChainInfo {
   /** v2 factory — deploys token + executable SovereignHook AMM atomically. */
   factoryV2Address: string | null;
   /**
-   * v3 factory — deploys token + SovereignCurve. No native seed required and
-   * 100% of supply enters the curve. Takes precedence over v2 when present.
+   * AdextoCurveFactory — deploys token + SovereignCurve. No native seed
+   * required and 100% of supply enters the curve. Takes precedence over the
+   * seeded generation when both are configured.
    */
-  factoryV3Address: string | null;
-  /** Which generation a launch will use on this chain. */
-  launchGeneration: "v3" | "v2" | null;
+  curveFactoryAddress: string | null;
+  /**
+   * Sifat peluncuran di chain ini: `curve` = bonding curve tanpa setoran,
+   * `seeded` = pool v2 yang mewajibkan seed native. Dulu bernilai "v3"/"v2";
+   * nomor generasi tidak memberi tahu pembaca apa pun tentang perilakunya.
+   */
+  launchGeneration: "curve" | "seeded" | null;
   /**
    * Virtual native reserve for a new curve, in whole native units.
    *
@@ -78,7 +83,7 @@ interface ChainSource {
   readonly blockExplorer: string;
   readonly factoryAddress: string;
   readonly factoryV2Address: string | null;
-  readonly factoryV3Address?: string | null;
+  readonly curveFactoryAddress?: string | null;
   readonly sovereignHookAddress: string;
   readonly governorAddress: string;
 }
@@ -97,7 +102,7 @@ interface ChainSource {
 type ChainOverride = Partial<
   Pick<
     ChainInfo,
-    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "factoryV2Address" | "factoryV3Address"
+    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "factoryV2Address" | "curveFactoryAddress"
   >
 >;
 
@@ -120,10 +125,14 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
   const chainId = o.chainId ?? source.chainId;
   const name = o.name ?? source.chainName;
   const factoryV2Address = o.factoryV2Address ?? source.factoryV2Address ?? null;
-  const factoryV3Address = o.factoryV3Address ?? source.factoryV3Address ?? null;
+  const curveFactoryAddress = o.curveFactoryAddress ?? source.curveFactoryAddress ?? null;
   // v3 wins when both exist: it is the zero-deposit generation, and offering a
   // seeded launch beside a free one would only confuse the creator.
-  const launchGeneration: "v3" | "v2" | null = factoryV3Address ? "v3" : factoryV2Address ? "v2" : null;
+  const launchGeneration: "curve" | "seeded" | null = curveFactoryAddress
+    ? "curve"
+    : factoryV2Address
+    ? "seeded"
+    : null;
   // Targets roughly $3k of opening market cap on each chain, in line with how
   // comparable launchpads open. Native prices differ by orders of magnitude, so a
   // single shared number would value a 0G launch at a few dollars and a Base
@@ -147,12 +156,12 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     nativeCurrencyName: nativeName,
     factoryAddress: source.factoryAddress,
     factoryV2Address,
-    factoryV3Address,
+    curveFactoryAddress,
     launchGeneration,
     defaultVirtualNative: DEFAULT_VIRTUAL_NATIVE[key],
     legacyHookAddress: source.sovereignHookAddress,
     governorAddress: source.governorAddress,
-    dexLive: Boolean(factoryV3Address || factoryV2Address),
+    dexLive: Boolean(curveFactoryAddress || factoryV2Address),
   };
 }
 
@@ -172,13 +181,17 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     nativeCurrencyName: DEVCHAIN_SYMBOL,
     factoryAddress: DEVCHAIN_FACTORY,
     factoryV2Address: DEVCHAIN_ENABLED && DEVCHAIN_FACTORY ? DEVCHAIN_FACTORY : null,
-    factoryV3Address: DEVCHAIN_ENABLED && DEVCHAIN_FACTORY_V3 ? DEVCHAIN_FACTORY_V3 : null,
+    curveFactoryAddress: DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY ? DEVCHAIN_CURVE_FACTORY : null,
     launchGeneration:
-      DEVCHAIN_ENABLED && DEVCHAIN_FACTORY_V3 ? "v3" : DEVCHAIN_ENABLED && DEVCHAIN_FACTORY ? "v2" : null,
+      DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY
+        ? "curve"
+        : DEVCHAIN_ENABLED && DEVCHAIN_FACTORY
+        ? "seeded"
+        : null,
     defaultVirtualNative: 1,
     legacyHookAddress: "",
     governorAddress: "",
-    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_FACTORY_V3 || DEVCHAIN_FACTORY),
+    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_CURVE_FACTORY || DEVCHAIN_FACTORY),
   },
 };
 

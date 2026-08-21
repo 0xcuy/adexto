@@ -4,7 +4,7 @@
  *
  *   cd devchain && npx hardhat node
  *   node scripts/deploy-sovereign-curve.mjs --chain devchain --broadcast
- *   NEXT_PUBLIC_FACTORY_V3_DEVCHAIN=<addr> ... npx next start -p 3101
+ *   NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN=<addr> ... npx next start -p 3101
  *   node audit_curve_ui_flow.mjs
  */
 import { chromium } from "playwright";
@@ -74,8 +74,19 @@ await ctx.addInitScript(SHIM);
 
 // ── 1. Studio: launch tanpa setoran ─────────────────────────────────────────
 step(`1) STUDIO — launch $${TICKER} tanpa setoran native`);
-await page.goto(`${BASE}/studio`, { waitUntil: "networkidle" });
-await page.waitForTimeout(2000);
+// `networkidle` diganti `domcontentloaded` + tunggu elemen di seluruh berkas ini.
+//
+// Alasannya diukur, bukan ditebak: halaman token mengirim 45 request dalam 20
+// detik dengan celah idle terpanjang 9,9 DETIK — jadi jaringan jelas pernah
+// senggang, tapi `page.reload({waitUntil:"networkidle"})` tetap timeout 30s.
+// `networkidle` memang sudah tidak dianjurkan Playwright karena tepat perilaku
+// ini. Menunggu elemen yang memang dibutuhkan langkahnya lebih deterministik
+// DAN lebih ketat: ia gagal kalau UI-nya tidak muncul, bukan cuma kalau
+// jaringannya ramai.
+await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
+await page.waitForSelector('button:has-text("Connect wallet"), button:has-text("Launch on")', {
+  timeout: 30000,
+});
 
 const connect = page.locator('button:has-text("Connect wallet")').first();
 if ((await connect.count()) > 0) {
@@ -146,8 +157,12 @@ console.log(`  biaya launch: ${ethers.formatEther(spent)} (gas saja)`);
 // ── 3. Beli lewat terminal ─────────────────────────────────────────────────
 step("3) BELI lewat terminal token");
 for (let i = 0; i < 6; i++) await provider.send("evm_mine", []);
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=31337`, { waitUntil: "networkidle" });
-await page.waitForTimeout(3000);
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=31337`, {
+  waitUntil: "domcontentloaded",
+});
+// Terminal beli adalah yang dibutuhkan langkah ini, jadi itu yang ditunggu.
+await page.waitForSelector('input[type="number"]', { timeout: 30000 });
+await page.waitForTimeout(1500);
 
 const balBefore = await token.balanceOf(ACCOUNT);
 await page.locator('input[type="number"]').first().fill("0.05");
@@ -172,9 +187,14 @@ step("4) KLAIM PENGHASILAN CREATOR lewat UI");
 const owed = await curve.creatorOwed();
 check("fee creator terakumulasi", owed > 0n, `${ethers.formatEther(owed)}`);
 
-await page.reload({ waitUntil: "networkidle" });
-await page.waitForTimeout(3000);
-const hasPanel = (await page.locator("text=Your creator revenue").count()) > 0;
+await page.reload({ waitUntil: "domcontentloaded" });
+// Tunggu panelnya secara eksplisit, bukan tidur 3 detik lalu berharap. Kalau
+// panelnya tidak pernah muncul, ini gagal dengan sebab yang jelas alih-alih
+// melaporkan "networkidle timeout" yang tidak menyebut apa pun soal produknya.
+const hasPanel = await page
+  .waitForSelector("text=Your creator revenue", { timeout: 30000 })
+  .then(() => true)
+  .catch(() => false);
 check("panel penghasilan creator tampil", hasPanel);
 
 if (hasPanel) {

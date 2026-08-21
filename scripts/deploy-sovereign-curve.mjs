@@ -1,5 +1,5 @@
 /**
- * Broadcast AdextoTrinityFactoryV3 (which ships the executable SovereignHook AMM).
+ * Broadcast AdextoCurveFactory (which ships the executable SovereignHook AMM).
  *
  * Dry run first (no transaction, no gas):
  *   node scripts/deploy-sovereign-curve.mjs --chain 0g
@@ -65,7 +65,7 @@ if (!PK) {
   process.exit(1);
 }
 
-const artifactPath = path.join(process.cwd(), "build", "artifacts", "AdextoTrinityFactoryV3.json");
+const artifactPath = path.join(process.cwd(), "build", "artifacts", "AdextoCurveFactory.json");
 if (!fs.existsSync(artifactPath)) {
   console.error("Artifact missing. Run: node scripts/compile-contracts.mjs --via-ir");
   process.exit(1);
@@ -122,7 +122,7 @@ await contract.waitForDeployment();
 const address = await contract.getAddress();
 const receipt = await provider.getTransactionReceipt(tx.hash);
 
-console.log(`\nAdextoTrinityFactoryV3 deployed`);
+console.log(`\nAdextoCurveFactory deployed`);
 console.log(`  address : ${address}`);
 console.log(`  block   : ${receipt.blockNumber}`);
 console.log(`  gasUsed : ${receipt.gasUsed}`);
@@ -130,15 +130,32 @@ if (net.explorer) console.log(`  explorer: ${net.explorer}/address/${address}`);
 
 const outFile = path.join(process.cwd(), "build", "deployments.json");
 const existing = fs.existsSync(outFile) ? JSON.parse(fs.readFileSync(outFile, "utf8")) : {};
+/**
+ * Kunci `curveFactory`, BUKAN `factoryV2`.
+ *
+ * Skrip ini men-deploy AdextoCurveFactory tetapi menulis alamatnya di bawah
+ * kunci `factoryV2` — generasi yang berbeda, yang mewajibkan seed native. Jadi
+ * `build/deployments.json` menamai setiap alamat kurva sebagai pool berseed.
+ * Runbook §4b sudah memuat peringatan tentang salah-nama-field yang pernah
+ * menyesatkan ("`/api/deploy` mengembalikan `factoryV2`, bukan
+ * `factoryV2Address`"); ini kemunculan berikutnya dari kesalahan yang sama.
+ *
+ * `startBlock` ditambahkan karena subgraph membutuhkannya, dan blok deploy adalah
+ * satu-satunya tempat nilai itu diketahui dengan pasti. Tanpa itu, manifest
+ * subgraph harus menebak — dan menebak terlalu rendah berarti memindai jutaan
+ * blok kosong di setiap chain.
+ */
 existing[chainKey] = {
   chainId: net.chainId,
-  factoryV2: address,
+  contract: "AdextoCurveFactory",
+  curveFactory: address,
   deployer: wallet.address,
   txHash: tx.hash,
   blockNumber: receipt.blockNumber,
+  startBlock: receipt.blockNumber,
   deployedAt: new Date().toISOString(),
 };
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, JSON.stringify(existing, null, 2));
 console.log(`\nSaved to build/deployments.json`);
-console.log(`Next: set factoryV3Address for "${chainKey}" in src/config/contracts.ts`);
+console.log(`Next: set NEXT_PUBLIC_CURVE_FACTORY_${chainKey.toUpperCase().replace(/-/g, "_")} in .env.local, then rebuild.`);

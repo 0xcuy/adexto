@@ -365,13 +365,13 @@ Alamat creator dikunci saat launch di `SovereignCurve` sehingga tidak bisa diali
 ### Yang akan dibangun
 
 1. `contracts/SovereignCurve.sol` — kurva virtual; mempertahankan yang sudah lulus uji: window anti-sniper 1%, `receive()` sebagai market buy, buyback agent, tanpa fungsi penarikan. Tambahan `creatorFeeBps` + alamat creator terkunci.
-2. `contracts/AdextoTrinityFactoryV3.sol` — token + kurva atomik, `msg.value` tidak lagi diwajibkan, 100% supply ke kurva.
+2. `contracts/AdextoCurveFactory.sol` — token + kurva atomik, `msg.value` tidak lagi diwajibkan, 100% supply ke kurva.
 3. Studio: field seed dan slider supply **dihapus**; sisa form hanya nama, ticker, supply, tier fee, pilihan chain.
 4. Uji: devchain lebih dulu, termasuk skenario **semua pembeli menjual habis** untuk membuktikan penjual terakhir tetap terbayar dan saldo tidak pernah minus, plus pembulatan yang selalu berpihak ke pool. Lalu 4 testnet memakai harness yang sudah ada.
 
 ### Status: kontrak sudah ditulis dan divalidasi
 
-`contracts/SovereignCurve.sol` (8,72 KiB) dan `contracts/AdextoTrinityFactoryV3.sol` (18,16 KiB) sudah ada dan terkompilasi dengan `node scripts/compile-contracts.mjs --via-ir`. Uji: `node scripts/test-sovereign-curve.mjs`.
+`contracts/SovereignCurve.sol` (8,72 KiB) dan `contracts/AdextoCurveFactory.sol` (18,24 KiB) sudah ada dan terkompilasi dengan `node scripts/compile-contracts.mjs --via-ir`. Uji: `node scripts/test-sovereign-curve.mjs`.
 
 **LULUS SEMUA di lima jaringan:** devchain 31337, 0G Testnet 16602, Arbitrum Sepolia 421614, Base Sepolia 84532, Monad Testnet 10143.
 
@@ -399,7 +399,7 @@ Penjagaan yang terbukti menolak: jual melebihi token beredar, `minTokensOut` mus
 
 Mengubah kontrak tanpa mengubah UI berarti perubahan setengah jadi, jadi keduanya kini sejalan. Uji: `node audit_curve_ui_flow.mjs` (devchain) — **23 LULUS / 0 GAGAL**.
 
-- `src/lib/dex.ts`: `SOVEREIGN_CURVE_ABI` + `FACTORY_V3_ABI`. `PoolState` bertambah `isCurve`, `creatorFeeBps`, `virtualNative`, `realNative`, `creatorOwed`, `creator`, `floorPriceNative`. Pembacaan khusus kurva dibungkus `try`: pada `SovereignHook` lama panggilan itu revert, jadi satu jalur kode melayani kedua generasi tanpa perlu flag dari pemanggil. `Quote` bertambah `creatorFee`, dan matematika kuotasi lokal ikut memotongnya — kalau tidak, setiap kuotasi akan kelebihan sebesar fee creator dan hasil on-chain tidak cocok dengan yang dilihat user.
+- `src/lib/dex.ts`: `SOVEREIGN_CURVE_ABI` + `CURVE_FACTORY_ABI`. `PoolState` bertambah `isCurve`, `creatorFeeBps`, `virtualNative`, `realNative`, `creatorOwed`, `creator`, `floorPriceNative`. Pembacaan khusus kurva dibungkus `try`: pada `SovereignHook` lama panggilan itu revert, jadi satu jalur kode melayani kedua generasi tanpa perlu flag dari pemanggil. `Quote` bertambah `creatorFee`, dan matematika kuotasi lokal ikut memotongnya — kalau tidak, setiap kuotasi akan kelebihan sebesar fee creator dan hasil on-chain tidak cocok dengan yang dilihat user.
 - `src/lib/chains.ts`: `factoryV3Address`, `launchGeneration` (v3 menang bila keduanya ada), dan `defaultVirtualNative` per chain — 0G 1.500 · Base/Arbitrum 1 · Monad 60.000, semuanya menyasar ~$3k market cap pembukaan. Satu angka bersama akan menilai launch 0G beberapa dolar dan launch Base ribuan dolar.
 - **Studio:** field *Seed liquidity* dan slider *Supply into pool* **dihapus**. Tier fee jadi tiga irisan (depth · creator · buyback) di dalam total yang sama. Tombol berbunyi `Launch on … · gas only`. Calldata `deployTrinity` dibangun **per chain** karena `virtualNative` berbeda tiap chain.
 - **`/swap` & terminal:** baris fee menampilkan tiga irisan, termasuk porsi creator.
@@ -410,11 +410,11 @@ Terverifikasi lewat UI: `/api/deploy` melaporkan `gen=v3`, launch memakan **gas 
 
 **Jebakan yang sempat membuang waktu:** sebuah `next-server` lama berumur 1,75 jam masih menahan port 3100, sehingga build baru tidak pernah tersaji dan hasil verifikasi terlihat seperti kode belum berubah. Periksa `ss -ltnp | grep :3100` sebelum menyimpulkan build tidak berlaku.
 
-### 1e-2. FactoryV3 lulus ujung-ke-ujung di 4 testnet
+### 1e-2. Curve factory lulus ujung-ke-ujung di 4 testnet
 
-FactoryV3 dideploy ke keempat testnet — **gas saja, tanpa setoran apa pun**. Semua bytecode 18.568 byte, `projects=0` saat deploy, ticker `ADEXTO` masih tersedia di keempatnya.
+Curve factory dideploy ke keempat testnet — **gas saja, tanpa setoran apa pun**. Semua bytecode 18.568 byte, `projects=0` saat deploy, ticker `ADEXTO` masih tersedia di keempatnya.
 
-| Chain | chainId | FactoryV3 |
+| Chain | chainId | AdextoCurveFactory |
 |---|---|---|
 | 0G Testnet | 16602 | `0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632` |
 | Arbitrum Sepolia | 421614 | `0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A` |
@@ -522,12 +522,12 @@ Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilang
 
 ## 1g. Urutan pekerjaan berikutnya
 
-1. ~~**Deploy FactoryV3 ke 4 testnet.**~~ **SELESAI** — lihat §1e-2.
+1. ~~**Deploy curve factory ke 4 testnet.**~~ **SELESAI** — lihat §1e-2.
 2. ~~**Perbaiki perekam video dan tiga harness UI.**~~ **SELESAI** — keempatnya kini menguji alur kurva.
 3. ~~**Jalankan harness di 4 testnet.**~~ **SELESAI** — 0G 54/0, multi-chain 62/0, devchain 75/0 + 23/0.
 4. ~~**Rekam video testnet.**~~ **SELESAI** — lihat §1e-3.
 5. ~~**Deploy UI kurva terbaru ke VPS.**~~ **SELESAI** — produksi sinkron, lihat §2b.
-6. **Broadcast FactoryV3 ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_FACTORY_V3_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
+6. **Broadcast curve factory ke mainnet** — menunggu instruksi eksplisit pemilik proyek, lalu set `NEXT_PUBLIC_CURVE_FACTORY_*` di `.env.local` VPS dan **rebuild** (nilai `NEXT_PUBLIC_*` ikut ter-inline ke bundel).
 7. **Luncurkan $ADEXTO** dan rekam demo mainnet.
 
 ## 4b. Jebakan saat menguji (sudah pernah menyesatkan)
@@ -536,10 +536,18 @@ Untuk video demo mainnet dengan uang asli: beli kecil lalu jual kembali kehilang
 - **Ulangi hanya pembacaan, jangan pengiriman.** RPC testnet publik kadang timeout di tengah alur (pernah mematikan satu run di langkah jual Monad). Harness kini memberi tenggat 60 detik dan mengulang 4x **khusus pembacaan** saldo/reserve; pengiriman transaksi tidak pernah diulang supaya tidak terjadi dobel launch atau dobel beli.
 - **Suite dengan premis berbeda tidak boleh dijalankan pada server yang sama.** `audit_studio_testnet_flow.mjs` menguji alur satu chain; kalau dijalankan pada server yang keempat slotnya diarahkan ke testnet, ia bisa meluncur ke lebih dari satu chain dan headline-nya jadi `1 of 4`. Skrip kini mematikan chain lain secara eksplisit dan memverifikasi label tombol sebelum mengirim.
 - **`source scripts/testnet-multichain-env.sh` mengosongkan `OG_PRIVATE_KEY`/`PRIVATE_KEY`** untuk proses server (agar upload 0G DA tersimulasi, nol biaya). Nilai itu menempel di shell. Sebelum menjalankan skrip audit di shell yang sama, jalankan `unset OG_PRIVATE_KEY PRIVATE_KEY` supaya audit membacanya kembali dari `.env.local`.
+- **`NEXT_PUBLIC_CURVE_FACTORY_*` harus diteruskan sebagai BUILD ARG, bukan cuma env runtime.** `contracts.ts` membacanya, tapi `Dockerfile` dan `docker-compose.yml` sempat hanya meneruskan `NEXT_PUBLIC_FACTORY_V2_*`. Nilai `NEXT_PUBLIC_*` ter-inline saat `next build`, dan build terjadi DI DALAM image — jadi bundle klien meng-inline `null` untuk setiap curve factory walau env di host sudah benar. Keduanya sudah diperbaiki; kalau menambah `NEXT_PUBLIC_*` baru, tambahkan di TIGA tempat: `.env.example`, `Dockerfile` (ARG + ENV), dan `docker-compose.yml` (`args:`).
+
+- **Cache di `globalThis` bertahan melewati perubahan bentuknya.** `??=` tidak menggantinya karena nilainya bukan nullish, jadi cache bentuk lama yang tertinggal membuat tiap request balas HTTP 500 `cache.get is not a function`. Ini bukan cuma soal hot-reload dev: deploy yang mengubah bentuk cache sementara proses tetap jalan akan mengulang persis ini. Validasi BENTUKNYA (`instanceof Map`), bukan cuma nullish-nya. Lihat `src/lib/subgraph.ts`.
+
+- **Jangan cache kegagalan indexer.** Versi pertama `src/lib/subgraph.ts` menyimpan hasil fetch tanpa memeriksa berhasil atau tidak, sehingga blip 200ms berubah jadi 10 detik penuh "tidak ada data" walau indexer sudah pulih, tanpa keterangan apa pun. Cache sekarang per-chain dan hanya menyimpan yang `reachable`.
+
+- **`page.reload({waitUntil:"networkidle"})` tidak bisa diandalkan di harness Playwright.** Halaman token mengirim 45 request dalam 20 detik dengan celah idle terpanjang 9,9 DETIK — jadi jaringannya jelas pernah senggang — tapi `networkidle` tetap timeout 30s. Playwright sendiri sudah tidak menganjurkannya. Pakai `domcontentloaded` + `waitForSelector` pada elemen yang memang dibutuhkan langkahnya: lebih deterministik DAN lebih ketat, karena gagal kalau UI-nya tidak muncul alih-alih kalau jaringannya ramai.
+
 - **Verifikasi lewat field yang benar.** `/api/deploy` mengembalikan `factoryV2`, bukan `factoryV2Address`. Skrip pemeriksa yang salah nama field akan melaporkan "belum ada factory" pada konfigurasi yang sebetulnya benar. Penanda yang bisa dipercaya adalah `dexLive`.
 - **Variabel env menempel antar perintah, dan `NEXT_PUBLIC_*` ikut ter-inline saat build.** Kalau shell pernah memuat `scripts/devchain-env.sh`, lalu dipakai membangun lingkungan testnet, `NEXT_PUBLIC_DEVCHAIN_RPC` masih ada sehingga chain 31337 tetap aktif: tombol berbunyi `Launch on 0G + Devchain`, asersi "1 of 1" gagal, dan token uji ikut ter-deploy ke chain lokal. Kedua skrip env kini **saling meng-`unset`** (`testnet-multichain-env.sh` membuang variabel devchain, `devchain-env.sh` membuang `NEXT_PUBLIC_CHAIN_OVERRIDES`). Jangan berasumsi shell-nya bersih — nyatakan.
 - **`ADEXTO_DATA_DIR` dari `.env.local` mengalahkan default uji.** Skrip env di-source **setelah** `. ./.env.local`, jadi bentuk `${ADEXTO_DATA_DIR:-/tmp/...}` tidak pernah berlaku dan registry uji menulis ke jalur produksi `/app/data`. Kedua skrip sekarang menyetelnya tanpa syarat; untuk mengarahkan ke tempat lain pakai `ADEXTO_TEST_DATA_DIR` atau `ADEXTO_DEVCHAIN_DATA_DIR`.
-- **FactoryV3 memakai `curveOf(address)`, bukan `poolOf(address)`.** Memanggil `poolOf` pada V3 menghasilkan `execution reverted (no data present)` yang mudah disalahartikan sebagai gangguan RPC.
+- **Curve factory memakai `curveOf(address)`, bukan `poolOf(address)`.** Memanggil `poolOf` pada curve factory menghasilkan `execution reverted (no data present)` yang mudah disalahartikan sebagai gangguan RPC.
 - **Jangan pakai alamat `0x5FbDB2315678afecb367f032d93F642f64180aa3` sebagai bukti kebocoran env.** Alamat deploy pertama Hardhat itu juga tertanam di definisi chain `otimDevnet` milik **viem**, jadi selalu muncul di bundel klien apa pun konfigurasinya. Cara memeriksa yang benar: baca `/proc/<pid>/environ` dari proses server, atau cek HTML rutenya.
 - **`npx next lint` pernah menggantung lebih dari 15 menit** tanpa keluaran. Gerbang yang bisa diandalkan: `npx tsc --noEmit`, lalu `npx next build`.
 - **Perekaman video harus diverifikasi per frame.** Exit code nol tidak membuktikan apa pun soal tampilan: dua rekaman sempat "berhasil" padahal frame-nya masih memperlihatkan copy generasi berseed dan satu paragraf yang tersusun menyamping. Ekstrak frame dengan `ffmpeg -ss <detik> -frames:v 1` lalu benar-benar lihat gambarnya. Perbesar dengan `crop`+`scale` sebelum menyimpulkan sebuah angka salah — "9 of 13" pernah saya baca sebagai "0 of 13" dan hampir "diperbaiki" padahal benar.
@@ -817,96 +825,121 @@ Sesudah menyala, ticker landing boleh kembali berbunyi "one launch per human".
 Jangan mengubah teksnya sebelum `curl -s https://adexto.xyz/api/worldid/verify`
 melaporkan `"oneLaunchPerHuman":true`.
 
+**PEMUTAKHIRAN:** gerbang World ID sudah AKTIF di produksi. `WORLD_ID_ONE_LAUNCH_PER_HUMAN`
+dibiarkan kosong dengan sengaja, jadi `/api/worldid/verify` melaporkan
+`oneLaunchPerHuman:false`: satu manusia terikat ke satu wallet tapi boleh
+meluncurkan lebih dari sekali. Pengikatan itulah yang menutup celah utama —
+memanen wallet baru tanpa batas. Harness: `node audit_worldid_gate.mjs`.
+
 ---
 
-### 2. Subgraph — 3 dari 4 chain bisa, 0G tidak. ~1 hari
+### 2. Subgraph — SELESAI, dengan dua chain di infrastruktur sendiri
 
-Subgraph yang ada (`subgraph/subgraph.yaml`) **tidak akan pernah mengindeks
-apa pun**, dan bukan karena satu kesalahan tetapi tiga:
+Dikerjakan 2026-08-21. Yang berlaku sekarang:
 
-| yang tertulis | masalahnya |
-|---|---|
-| `network: mainnet` | itu Ethereum mainnet; alamat factory-nya ada di 0G |
-| `address: 0xe8E9…F3e0` | factory **v1** |
-| `event: TrinityProjectCreated(...)` | v3 memancarkan `TrinityProjectDeployed`, tanda tangan berbeda |
-| `startBlock: 1` | memindai dari genesis |
+**Kelayakan diperiksa ulang terhadap `graphprotocol/networks-registry` v0.7.111, dan
+hasilnya berbeda dari catatan sebelumnya di dokumen ini.** Catatan lama menyebut
+Base/Arbitrum/Monad didukung The Graph. Monad TIDAK: ia terdaftar tanpa dukungan
+Subgraphs (hanya Firehose + Substreams), mainnet maupun testnet. 0G tidak ada di
+registry sama sekali.
 
-**Kelayakan, dari daftar resmi The Graph** (diperiksa di
-<https://thegraph.com/docs/en/supported-networks/>):
-
-| chain | identifier | didukung? |
+| chain | Subgraphs di The Graph | tujuan deploy |
 |---|---|---|
-| Base | `base` | ya |
-| Arbitrum One | `arbitrum-one` | ya |
-| Monad | `monad` | **ya** |
-| 0G | — | **tidak ada dalam daftar** |
+| `base`, `base-sepolia` | ya | Subgraph Studio |
+| `arbitrum-one`, `arbitrum-sepolia` | ya | Subgraph Studio |
+| `monad`, `monad-testnet` | **tidak** | Graph Node sendiri |
+| `0g`, `0g-testnet` | **tidak ada di registry** | Graph Node sendiri |
 
-#### Kenapa 0G tidak ada, dan kenapa itu BUKAN berarti 0G tak bisa diindeks
+Jadi Graph Node sendiri bukan masalah khusus 0G dan bukan masalah khusus testnet.
 
-Dua hal yang sering dicampur, padahal terpisah:
+**Berkas.** `subgraph/chains.json` satu-satunya yang ditulis tangan. `networks.json`
+dan `graph-node.toml` DIHASILKAN oleh `python3 scripts/gen-subgraph-networks.py`
+(alias `npm run networks`) dari `chains.json` + `build/deployments.json`. Entri
+mainnet sudah lengkap dan tinggal menunggu alamat — broadcast factory lalu jalankan
+generator, nama mainnet muncul sendiri tanpa satu baris kode pun berubah.
 
-1. **Tidak ada di daftar = proses tata kelola, bukan batas teknis.** Masuk ke
-   jaringan terdesentralisasi menempuh Chain Integration Process (GIP-0057): tiga
-   tahap, divalidasi di testnet The Graph lebih dulu, lalu Studio, lalu imbalan
-   indexing supaya indexer mau mengalokasikan stake. Yang memulainya adalah **tim
-   chain-nya** — 0G Foundation — bukan kita. Dokumen The Graph sendiri menyatakan
-   bahwa selama chain-nya EVM dan mengekspos JSON-RPC EVM standar, Graph Node
-   semestinya bisa mengindeksnya. *Diparafrasekan dari
-   <https://thegraph.com/docs/en/new-chain-integration/> dan GIP-0057.*
+**Perintah.** Tidak ada lagi skrip per-chain. Satu pintu:
 
-2. **Bisa/tidak diindeks = pertanyaan teknis terpisah, dan jawabannya BISA.**
+```
+cd subgraph
+npm run list                    # chain, alamat, dan tujuan deploy masing-masing
+npm run networks                # regenerasi setelah broadcast factory
+node graph-ops.mjs build <net>
+node graph-ops.mjs deploy <net> # Studio atau node sendiri, diputuskan chains.json
+npm run deploy:studio           # semua yang bertarget Studio
+npm run deploy:self-hosted      # semua yang bertarget node sendiri
+```
 
-**Hasil probe RPC 0G** (`https://evmrpc.0g.ai`, Geth v1.15.11-stable, tinggi blok
-~42,1 juta):
+**JEBAKAN: `graph build --network X` MENULIS ULANG `subgraph.yaml` DI TEMPAT.**
+graph-cli menyalin `address` dan `startBlock` dari `networks.json` ke manifest
+sumber yang ter-track, bukan hanya ke `build/`, DAN menghapus seluruh komentarnya
+saat menulis ulang. Dibiarkan begitu, manifest terpaku ke chain yang terakhir
+di-build dan `git status` kotor setelah tiap build. Karena itu ada
+`subgraph/reset-manifest.mjs`, dan tiap perintah graph-cli di `graph-ops.mjs`
+selalu memanggilnya lewat `finally`. Sumber kebenarannya `networks.json`.
 
-| yang Graph Node butuhkan | hasil |
-|---|---|
-| `eth_getBlockByNumber` dengan tx penuh | **lulus** |
-| `eth_getLogs` rentang 2.000 blok | **lulus** |
-| `eth_getLogs` rentang 10.000 blok | gagal — batas **10.000 log**, bukan 10.000 blok |
-| `eth_getBalance` pada blok lama (archive) | **gagal**, `missing trie node` bahkan 1.000 blok ke belakang |
-| `trace_block` / `debug_traceBlockByNumber` | **tidak tersedia** |
+**ATURAN MENGIKAT: nol `.bind()` dan nol `try_*` di seluruh mapping.** RPC 0G
+berjalan pruned, bukan archive (`eth_getBalance` blok lama gagal `missing trie
+node`), dan tidak menyediakan `trace_block` maupun `debug_traceBlockByNumber`
+(keduanya `-32601`). Seluruh keadaan kurva diturunkan dari payload event: `Swap`
+memancarkan `nativeReserveAfter` dan `tokenReserveAfter`. Begitu satu panggilan
+view masuk, kebutuhannya berubah dari satu kontainer menjadi node archive.
 
-Jadi node publiknya **pruned, bukan archive**, dan tanpa trace. Biasanya itu
-mematikan — tapi tidak untuk kasus kita, karena dua hal:
+**Batas RPC, diprobe langsung bukan ditebak (2026-08-18):**
 
-- `subgraph/src/mapping.ts` **nol panggilan kontrak** (tidak ada `.bind()`,
-  tidak ada `try_*`), jadi tidak ada `eth_call` di blok historis.
-- `SovereignCurve.Swap` sudah memancarkan **`nativeReserveAfter` dan
-  `tokenReserveAfter`**, dan `CurveInitialized` memancarkan `virtualNative`,
-  `curveTokens`, `openingPrice`. Artinya seluruh state kurva — reserve, harga
-  spot, depth, lantai harga — bisa **diturunkan dari aliran event saja**.
+| chain | client | `eth_getLogs` |
+|---|---|---|
+| 0G mainnet + testnet | Geth v1.15.11 | span 10.000 blok lolos, dipakai 2.000 |
+| Monad mainnet + testnet | Monad 0.15.1 / 0.16.0 | **plafon keras 100 blok**, di atas itu HTTP 413 `-32614 "eth_getLogs is limited to a 100 range"` |
 
-Itu properti desain kontrak yang kebetulan sangat menguntungkan indexer, dan ia
-menghapus kebutuhan archive sepenuhnya. Jadi:
+Beda dua orde inilah alasan `graph-node.toml` memakai `max_block_range_size`
+per-chain. `GRAPH_ETHEREUM_MAX_BLOCK_RANGE_SIZE` itu env var GLOBAL: disetel 100
+untuk Monad, backfill 0G jadi 20x lebih banyak request; dibiarkan default, tiap
+request Monad gagal.
 
-- **Base / Arbitrum / Monad** → Subgraph Studio, nol infrastruktur tambahan.
-- **0G** → Graph Node yang di-host sendiri BISA jalan hari ini dari RPC publik
-  (Graph Node + Postgres + IPFS, satu compose). Batas 10.000 log hanya berarti
-  ukuran potongan pemindaian perlu dikecilkan.
-- **Jangan** menulis mapping yang memanggil fungsi view di jalur 0G. Begitu satu
-  `.bind()` masuk, kita langsung butuh node archive 0G dan biayanya berubah dari
-  satu kontainer menjadi masalah infrastruktur.
+**Graph Node.** `subgraph/docker-compose.yml`, image `graphprotocol/graph-node:v0.45.0`
+(spec max 1.5.0, api max 0.0.10 — manifest kita 1.0.0/0.0.9, aman). Semua port
+di-bind ke `127.0.0.1`: port 8020 dan 5001 TIDAK berautentikasi, siapa pun yang
+menjangkaunya bisa deploy subgraph atau pin data sembarang. App menjangkau node
+lewat nama service `graph-node` di jaringan docker `adexto-net` yang dibagi
+bersama, jadi indexer tidak perlu port host sama sekali.
 
-Yang perlu dikerjakan:
+**JEBAKAN: `BLOCK_INGESTOR` harus sama dengan `node_id`.** `docker/start` di image
+itu menyetel `DISABLE_BLOCK_INGESTOR=true` setiap kali `node_id != BLOCK_INGESTOR`.
+Kalau lupa, node naik bersih, menjawab query, log-nya tidak mencurigakan, dan
+tidak pernah mengingest satu blok pun — subgraph diam di 0% selamanya.
 
-1. `subgraph.yaml`: satu `dataSource` per chain, `network` yang benar,
-   `address: <FactoryV3 chain itu>`, `startBlock` = blok deploy factory (ada di
-   `build/deployments.json`).
-2. Event handler untuk `TrinityProjectDeployed`, dan **`SovereignCurve.Swap`
-   sebagai template dataSource** — inilah yang membuat klaim "mengindeks curve
-   depth dan swap" jadi benar. Perhatikan jebakan yang sudah pernah menggigit
-   kita (§1e-2): `SovereignCurve.Swap` punya satu parameter fee lebih banyak
-   daripada `SovereignHook.Swap`, jadi `topic0`-nya berbeda.
-3. `schema.graphql`: buang `teeAttestationRoot` sebagai nama field (itu root 0G
-   DA), tambahkan `Curve`, `Swap`, `BuybackBurn`.
-4. Jadikan subgraph **jalur baca kedua**, bukan pengganti: `/api/graphql` tetap
-   membaca registry lebih dulu lalu jatuh ke subgraph. Membalik urutannya berarti
-   explorer mati setiap kali indexer tertinggal.
+Stack ini SENGAJA tidak ikut `docker-compose.yml` utama dan tidak dijalankan
+`scripts/deploy-vps.sh`. Indexer memegang puluhan GB state chain; mengikatnya ke
+deploy web berarti membangunnya ulang tiap kali copy diubah.
 
-**Baru setelah itu** copy di /docs boleh menyebut The Graph sebagai sumber data.
+**Jalur baca kedua sudah terpasang.** `/api/graphql` membaca registry lebih dulu
+dan registry sendirian menentukan pasar mana yang ada. Subgraph hanya menempelkan
+objek `live` per project; ia tidak bisa menambah, menghapus, mengganti nama, atau
+mengalihkan pasar. Satu-satunya pengecualian: `priceNative` yang bernilai 0 di
+registry diisi dari `spotPriceNative` indexer, dan `priceSource` menyatakan mana
+yang dipakai. Env: `SUBGRAPH_URL_0G` / `_ARBITRUM` / `_BASE` / `_MONAD` /
+`_DEVCHAIN`, tanpa prefiks `NEXT_PUBLIC_` karena URL gateway memuat API key.
+Semuanya boleh kosong — `live` jadi null dan explorer jalan seperti biasa.
 
----
+Harness: `node audit_subgraph_readpath.mjs` (18/0 saat indexer sehat, 14/0 di
+masing-masing tiga mode gagal: HTTP 500, error GraphQL, dan menggantung).
+
+**Signal GRT.** NFT subgraph `DdSBjB19RrovZJbpcbXwgTRtDUTRppTWwMsVznjARjQv` di
+Arbitrum One masih hidup (`disabled: false`) dan bisa menerima versi baru. Versi
+yang dipublish sekarang mendeklarasikan `network: mainnet` (Ethereum) untuk alamat
+`0xe8E9Cf43…` yang punya 0 byte bytecode di Ethereum dan 7.216 byte di 0G — ia
+memindai chain yang salah sejak blok 1 dan sudah mengindeks nol baris. Signal
+21,39438708 GRT ditarik 2026-08-21 lewat `burnSignal` di L2GNS
+`0xec9A7fb6CbC2E41926127929c2dcE6e9c5D33Bec`; pokoknya keluar utuh karena kurva
+kurasi di Arbitrum rata 1:1 dan pajak 1% dipungut saat SETOR, bukan saat tarik.
+Untuk memakainya lagi: publish versi baru ke NFT yang sama (owner tax 0% sejak
+GIP-0059), jangan `deprecateSubgraph` — fungsi itu memanggil `_burnNFT` dan ID-nya
+hilang permanen.
+
+**Testnet tidak bisa dipublish ke decentralized network.** Deploy `base-sepolia` /
+`arbitrum-sepolia` berhenti di Studio. Supaya signal GRT terpakai, subgraph harus
+mengindeks chain mainnet yang The Graph layani, yaitu `base` atau `arbitrum-one`.
 
 ### 3. ERC-8004 — paling banyak leverage, dan paling selaras. ~3–5 hari
 
@@ -936,7 +969,7 @@ Langkahnya:
 1. `contracts/AdextoIdentityRegistry.sol` — ERC-721 + URIStorage. Deploy sebagai
    singleton per chain. Catat: kita **memenuhi antarmukanya**, bukan memakai
    registry kanonik bersama, dan itu harus dinyatakan apa adanya di /docs.
-2. `AdextoTrinityFactoryV3` tidak bisa diubah. Jadi pendaftarannya dilakukan
+2. `AdextoCurveFactory` tidak bisa diubah. Jadi pendaftarannya dilakukan
    **setelah** launch, dari `/api/deploy` tahap `confirm`, memakai alamat agen
    yang sudah terkunci di token.
 3. Berkas registrasi disajikan di `https://{ticker}.adexto.xyz/agent.json` —
@@ -1263,7 +1296,7 @@ Hal-hal berikut **tidak bisa diubah** tanpa factory baru. Semuanya disengaja, ta
 4. **World ID sungguhan** bila anti-Sybil memang jadi syarat: pasang IDKit + verifikasi proof di server, lalu set `NEXT_PUBLIC_WORLD_ID_APP_ID`.
 4b. **Treasury relayer** bila ingin UX "bayar sekali di 0G, aktif di 4 chain" (§1c). Perlu keputusan berapa ETH di Arbitrum/Base dan MON di Monad yang siap diparkir, karena itulah yang membiayai seed pool di chain tujuan. Kontrak CCIP lama (`AdextoCCIPTreasuryRouter`, `AdextoCCIPReceiver`) sebaiknya dianggap tidak terpakai sampai Chainlink membuka lane untuk 0G.
 5. **Audit kontrak eksternal** sebelum pool menampung dana signifikan. `SovereignHook` sudah punya reentrancy guard, slippage, deadline dan cap fee, tapi belum ditinjau pihak ketiga.
-6. **The Graph subgraph** masih mengindeks factory v1; perlu diarahkan ke event v2 (`TrinityProjectDeployed`, `Swap`) supaya explorer bisa lepas dari registry file.
+6. ~~**The Graph subgraph** masih mengindeks factory v1~~ **SELESAI** — lihat §2. Schema baru (`Project`, `Curve`, `Swap`, `BuybackBurn`, `CreatorFeeClaim`, `CurveDayData`, `GlobalStats`), handler `TrinityProjectDeployed` + template `SovereignCurve`, dan `/api/graphql` sebagai jalur baca kedua.
 7. **Deploy `cloudflare-worker`** ke `edge.adexto.xyz` (`npx wrangler deploy`).
 
 ---

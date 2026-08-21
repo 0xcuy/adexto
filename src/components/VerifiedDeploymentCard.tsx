@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
-import { GRAPH_STUDIO_CONFIG } from "@/config/subgraph";
+import { PUBLISHED_SUBGRAPH } from "@/config/subgraph";
 import { 
   CheckCircle2, ExternalLink, ShieldCheck, Database, Copy, Check, 
   Cpu, Layers, Sparkles 
@@ -68,11 +68,19 @@ export default function VerifiedDeploymentCard() {
       color: "border-accent/30 bg-accent-soft text-accent",
     },
     {
-      label: "The Graph Subgraph (Decentralized Network Mainnet)",
-      address: GRAPH_STUDIO_CONFIG.subgraphId,
-      explorerUrl: GRAPH_STUDIO_CONFIG.explorerUrl,
-      badge: "The Graph Published",
-      color: "border-accent/30 bg-accent-soft text-accent",
+      // Badge ini dulu berbunyi "The Graph Published" dengan warna accent, dan
+      // secara harfiah benar — NFT subgraph-nya memang ada di Arbitrum One. Tapi
+      // versi yang dipublish mendeklarasikan `network: mainnet` (Ethereum) untuk
+      // alamat 0xe8E9Cf43… yang punya 0 byte bytecode di Ethereum dan 7216 byte
+      // di 0G. Jadi ia memindai chain yang salah sejak blok 1 dan sudah
+      // mengindeks nol baris. Menampilkannya sebagai sumber data hijau adalah
+      // klaim yang tidak bisa dipertahankan; badge-nya sekarang menyebut apa
+      // yang benar-benar disajikannya.
+      label: "The Graph Subgraph NFT (Arbitrum One 42161)",
+      address: PUBLISHED_SUBGRAPH.subgraphId,
+      explorerUrl: PUBLISHED_SUBGRAPH.explorerUrl,
+      badge: "published · serves no data yet",
+      color: "border-warn/30 bg-warn/10 text-warn",
     },
     {
       label: "SovereignHook AMM (0G Mainnet 16661)",
@@ -122,7 +130,7 @@ export default function VerifiedDeploymentCard() {
             </h2>
             <p className="text-xs sm:text-sm text-ink-soft mt-1">
               Addresses below are the <strong className="text-ink">v1</strong> generation, deployed and verifiable on
-              each chain. The executable <code className="text-accent">AdextoTrinityFactoryV3</code> is not broadcast to
+              each chain. The executable <code className="text-accent">AdextoCurveFactory</code> is not broadcast to
               mainnet yet, so launching and trading stay disabled in the UI until it is.
             </p>
           </div>

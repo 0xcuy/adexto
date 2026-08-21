@@ -1,27 +1,80 @@
 specVersion: 1.0.0
+description: >
+  ADEXTO curve factory and per-token sovereign bonding curves. Indexes launches,
+  swaps, creator fee claims and agent buyback burns. Curve reserves are derived
+  entirely from event data, so no archive node is required.
+repository: https://github.com/0xcuy/adexto
 indexerHints:
   prune: auto
 schema:
   file: ./schema.graphql
+# PERINGATAN: `graph build --network X` MENULIS ULANG BERKAS INI DI TEMPAT
+#
+# graph-cli menyalin `address` dan `startBlock` dari networks.json ke manifest
+# ini, bukan hanya ke build/, dan menghapus semua komentar saat menulis ulang.
+# Jadi nilai di bawah selalu hanya sisa build terakhir siapa pun. Nilai di
+# bawah sengaja placeholder supaya tidak ada yang memperlakukannya sebagai
+# konfigurasi sungguhan.
+#
+# Sumber kebenarannya adalah networks.json, yang dihasilkan dari
+# build/deployments.json oleh scripts/gen-subgraph-networks.py. Pakai skrip
+# npm (`npm run build:0g-testnet`, `npm run deploy:base-sepolia`, ...) yang
+# selalu memanggil `node reset-manifest.mjs` setelahnya untuk memulihkan
+# berkas ini.
 dataSources:
   - kind: ethereum
-    name: AdextoTrinityFactory
-    network: mainnet
+    name: AdextoCurveFactory
+    network: 0g
     source:
-      address: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0"
-      abi: AdextoTrinityFactory
-      startBlock: 1
+      abi: AdextoCurveFactory
+      address: "0x0000000000000000000000000000000000000000"
+      startBlock: 0
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
+      file: ./src/factory.ts
       entities:
         - Project
+        - Curve
         - GlobalStats
       abis:
-        - name: AdextoTrinityFactory
-          file: ./abis/AdextoTrinityFactory.json
+        - name: AdextoCurveFactory
+          file: ./abis/AdextoCurveFactory.json
+        - name: SovereignCurve
+          file: ./abis/SovereignCurve.json
       eventHandlers:
-        - event: TrinityProjectCreated(indexed address,indexed address,string,bytes32)
-          handler: handleTrinityProjectCreated
-      file: ./src/mapping.ts
+        - event: TrinityProjectDeployed(indexed address,indexed address,indexed
+            address,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)
+          handler: handleTrinityProjectDeployed
+templates:
+  - kind: ethereum
+    name: SovereignCurve
+    network: 0g
+    source:
+      abi: SovereignCurve
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/curve.ts
+      entities:
+        - Curve
+        - Swap
+        - BuybackBurn
+        - CreatorFeeClaim
+        - CurveDayData
+        - GlobalStats
+      abis:
+        - name: SovereignCurve
+          file: ./abis/SovereignCurve.json
+      eventHandlers:
+        - event: CurveInitialized(uint256,uint256,uint256)
+          handler: handleCurveInitialized
+        - event: Swap(indexed address,indexed
+            address,bool,uint256,uint256,uint256,uint256,uint256,uint256,uint256)
+          handler: handleSwap
+        - event: AutoBuybackExecuted(uint256,uint256)
+          handler: handleAutoBuybackExecuted
+        - event: CreatorFeesClaimed(indexed address,uint256)
+          handler: handleCreatorFeesClaimed

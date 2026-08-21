@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
-import { FACTORY_V3_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
+import { CURVE_FACTORY_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
@@ -473,7 +473,7 @@ export default function StudioPage() {
       ] as const;
 
     const ethereum = getActiveEip1193();
-    const iface = new ethers.Interface(FACTORY_V3_ABI);
+    const iface = new ethers.Interface(CURVE_FACTORY_ABI);
 
     for (const chain of chains) {
       try {
@@ -493,7 +493,7 @@ export default function StudioPage() {
 
             const provider = new ethers.BrowserProvider(ethereum);
             const signer = await provider.getSigner();
-            const candidate = new ethers.Contract(chain.factoryV3Address as string, FACTORY_V3_ABI, signer);
+            const candidate = new ethers.Contract(chain.curveFactoryAddress as string, CURVE_FACTORY_ABI, signer);
 
             // Simulate first: a revert here costs nothing and gives the real reason.
             updateResult(chain.chainId, { message: "Simulating launch…" });
@@ -594,7 +594,7 @@ export default function StudioPage() {
         content:
           `⚡ **ADEXTO Studio**\n\n` +
           `• Model: **0G Router (${selectedModel})**\n` +
-          `• Factory: **AdextoTrinityFactoryV3** (token + bonding curve in one transaction, no liquidity deposit)\n` +
+          `• Factory: **AdextoCurveFactory** (token + bonding curve in one transaction, no liquidity deposit)\n` +
           `• Live chains: **${liveChains.length > 0 ? liveChains.map((c) => c.key).join(", ") : "none yet"}**\n\n` +
           `Describe your concept, or configure the launch on the left.`,
       },
@@ -770,7 +770,7 @@ export default function StudioPage() {
                     <strong>Launching is disabled.</strong> No launch factory is deployed on any chain yet, so a launch
                     could not create a tradable curve. Broadcast it with{" "}
                     <code className="text-accent">node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast</code>{" "}
-                    and set <code className="text-accent">NEXT_PUBLIC_FACTORY_V3_0G</code>.
+                    and set <code className="text-accent">NEXT_PUBLIC_CURVE_FACTORY_0G</code>.
                   </span>
                 </div>
               )}
@@ -801,7 +801,7 @@ export default function StudioPage() {
                             ? `${chain.name} · this ticker already has a market here, it will be skipped`
                             : // Tampilkan factory yang BENAR-BENAR dipakai chain ini. Menampilkan
                               // factoryV2Address secara kaku memperlihatkan "null" di chain kurva.
-                              `${chain.name} · factory ${chain.factoryV3Address ?? chain.factoryV2Address}`
+                              `${chain.name} · factory ${chain.curveFactoryAddress ?? chain.factoryV2Address}`
                         }
                         className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                           !selectable
