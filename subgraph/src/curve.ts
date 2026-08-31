@@ -90,26 +90,21 @@ export function handleSwap(event: SwapEvent): void {
 }
 
 /**
- * Buyback agen: native dari vault dibelanjakan di kurva, token yang dibeli dibakar.
+ * Buyback: native dari vault dibelanjakan di kurva, token yang dibeli dibakar.
  *
- * INI JEBAKAN PALING HALUS DI SELURUH SUBGRAPH INI.
+ * `executeBuyback` menggerakkan reserve tetapi TIDAK memancarkan `Swap`, jadi
+ * handler inilah satu-satunya tempat perubahan itu bisa dicatat. Dulu itu masalah
+ * besar karena event-nya hanya membawa `(amountIn, tokensBurned)`: reserve harus
+ * diturunkan sendiri dengan aritmetika, dan `depthFee` yang ikut mengendap sama
+ * sekali tidak bisa diketahui. Akibatnya `totalDepthFees` sengaja dilewati, dan
+ * karena lantai harga = (virtualNative + totalDepthFees) / curveTokens, lantai yang
+ * ditampilkan akan permanen lebih rendah dari kenyataan dan makin melenceng tiap
+ * buyback.
  *
- * `executeBuyback` menggerakkan reserve tetapi TIDAK memancarkan `Swap` — ia hanya
- * memancarkan `AutoBuybackExecuted(amountIn, tokensBurned)`, yang tidak membawa
- * reserve sesudahnya. Jadi kalau handler ini hanya mencatat pembakarannya, reserve
- * dan harga kurva akan basi sampai swap berikutnya lewat, dan grafik akan
- * memperlihatkan lompatan harga yang tidak pernah terjadi.
- *
- * Perubahannya bisa diturunkan tepat dari kontrak:
- *   treasuryNative -= nativeAmount;  _curveNative += nativeAmount
- *      -> reserveNative bertambah `amountIn`
- *   _tokensSold += tokensOut
- *      -> reserveToken berkurang `tokensBurned`, tokensSold bertambah segitu
- *
- * Fee depth dari pembelian itu juga mengendap, tetapi `AutoBuybackExecuted` tidak
- * memancarkannya, jadi `totalDepthFees` sengaja TIDAK disentuh di sini. Menebaknya
- * akan membuat lantai harga bergeser tanpa dasar; membiarkannya berarti lantai
- * yang dilaporkan sedikit konservatif, dan itu arah galat yang benar.
+ * Kontraknya sekarang memancarkan `depthFee`, `nativeReserveAfter`, dan
+ * `tokenReserveAfter`. Jadi handler ini berhenti menurunkan apa pun dan membaca
+ * semuanya langsung dari log, sama seperti `handleSwap` — tidak ada lagi jalan
+ * untuk melenceng dari kontrak karena pembulatan, dan lantai harganya benar.
  */
 export function handleAutoBuybackExecuted(event: AutoBuybackExecuted): void {
   const curveId = event.address.toHexString();
@@ -125,15 +120,30 @@ export function handleAutoBuybackExecuted(event: AutoBuybackExecuted): void {
   burn.txHash = event.transaction.hash;
   burn.save();
 
-  curve.reserveNative = curve.reserveNative.plus(event.params.amountIn);
-  curve.reserveToken = curve.reserveToken.minus(event.params.tokensBurned);
-  curve.tokensSold = curve.tokensSold.plus(event.params.tokensBurned);
-  curve.spotPriceNative = priceFrom(curve.reserveNative, curve.reserveToken);
+  // Dibaca dari event, bukan dihitung. Persis seperti handleSwap.
+  curve.reserveNative = event.params.nativeReserveAfter;
+  curve.reserveToken = event.params.tokenReserveAfter;
+  curve.tokensSold = curve.curveTokens.minus(event.params.tokenReserveAfter);
+  curve.spotPriceNative = priceFrom(
+    event.params.nativeReserveAfter,
+    event.params.tokenReserveAfter,
+  );
   curve.tokensBurned = curve.tokensBurned.plus(event.params.tokensBurned);
+
+  // Fee depth dari pembelian buyback mengendap di kurva seperti fee depth swap
+  // biasa, jadi ia mengangkat lantai harga dengan cara yang sama.
+  curve.totalDepthFees = curve.totalDepthFees.plus(event.params.depthFee);
+  curve.floorPriceNative = floorPrice(curve.virtualNative, curve.totalDepthFees, curve.curveTokens);
+
+  // Kontrak menaikkan swapCount pada buyback, jadi subgraph ikut — kalau tidak,
+  // swapCount on-chain dan swapCount di sini akan berbeda selamanya.
+  curve.swapCount = curve.swapCount.plus(ONE);
   curve.save();
 
   const g = globalStats();
   g.totalTokensBurned = g.totalTokensBurned.plus(event.params.tokensBurned);
+  g.totalDepthFees = g.totalDepthFees.plus(event.params.depthFee);
+  g.totalSwaps = g.totalSwaps.plus(ONE);
   g.lastUpdatedTimestamp = event.block.timestamp;
   g.save();
 }

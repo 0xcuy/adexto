@@ -412,14 +412,16 @@ Terverifikasi lewat UI: `/api/deploy` melaporkan `gen=v3`, launch memakan **gas 
 
 ### 1e-2. Curve factory lulus ujung-ke-ujung di 4 testnet
 
-Curve factory dideploy ke keempat testnet — **gas saja, tanpa setoran apa pun**. Semua bytecode 18.568 byte, `projects=0` saat deploy, ticker `ADEXTO` masih tersedia di keempatnya.
+Curve factory dideploy ke keempat testnet — **gas saja, tanpa setoran apa pun**. `projects=0` saat deploy, ticker `ADEXTO` masih tersedia di keempatnya.
+
+Angka bytecode di revisi ini pernah tertulis 18.568 byte, dan itu bytecode PRA-RENAME yang sudah tidak berlaku. Setelah deploy ulang 2026-08-21 (lihat §1e-3) bytecode-nya 18,05 KiB dan runtime on-chain 18.460 byte, identik dengan artifact di repo — diperiksa oleh `audit_testnet_buyback.mjs`.
 
 | Chain | chainId | AdextoCurveFactory |
 |---|---|---|
-| 0G Testnet | 16602 | `0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632` |
-| Arbitrum Sepolia | 421614 | `0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A` |
-| Base Sepolia | 84532 | `0x921E03288ADA4192bF592B603e86A147c6D2f6e7` |
-| Monad Testnet | 10143 | `0x516D005367045b1fc18c9c9a0Ff7bf8653d1B4e3` |
+| 0G Testnet | 16602 | `0x99CBfE5d33542b3611639C4fDC664d99F541D96D` — diganti 2026-08-21, sebelumnya `0xeaC93b76…` |
+| Arbitrum Sepolia | 421614 | `0x4c337FD1a65fEAaC248b138E47C0C40B84CF3f1f` — diganti 2026-08-21, sebelumnya `0xb89d17F7…` |
+| Base Sepolia | 84532 | `0xe21e5b875B9F6B99a8151166EF079C1F9E1c092e` — diganti 2026-08-21, sebelumnya `0x921E0328…` |
+| Monad Testnet | 10143 | `0x213494Bff0962AbFCcD73364de7616f5a5517E47` — diganti 2026-08-21, sebelumnya `0x516D0053…` |
 | devchain | 31337 | `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
 
 Gas deploy 4.054.815 (Monad 4.086.015). Tercatat di `build/deployments.json`.
@@ -832,6 +834,165 @@ meluncurkan lebih dari sekali. Pengikatan itulah yang menutup celah utama —
 memanen wallet baru tanpa batas. Harness: `node audit_worldid_gate.mjs`.
 
 ---
+
+### 1e-3. Audit pra-mainnet 2026-08-21 — kontrak diperbaiki lalu di-deploy ulang
+
+**Kenapa deploy ulang wajib, terlepas dari temuan apa pun.** Keempat factory
+testnet yang lama menjalankan bytecode PRA-RENAME (18.568 byte, tanpa
+`VERSION()`), sementara repo sudah di 18.05 KiB. Jadi klaim "lulus ujung-ke-ujung
+di 4 testnet" berlaku untuk bytecode yang BUKAN yang akan dikirim ke mainnet, dan
+`AdextoCurveFactory` versi sekarang baru pernah jalan di hardhat. Karena deploy
+ulang sudah pasti, memasukkan perbaikan kontrak di bawah tidak menambah biaya.
+
+**Gate-nya: `node audit_preflight_immutable.mjs`** — `exit 1` selama masih ada
+temuan TINGGI. Jalankan sebelum broadcast ke chain mana pun. Turun dari 4 TINGGI
+ke 1 TINGGI setelah perbaikan ini.
+
+**Yang diubah di kontrak:**
+
+`SovereignCurve.sol`
+- `AutoBuybackExecuted` dari 2 jadi 5 field: `+depthFee, +nativeReserveAfter,
+  +tokenReserveAfter`. **topic0 BERUBAH.** Tanpa `depthFee`, indexer tidak mungkin
+  tahu angka itu padahal `executeBuyback` menaikkan `totalDepthFeesRetained`, dan
+  karena `floorPrice = (virtualNative + totalDepthFees) / curveTokens`, lantai
+  harga di explorer akan permanen lebih rendah dari kenyataan dan makin melenceng
+  tiap buyback.
+- `initializeCurve` dapat `onlyFactory`. `bindToken` sudah punya, ini tidak.
+  Tidak bisa dieksploitasi pada alur factory sekarang (atomik dalam satu tx), tapi
+  tidak bisa ditambahkan lagi setelah broadcast.
+- **`executeBuyback` TANPA IZIN**, `modifier onlyAgent` dihapus seluruhnya,
+  diganti batas ukuran: `require(nativeAmount * 100 <= virtualNative + _curveNative)`.
+- `TreasuryFeeCollected` dibungkus `if (treasuryFee > 0)`. Dulu dipancarkan setiap
+  swap walau nilainya nol, ~1.100 gas yang dibayar setiap pedagang.
+- `sell()`: `totalVolumeNative += leaving + depthFee` (bruto). Dulu `quotedOut`
+  (neto), sehingga beli dihitung bruto dan jual neto — ukuran perdagangan yang
+  sama tercatat sebagai dua volume berbeda tergantung arahnya.
+
+`AdextoToken.sol`
+- `Ownable` DIBUANG, bersama `disableAntiSnipe()`, `antiSnipeActive`, dan
+  `AntiSnipeToggled`. `Ownable(msg.sender)` membuat `owner()` adalah factory pada
+  setiap token, dan factory tidak punya fungsi yang memakainya — jadi
+  `disableAntiSnipe()` tidak pernah bisa dipanggil siapa pun dan `antiSnipeActive`
+  terkunci `true` selamanya. Setiap transfer membayar SLOAD untuk flag yang tidak
+  bisa berubah, dan setiap explorer serta pemindai honeypot melaporkan token ini
+  punya "Owner" — menyiratkan tuas admin yang sebetulnya tidak ada.
+- **JEBAKAN:** `_update` memakai `owner()` sebagai pengecualian anti-sniper.
+  Factory memindahkan 100% supply ke kurva dalam satu transfer yang per definisi
+  jauh di atas batas 1%, jadi menghapus `Ownable` tanpa mengganti pemeriksaan itu
+  akan menggagalkan SETIAP peluncuran. Diganti `address private immutable _launcher`.
+- `ANTI_SNIPE_BLOCKS = 5` jadi konstanta publik, `launchBlock` jadi `immutable`.
+
+Konstruktor `AdextoToken` TIDAK berubah tanda tangannya, jadi ketiga factory (v1,
+V2, Curve) tetap kompilasi. `VERSION` TETAP `0.9.0` — tidak dibumping, karena
+`0.9.0` belum pernah terpakai di chain mana pun.
+
+**Kenapa buyback tanpa izin, dan kenapa plafonnya yang membuatnya aman.**
+
+`onlyAgent` berarti `agentTreasury || factory`. Studio mengirim dompet creator
+sebagai `agentIdentity`, dan factory tidak punya fungsi yang memanggil buyback —
+jadi satu-satunya pemanggil yang mungkin adalah creator, manual. Di seluruh kurva
+testnet, `AutoBuybackExecuted` terhitung NOL KALI. Sementara `treasuryNative`
+terakumulasi dari setiap swap dan hanya bisa keluar lewat fungsi itu; tidak ada
+withdraw sama sekali. Creator yang menganggur berarti irisan buyback setiap
+perdagangan mengendap selamanya.
+
+Membukanya untuk siapa pun tidak cukup sendiri. Pemanggil memilih `nativeAmount`
+DAN `minTokensBurned`, jadi versi tanpa batas bisa disandwich: beli besar, picu
+buyback dengan `minTokensBurned = 0` supaya ia terisi di harga yang dipompa dan
+membakar token lebih sedikit dari yang treasury bayar, lalu jual. Solvensi kurva
+tetap utuh; yang hancur adalah daya beli treasury, dan kerugiannya jatuh ke
+pemegang token.
+
+Apakah itu menguntungkan bergantung pada besaran, jadi diukur terhadap kurva
+testnet sungguhan (depth 15bps, creator 10bps, treasury 5bps, virtualNative 1500).
+Di volume rendah `treasuryNative` sekitar 0,03% reserve, jadi buyback menggerakkan
+harga ~3bps melawan biaya bolak-balik 60bps — serangannya RUGI. Tapi
+`treasuryNative` tumbuh seiring volume kumulatif sementara reserve tidak mengejar,
+sehingga begitu volume kumulatif mencapai ~100x reserve, treasury jadi ~5% darinya
+dan satu buyback tanpa batas menggerakkan harga ~5%. Serangannya jadi
+menguntungkan tepat di pasar yang berhasil.
+
+Karena itu plafonnya 1% reserve per panggilan: menahan plafon untung sandwich di
+sekitar biaya 60bps-nya, dan setiap percobaan lanjutan harus menunggu treasury
+terisi lagi dari volume nyata. Pembatas sesungguhnya adalah ukuran per panggilan,
+bukan identitas pemanggil — jadi begitu ukurannya dibatasi, izin tidak membeli apa
+pun dan justru mencabut satu-satunya pemanggil yang bekerja.
+
+**Alamat factory setelah deploy ulang (bytecode identik dengan repo):**
+
+| chain | alamat | startBlock |
+|---|---|---|
+| 0g-testnet | `0x99CBfE5d33542b3611639C4fDC664d99F541D96D` | 52316951 |
+| arbitrum-sepolia | `0x4c337FD1a65fEAaC248b138E47C0C40B84CF3f1f` | 303848988 |
+| base-sepolia | `0xe21e5b875B9F6B99a8151166EF079C1F9E1c092e` | 46193936 |
+| monad-testnet | `0x213494Bff0962AbFCcD73364de7616f5a5517E47` | 58419649 |
+
+`scripts/testnet-multichain-env.sh` sekarang MEMBACA `build/deployments.json`.
+Sebelumnya keempat alamat ditulis tangan di sana dan jadi basi persis saat
+kontraknya di-deploy ulang: skrip mengarahkan UI ke factory lama sementara
+deployments.json sudah menunjuk yang baru, dan tidak ada yang gagal
+terang-terangan — peluncuran cuma memakai kontrak yang salah.
+
+**Harness baru:**
+
+- `node audit_buyback_flow.mjs` (devchain, 29/0) — jalur yang sebelumnya nol kali
+  pernah dieksekusi. Membuktikan: alamat ACAK berhasil memicu buyback; plafon 1%
+  presisi sampai satu wei (tepat di plafon DITERIMA, +1 wei DITOLAK, seluruh
+  treasury DITOLAK); kelima field event cocok persis dengan `getReserves()` dan
+  `totalDepthFeesRetained()`; `totalSupply` benar-benar turun dan cocok
+  `tokensBurned`; lantai harga naik dan rumus subgraph == rumus kontrak; solvensi
+  utuh; pemanggil tidak menerima native apa pun; `totalVolumeNative` kontrak sama
+  dengan jumlah bruto dari event.
+- `node audit_testnet_buyback.mjs` (0G testnet, 20/0) — ulangi di EVM REMOTE,
+  tempat jendela anti-sniper harus DITUNGGU, bukan dilompati `hardhat_mine`.
+- `node audit_preflight_immutable.mjs` — gate pra-broadcast.
+
+**JEBAKAN HARNESS yang ditemukan sambil menulisnya:**
+
+- **JANGAN pasang nonce manual di harness ethers.** Justru itu yang MENYEBABKAN
+  "Nonce too low": variabelnya dibaca sekali dengan `"latest"` lalu basi begitu
+  transaksi berikutnya terkirim. Pakai `ethers.NonceManager` — tapi ingat ia tidak
+  mengekspos `.address` secara sinkron, jadi simpan alamatnya dari `Wallet` asli.
+- `provider.getBlockNumber()` di-cache ethers, jadi angka yang dicetak setelah
+  menambang blok terlihat basi padahal penambangannya berhasil.
+- Jendela anti-sniper harus dilewati sebelum membeli. Pembelian pertama di harness
+  ini memang DITOLAK, dan itu bukti proteksinya bekerja, bukan bug.
+- **Pembagian fee untuk uji plafon harus menyisakan depth > 0.** `depthFeeBps`
+  dihitung kontrak sebagai `swapFee - creatorShare - treasuryShare`. Percobaan
+  pertama memakai total 500 dengan treasury 500, yang membuat depth = 0 — lantai
+  harga jadi tidak pernah naik, dan pemeriksaan "depthFee cocok delta" lolos
+  secara HAMPA karena kedua sisinya nol. Pakai treasury 450 supaya depth 50 bps.
+- **Uji plafon harus dijalankan SEBELUM buyback**, karena buyback itu sendiri
+  menghabiskan treasury sampai di bawah plafon dan yang menolak jadi
+  `bad buyback amount`, bukan plafonnya.
+- Artifact di repo ini menyimpan `deployedBytecode` sebagai STRING, bukan objek
+  bergaya hardhat `{ object }`. Membaca hanya `.object` menghasilkan 0 byte.
+
+**JEBAKAN DETEKTOR: audit yang melaporkan perbaikannya sendiri sebagai temuan.**
+Tiga pemeriksaan di `audit_preflight_immutable.mjs` sempat salah dan sudah
+dibetulkan. Regex `TreasuryFeeCollected` hanya mencari baris `emit`, sehingga tetap
+melapor setelah guard `if (treasuryFee > 0)` dipasang. Pemeriksaan
+`agentTreasury == creator` hanya membandingkan dua alamat tanpa memeriksa apakah
+gerbangnya masih ada, sehingga tetap melapor TINGGI setelah buyback dibuat tanpa
+izin. Dan factory dengan 0 project dilewati DIAM-DIAM, sehingga audit melaporkan
+lebih sedikit temuan semata karena factory-nya masih kosong.
+
+**SISA 1 TEMUAN TINGGI, dan ini tidak bisa diperbaiki dengan kode:**
+
+`symbolRegistry` first-come-first-served dan permanen; tidak ada fungsi untuk
+mencadangkan atau melepas. `deployTrinity` juga sama sekali tanpa access control,
+jadi gerbang World ID itu MURNI frontend dan `RESERVED_SYMBOLS` di
+`src/lib/registry.ts` hanya berlaku untuk peluncuran yang lewat `/api/deploy`.
+Siapa pun bisa memanggil factory langsung dan mengklaim `ADEXTO`, `AEGIS`, atau
+`USDC` on-chain, permanen. Peluncuran hanya berbiaya gas, jadi menyerobot ticker
+itu murah.
+
+Menambahkan `reserveSymbol` berarti factory punya fungsi admin, dan itu
+bertentangan dengan properti "no rug lever" yang dipilih proyek. Jalan yang tidak
+melanggarnya bersifat OPERASIONAL: **klaim `ADEXTO`, `AEGIS`, `QNOVA`, `CSENT`,
+`MQUANT` di keempat mainnet SEGERA setelah broadcast**, biayanya cuma gas per
+peluncuran. Masukkan ini ke daftar langkah broadcast mainnet, bukan ke daftar
+perbaikan kode.
 
 ### 2. Subgraph — SELESAI, dengan dua chain di infrastruktur sendiri
 

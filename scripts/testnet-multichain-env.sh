@@ -9,20 +9,72 @@
 #   Base     -> Base Sepolia      84532
 #   Monad    -> Monad Testnet     10143
 #
-# Alamat di bawah adalah AdextoCurveFactory (bonding curve, tanpa seed).
-# Generasi v2 yang berseed sengaja tidak diikutkan: `chains.ts` memilih v3 bila
+# Alamat AdextoCurveFactory DIBACA dari build/deployments.json, tidak dipaku.
+#
+# Sebelumnya keempat alamat ditulis tangan di berkas ini, dan itu jadi basi persis
+# saat kontraknya di-deploy ulang: skrip masih mengarahkan UI ke factory generasi
+# lama sementara build/deployments.json sudah menunjuk yang baru, dan tidak ada
+# yang gagal secara terang-terangan — peluncuran cuma memakai kontrak yang salah.
+# Sumber kebenarannya sekarang satu, dan ia yang ditulis oleh skrip deploy.
+#
+# Generasi v2 yang berseed sengaja tidak diikutkan: `chains.ts` memilih kurva bila
 # keduanya ada, jadi menyertakan v2 hanya membingungkan.
 #
 # Pakai:  source scripts/testnet-multichain-env.sh
 
-export NEXT_PUBLIC_CHAIN_OVERRIDES='{
-  "0G":       {"chainId":16602, "name":"0G Testnet",       "rpcUrl":"https://evmrpc-testnet.0g.ai",            "blockExplorer":"https://chainscan-galileo.0g.ai",  "nativeSymbol":"0G",  "curveFactoryAddress":"0xeaC93b76101da1f5F0471fd311Dd7A8d9Ef93632"},
-  "Arbitrum": {"chainId":421614,"name":"Arbitrum Sepolia", "rpcUrl":"https://sepolia-rollup.arbitrum.io/rpc",   "blockExplorer":"https://sepolia.arbiscan.io",       "nativeSymbol":"ETH", "curveFactoryAddress":"0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A"},
-  "Base":     {"chainId":84532, "name":"Base Sepolia",     "rpcUrl":"https://base-sepolia-rpc.publicnode.com", "blockExplorer":"https://sepolia.basescan.org",      "nativeSymbol":"ETH", "curveFactoryAddress":"0x921E03288ADA4192bF592B603e86A147c6D2f6e7"},
-  "Monad":    {"chainId":10143, "name":"Monad Testnet",    "rpcUrl":"https://testnet-rpc.monad.xyz",           "blockExplorer":"https://testnet.monadexplorer.com", "nativeSymbol":"MON", "curveFactoryAddress":"0x516D005367045b1fc18c9c9a0Ff7bf8653d1B4e3"}
-}'
+_ADEXTO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NEXT_PUBLIC_CHAIN_OVERRIDES="$(python3 - "$_ADEXTO_ROOT/build/deployments.json" <<'PYEOF'
+import io, json, sys
 
-# Base Sepolia memakai publicnode: sepolia.base.org berulang kali membalas 503.
+# Slot chain produksi -> kunci testnet di deployments.json, plus metadata yang
+# tidak ada di sana. Base Sepolia memakai publicnode: sepolia.base.org berulang
+# kali membalas 503.
+SLOTS = {
+    "0G": ("0g-testnet", 16602, "0G Testnet", "https://evmrpc-testnet.0g.ai",
+           "https://chainscan-galileo.0g.ai", "0G"),
+    "Arbitrum": ("arbitrum-sepolia", 421614, "Arbitrum Sepolia",
+                 "https://sepolia-rollup.arbitrum.io/rpc",
+                 "https://sepolia.arbiscan.io", "ETH"),
+    "Base": ("base-sepolia", 84532, "Base Sepolia",
+             "https://base-sepolia-rpc.publicnode.com",
+             "https://sepolia.basescan.org", "ETH"),
+    "Monad": ("monad-testnet", 10143, "Monad Testnet",
+              "https://testnet-rpc.monad.xyz",
+              "https://testnet.monadexplorer.com", "MON"),
+}
+
+dep = json.load(io.open(sys.argv[1], encoding="utf-8"))
+out = {}
+missing = []
+for slot, (key, chain_id, name, rpc, explorer, native) in SLOTS.items():
+    address = (dep.get(key) or {}).get("curveFactory")
+    if not address:
+        missing.append(key)
+        continue
+    out[slot] = {
+        "chainId": chain_id,
+        "name": name,
+        "rpcUrl": rpc,
+        "blockExplorer": explorer,
+        "nativeSymbol": native,
+        "curveFactoryAddress": address,
+    }
+
+if missing:
+    sys.stderr.write(
+        "PERINGATAN: belum ada curveFactory untuk %s — slot itu akan tampil "
+        "sebagai 'DEX not live'.\n" % ", ".join(missing)
+    )
+sys.stdout.write(json.dumps(out, separators=(",", ":")))
+PYEOF
+)"
+export NEXT_PUBLIC_CHAIN_OVERRIDES
+
+if [ -z "$NEXT_PUBLIC_CHAIN_OVERRIDES" ] || [ "$NEXT_PUBLIC_CHAIN_OVERRIDES" = "{}" ]; then
+  echo "GAGAL: build/deployments.json tidak memuat satu pun curveFactory testnet." >&2
+  echo "       Jalankan: node scripts/deploy-sovereign-curve.mjs --chain 0g-testnet --broadcast" >&2
+  return 1 2>/dev/null || exit 1
+fi
 
 # Slot devchain WAJIB dimatikan di sini.
 #

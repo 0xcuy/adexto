@@ -68,10 +68,19 @@ interface IAdextoToken {
  * never charged extra to pay the creator:
  *   - depth    -> stays in `curveNative`, so the price floor rises with volume
  *   - creator  -> accrues to `creatorOwed` for a locked creator address
- *   - buyback  -> accrues to `treasuryNative` for the agent burn vault
+ *   - buyback  -> accrues to `treasuryNative`, spent by `executeBuyback`
  *
  * Creator fees accrue and are claimed rather than pushed. Pushing native on every
  * swap would let a creator contract that reverts brick trading for everyone.
+ *
+ * NEITHER PAYOUT PATH NEEDS PERMISSION
+ *
+ * `claimCreatorFees` and `executeBuyback` are both callable by anyone, and neither
+ * lets the caller choose a destination: creator fees can only reach the immutable
+ * `creator`, and buyback native can only buy-and-burn on this curve. Nothing here
+ * can be redirected, so requiring an authorised caller would only add a key that
+ * can be lost — and losing it would strand `treasuryNative` permanently, since
+ * there is no withdrawal function anywhere in this contract.
  *
  * The 1% anti-sniper window is enforced by `AdextoToken._update`, so it applies to
  * curve payouts automatically.
@@ -79,6 +88,14 @@ interface IAdextoToken {
 contract SovereignCurve {
     // ─── Immutable wiring ────────────────────────────────────────────────────
     address public immutable factory;
+    /**
+     * @notice The agent identity this market was launched under (ERC-8004 style).
+     * @dev REFERENCE ONLY. This used to gate `executeBuyback` through an
+     *      `onlyAgent` modifier; it no longer authorises anything, because the
+     *      buyback is permissionless and bounded by size instead. Kept so the
+     *      declared agent stays readable on-chain and matches
+     *      `AdextoToken.agentIdentity`.
+     */
     address public immutable agentTreasury;
     /// @notice Fee recipient, fixed at deployment so it can never be redirected.
     address public immutable creator;
@@ -140,7 +157,31 @@ contract SovereignCurve {
     );
     event CreatorFeesClaimed(address indexed to, uint256 amount);
     event TreasuryFeeCollected(address indexed currency, uint256 amount);
-    event AutoBuybackExecuted(uint256 amountIn, uint256 tokensBurned);
+    /**
+     * @notice Buyback executed: native spent, tokens bought and burned.
+     * @dev CARRIES `depthFee` AND BOTH RESERVES ON PURPOSE.
+     *
+     * The previous signature was `(amountIn, tokensBurned)` only, and that made
+     * one number permanently unknowable to any indexer: `executeBuyback` adds to
+     * `totalDepthFeesRetained`, and the floor price is
+     * `(virtualNative + totalDepthFeesRetained) / curveTokens`. Without `depthFee`
+     * in the log, a reader had to either skip it — leaving the displayed floor
+     * price lower than the real one, permanently, drifting further with every
+     * buyback — or guess it, which moves a price floor on no evidence.
+     *
+     * The reserves are here for the same reason `Swap` carries them: a buyback
+     * moves the curve but emits no `Swap`, so a reader that only saw `amountIn`
+     * would have to re-derive the new reserves by arithmetic and would diverge
+     * from the contract on any rounding difference. Reading them from the log
+     * makes divergence impossible.
+     */
+    event AutoBuybackExecuted(
+        uint256 amountIn,
+        uint256 tokensBurned,
+        uint256 depthFee,
+        uint256 nativeReserveAfter,
+        uint256 tokenReserveAfter
+    );
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
     modifier nonReentrant() {
@@ -148,11 +189,6 @@ contract SovereignCurve {
         _locked = 1;
         _;
         _locked = 0;
-    }
-
-    modifier onlyAgent() {
-        require(msg.sender == agentTreasury || msg.sender == factory, "SovereignCurve: unauthorized");
-        _;
     }
 
     modifier onlyFactory() {
@@ -209,8 +245,17 @@ contract SovereignCurve {
      * @notice Load the curve with tokens. Deliberately NOT payable — the whole
      *         point is that no native seed is required.
      * @dev Caller must have approved `tokenAmount` first.
+     *
+     *      `onlyFactory` was missing here while `bindToken` had it. In the current
+     *      factory both are called atomically inside `deployTrinity`, so nothing
+     *      could interleave and the gap was not exploitable. It was still wrong to
+     *      leave: a curve that is bound but not yet initialised could be
+     *      initialised by anyone with 1 wei of tokens, pinning `curveTokens = 1`
+     *      and making the price meaningless. That made this contract unsafe to
+     *      reuse with any other deployment flow, and an access modifier cannot be
+     *      added after broadcast.
      */
-    function initializeCurve(uint256 tokenAmount) external nonReentrant {
+    function initializeCurve(uint256 tokenAmount) external onlyFactory nonReentrant {
         require(!initialized, "SovereignCurve: already initialized");
         require(targetToken != address(0), "SovereignCurve: token not bound");
         require(tokenAmount > 0, "SovereignCurve: token seed required");
@@ -348,7 +393,9 @@ contract SovereignCurve {
 
         _assertSolvent();
 
-        emit TreasuryFeeCollected(address(0), treasuryFee);
+        // Guarded: this fired on every swap regardless of value, and a zero-value
+        // log still costs the trader gas. `Swap` already carries `treasuryFee`.
+        if (treasuryFee > 0) emit TreasuryFeeCollected(address(0), treasuryFee);
         emit Swap(
             msg.sender,
             recipient,
@@ -405,7 +452,11 @@ contract SovereignCurve {
         treasuryNative += treasuryFee;
         totalDepthFeesRetained += depthFee;
         totalTreasuryFeesCollected += treasuryFee;
-        totalVolumeNative += quotedOut;
+        // Gross, before fees, matching `buy()` which counts `msg.value`. This read
+        // `quotedOut` — the amount left AFTER fees — so buys were measured gross
+        // and sells net, and the same trade size registered as two different
+        // volumes depending on direction.
+        totalVolumeNative += leaving + depthFee;
         swapCount += 1;
 
         (bool sent, ) = payable(recipient).call{value: quotedOut}("");
@@ -413,7 +464,7 @@ contract SovereignCurve {
 
         _assertSolvent();
 
-        emit TreasuryFeeCollected(address(0), treasuryFee);
+        if (treasuryFee > 0) emit TreasuryFeeCollected(address(0), treasuryFee);
         emit Swap(
             msg.sender,
             recipient,
@@ -455,15 +506,57 @@ contract SovereignCurve {
      * @notice Spend accrued buyback native on tokens and burn them.
      * @dev Buys along the curve, so the burn is priced by the same maths as any
      *      other trade rather than at an administratively chosen rate.
+     *
+     * PERMISSIONLESS, AND WHY THE SIZE CAP IS WHAT MAKES THAT SAFE
+     *
+     * This was `onlyAgent`, meaning `agentTreasury || factory`. In practice the
+     * factory passes the creator's own wallet as the agent and has no function
+     * that calls this, so the "autonomous 24/7 buyback" had exactly one possible
+     * caller: the creator, by hand. Across every testnet curve it was called zero
+     * times. Meanwhile `treasuryNative` accrues from every single swap and can
+     * leave through this function and nowhere else — there is no withdrawal path —
+     * so an idle creator meant the buyback share of every trade sat inert forever.
+     *
+     * Opening it to anyone fixes that, but not on its own. The caller chooses both
+     * `nativeAmount` and `minTokensBurned`, so an unbounded version is
+     * sandwichable: buy large, trigger the buyback with `minTokensBurned = 0` so
+     * it fills at the inflated price and burns fewer tokens than the treasury paid
+     * for, then sell. Curve solvency still holds; what is destroyed is the
+     * treasury's purchasing power, and the loss lands on holders.
+     *
+     * Whether that is profitable is a matter of magnitude, so it was measured
+     * against a real testnet curve (depth 15bps, creator 10bps, treasury 5bps,
+     * virtualNative 1500). At low volume `treasuryNative` is ~0.03% of the native
+     * reserve, so a buyback moves price ~3bps against a 60bps round trip — the
+     * attack loses money. But `treasuryNative` grows with cumulative volume while
+     * the reserve does not keep pace, so once cumulative volume reaches roughly
+     * 100x the reserve, the treasury is ~5% of it and a single unbounded buyback
+     * moves price ~5%. The attack becomes profitable precisely in the markets that
+     * succeeded.
+     *
+     * Hence the cap: at most 1% of the native reserve per call. That holds the
+     * sandwich's ceiling near its 60bps cost, and each further attempt must wait
+     * for the treasury to refill from real volume. The real constraint is size per
+     * call, not the identity of the caller — so once the size is bounded,
+     * permission buys nothing and costs the feature its only working caller.
+     *
+     * `minTokensBurned` stays a parameter: an honest caller should still be able
+     * to protect their own call, and the cap already bounds what a dishonest one
+     * can waste.
      */
     function executeBuyback(uint256 nativeAmount, uint256 minTokensBurned)
         external
         nonReentrant
         live
-        onlyAgent
         returns (uint256 tokensBurned)
     {
         require(nativeAmount > 0 && nativeAmount <= treasuryNative, "SovereignCurve: bad buyback amount");
+        // At most 1% of the native reserve in one call. Multiplied rather than
+        // divided so no precision is lost on small reserves.
+        require(
+            nativeAmount * 100 <= virtualNative + _curveNative,
+            "SovereignCurve: buyback exceeds 1% of reserve"
+        );
 
         (uint256 tokensOut, uint256 depthFee, , ) = getBuyQuote(nativeAmount);
         require(tokensOut > 0, "SovereignCurve: buyback output zero");
@@ -482,7 +575,13 @@ contract SovereignCurve {
         totalTokensBurned += tokensOut;
 
         _assertSolvent();
-        emit AutoBuybackExecuted(nativeAmount, tokensOut);
+        emit AutoBuybackExecuted(
+            nativeAmount,
+            tokensOut,
+            depthFee,
+            virtualNative + _curveNative,
+            curveTokens - _tokensSold
+        );
         return tokensOut;
     }
 

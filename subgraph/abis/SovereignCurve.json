@@ -54,6 +54,24 @@
         "internalType": "uint256",
         "name": "tokensBurned",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "depthFee",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "nativeReserveAfter",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tokenReserveAfter",
+        "type": "uint256"
       }
     ],
     "name": "AutoBuybackExecuted",

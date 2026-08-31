@@ -80,7 +80,13 @@ export const SOVEREIGN_CURVE_ABI = [
   "function buy(uint256 minTokensOut, address to, uint256 deadline) payable returns (uint256)",
   "function sell(uint256 tokenAmountIn, uint256 minNativeOut, address to, uint256 deadline) returns (uint256)",
   "function claimCreatorFees() returns (uint256)",
+  // Buyback tanpa izin: siapa pun boleh memicunya, dan dananya hanya bisa
+  // membeli-lalu-bakar di kurva itu sendiri. Dibatasi 1% reserve per panggilan.
+  // Ada di sini, bukan dideklarasikan ulang di harness, supaya tanda tangannya
+  // punya satu sumber kebenaran.
+  "function executeBuyback(uint256 nativeAmount, uint256 minTokensBurned) returns (uint256)",
   "event Swap(address indexed trader, address indexed recipient, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 nativeReserveAfter, uint256 tokenReserveAfter)",
+  "event AutoBuybackExecuted(uint256 amountIn, uint256 tokensBurned, uint256 depthFee, uint256 nativeReserveAfter, uint256 tokenReserveAfter)",
 ];
 
 /**

@@ -74,7 +74,7 @@ templates:
         - event: Swap(indexed address,indexed
             address,bool,uint256,uint256,uint256,uint256,uint256,uint256,uint256)
           handler: handleSwap
-        - event: AutoBuybackExecuted(uint256,uint256)
+        - event: AutoBuybackExecuted(uint256,uint256,uint256,uint256,uint256)
           handler: handleAutoBuybackExecuted
         - event: CreatorFeesClaimed(indexed address,uint256)
           handler: handleCreatorFeesClaimed
