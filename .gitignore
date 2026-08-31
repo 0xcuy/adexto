@@ -87,3 +87,18 @@ public/demo-raw/
 devchain/artifacts/
 devchain/cache/
 devchain/node_modules/
+
+# Runbook operator: catatan internal, bukan dokumentasi publik.
+#
+# Isinya alamat VPS, urutan perintah deploy, nama variabel env, dan catatan
+# investigasi — berguna untuk yang mengoperasikan, tapi bukan yang seharusnya
+# dibaca pertama oleh pengunjung repo. README yang mengambil peran itu.
+#
+# CATATAN: berkas ini SUDAH pernah ter-commit dan ter-push, jadi baris ini hanya
+# menghentikan perubahan BERIKUTNYA. Isi versi lamanya tetap ada di riwayat git
+# di GitHub dan masih bisa dibaca lewat commit lama. Menghapusnya dari riwayat
+# menuntut penulisan ulang riwayat plus force-push — operasi destruktif yang
+# tidak dilakukan diam-diam. Diperiksa sebelum diputuskan: tidak ada private
+# key, tidak ada token, tidak ada string 64-hex di dalamnya; dua kemunculan
+# `ghp_` hanyalah prefix telanjang yang dipakai sebagai pola grep.
+ADEXTO-RUNBOOK.md

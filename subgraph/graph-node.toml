@@ -33,6 +33,27 @@ ingestor = "adexto_index_0"
 # Blocks kept cached from chain head. Must exceed the reorg threshold.
 cache_size = 500
 
+[chains."0g"]
+# 0G Mainnet, chainId 16661.
+# 2026-08-18 Geth/v1.15.11: eth_getLogs 10000-block span OK, genesis header
+# OK, eth_getBlockReceipts OK, trace_block and debug_traceBlockByNumber both
+# -32601. Pruned, not archive: eth_getBalance on old blocks fails with
+# 'missing trie node'. Range held at 2000 because the 10000 ceiling is a
+# log-count limit, not a block limit, and a busy contract would blow past it.
+shard = "primary"
+polling_interval = 2000
+max_block_range_size = 2000
+max_event_only_range = 2000
+block_batch_size = 5
+target_triggers_per_block_range = 100
+json_rpc_timeout = 120
+request_retries = 15
+# Default is 1000 concurrent receipt requests, which a small
+# public RPC answers with rate limits rather than data.
+block_ingestor_max_concurrent_json_rpc_calls = 16
+provider = [
+  { label = "0g", url = "https://evmrpc.0g.ai", features = [] },
+]
 [chains."0g-testnet"]
 # 0G Galileo Testnet, chainId 16602.
 # 2026-08-18 Geth/v1.15.11, chainId 0x40da: eth_getLogs 10000-block span OK,
@@ -50,6 +71,27 @@ request_retries = 15
 block_ingestor_max_concurrent_json_rpc_calls = 16
 provider = [
   { label = "0g-testnet", url = "https://evmrpc-testnet.0g.ai", features = [] },
+]
+[chains."monad"]
+# Monad Mainnet, chainId 143.
+# 2026-08-18 Monad/0.15.1, chainId 0x8f: eth_getLogs HARD CAP at 100 blocks --
+# HTTP 413 with {"code":-32614,"message":"eth_getLogs is limited to a 100
+# range"} for 500 and above. genesis header OK, eth_getBlockReceipts OK,
+# trace_block -32601 (debug_traceBlockByNumber does answer, unused). A paid
+# provider lifts the 100 cap; raise maxBlockRange only after re-probing.
+shard = "primary"
+polling_interval = 500
+max_block_range_size = 100
+max_event_only_range = 100
+block_batch_size = 5
+target_triggers_per_block_range = 100
+json_rpc_timeout = 120
+request_retries = 15
+# Default is 1000 concurrent receipt requests, which a small
+# public RPC answers with rate limits rather than data.
+block_ingestor_max_concurrent_json_rpc_calls = 16
+provider = [
+  { label = "monad", url = "https://rpc.monad.xyz", features = [] },
 ]
 [chains."monad-testnet"]
 # Monad Testnet, chainId 10143.
