@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import {
-  Cpu, RefreshCw, Sparkles, ShieldCheck, Globe, Send, Bot, ChevronDown,
+  Cpu, RefreshCw, Sparkles, ShieldCheck, Send, Bot, ChevronDown,
   Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets, Fingerprint,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -75,6 +75,36 @@ const MODELS = [
   { id: "glm-5.2", label: "0G: GLM-5.2" },
   { id: "0gm-1.0-35b-a3b", label: "0G: 0GM-1.0 35B" },
   { id: "0gm-1.0-35b-a3b-sia", label: "0G: 0GM-1.0 SIA" },
+];
+
+/**
+ * Satu gaya untuk semua kolom isian.
+ *
+ * Tiap input dulu menuliskan sendiri `bg-cream-2 border border-line/[0.06]`:
+ * garis dengan opacity 6% di atas kartu, jadi praktis tidak pernah tergambar.
+ * Akibatnya nama token, ticker, supply dan mandate terbaca sebagai teks biasa —
+ * tidak ada satu pun tanda bahwa keempatnya bisa diketik, padahal mengisinya
+ * adalah seluruh maksud panel ini. Sekarang garisnya utuh, latarnya putih di atas
+ * kartu cream, tingginya cukup untuk disentuh, dan fokusnya punya ring supaya
+ * kolom aktif terlihat tanpa bergantung pada outline bawaan peramban yang dibuang.
+ */
+const FIELD_CLASS =
+  "w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-ink transition-colors " +
+  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
+
+/**
+ * Pancingan untuk co-pilot.
+ *
+ * Kolom kanan dulu memuat satu sapaan lalu ratusan piksel putih sampai kotak
+ * input di dasarnya — ruang terbesar di halaman ini dipakai untuk tidak
+ * mengatakan apa pun. Mengklik salah satu hanya MENGISI kotak input, tidak
+ * mengirim, supaya pertanyaannya masih bisa disunting dulu.
+ */
+const SUGGESTED_PROMPTS = [
+  "Explain how the 0.30% swap fee splits three ways",
+  "If I hold no tokens, how do I actually get paid?",
+  "Which chain should I launch on first, and why?",
+  "Write a mandate for a delta-neutral yield agent",
 ];
 
 export default function StudioPage() {
@@ -671,7 +701,7 @@ export default function StudioPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
       {/* Top strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-line/[0.08] shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-line shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-ink flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" /> ADEXTO STUDIO
@@ -741,7 +771,7 @@ export default function StudioPage() {
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-0">
         {/* Left: launch control */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-line/[0.06] p-3 sm:p-4 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-line p-3 sm:p-5 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
           {finished ? (
             <DeployReport
               results={results}
@@ -782,10 +812,15 @@ export default function StudioPage() {
               {/* Chain matrix */}
               <div id="step-chains" className="scroll-mt-3 p-2.5 rounded-xl bg-accent-soft border border-accent/30 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-accent" />
-                  <span className="text-sm font-semibold text-ink">
-                    1. Chains ({launchTargets.length}/{liveChains.length}) — one market per chain
+                  <span
+                    aria-hidden="true"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white"
+                  >
+                    1
                   </span>
+                  <h2 className="text-sm font-semibold text-ink">
+                    Chains ({launchTargets.length}/{liveChains.length}) — one market per chain
+                  </h2>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
@@ -843,13 +878,13 @@ export default function StudioPage() {
               </div>
 
               {/* Token */}
-              <Section id="step-token" title="2. Token">
+              <Section id="step-token" step={2} title="Token">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <Field label="Name">
                     <input
                       value={tokenName}
                       onChange={(e) => setTokenName(e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink font-semibold focus:outline-none"
+                      className={`${FIELD_CLASS} font-semibold`}
                     />
                   </Field>
                   <Field
@@ -876,8 +911,8 @@ export default function StudioPage() {
                         setTokenTicker(value);
                         setCustomSubdomain(value.toLowerCase());
                       }}
-                      className={`w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border text-accent font-bold focus:outline-none ${
-                        ticker.available === false ? "border-danger/30" : "border-line/[0.06] focus:border-accent/30"
+                      className={`${FIELD_CLASS} font-mono font-bold text-accent ${
+                        ticker.available === false ? "border-danger" : ""
                       }`}
                     />
                   </Field>
@@ -885,7 +920,7 @@ export default function StudioPage() {
                     <input
                       value={tokenSupply}
                       onChange={(e) => setTokenSupply(e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 font-mono text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink font-semibold focus:outline-none"
+                      className={`${FIELD_CLASS} font-mono font-semibold`}
                     />
                   </Field>
                 </div>
@@ -924,7 +959,7 @@ export default function StudioPage() {
                   here. Both are gone: the curve needs no native deposit, and 100%
                   of supply enters it, so there is nothing left to configure and
                   nothing for the creator to dump. */}
-              <Section id="step-curve" title="3. Bonding curve">
+              <Section id="step-curve" step={3} title="Bonding curve">
                 <div className="rounded-xl border border-ok/30 bg-ok/10 p-2.5 flex items-start gap-2 text-[10px]">
                   <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" />
                   <span className="text-ink-soft">
@@ -1027,12 +1062,12 @@ export default function StudioPage() {
               </Section>
 
               {/* Agent */}
-              <Section id="step-agent" title="4. 0G TEE agent">
+              <Section id="step-agent" step={4} title="0G TEE agent">
                 <Field label="Mandate">
                   <input
                     value={agentPersona}
                     onChange={(e) => setAgentPersona(e.target.value)}
-                    className="w-full rounded-lg px-2.5 py-1.5 text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 text-ink focus:outline-none"
+                    className={FIELD_CLASS}
                   />
                 </Field>
                 <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
@@ -1061,13 +1096,11 @@ export default function StudioPage() {
                   Sebelumnya keduanya berupa dua kotak lepas tanpa judul di antara
                   seksi bernomor, sehingga terbaca seperti catatan pinggir alih-alih
                   syarat yang menahan tombol launch. */}
-              <div id="step-verify" className="scroll-mt-3 space-y-2">
-              <span className="block text-sm font-semibold text-ink">
-                5. Verify
-              </span>
+              <div id="step-verify" className="scroll-mt-3 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
+              <SectionHeading step={5} title="Verify" />
 
               {/* Attestation */}
-              <div className="p-3 rounded-xl bg-cream-2 border border-line space-y-2">
+              <div className="p-3 rounded-xl bg-white border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <ShieldCheck className={`w-5 h-5 shrink-0 ${attestation ? "text-ok" : "text-ink-faint"}`} />
@@ -1122,7 +1155,7 @@ export default function StudioPage() {
               </div>
 
               {/* World ID — lapisan anti-Sybil yang sebenarnya */}
-              <div className="p-3 rounded-xl bg-cream-2 border border-line space-y-2">
+              <div className="p-3 rounded-xl bg-white border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <Fingerprint
@@ -1218,7 +1251,7 @@ export default function StudioPage() {
                    rasio kontras di bawah 2:1 — dan justru di keadaan inilah
                    tombolnya WAJIB terbaca, karena tulisannya adalah satu-satunya
                    tempat yang memberi tahu apa yang masih kurang. */
-                className="w-full py-3 rounded-xl font-bold text-xs bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
+                className="w-full py-3.5 rounded-xl font-bold text-sm bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 shadow-lg shadow-accent/20 disabled:shadow-none disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft"
               >
                 {deploying ? (
                   <>
@@ -1299,8 +1332,8 @@ export default function StudioPage() {
         </div>
 
         {/* Right: co-pilot */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-line/[0.06] flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
-          <div className="p-2.5 border-b border-line/[0.06] bg-cream-2 flex items-center justify-between shrink-0">
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-line flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
+          <div className="p-2.5 border-b border-line bg-cream-2 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded bg-accent flex items-center justify-center text-white">
                 <Bot className="w-3 h-3" />
@@ -1319,7 +1352,7 @@ export default function StudioPage() {
             </button>
           </div>
 
-          <div className="px-3 py-1 bg-cream-2 border-b border-line/[0.02] flex items-center justify-between text-[10px] text-ink-soft">
+          <div className="px-3 py-1 bg-cream-2 border-b border-line flex items-center justify-between text-[10px] text-ink-soft">
             <span>
               Target: <strong className="text-accent font-bold">{customSubdomain || "myswap"}.adexto.xyz</strong>
             </span>
@@ -1348,7 +1381,7 @@ export default function StudioPage() {
                   className={`max-w-[90%] rounded-xl p-2.5 leading-relaxed ${
                     m.role === "user"
                       ? "bg-accent-soft border border-accent/30 text-ink"
-                      : "bg-white border border-line/[0.04] text-ink"
+                      : "bg-white border border-line text-ink"
                   }`}
                 >
                   <span className="text-[9px] font-bold block mb-1 uppercase tracking-wider text-ink-faint">
@@ -1366,16 +1399,32 @@ export default function StudioPage() {
                 </div>
               </div>
             ))}
+
+            {messages.length <= 1 && !chatLoading && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Try asking</p>
+                {SUGGESTED_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setInputMessage(prompt)}
+                    className="w-full rounded-xl border border-line bg-white px-2.5 py-2 text-left text-[11px] leading-relaxed text-ink-soft transition-colors hover:border-accent/40 hover:text-ink"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <form onSubmit={sendMessage} className="p-2 border-t border-line/[0.06] bg-cream-2 flex gap-2 shrink-0">
+          <form onSubmit={sendMessage} className="p-2 border-t border-line bg-cream-2 flex gap-2 shrink-0">
             <input
               type="text"
               placeholder="Ask the 0G co-pilot…"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               disabled={chatLoading}
-              className="flex-1 rounded-lg px-2.5 py-1.5 text-ink font-sans text-xs bg-cream-2 border border-line/[0.06] focus:border-accent/30 focus:outline-none"
+              className={FIELD_CLASS}
             />
             <button
               type="submit"
@@ -1406,17 +1455,41 @@ export default function StudioPage() {
  */
 function Section({
   id,
+  step,
   title,
   children,
 }: {
   id: string;
+  step: number;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <div id={id} className="scroll-mt-3 space-y-2 rounded-xl border border-line bg-cream-2 p-3">
-      <span className="text-sm font-semibold text-ink">{title}</span>
+    <div id={id} className="scroll-mt-3 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
+      <SectionHeading step={step} title={title} />
       {children}
+    </div>
+  );
+}
+
+/**
+ * Judul langkah.
+ *
+ * Nomornya dulu ikut di dalam string judul ("2. Token"), sehingga kelima seksi
+ * tampil sebagai lima kartu putih dengan satu baris tebal yang sama beratnya —
+ * mata tidak punya titik masuk, dan urutannya hanya bisa dibaca, tidak terlihat.
+ * Nomor sekarang jadi lencana tersendiri.
+ */
+function SectionHeading({ step, title }: { step: number; title: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white"
+      >
+        {step}
+      </span>
+      <h2 className="text-sm font-semibold text-ink">{title}</h2>
     </div>
   );
 }
