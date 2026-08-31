@@ -557,7 +557,12 @@ export default function StudioPage() {
             const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
             if (parsed?.name === "TrinityProjectDeployed") {
               tokenAddress = parsed.args.token;
-              poolAddress = parsed.args.pool;
+              // `curve`, BUKAN `pool`. Event-nya menamai argumen kedua `curve`
+              // (lihat CURVE_FACTORY_ABI), jadi `parsed.args.pool` selalu
+              // undefined — alamat kurva hilang dari layar "registering" dan,
+              // bila server kebetulan tidak mengembalikannya, dari laporan akhir
+              // juga. `/api/deploy` sudah membaca `curve ?? pool`; ini menyusul.
+              poolAddress = parsed.args.curve ?? parsed.args.pool;
               break;
             }
           } catch {
