@@ -101,13 +101,17 @@ services:
       - graph-internal
       - adexto-shared
     healthcheck:
-      # The index node status API is the only endpoint that answers before any
-      # subgraph is deployed, so it is the only usable liveness probe here.
-      test:
-        [
-          "CMD-SHELL",
-          "wget -q -O- --post-data='{\"query\":\"{ __typename }\"}' --header='Content-Type: application/json' http://127.0.0.1:8030/graphql >/dev/null || exit 1",
-        ]
+      # TCP connect to the index-node status port, using bash's /dev/tcp.
+      #
+      # The graphprotocol/graph-node image ships NEITHER wget NOR curl — a probe
+      # that used either reported the node "unhealthy" forever while it was in
+      # fact ingesting two chains and answering queries. It does ship bash with a
+      # working /dev/tcp, so this opens a socket to 8030 and closes it: exit 0
+      # when the node is listening, non-zero when it is not. Port 8030 binds at
+      # startup, before any subgraph is deployed, so it is a valid liveness signal
+      # from the first moment. This checks the ports are bound, not that indexing
+      # is correct — that is what the audit harnesses are for.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8030"]
       interval: 30s
       timeout: 10s
       start_period: 60s

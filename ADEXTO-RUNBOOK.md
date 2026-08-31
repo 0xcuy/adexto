@@ -1070,9 +1070,27 @@ itu menyetel `DISABLE_BLOCK_INGESTOR=true` setiap kali `node_id != BLOCK_INGESTO
 Kalau lupa, node naik bersih, menjawab query, log-nya tidak mencurigakan, dan
 tidak pernah mengingest satu blok pun — subgraph diam di 0% selamanya.
 
+**JEBAKAN: image graph-node TIDAK punya `wget` maupun `curl`.** Healthcheck versi
+pertama memakai `wget` ke 8030 dan karena itu melaporkan node `unhealthy`
+selamanya, padahal ia sedang mengingest dua chain dan menjawab query — persis
+jenis "salah diam-diam" yang berbahaya di VPS bila ada orkestrasi yang me-restart
+kontainer unhealthy. Yang tersedia di image: `bash` (dengan `/dev/tcp` berfungsi),
+`nc`, dan `graphman`. Healthcheck sekarang membuka soket ke 8030 lewat
+`bash -c 'exec 3<>/dev/tcp/127.0.0.1/8030'`.
+
 Stack ini SENGAJA tidak ikut `docker-compose.yml` utama dan tidak dijalankan
 `scripts/deploy-vps.sh`. Indexer memegang puluhan GB state chain; mengikatnya ke
 deploy web berarti membangunnya ulang tiap kali copy diubah.
+
+**Terbukti bekerja 2026-08-31 di mesin lokal.** Stack dinyalakan, kedua chain
+self-hosted (0g-testnet, monad-testnet) ingest dan sync ke chain head dengan
+`hasIndexingErrors: false`, dan Monad menghormati cap `eth_getLogs` 100-blok tanpa
+HTTP 413. Data 0G dibandingkan field-demi-field dengan fungsi view kontrak untuk
+3 kurva: **27 COCOK / 0 BEDA**, termasuk `floorPriceNative` yang terangkat oleh
+`depthFee` buyback — pembuktian bahwa perbaikan 5-field `AutoBuybackExecuted`
+benar. Untuk mengulang: `docker network create adexto-net` (kalau web compose
+belum jalan), `cp .env.example .env`, `docker compose up -d`, lalu
+`node graph-ops.mjs deploy 0g-testnet`.
 
 **Jalur baca kedua sudah terpasang.** `/api/graphql` membaca registry lebih dulu
 dan registry sendirian menentukan pasar mana yang ada. Subgraph hanya menempelkan
