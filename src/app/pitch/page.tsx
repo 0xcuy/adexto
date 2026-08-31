@@ -102,10 +102,15 @@ export default function PitchDeckPage() {
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
               {/* Bukan "hardware-verified" dan bukan "verifiable inference": tidak
-                  ada attestation yang kami ambil atau periksa. */}
+                  ada attestation yang kami ambil atau periksa.
+                  "Intel TDX attested via dstack" pun masih terlalu tegas — dibaca
+                  begitu saja, ia menyatakan attestation-nya sudah tegak. Yang bisa
+                  dipertahankan: router yang MELAPORKAN itu, dan kami membaca
+                  laporannya. Sama persis dengan kalimat di landing dan /docs. */}
               <span className="text-ink">
-                Agent inference on the 0G Compute router — TeeML tier, Intel TDX attested via dstack — bound
-                to one immutable agent address per token.
+                Agent inference on the 0G Compute router, which reports a TeeML tier with Intel TDX via dstack —
+                a declaration we read rather than a quote we verify — bound to one immutable agent address per
+                token.
               </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">
@@ -114,11 +119,18 @@ export default function PitchDeckPage() {
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
-              {/* "ERC-8004" dihapus: token hanya menyimpan satu address immutable,
-                  tanpa supportsInterface dan tanpa registry yang standar itu minta. */}
+              {/* "transfer hook is bound to the agent address" SALAH menyebut apa
+                  yang mengikat apa, dan koreksi yang sama sudah dilakukan di
+                  landing berbulan lalu tanpa ikut ke sini. `_update` mengecualikan
+                  `_launcher` (factory) agar seeding 100% supply lolos dari batas
+                  1%; `agentIdentity` tidak muncul di jalur transfer sama sekali —
+                  ia menjaga `executeTreasuryBuyback`.
+                  "ERC-8004" dulu dihapus dari sini karena token tidak menyentuh
+                  registry apa pun. Sejak factory 0.10.0 pengikatan itu nyata, tapi
+                  OPSIONAL dan mati secara default, jadi disebut sebagai pilihan. */}
               <span className="text-ink">
-                An ERC-20 whose transfer hook is bound to the agent address, plus a 1%-of-supply transfer cap
-                for the first 5 blocks.
+                An ERC-20 with no owner, a 1%-of-supply transfer cap for the first 5 blocks, and one immutable
+                agent address that may be paired with an ERC-8004 agent id when the creator chooses to.
               </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">
@@ -136,7 +148,14 @@ export default function PitchDeckPage() {
         {/* ── UNIT ECONOMICS & FINANCIAL PROJECTIONS ─────────────────────────── */}
         <div className="section-block space-y-5">
           <div className="kicker">Financial unit economics · revenue &amp; MRR model</div>
-          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">4 Scalable High-Margin Revenue Streams</h2>
+          {/* "4 Scalable High-Margin Revenue Streams" membaca seperti empat aliran
+              yang sudah mengalir. Revenue hari ini NOL, dan keempatnya belum
+              tersambung — jadi judulnya menyebut apa isinya: model, bukan laporan.
+              Kartu pertama sudah lama ditandai "(planned)"; tiga lainnya tidak,
+              padahal statusnya sama. Sekarang keempatnya konsisten. */}
+          <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+            Four planned revenue streams, none of them earning yet
+          </h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
@@ -150,14 +169,25 @@ export default function PitchDeckPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">2. Cloudflare x402 Micropayment Split</strong>
-              <p className="text-ink-soft">10% facilitation take-rate on paid agent API calls settled between machines at the global edge.</p>
+              <strong className="text-ink block font-bold text-sm">2. Cloudflare x402 Micropayment Split (planned)</strong>
+              {/* "settled between machines at the global edge" bertentangan dengan
+                  kartu Orchestrator di seksi atas halaman INI, yang menyatakan
+                  penyelesaian belum dibangun. Worker-nya sendiri mengembalikan
+                  `settlementImplemented: false` dan menjawab 501 untuk voucher yang
+                  sah, jadi tidak ada pembayaran untuk dibagi 10%. */}
+              <p className="text-ink-soft">A 10% facilitation take-rate on paid agent API calls. The 402 challenge and its quote are live; settlement is not built, so no payment exists to take a share of yet.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Target: $120k/mo at 12M monthly tool calls</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">3. 0G TEE SaaS Enclave Subscriptions</strong>
-              <p className="text-ink-soft">Tiered hosting for dedicated 0G private compute: $29/mo (Starter), $149/mo (Pro), $499/mo (Sovereign Fleet).</p>
+              <strong className="text-ink block font-bold text-sm">3. 0G Compute Subscriptions (planned)</strong>
+              {/* Ditandai "planned" karena tidak ada apa pun yang bisa menagihnya:
+                  tidak ada penyedia pembayaran, tidak ada langganan, tidak ada
+                  gerbang paket di repo ini. Harga bertingkat yang dicetak tanpa
+                  penanda terbaca sebagai produk yang bisa dibeli hari ini.
+                  "TEE SaaS Enclave" juga diturunkan: kami memakai router 0G, kami
+                  tidak menghosting enclave. */}
+              <p className="text-ink-soft">Tiered access to dedicated 0G private compute, modelled at $29/$149/$499 per month. No billing, plan gating or subscription exists yet — these are prices in a model, not a product on sale.</p>
               {/* Dulu "$185k/mo ARR" — ARR itu tahunan, jadi "per bulan ARR" bukan
                   satuan yang ada. Salah satuan di halaman proyeksi keuangan adalah
                   hal yang paling cepat membuat seluruh tabel diragukan. */}
@@ -165,8 +195,14 @@ export default function PitchDeckPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">4. EVIDIQ MCP Tool Marketplace</strong>
-              <p className="text-ink-soft">Revenue split on premium agent security (Sentinel), brand assets (Signet), and schedulers (Helm).</p>
+              <strong className="text-ink block font-bold text-sm">4. EVIDIQ MCP Tool Marketplace (not built)</strong>
+              {/* Sentinel, Signet dan Helm tidak ada. Tidak ada server MCP, tidak
+                  ada satu pun berkas yang mengimplementasikannya — dicek dengan
+                  menggeledah seluruh src/, worker, dan scripts/. Nama-nama itu
+                  muncul sebagai `mcpTools` di record registry dan di halaman ini,
+                  dan tidak di tempat lain. Menyebutnya "premium" menyiratkan ada
+                  yang bisa dibeli. */}
+              <p className="text-ink-soft">A revenue split on agent tooling — security, brand assets, schedulers. None of these tools exist yet: there is no MCP server in this repo, only the names.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Target: $80k/mo in addon subscriptions</span>
             </div>
           </div>

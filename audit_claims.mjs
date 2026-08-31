@@ -101,6 +101,32 @@ const CONTRADICTIONS = [
     b: "live on all four mainnets",
     why: "sisa copy lama menyatakan factory belum dikirim di halaman yang menyatakan sudah",
   },
+  /**
+   * /pitch pernah memuat "Settlement is not implemented" di seksi arsitektur DAN
+   * "paid agent API calls settled between machines" di tabel pendapatan, empat
+   * seksi di bawahnya. Dua kalimat itu di satu halaman, dan yang kedua adalah
+   * dasar target "$120k/mo".
+   *
+   * Ini kelas cacat yang paling mudah lolos: bukan satu klaim yang jelas salah,
+   * melainkan dua yang masing-masing terlihat wajar sampai dibaca berurutan.
+   */
+  {
+    a: "Settlement is not",
+    b: "settled between machines",
+    why: "satu halaman menyatakan penyelesaian belum dibangun DAN memproyeksikan pendapatan dari pembayaran yang sudah diselesaikan",
+  },
+];
+
+/**
+ * Frasa yang hanya boleh muncul kalau ditandai belum dibangun.
+ *
+ * Tabel pendapatan di /pitch mencetak target berupa uang. Selama tidak ada satu
+ * pun aliran yang berjalan, setiap target WAJIB berdampingan dengan penanda —
+ * "(planned)", "(not built)", atau kalimat yang menyatakannya. Tanpa itu, angka
+ * bersatuan dolar terbaca sebagai penerimaan.
+ */
+const MUST_BE_QUALIFIED = [
+  ["Target: $", ["planned", "not built", "not yet", "no billing", "does not exist", "none of these"]],
 ];
 
 const browser = await chromium.launch();
@@ -117,11 +143,33 @@ for (const route of ROUTES) {
   const hits = BANNED.filter(([phrase]) => text.includes(phrase));
   const clashes = CONTRADICTIONS.filter((c) => html.includes(c.a) && html.includes(c.b));
 
-  if (hits.length === 0 && clashes.length === 0) {
+  /**
+   * Setiap kemunculan frasa berpenanda-wajib diperiksa TERHADAP KARTUNYA SENDIRI,
+   * bukan terhadap seluruh halaman. Satu kata "planned" di sudut lain halaman
+   * tidak menjadikan target di kartu lain jujur — dan itulah bentuk lolosnya yang
+   * sebelumnya terjadi.
+   */
+  const unqualified = [];
+  for (const [needle, qualifiers] of MUST_BE_QUALIFIED) {
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(needle, from);
+      if (at === -1) break;
+      from = at + needle.length;
+      // Jendela satu kartu: teks sebelum target adalah deskripsinya.
+      const around = text.slice(Math.max(0, at - 420), at + 80).toLowerCase();
+      if (!qualifiers.some((q) => around.includes(q))) {
+        unqualified.push(`"${text.slice(at, at + 46).replace(/\n/g, " ")}" tanpa penanda belum-dibangun`);
+      }
+    }
+  }
+
+  if (hits.length === 0 && clashes.length === 0 && unqualified.length === 0) {
     console.log(`BERSIH   ${route}`);
   } else {
-    fail += hits.length + clashes.length;
+    fail += hits.length + clashes.length + unqualified.length;
     console.log(`MASALAH  ${route}`);
+    for (const u of unqualified) console.log(`           - ${u}`);
     for (const [phrase, why] of hits) console.log(`           - "${phrase}" — ${why}`);
     for (const c of clashes) console.log(`           - bertentangan: "${c.a}" + "${c.b}" — ${c.why}`);
   }
