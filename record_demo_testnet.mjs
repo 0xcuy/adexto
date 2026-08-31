@@ -17,6 +17,13 @@
  *   source scripts/testnet-multichain-env.sh && npx next start -p 3100
  *   unset OG_PRIVATE_KEY PRIVATE_KEY && node record_demo_testnet.mjs
  */
+// CATATAN NAVIGASI: berkas ini memakai `waitUntil: "domcontentloaded"`, BUKAN
+// "networkidle". Halaman token menjalankan polling (trade feed 10s, order book
+// 15s), jadi jaringannya tidak pernah benar-benar "idle" dan `networkidle` bisa
+// timeout 30s lalu MELEMPAR. Sebuah goto yang tidak dibungkus safely() (scene
+// penutup) karena itu meng-crash perekam SEBELUM video di-encode — satu putaran
+// penuh transaksi nyata terbuang tanpa menghasilkan berkas. Tiap goto sudah
+// diikuti beat() yang memberi waktu render, jadi domcontentloaded sudah cukup.
 import { chromium } from "playwright";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
@@ -210,7 +217,7 @@ page.on("pageerror", (e) => pageErrors.push(e.message));
 
 // ── 1. STUDIO: wallet tersambung dulu, baru buat token ──────────────────────
 scene("1) STUDIO — sambungkan wallet lalu buat token");
-await page.goto(`${BASE}/studio`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
 await beat(page, 1800);
 
 const connect = page.locator('button:has-text("Connect wallet")').first();
@@ -239,12 +246,24 @@ await beat(page, 1500);
 // dan biarkan label tombol berubah. Baru setelah itu dipersempit ke satu chain
 // untuk peluncuran nyata, supaya dana testnet tidak terpakai di empat tempat.
 const ALL_CHAINS = ["0G Testnet", "Arbitrum Sepolia", "Base Sepolia", "Monad Testnet"];
+
+// Deteksi state terpilih dari class tombolnya SENDIRI.
+//
+// Perekaman sebelumnya memeriksa `class.includes("cyan-950")`, dan itu tidak
+// pernah cocok lagi: palet studio berpindah ke `accent`, jadi tombol terpilih
+// kini ber-class `bg-accent-soft border-accent/30 text-accent`. Akibatnya loop
+// "persempit ke satu" tidak pernah men-deselect apa pun, launch menargetkan
+// "0G + Monad", dan hasil "1 of 2" menggagalkan cek "1 of 1". `text-accent`
+// menempel di elemen tombol itu sendiri (bukan cuma anak-anaknya), jadi ia
+// sinyal terpilih yang andal.
+const isSelected = async (btn) => ((await btn.getAttribute("class")) ?? "").includes("text-accent");
+
 scene("1a) Pilih target chain — semua dulu, lalu dipersempit ke satu");
 for (const name of ALL_CHAINS) {
   const btn = page.locator(`button[title*="${name}"]`).first();
   if ((await btn.count()) === 0) continue;
   if (await btn.isDisabled().catch(() => false)) continue;
-  if (!(await btn.getAttribute("class"))?.includes("cyan-950")) {
+  if (!(await isSelected(btn))) {
     await btn.hover();
     await page.waitForTimeout(180);
     await btn.click();
@@ -258,21 +277,36 @@ const allLabel = ((await page.locator('button:has-text("Launch on")').first().te
 console.log(`  semua chain dicentang -> tombol: ${allLabel || "(belum aktif)"}`);
 await beat(page, 1400);
 
-// Persempit ke satu chain.
+// Persempit ke satu chain: deselect semua kecuali CHAIN.name.
 for (const name of ALL_CHAINS.filter((n) => n !== CHAIN.name)) {
   const btn = page.locator(`button[title*="${name}"]`).first();
   if ((await btn.count()) === 0) continue;
   if (await btn.isDisabled().catch(() => false)) continue;
-  if ((await btn.getAttribute("class"))?.includes("cyan-950")) {
+  if (await isSelected(btn)) {
     await btn.click();
     await page.waitForTimeout(280);
   }
 }
 const chainBtn = page.locator(`button[title*="${CHAIN.name}"]`).first();
-if (!(await chainBtn.getAttribute("class"))?.includes("cyan-950")) {
+if (!(await isSelected(chainBtn))) {
   await chainBtn.click();
+  await page.waitForTimeout(280);
 }
 await beat(page, 1400);
+
+// Konfirmasi keras: label tombol launch HARUS tepat satu chain sebelum lanjut.
+// Kalau tidak, video akan meluncurkan ke chain yang salah — lebih baik gagal di
+// sini daripada menghasilkan rekaman "1 of 2" yang harus dibuang di akhir.
+const narrowLabel = ((await page.locator('button:has-text("Launch on")').first().textContent().catch(() => "")) ?? "")
+  .replace(/\s+/g, " ")
+  .trim();
+console.log(`  dipersempit -> tombol: ${narrowLabel || "(belum aktif)"}`);
+if (narrowLabel && /\+/.test(narrowLabel)) {
+  console.error(`  masih lebih dari satu chain terpilih (${narrowLabel}) — rekaman dibatalkan`);
+  await ctx.close();
+  await browser.close();
+  process.exit(1);
+}
 
 // Tidak ada field seed untuk diisi. Cukup tahan sebentar supaya penonton melihat
 // panel "No liquidity deposit" dan alokasi token creator yang nol.
@@ -382,7 +416,7 @@ const windowOpen = (async () => {
 
 // ── 3. EXPLORER ─────────────────────────────────────────────────────────────
 scene("3) EXPLORER — token baru tampil terdaftar");
-await page.goto(`${BASE}/explorer`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/explorer`, { waitUntil: "domcontentloaded" });
 await beat(page, 2200);
 const card = page.locator(`text=/\\$${TICKER}/`).first();
 if ((await card.count()) > 0) {
@@ -396,7 +430,7 @@ await beat(page, 1800);
 
 // ── 4. TERMINAL TOKEN: chart + order book ───────────────────────────────────
 scene("4) TERMINAL — chart & order book dari reserve on-chain");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3200);
 await glide(page, 420);
 await beat(page, 2600);
@@ -425,7 +459,7 @@ async function safely(label, fn) {
 
 // ── 6. BELI dari terminal ───────────────────────────────────────────────────
 scene("6) BELI dari terminal token");
-await page.reload({ waitUntil: "networkidle" });
+await page.reload({ waitUntil: "domcontentloaded" });
 await beat(page, 2600);
 const balBefore = await erc20.balanceOf(ACCOUNT);
 const amountInput = page.locator('input[type="number"]').first();
@@ -455,7 +489,7 @@ await beat(page, 1000);
 
 // ── 7. DEX /swap ────────────────────────────────────────────────────────────
 scene("7) DEX /swap — market terpilih & beli lagi");
-await page.goto(`${BASE}/swap?token=${TICKER}&chain=${CHAIN.chainId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/swap?token=${TICKER}&chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3000);
 const swapAmount = page.locator('input[type="number"]').first();
 await swapAmount.click();
@@ -476,7 +510,7 @@ console.log(`  saldo token: ${fmt(balAfterSwap)} ${TICKER}`);
 
 // ── 8. JUAL dari terminal ───────────────────────────────────────────────────
 scene("8) JUAL dari terminal (approve + sell)");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
 await beat(page, 2800);
 await page.locator('button:has-text("SELL")').first().click();
 await beat(page, 1400);
@@ -525,7 +559,7 @@ await safely("klaim penghasilan creator", async () => {
 scene("8b) Beberapa fill tambahan agar chart terisi");
 for (const [i, amt] of ["0.004", "0.007"].entries()) {
   await safely(`fill tambahan ${i + 1}`, async () => {
-    await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
     await beat(page, 1800);
     const input = page.locator('input[type="number"]').first();
     await input.click();
@@ -545,7 +579,7 @@ for (const [i, amt] of ["0.004", "0.007"].entries()) {
 // halaman, sehingga jawaban agent terhapus dan hanya tampil sekejap. Sekarang satu
 // kali muat dipakai untuk chart, lalu turun ke panel chat dan berhenti di jawaban.
 scene("9) Chart penutup dengan fill nyata");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3000);
 await page.evaluate(() => {
   const feed = [...document.querySelectorAll("*")].find(

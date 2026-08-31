@@ -418,6 +418,10 @@ export default function StudioPage() {
           symbol,
           supply: String(supplyNumber),
           swapFee: totalSwapFee,
+          // creatorCut WAJIB ikut: tanpa ini server tidak bisa menghitung depth
+          // fee (swapFee − creator − treasury) dan akan melaporkannya kelebihan
+          // sebesar bagian creator, lalu nilai salah itu ditimpa balik ke sini.
+          creatorCut,
           treasuryCut,
           model: selectedModel,
           persona: agentPersona,

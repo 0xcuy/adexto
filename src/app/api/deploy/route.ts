@@ -191,8 +191,18 @@ async function handlePrepare(body: any) {
     })),
   ];
 
-  const lpFeeBps = Math.round((Number(body.swapFee ?? 0.3) - Number(body.treasuryCut ?? 0.1)) * 100);
-  const treasuryBuybackBps = Math.round(Number(body.treasuryCut ?? 0.1) * 100);
+  // Depth fee = total − creator − buyback, PERSIS seperti AdextoCurveFactory
+  // menghitung `depthFeeBps = swapFeeBps - creatorShareBps - treasuryShareBps`.
+  //
+  // Formula lama di sini `swapFee - treasuryCut` LUPA mengurangi bagian creator,
+  // jadi ia melaporkan depth 0.25% untuk peluncuran 0.30% Standard yang on-chain
+  // depth-nya 0.15%. Angka itu lalu ditimpa balik ke studio dan disimpan di
+  // registry, sehingga terminal menampilkan "Curve depth (0.25%)" bersebelahan
+  // dengan nilai dolar yang justru dihitung dari 0.15% — kontradiksi di satu layar.
+  const creatorCut = Number(body.creatorCut ?? 0.1);
+  const treasuryCut = Number(body.treasuryCut ?? 0.05);
+  const lpFeeBps = Math.round((Number(body.swapFee ?? 0.3) - creatorCut - treasuryCut) * 100);
+  const treasuryBuybackBps = Math.round(treasuryCut * 100);
 
   const opening = await resolveOpenings(deployable);
   if (!opening.ok) {
@@ -200,11 +210,21 @@ async function handlePrepare(body: any) {
   }
   const openings = opening.openings;
 
+  // Metadata ini di-anchor permanen ke 0G DA dan di-hash jadi metadataRoot. Tiga
+  // klaim lama di sini adalah versi tertanam dari yang sudah dibersihkan di UI:
+  //   version "2.5.0"  -> produk belum pernah publish; sekarang 0.9.0.
+  //   standard "ERC-8004" -> AdextoToken hanya menyimpan satu address immutable
+  //     agentIdentity, tidak ada registry identitas/reputasi/validasi ERC-8004.
+  //   teeEnclave "AMD SEV-SNP Hardware Attested" -> FALSE, dan ini persis klaim
+  //     yang dicabut dari landing/docs. Router 0G menyatakan Intel TDX lewat
+  //     dstack; kami MEMBACA deklarasi itu, tidak memverifikasi raw quote-nya,
+  //     dan hardware-nya bukan SEV-SNP. Membiarkannya di metadata berarti setiap
+  //     launch meninggalkan jejak attestation palsu yang permanen.
   const metadata = {
     protocol: "ADEXTO Protocol (adexto.xyz)",
-    version: "2.5.0",
+    version: "0.9.0",
     ecosystem: {
-      token: { name, symbol, supply, standard: "ERC-8004", curve: "Bonding curve over a virtual reserve" },
+      token: { name, symbol, supply, standard: "ERC-20", curve: "Bonding curve over a virtual reserve" },
       dex: {
         type: "Sovereign bonding curve",
         lpFeeBps,
@@ -213,8 +233,9 @@ async function handlePrepare(body: any) {
       },
       agent: {
         model: String(body.model || "glm-5.2"),
-        computeHost: "0G Compute Router Mainnet (Chain 16661)",
-        teeEnclave: "AMD SEV-SNP Hardware Attested",
+        computeHost: "0G Compute Router",
+        // Deklarasi router, bukan bukti kami. Lihat /docs dan /api/tee.
+        teeAttestation: "0G router reports Intel TDX via dstack; raw quote not verified by ADEXTO",
         persona: String(body.persona || "Autonomous AI agent"),
       },
     },
