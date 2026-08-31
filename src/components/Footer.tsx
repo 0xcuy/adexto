@@ -98,9 +98,13 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            {/* This footer shows on every page, so a stale sentence here is a
+                stale sentence everywhere — it kept saying launching was disabled
+                after the curve factory had actually been broadcast to all four
+                mainnets, contradicting the studio two scrolls above it. */}
             <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
-              Wallets, prices and explorer links work on all four. Launching is
-              disabled everywhere until the curve factory is broadcast.
+              The curve factory is live on all four, so launching works on each of them. No token has been
+              launched yet, which is why there is still nothing to trade.
             </p>
           </div>
         </div>

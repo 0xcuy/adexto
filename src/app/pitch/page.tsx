@@ -21,8 +21,8 @@ export default function PitchDeckPage() {
         </h1>
         <p className="text-ink-soft text-sm sm:text-base mt-4 leading-relaxed">
           August 2026 · adexto.xyz · seeking $150K–$500K in ecosystem grants, primarily 0G and Base.
-          Contracts are written and tested; the mainnet factory is not broadcast yet, and this memo says so
-          wherever it matters.
+          The curve factory is live on all four mainnets and no token has been launched through it yet; this memo
+          says so wherever it matters rather than reading as traction it does not have.
         </p>
       </div>
 
@@ -260,19 +260,23 @@ export default function PitchDeckPage() {
           
         <div className="space-y-3 text-xs sm:text-sm font-mono">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-line">
-            {/* Lencana "LIVE" dihapus dari Phase 1. Tabel registry kontrak yang
-                berada tepat di bawah blok ini menyatakan factory kurva belum
-                di-broadcast dan peluncuran serta trading terkunci. Satu halaman
-                tidak boleh mengeluarkan dua putusan yang bertentangan. */}
+            {/* Badge ini sudah dua kali harus dikoreksi ke arah berlawanan.
+                Awalnya "LIVE" sementara tabel registry di bawahnya menyatakan
+                factory kurva belum dikirim. Lalu "MAINNET BROADCAST PENDING",
+                yang benar sampai factory-nya benar-benar dikirim dan langsung
+                basi setelahnya.
+                Sekarang berbunyi apa yang bisa diperiksa dengan satu panggilan
+                RPC: factory-nya ada di keempat mainnet. Kata "no launches yet"
+                ikut dibawa supaya tidak ada yang membaca ini sebagai traksi. */}
             <div>
               <strong className="text-ink block text-sm">Phase 1 — contracts and app</strong>
               <span className="text-ink-soft text-xs">
                 Curve and factory written, tested on five EVMs; app complete end to end; x402 quote endpoint
-                deployed
+                deployed; curve factory v0.10.0 broadcast to 0G, Base, Arbitrum and Monad
               </span>
             </div>
-            <span className="px-3 py-1 rounded bg-warn/10 text-warn border border-warn/30 font-bold text-xs">
-              MAINNET BROADCAST PENDING
+            <span className="px-3 py-1 rounded bg-ok/10 text-ok border border-ok/30 font-bold text-xs">
+              4 MAINNETS · NO LAUNCHES YET
             </span>
           </div>
 

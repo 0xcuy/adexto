@@ -31,14 +31,14 @@ export default function HomePage() {
           membuat fakta terlihat seperti hiasan. Catatan "factory pending
           broadcast" tetap dipertahankan kata demi kata. */}
       <section className="relative w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
-        {/* v0.9.0, bukan v1.0.0.
+        {/* v0.10.0, bukan v1.0.0.
             Semver menyatakan 1.0.0 berarti API publiknya sudah stabil, dan major
             nol berarti masih pengembangan awal di mana apa pun boleh berubah. Yang
-            kedua adalah keadaan kita: curve factory belum di-broadcast ke mainnet
-            dan peluncuran terkunci di keempat chain. Angka ini naik ke 1.0.0 saat
-            factory-nya benar-benar hidup dan satu peluncuran nyata berhasil —
-            supaya angkanya berarti sesuatu. */}
-        <p className="kicker justify-center mb-6">ADEXTO Protocol v0.9.0</p>
+            kedua masih keadaan kita, meskipun factory-nya kini SUDAH di-broadcast
+            ke keempat mainnet: belum ada satu pun peluncuran nyata, jadi API-nya
+            belum pernah diuji oleh pemakaian. Angka ini naik ke 1.0.0 setelah
+            peluncuran pertama berhasil — supaya angkanya berarti sesuatu. */}
+        <p className="kicker justify-center mb-6">ADEXTO Protocol v0.10.0</p>
 
         <h1 className="text-[2.5rem] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.06] text-ink mb-6">
           Launch an AI agent token with no liquidity deposit.{" "}
@@ -85,15 +85,18 @@ export default function HomePage() {
             <dd className="text-[11px] text-ink-soft mt-0.5">nothing to unlock or dump</dd>
           </div>
           <div>
-            {/* Dulu "Mainnet Ready" berwarna hijau bersebelahan dengan "4 Chains
-                Active", yang mudah dibaca sebagai "perdagangan sudah jalan di
-                empat mainnet". Kontrak memang terverifikasi, tapi factory
-                peluncuran belum di-broadcast, jadi cakupannya dinyatakan
-                terang-terangan. Klaim yang bisa dibantah dengan satu panggilan
-                RPC lebih merugikan daripada klaim kecil yang tepat. */}
+            {/* Kolom ini sudah dua kali menyesatkan, ke dua arah berbeda.
+                Mula-mula "Mainnet Ready" hijau bersebelahan dengan "4 Chains
+                Active", yang terbaca sebagai "perdagangan sudah jalan". Lalu
+                dikoreksi menjadi "launch factory pending broadcast" — benar
+                waktu itu, dan basi begitu factory-nya benar-benar dikirim.
+                Sekarang factory 0.10.0 hidup di keempat mainnet DAN belum ada
+                satu pun token diluncurkan. Keduanya dinyatakan, karena
+                menyebut hanya yang pertama akan menyiratkan pasar yang belum
+                ada. */}
             <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Deployment</dt>
-            <dd className="mt-1.5 text-lg font-semibold text-ink">Contracts verified</dd>
-            <dd className="text-[11px] text-ink-soft mt-0.5">launch factory pending broadcast</dd>
+            <dd className="mt-1.5 text-lg font-semibold text-ink">Launching live</dd>
+            <dd className="text-[11px] text-ink-soft mt-0.5">4 mainnets · no token launched yet</dd>
           </div>
         </dl>
       </section>

@@ -253,9 +253,13 @@ export default function ExplorerPage() {
         <div className="mx-auto max-w-md py-20 text-center">
           <Lock className="mx-auto mb-3 h-5 w-5 text-ink-faint" />
           <p className="text-sm font-semibold text-ink">No markets yet</p>
+          {/* The reason changed and the text had to change with it. This used to
+              read "the curve factory has not been broadcast", which was true and
+              then quietly became false the moment it was. Launching is live now;
+              the index is empty simply because nobody has used it yet. */}
           <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
-            Nothing has been launched. The curve factory has not been broadcast to mainnet, so launching is
-            disabled on every chain and this index stays empty until the first real launch registers itself.
+            Nothing has been launched yet. The curve factory is live on all four mainnets, so this index fills in
+            on its own as soon as the first launch registers itself.
           </p>
           <Link
             href="/docs"

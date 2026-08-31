@@ -125,8 +125,8 @@ The point of this table is that nothing above it should be read as more finished
 
 | Component | State | What that means precisely |
 |---|---|---|
-| `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Broadcast and read back: `totalProjectsCount` 0, runtime bytecode matched a local compile. Superseded by `0.10.0`, which adds the ERC-8004 binding and changes the `deployTrinity` selector. |
-| `AdextoCurveFactory` `0.10.0` | **Not broadcast yet** | Tested on a local devchain: 24 assertions for the agent binding, plus the full curve-economics suite. |
+| `AdextoCurveFactory` `0.10.0` on 4 mainnets | **Live** | Broadcast and read back on each chain: `VERSION` `0.10.0`, `totalProjectsCount` 0, runtime bytecode byte-identical to a local compile (20,054 B), and `AGENT_REGISTRY` resolving to a live ERC-8004 registry answering `name()`. |
+| `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` adds the ERC-8004 binding, which changes the `deployTrinity` selector. Addresses kept below so nobody mistakes one for the other. |
 | ERC-8004 agent identity | **Optional, verified on-chain** | See [below](#erc-8004-agent-identity). Identity registry only; reputation and validation are not used. |
 | Launching through the site | **Not enabled** | `NEXT_PUBLIC_CURVE_FACTORY_*` is intentionally still unset, so the UI keeps launching disabled. |
 | Tokens launched | **Zero** | `totalProjectsCount()` returns 0 on every chain. The market index is empty and says so. |

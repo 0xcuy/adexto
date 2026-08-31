@@ -25,10 +25,41 @@
  * factory as "DEX not live yet" instead of sending doomed transactions.
  */
 
-const env = (key: string): string | null => {
-  const value = process.env[key];
-  return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value : null;
-};
+/**
+ * BACAAN ENV HARUS STATIS, DAN INI KEMBARAN DARI BUG YANG SUDAH DICATAT DI ATAS
+ *
+ * Versi sebelumnya berbunyi `env("NEXT_PUBLIC_CURVE_FACTORY_0G")` dengan
+ * `const env = (key: string) => process.env[key]`. Itu memperbaiki keluhan lama
+ * ("variabelnya tidak pernah dibaca") tanpa memperbaiki akibatnya, karena Next.js
+ * hanya bisa mengganti `process.env.NEXT_PUBLIC_FOO` yang ditulis sebagai akses
+ * anggota STATIS. Dengan key berupa variabel, penggantinya tidak pernah terjadi:
+ * bundel klien berisi STRING NAMA variabelnya, bukan nilainya.
+ *
+ * Akibatnya persis seperti kalau variabelnya tidak diset — `curveFactoryAddress`
+ * jadi `undefined` di peramban, `dexLive` false di keempat chain, dan studio tetap
+ * berkata "Launching is disabled" SETELAH factory-nya benar-benar di-broadcast ke
+ * mainnet. Terbukti dengan menggeledah `.next/static`: alamatnya tidak ada di sana,
+ * nama variabelnya ada.
+ *
+ * Karena itu setiap variabel dituliskan penuh di bawah. Membosankan, dan itulah
+ * satu-satunya bentuk yang benar-benar di-inline.
+ */
+const clean = (value: string | undefined): string | null =>
+  value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value : null;
+
+const CURVE_FACTORY = {
+  og: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_0G),
+  arbitrum: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM),
+  base: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_BASE),
+  monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_MONAD),
+} as const;
+
+const FACTORY_V2 = {
+  og: clean(process.env.NEXT_PUBLIC_FACTORY_V2_0G),
+  arbitrum: clean(process.env.NEXT_PUBLIC_FACTORY_V2_ARBITRUM),
+  base: clean(process.env.NEXT_PUBLIC_FACTORY_V2_BASE),
+  monad: clean(process.env.NEXT_PUBLIC_FACTORY_V2_MONAD),
+} as const;
 
 export const ADEXTO_CONTRACTS = {
   og: {
@@ -38,8 +69,8 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://evmrpc.0g.ai",
     blockExplorer: "https://chainscan.0g.ai",
     factoryAddress: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0",
-    factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_0G"),
-    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_0G"),
+    factoryV2Address: FACTORY_V2.og,
+    curveFactoryAddress: CURVE_FACTORY.og,
     sovereignHookAddress: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
     governorAddress: "0x5045b117dDF788078c535f37837fDB6384da034d",
     ccipReceiverAddress: "0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4",
@@ -52,8 +83,8 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     blockExplorer: "https://arbiscan.io",
     factoryAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-    factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_ARBITRUM"),
-    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM"),
+    factoryV2Address: FACTORY_V2.arbitrum,
+    curveFactoryAddress: CURVE_FACTORY.arbitrum,
     sovereignHookAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     governorAddress: "0x33811F9c53da5071A130F18D844f64999dBD43bA",
     ccipReceiverAddress: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
@@ -66,8 +97,8 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://mainnet.base.org",
     blockExplorer: "https://basescan.org",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
-    factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_BASE"),
-    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_BASE"),
+    factoryV2Address: FACTORY_V2.base,
+    curveFactoryAddress: CURVE_FACTORY.base,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
@@ -80,8 +111,8 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://rpc.monad.xyz",
     blockExplorer: "https://monadvision.com",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
-    factoryV2Address: env("NEXT_PUBLIC_FACTORY_V2_MONAD"),
-    curveFactoryAddress: env("NEXT_PUBLIC_CURVE_FACTORY_MONAD"),
+    factoryV2Address: FACTORY_V2.monad,
+    curveFactoryAddress: CURVE_FACTORY.monad,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",

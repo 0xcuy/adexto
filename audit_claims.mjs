@@ -79,6 +79,28 @@ const CONTRADICTIONS = [
     b: ">LIVE<",
     why: "menandai fase 'LIVE' di halaman yang menyatakan peluncuran terkunci",
   },
+  /**
+   * Dua penjaga di bawah mengawal kegagalan BARU, yang arahnya berlawanan dengan
+   * dua di atas.
+   *
+   * Factory 0.10.0 kini benar-benar hidup di keempat mainnet, jadi bahaya lamanya
+   * ("mengaku live padahal terkunci") berganti jadi: mengaku factory belum dikirim
+   * padahal sudah — copy basi yang meremehkan diri sendiri — dan, lebih merugikan,
+   * membiarkan halaman yang menyatakan peluncuran hidup berdampingan dengan panel
+   * yang masih menyatakan peluncuran mati karena env belum diwire.
+   *
+   * Keduanya pernah terjadi persis di repo ini, jadi bukan bahaya hipotetis.
+   */
+  {
+    a: "curve factory is live",
+    b: "Launching is disabled",
+    why: "copy menyatakan factory hidup sementara studio masih melaporkan peluncuran mati (env belum diwire)",
+  },
+  {
+    a: "not broadcast to mainnet yet",
+    b: "live on all four mainnets",
+    why: "sisa copy lama menyatakan factory belum dikirim di halaman yang menyatakan sudah",
+  },
 ];
 
 const browser = await chromium.launch();

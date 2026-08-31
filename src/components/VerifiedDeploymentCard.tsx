@@ -17,56 +17,79 @@ export default function VerifiedDeploymentCard() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  /**
+   * Chains in one place, so a new generation is added once rather than four times.
+   *
+   * The previous version hand-wrote seven entries covering only the v1 factory and
+   * the v1 hook. When `AdextoCurveFactory` — the contract that actually launches
+   * tokens — went live on all four mainnets, this card kept listing exclusively the
+   * superseded generation, so /pitch showed a registry with the current contract
+   * missing from it entirely.
+   */
+  const CHAINS = [
+    { key: "og", label: "0G Mainnet 16661" },
+    { key: "base", label: "Base Mainnet 8453" },
+    { key: "arbitrum", label: "Arbitrum One 42161" },
+    { key: "monad", label: "Monad Mainnet 143" },
+  ] as const;
+
+  const chainOf = (key: (typeof CHAINS)[number]["key"]) => ADEXTO_CONTRACTS[key];
+
   const records = [
+    /**
+     * Current generation first, because it is the one that matters to a reader.
+     *
+     * `curveFactoryAddress` comes from `NEXT_PUBLIC_CURVE_FACTORY_*`, so an entry
+     * appears here exactly when the app is genuinely wired to that factory. A card
+     * that listed the address while the studio still refused to launch would be the
+     * same contradiction this page has already been fixed for twice.
+     */
+    ...CHAINS.flatMap((c) => {
+      const chain = chainOf(c.key);
+      if (!chain.curveFactoryAddress) return [];
+      return [
+        {
+          label: `AdextoCurveFactory (${c.label})`,
+          address: chain.curveFactoryAddress,
+          explorerUrl: `${chain.blockExplorer}/address/${chain.curveFactoryAddress}`,
+          badge: "launches tokens · v0.10.0",
+          color: "border-ok/30 bg-ok/10 text-ok",
+        },
+      ];
+    }),
+    /**
+     * ERC-8004 Identity Registry. Not ours, and listed for that reason: a launch may
+     * bind an agent id here, and the factory calls `ownerOf` on it, so a reader
+     * checking our claims needs the address we actually call.
+     */
     {
-      label: "AdextoTrinityFactory (0G Mainnet 16661)",
-      address: ADEXTO_CONTRACTS.og.factoryAddress,
-      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.factoryAddress}`,
-      badge: "0G factory · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
+      label: "ERC-8004 Identity Registry (same address on all four mainnets)",
+      address: ADEXTO_CONTRACTS.agentRegistry,
+      explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.agentRegistry}`,
+      badge: "third-party · upgradeable proxy",
+      color: "border-warn/30 bg-warn/10 text-warn",
     },
-    {
-      label: "AdextoTrinityFactory (Arbitrum One 42161)",
-      address: ADEXTO_CONTRACTS.arbitrum.factoryAddress,
-      explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.factoryAddress}`,
-      badge: "Arbitrum factory · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "SovereignHook AMM (Arbitrum One 42161)",
-      address: ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress,
-      explorerUrl: `https://arbiscan.io/address/${ADEXTO_CONTRACTS.arbitrum.sovereignHookAddress}`,
-      badge: "Arbitrum hook · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "AdextoTrinityFactory (Base Mainnet 8453)",
-      address: ADEXTO_CONTRACTS.base.factoryAddress,
-      explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.base.factoryAddress}`,
-      badge: "Base factory · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "SovereignHook AMM (Base Mainnet 8453)",
-      address: ADEXTO_CONTRACTS.base.sovereignHookAddress,
-      explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.base.sovereignHookAddress}`,
-      badge: "Base hook · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "AdextoTrinityFactory (Monad Mainnet 143)",
-      address: ADEXTO_CONTRACTS.monad.factoryAddress,
-      explorerUrl: `https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.factoryAddress}`,
-      badge: "Monad factory · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "SovereignHook AMM (Monad Mainnet 143)",
-      address: ADEXTO_CONTRACTS.monad.sovereignHookAddress,
-      explorerUrl: `https://monadvision.com/address/${ADEXTO_CONTRACTS.monad.sovereignHookAddress}`,
-      badge: "Monad hook · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
+    // Superseded generation, kept because the addresses are real and permanent, and
+    // because deleting them would hide what earlier versions of this page claimed.
+    ...CHAINS.flatMap((c) => {
+      const chain = chainOf(c.key);
+      return [
+        {
+          label: `AdextoTrinityFactory (${c.label})`,
+          address: chain.factoryAddress,
+          explorerUrl: `${chain.blockExplorer}/address/${chain.factoryAddress}`,
+          badge: "superseded · v1",
+          color: "border-line bg-cream-3 text-ink-soft",
+        },
+        {
+          label: `SovereignHook (${c.label})`,
+          address: chain.sovereignHookAddress,
+          explorerUrl: `${chain.blockExplorer}/address/${chain.sovereignHookAddress}`,
+          badge: "superseded · cannot settle trades",
+          color: "border-line bg-cream-3 text-ink-soft",
+        },
+      ];
+    }),
     {
       // Badge ini dulu berbunyi "The Graph Published" dengan warna accent, dan
       // secara harfiah benar — NFT subgraph-nya memang ada di Arbitrum One. Tapi
@@ -83,18 +106,23 @@ export default function VerifiedDeploymentCard() {
       color: "border-warn/30 bg-warn/10 text-warn",
     },
     {
-      label: "SovereignHook AMM (0G Mainnet 16661)",
-      address: ADEXTO_CONTRACTS.og.sovereignHookAddress,
-      explorerUrl: `https://chainscan.0g.ai/address/${ADEXTO_CONTRACTS.og.sovereignHookAddress}`,
-      badge: "0G hook · v1",
-      color: "border-accent/30 bg-accent-soft text-accent",
-    },
-    {
-      label: "0G DA Storage Attestation Root (Metadata Flow)",
+      /**
+       * "Attestation Root" was the wrong word, and it is the same misnomer that let
+       * this project claim a hardware attestation nobody ever checked — the contract
+       * parameter carrying this value was renamed from `teeAttestationRoot` to
+       * `metadataRoot` for exactly that reason. It is a content hash of the launch
+       * metadata, stored on 0G DA. Nothing about it attests to an enclave.
+       *
+       * The transaction is real and was checked before this entry was kept: block
+       * 41,868,253 on 0G mainnet, sent by the deployer, status success, 324 bytes of
+       * calldata. It appeared alongside invented trade records that were deleted, so
+       * it was verified rather than assumed guilty by association.
+       */
+      label: "0G DA metadata storage root (not an attestation)",
       address: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
       explorerUrl: `https://chainscan.0g.ai/tx/0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55`,
-      badge: "0G DA Storage Turbo",
-      color: "border-ok/30 bg-ok/10 text-ok",
+      badge: "0G DA · content hash",
+      color: "border-accent/30 bg-accent-soft text-accent",
     },
     {
       label: "Cloudflare Workers x402 Edge Paywall Gateway",
@@ -117,10 +145,12 @@ export default function VerifiedDeploymentCard() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-6 mb-6">
           <div>
-            {/* Badge ini dulu berbunyi "LIVE ON-CHAIN", padahal kontrak di bawah
-                adalah generasi v1 dan factory v2 yang eksekutabel belum di-broadcast
-                (`/api/deploy` melaporkan `dexLive: false`). Mengaku "live" sementara
-                trading terkunci adalah klaim yang tidak bisa dipertahankan. */}
+            {/* Badge ini sengaja tetap "DEPLOYED & VERIFIABLE", bukan naik jadi
+                "LIVE", meskipun factory kurva kini sudah di-broadcast. Alasannya
+                sama seperti dulu, hanya bergeser: yang bisa dipertahankan adalah
+                "alamat-alamat ini ada dan bisa kamu periksa". "LIVE" mengundang
+                pembaca menyimpulkan ada pasar yang berjalan, dan belum ada satu
+                pun token diluncurkan. */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cream-3 border border-line text-ink-soft text-xs font-mono font-bold mb-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-ok" />
               <span>DEPLOYED &amp; VERIFIABLE ON-CHAIN</span>
@@ -130,8 +160,9 @@ export default function VerifiedDeploymentCard() {
             </h2>
             <p className="text-xs sm:text-sm text-ink-soft mt-1">
               Addresses below are the <strong className="text-ink">v1</strong> generation, deployed and verifiable on
-              each chain. The executable <code className="text-accent">AdextoCurveFactory</code> is not broadcast to
-              mainnet yet, so launching and trading stay disabled in the UI until it is.
+              each chain. The executable <code className="text-accent">AdextoCurveFactory</code> is now live on all
+              four mainnets, so launching is enabled — but no token has been launched through it yet, which is why
+              there is still nothing to trade.
             </p>
           </div>
 
