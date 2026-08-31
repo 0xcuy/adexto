@@ -56,42 +56,21 @@ function persist(trades: TradeEvent[]): boolean {
 }
 
 /**
- * Seed records for the curated 0G genesis flow. Flagged `source: "genesis"` so the
- * frontend can label them instead of passing them off as live market activity.
+ * Reference fills — deliberately EMPTY.
+ *
+ * Two AEGIS records used to sit here and, because `listTrades` falls back to this
+ * array whenever the store is empty, they were what the chart and the trade feed
+ * actually displayed. Both quoted a price of 0.0184 0G for a token that has no
+ * curve, so there was no venue at which that price could have been struck. They
+ * were labelled `source: "genesis"` and the UI did say "reference", but a labelled
+ * invented price still sets the y-axis of a candlestick chart.
+ *
+ * With this empty, `/api/agent/telemetry` answers `source: "empty"` and the widgets
+ * fall to the states they already have: "no trade history" on the chart and "No
+ * trades recorded yet" on the feed. Both are true, and both stop being true on
+ * their own as soon as a real curve emits its first `Swap`.
  */
-export const GENESIS_TRADES: TradeEvent[] = [
-  {
-    id: "genesis_aegis_buyback",
-    txHash: "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
-    type: "AUTO_BUYBACK",
-    symbol: "AEGIS",
-    amountToken: 54347.82,
-    amountNative: 1,
-    nativeSymbol: "0G",
-    priceNative: 0.0184,
-    trader: "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
-    timestamp: "2026-08-17T00:00:00.000Z",
-    blockNumber: 41896821,
-    chainId: 16661,
-    teeAttestationRoot: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
-    source: "genesis",
-  },
-  {
-    id: "genesis_aegis_da_anchor",
-    txHash: "0xcfac6cd412f69cefeb2d509edf5dbdeef5dc0fb4613932223b99a4ce535b8c55",
-    type: "BUY",
-    symbol: "AEGIS",
-    amountToken: 16304.34,
-    amountNative: 0.3,
-    nativeSymbol: "0G",
-    priceNative: 0.0184,
-    trader: "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
-    timestamp: "2026-08-17T00:07:00.000Z",
-    blockNumber: 41896840,
-    chainId: 16661,
-    source: "genesis",
-  },
-];
+export const GENESIS_TRADES: TradeEvent[] = [];
 
 export function listTrades(symbol?: string | null): TradeEvent[] {
   const stored = load();

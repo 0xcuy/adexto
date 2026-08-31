@@ -246,8 +246,26 @@ export default function ExplorerPage() {
         <div className="py-20 flex items-center justify-center gap-2 text-ink-soft font-mono text-sm">
           <RefreshCw className="w-4 h-4 animate-spin" /> Reading registry…
         </div>
+      ) : projects.length === 0 ? (
+        /* An empty registry and an over-narrow filter are different situations and
+           used to print the same sentence, which told a first-time visitor that
+           their filter was at fault when in fact nothing has launched yet. */
+        <div className="mx-auto max-w-md py-20 text-center">
+          <Lock className="mx-auto mb-3 h-5 w-5 text-ink-faint" />
+          <p className="text-sm font-semibold text-ink">No markets yet</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
+            Nothing has been launched. The curve factory has not been broadcast to mainnet, so launching is
+            disabled on every chain and this index stays empty until the first real launch registers itself.
+          </p>
+          <Link
+            href="/docs"
+            className="mt-4 inline-block text-xs font-semibold text-accent underline-offset-4 hover:underline"
+          >
+            See which contracts are deployed
+          </Link>
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="py-20 text-center text-ink-soft font-mono text-sm">No markets match this filter.</div>
+        <div className="py-20 text-center text-sm text-ink-soft">No markets match this filter.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filtered.map((p) => {

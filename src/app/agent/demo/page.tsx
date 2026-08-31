@@ -44,18 +44,27 @@ import {
 /** Worker yang benar-benar ter-deploy. Subdomain edge.adexto.xyz belum dipasang. */
 const GATEWAY = "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402";
 
-interface AgentRoute {
-  slug: string;
-  label: string;
-  /** Harga yang DIKUTIP worker untuk kelas panggilan ini, bukan harga yang ditagih. */
-  quoted: string;
-  purpose: string;
-}
+/**
+ * Satu jalur contoh.
+ *
+ * Dulu di sini ada tiga "agent route" — AEGIS, QNOVA, CSENT — masing-masing
+ * dengan harga berbeda. Dua hal salah sekaligus. QNOVA dan CSENT tidak pernah
+ * dicetak factory, jadi halaman ini mengiklankan agen milik token yang tidak
+ * ada. Dan worker TIDAK membedakan harga per ticker: ia mengembalikan ketiga
+ * kelas harga yang sama untuk ticker apa pun, lalu sekadar menggemakan ticker
+ * itu di field `agent`. Jadi peta "QNOVA = 0.005" adalah karangan halaman ini,
+ * bukan kutipan dari gerbangnya.
+ *
+ * Yang tertinggal adalah apa yang benar: satu jalur contoh, dan ketiga kelas
+ * harga apa adanya sebagaimana muncul di jawaban 402 di sebelah kanan.
+ */
+const DEMO_AGENT = "adexto";
 
-const ROUTES: AgentRoute[] = [
-  { slug: "aegis", label: "AEGIS", quoted: "0.010 USDC", purpose: "curve depth and slippage report" },
-  { slug: "qnova", label: "QNOVA", quoted: "0.005 USDC", purpose: "inference query" },
-  { slug: "csent", label: "CSENT", quoted: "0.020 USDC", purpose: "custom execution" },
+/** Persis seperti yang dikembalikan worker di objek `pricing`, untuk ticker apa pun. */
+const QUOTED_CLASSES: Array<{ key: string; price: string; purpose: string }> = [
+  { key: "inferenceQuery", price: "0.005 USDC", purpose: "one inference call" },
+  { key: "quantSignal", price: "0.010 USDC", purpose: "curve depth and slippage report" },
+  { key: "customExecution", price: "0.020 USDC", purpose: "custom execution" },
 ];
 
 interface Attempt {
@@ -67,7 +76,7 @@ interface Attempt {
 }
 
 export default function AgentDemoPage() {
-  const [route, setRoute] = useState(ROUTES[0].slug);
+  const route = DEMO_AGENT;
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -107,8 +116,6 @@ export default function AgentDemoPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const selected = ROUTES.find((r) => r.slug === route) ?? ROUTES[0];
-
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="border-b border-line pb-6 mb-8">
@@ -136,26 +143,22 @@ export default function AgentDemoPage() {
         {/* Left: route picker */}
         <div className="lg:col-span-5 space-y-4">
           <div className="card p-5 space-y-3">
-            <h2 className="text-xs font-mono uppercase tracking-wider text-ink-faint font-bold">Agent route</h2>
+            <h2 className="text-[10px] uppercase tracking-wider text-ink-faint font-bold">What it quotes</h2>
+            <p className="text-[11px] leading-relaxed text-ink-soft">
+              The gateway returns these three price classes for any ticker in the path. The ticker is echoed back
+              in the <code className="font-mono text-ink-soft">agent</code> field; it does not change the quote.
+            </p>
             <div className="space-y-2">
-              {ROUTES.map((r) => (
-                <button
-                  key={r.slug}
-                  type="button"
-                  onClick={() => setRoute(r.slug)}
-                  aria-pressed={route === r.slug}
-                  className={`w-full rounded-xl border p-3.5 text-left transition-colors ${
-                    route === r.slug ? "border-accent/40 bg-accent-soft" : "border-line bg-white hover:border-line-strong"
-                  }`}
-                >
+              {QUOTED_CLASSES.map((c) => (
+                <div key={c.key} className="rounded-xl border border-line bg-white p-3.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-bold text-ink">${r.label}</span>
+                    <span className="font-mono text-xs font-bold text-ink">{c.key}</span>
                     <span className="rounded border border-line bg-cream-2 px-2 py-0.5 font-mono text-[10px] text-ink-soft">
-                      quoted {r.quoted}
+                      {c.price}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] text-ink-soft">{r.purpose}</p>
-                </button>
+                  <p className="mt-1 text-[11px] text-ink-soft">{c.purpose}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -171,7 +174,7 @@ export default function AgentDemoPage() {
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" /> GET the ${selected.label} route
+                <Play className="w-4 h-4" /> GET the ${DEMO_AGENT.toUpperCase()} route
               </>
             )}
           </button>

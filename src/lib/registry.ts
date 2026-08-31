@@ -99,91 +99,49 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
 }
 
 /**
- * Curated showcase projects.
+ * Curated showcase projects — deliberately EMPTY.
  *
- * `poolLive` is false for all of them: the legacy SovereignHook at
- * 0x592c…98d8 has no swap entrypoint, and an on-chain read of
- * AdextoTrinityFactory.totalProjectsCount() returns 1 on 0G and 0 on Arbitrum, so
- * QNOVA/CSENT/MQUANT were never minted by the factory. They are kept as showcase
- * entries with `verified: false` rather than presented as tradable markets.
+ * Four entries used to live here (AEGIS on 0G, QNOVA and CSENT on Arbitrum,
+ * MQUANT on Monad), and every one of them was rendered to visitors as a market
+ * with a price. Three were never minted at all: an on-chain read of
+ * `totalProjectsCount()` returns 1 on 0G and 0 on Arbitrum, so the QNOVA, CSENT
+ * and MQUANT addresses point at nothing. AEGIS is a real deployed contract, but
+ * no curve was ever attached to it, so the 0.0184 0G it advertised was not a
+ * price at which anything could be bought or sold.
+ *
+ * That contradicted the rest of the site within a single visit: the hero says
+ * "launch factory pending broadcast" and the footer says launching is disabled
+ * everywhere, while /explorer listed four tradable-looking markets with market
+ * caps. A reader had no way to tell which of the two statements was the lie.
+ *
+ * So before mainnet the registry starts empty and /explorer says so plainly.
+ * Real markets arrive through `registerProject`, which only accepts a token
+ * address read back from a confirmed `TrinityProjectDeployed` receipt — so the
+ * first entry here will be the first launch that actually happened.
+ *
+ * Removing them from this list must NOT make their tickers claimable by someone
+ * else, which is why they are now named explicitly in RESERVED_SYMBOLS below.
  */
-export const CURATED_PROJECTS: ProjectRecord[] = [
-  baseRecord({
-    tokenAddress: "0xb5A8A26A929e8E44E18D00a73448d4e1a22D0dEd",
-    name: "Aegis Sentinel AI",
-    symbol: "AEGIS",
-    chainKey: "0G",
-    priceNative: 0.0184,
-    agentModel: "0G Compute (glm-5.2 + z-image-turbo)",
-    agentPersona:
-      "Autonomous 24/7 quant market maker and sovereign liquidity rebalancer running inside a 0G AMD SEV-SNP hardware enclave.",
-    category: "defi",
-    image: "/aegis_logo.png",
-    txHash: "0x917353cc0649ebe7b081bf6a7974923537914dd4cfa1ea4ac1eed9f9394b3fe3",
-    blockNumber: 41896821,
-    teeRoot: "0xafa3f6735b37bf0117bd792ce7cd4a63ffca59d7d8d601bd9a002749e5b6b1e8",
-    deployedAt: 1786848200,
-    verified: true,
-    curated: true,
-    mcpTools: ["Signet", "Sentinel", "Helm", "x402"],
-  }),
-  baseRecord({
-    tokenAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-    name: "QuantNova Swarm HFT",
-    symbol: "QNOVA",
-    chainKey: "Arbitrum",
-    priceNative: 0.00018,
-    agentModel: "0G Compute (glm-5.2)",
-    agentPersona:
-      "High-frequency delta-neutral liquidity provider with automated Chainlink CCIP treasury bridging.",
-    category: "trading",
-    image: "/qnova_logo.png",
-    teeRoot: "0x57d8f0846a59cc3ae156dcaa43553d3dd69f49211031f39a1e8fe636677e6572",
-    deployedAt: 1786848250,
-    verified: false,
-    curated: true,
-    mcpTools: ["Signet", "Helm", "x402"],
-  }),
-  baseRecord({
-    tokenAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
-    name: "CyberSentinel Shield AI",
-    symbol: "CSENT",
-    chainKey: "Arbitrum",
-    priceNative: 0.00008,
-    agentModel: "0G Compute (0gm-1.0-35b)",
-    agentPersona:
-      "On-chain honeypot and exploit detector that executes automated mitigation actions.",
-    category: "security",
-    image: "/csent_logo.png",
-    teeRoot: "0xeaa56a1fe9b216f0f58cc0957c8d4793451c69a423c5a73ad6e420749eb4509d",
-    deployedAt: 1786848300,
-    verified: false,
-    curated: true,
-    mcpTools: ["Sentinel", "Aegis", "x402"],
-  }),
-  baseRecord({
-    tokenAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
-    name: "Monad HyperQuant AI",
-    symbol: "MQUANT",
-    chainKey: "Monad",
-    priceNative: 0.0015,
-    agentModel: "0G Compute (glm-5.2)",
-    agentPersona: "Latency-optimised market maker targeting Monad's parallel execution.",
-    category: "trading",
-    image: "/logo.svg",
-    teeRoot: "0x91ac3966947118a8c839b0105d03e951dc4a9cc0ce59dafdfa43cf28a0c858dd",
-    deployedAt: 1786848350,
-    verified: false,
-    curated: true,
-    mcpTools: ["Signet", "Sentinel", "x402"],
-  }),
-];
+export const CURATED_PROJECTS: ProjectRecord[] = [];
 
-/** Symbols that a launch may never claim on any chain. */
+/**
+ * Symbols that a launch may never claim on any chain.
+ *
+ * This set used to be derived from `CURATED_PROJECTS`, so emptying that array
+ * would have silently un-reserved AEGIS, QNOVA, CSENT and MQUANT and handed them
+ * to whoever asked first. They are listed literally instead, which also means the
+ * reservation no longer depends on a showcase entry existing.
+ */
 export const RESERVED_SYMBOLS = new Set([
-  ...CURATED_PROJECTS.map((p) => p.symbol),
+  // Protocol tickers, held for ADEXTO's own launches.
   "ADEXTO",
   "ADX",
+  "AEGIS",
+  "QNOVA",
+  "CSENT",
+  "MQUANT",
+  // Native and blue-chip assets: a curve token called USDC or ETH would be read
+  // as the real asset by anyone skimming a market list.
   "ETH",
   "WETH",
   "USDC",
@@ -195,6 +153,36 @@ export const RESERVED_SYMBOLS = new Set([
   "MON",
   "ARB",
 ]);
+
+/**
+ * Addresses permitted to launch a RESERVED ticker.
+ *
+ * Reserving "ADEXTO" stops a squatter from taking it, but it also locked the
+ * protocol out of its own token: `checkSymbolAvailable` refused every reserved
+ * ticker unconditionally, so the official mainnet launch would have been rejected
+ * by our own studio with "Ticker ADEXTO is reserved and cannot be launched."
+ *
+ * The reservation now has exactly one door. It is opened by configuration rather
+ * than by a hardcoded address, and it is CLOSED BY DEFAULT: with
+ * `ADEXTO_OFFICIAL_DEPLOYER` unset, no address can claim a reserved ticker, so a
+ * misconfigured deployment fails safe rather than opening the tickers to anyone.
+ *
+ * Comma-separated, so one allowance can cover a hardware wallet and a hot
+ * deployer without a code change.
+ */
+function officialDeployers(): Set<string> {
+  return new Set(
+    (process.env.ADEXTO_OFFICIAL_DEPLOYER || "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter((entry) => /^0x[a-f0-9]{40}$/.test(entry))
+  );
+}
+
+function isOfficialDeployer(address?: string | null): boolean {
+  if (!address) return false;
+  return officialDeployers().has(address.trim().toLowerCase());
+}
 
 declare global {
   var __ADEXTO_PROJECT_CACHE__: ProjectRecord[] | undefined;
@@ -278,7 +266,8 @@ export type SymbolCheck = { available: true } | { available: false; reason: stri
 /**
  * Availability is per chain.
  *
- * - reserved tickers are blocked everywhere;
+ * - reserved tickers are blocked everywhere, except for the protocol's own
+ *   deployer address (see officialDeployers);
  * - a ticker already live on the *same* chain is blocked;
  * - a ticker held by a *different* creator on another chain is blocked, so a
  *   multi-chain launch cannot be used to impersonate an existing project;
@@ -290,7 +279,10 @@ export function checkSymbolAvailable(symbol: string, chainId?: number | null, cr
   if (!/^[A-Z0-9]{2,12}$/.test(upper)) {
     return { available: false, reason: "Ticker must be 2–12 characters, letters and digits only." };
   }
-  if (RESERVED_SYMBOLS.has(upper)) {
+  // The official deployer is exempt: the protocol has to be able to launch its
+  // own reserved tickers. Everyone else is refused, including when
+  // ADEXTO_OFFICIAL_DEPLOYER is unset.
+  if (RESERVED_SYMBOLS.has(upper) && !isOfficialDeployer(creator)) {
     return { available: false, reason: `Ticker ${upper} is reserved and cannot be launched.` };
   }
 

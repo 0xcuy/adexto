@@ -291,7 +291,9 @@ export default function SwapTerminal() {
                 className="flex-1 bg-transparent text-ink font-mono font-bold text-xs focus:outline-none cursor-pointer"
                 aria-label="Select market"
               >
-                {visibleMarkets.length === 0 && <option value="">No markets on this chain</option>}
+                {visibleMarkets.length === 0 && (
+                  <option value="">{markets.length === 0 ? "No markets yet" : "No markets on this chain"}</option>
+                )}
                 {visibleMarkets.map((m) => (
                   <option key={m.marketKey} value={m.marketKey} className="bg-white text-ink">
                     ${m.symbol} · {m.chainKey} — {m.name}
@@ -324,8 +326,25 @@ export default function SwapTerminal() {
             )}
           </div>
 
+          {/* Registry benar-benar kosong — penyebabnya BUKAN filter, jadi jangan
+              tawarkan "Show all chains" yang sama kosongnya. Sebelum ini keadaan
+              ini tidak dijelaskan sama sekali pada filter "all": panel hanya
+              menampilkan dropdown kosong tanpa sebab. */}
+          {!loading && markets.length === 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-white border border-line">
+              <div className="flex items-start gap-2 text-[11px] text-ink-soft">
+                <Lock className="w-3.5 h-3.5 text-ink-faint mt-0.5 shrink-0" />
+                <span>
+                  <strong className="text-ink">No markets exist yet.</strong> The curve factory has not been
+                  broadcast to mainnet, so nothing has launched and there is nothing to swap. This panel fills in
+                  on its own once the first curve is live.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Chain terpilih tidak punya market: jelaskan, jangan biarkan panel kosong tanpa sebab */}
-          {!loading && visibleMarkets.length === 0 && chainFilter !== "all" && (
+          {!loading && markets.length > 0 && visibleMarkets.length === 0 && chainFilter !== "all" && (
             <div className="mb-4 p-3 rounded-xl bg-white border border-accent/30 space-y-2">
               <div className="flex items-start gap-2 text-[11px] font-mono text-accent">
                 <AlertTriangle className="w-3.5 h-3.5 text-accent mt-0.5 shrink-0" />
