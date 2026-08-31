@@ -47,8 +47,8 @@ export default function HomePage() {
 
         <p className="mx-auto max-w-2xl text-base sm:text-lg text-ink-soft leading-relaxed mb-9">
           100% of supply opens inside a sovereign bonding curve, so there is nothing to seed and no
-          creator allocation to dump. Every swap then pays the creator 0.10% and the agent&apos;s buyback
-          vault 0.05%, settled on-chain for as long as the market keeps trading.
+          creator allocation to dump. Every swap then pays the creator 0.10% and the buyback vault 0.05%,
+          settled on-chain for as long as the market keeps trading.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
@@ -316,14 +316,24 @@ export default function HomePage() {
                   ditulis sekarang adalah apa yang benar-benar dilakukan field itu.
                   "1-Click": peluncuran menuntut sambung dompet, tanda tangan
                   attestation, proof World ID, lalu satu transaksi PER chain. */}
+              {/* Koreksi ketiga: "transfer hook is bound to one immutable agent
+                  address" salah menyebut apa yang mengikat apa. `_update`
+                  mengecualikan `_launcher` (factory) supaya seeding 100% supply ke
+                  kurva lolos dari batas 1%; `agentIdentity` tidak muncul di jalur
+                  transfer sama sekali — ia menjaga `executeTreasuryBuyback`. Dan
+                  token ini sekarang TIDAK punya owner: `Ownable` dibuang karena
+                  owner()-nya adalah factory yang tidak punya fungsi untuk
+                  memakainya, sehingga explorer melaporkan tuas admin yang tidak
+                  pernah ada. Itu hal pertama yang dicek pembeli, jadi disebut. */}
               <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                An ERC-20 whose transfer hook is bound to one immutable agent address, so the binding cannot
-                be reassigned later. 100% of supply enters the curve and is tradable from the launch
-                transaction onward, with a 1%-of-supply transfer cap for the first 5 blocks.
+                An ERC-20 with <strong>no owner at all</strong> — no admin function exists to renounce,
+                because none was ever added. It carries one immutable agent address that cannot be
+                reassigned. 100% of supply enters the curve and is tradable from the launch transaction
+                onward, with a 1%-of-supply transfer cap for the first 5 blocks.
               </p>
             </div>
             <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              <span>Agent binding immutable</span>
+              <span>No owner · agent binding immutable</span>
               <Lock className="w-4 h-4 text-accent" />
             </div>
           </div>
@@ -472,7 +482,15 @@ export default function HomePage() {
                     <div className="pl-8 text-ink">uint256 swapFeeBps,</div>
                     <div className="pl-8 text-ink">uint256 creatorShareBps,</div>
                     <div className="pl-8 text-ink">uint256 treasuryShareBps,</div>
-                    <div className="pl-8 text-ink">bytes32 teeAttestationRoot</div>
+                    {/* `metadataRoot`, BUKAN `teeAttestationRoot`. Nilainya adalah
+                        root penyimpanan 0G DA dari metadata launch — sebuah hash
+                        konten, bukan laporan attestation hardware, dan nama lamanya
+                        itulah yang membuat halaman ini pernah mengklaim attestation
+                        yang tidak pernah diperiksa siapa pun. Nama parameter tidak
+                        masuk hitungan selector, jadi ABI-nya tetap kompatibel.
+                        Baris di bawah blok ini berbunyi "Signatures match
+                        contracts/", jadi kalau cuplikan ini basi, klaim itu bohong. */}
+                    <div className="pl-8 text-ink">bytes32 metadataRoot</div>
                     <div className="pl-4 text-ok font-semibold">) external returns (address token, address curve);</div>
                     <div className="text-ink font-bold">&#125;</div>
                   </>

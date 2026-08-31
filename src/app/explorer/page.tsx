@@ -45,7 +45,13 @@ interface Project {
   edgeProvider: string;
   category: string;
   image: string;
-  teeAttestationRoot: string | null;
+  /**
+   * Root penyimpanan 0G DA dari metadata launch: sebuah hash konten, BUKAN
+   * laporan attestation hardware. Nama lamanya `teeAttestationRoot` itulah yang
+   * membuat situs ini pernah mengklaim attestation yang tidak pernah diperiksa
+   * siapa pun; kontraknya sudah dinamai ulang `metadataRoot`.
+   */
+  metadataRoot: string | null;
   verified: boolean;
   curated: boolean;
   poolLive: boolean;
@@ -93,7 +99,9 @@ export default function ExplorerPage() {
             edgeProvider: p.edgeProvider,
             category: p.category ?? "defi",
             image: p.image ?? "/logo.svg",
-            teeAttestationRoot: p.teeAttestationRoot ?? null,
+            // `metadataRoot` lebih dulu; /api/graphql masih mengembalikan alias
+            // lamanya untuk klien yang belum diperbarui.
+            metadataRoot: p.metadataRoot ?? p.teeAttestationRoot ?? null,
             verified: Boolean(p.verified),
             curated: Boolean(p.curated),
             poolLive: Boolean(p.poolLive),
@@ -324,11 +332,11 @@ export default function ExplorerPage() {
                     {/* Nama penyedia, bukan keadaan. Amber dipesan untuk peringatan. */}
                     <span className="text-accent font-bold truncate">{p.edgeProvider}</span>
                   </div>
-                  {p.teeAttestationRoot && (
+                  {p.metadataRoot && (
                     <div className="flex justify-between items-center text-ink-soft pt-1 border-t border-line gap-2">
                       <span className="shrink-0">0G DA root:</span>
                       <span className="text-ok font-bold truncate">
-                        {p.teeAttestationRoot.slice(0, 10)}…{p.teeAttestationRoot.slice(-6)}
+                        {p.metadataRoot.slice(0, 10)}…{p.metadataRoot.slice(-6)}
                       </span>
                     </div>
                   )}

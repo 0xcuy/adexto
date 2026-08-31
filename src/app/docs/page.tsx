@@ -55,12 +55,17 @@ export default async function DocsPage() {
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Sovereign Bonding Curve</strong>
-            <p className="text-ink-soft">A standalone <code className="text-accent">SovereignCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. Each swap splits the fee three ways on-chain: depth stays in the curve, the creator is paid directly, and the rest funds agent buybacks.</p>
+            <p className="text-ink-soft">A standalone <code className="text-accent">SovereignCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. Each swap splits the fee three ways on-chain: depth stays in the curve, the creator is paid directly, and the rest funds buyback-and-burn that anyone can trigger.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">The Graph Decentralized Network</strong>
-            <p className="text-ink-soft">A subgraph is published on the decentralized network, but it still indexes the v1 factory. The explorer reads a server-side registry instead, so nothing on this site is served by The Graph today.</p>
+            {/* "still indexes the v1 factory" terlalu murah hati. Manifest yang
+                dipublish ditarik dari IPFS dan diperiksa: ia mendeklarasikan
+                `network: mainnet` (Ethereum) untuk alamat yang punya 0 byte
+                bytecode di Ethereum dan 7.216 byte di 0G. Ia memindai chain yang
+                SALAH sejak blok 1, jadi barisnya nol dan akan selamanya nol. */}
+            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. A rewritten multi-chain subgraph exists in the repo and is not yet deployed; the explorer reads a server-side registry, so nothing on this site is served by The Graph today.</p>
           </div>
 
           {/* Amber di kartu ini dulu menempatkan Cloudflare x402 sederet dengan
@@ -74,9 +79,17 @@ export default async function DocsPage() {
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Buyback execution</strong>
+            {/* Klaim lama: "a buyback cannot be sandwiched on a venue we do not
+                control." Benar tapi menyesatkan, karena yang berbahaya justru
+                sandwich di kurvanya SENDIRI — dan itu tepatnya alasan plafon 1%
+                ada. Menyebut satu risiko yang tidak berlaku sambil menghilangkan
+                yang berlaku lebih buruk daripada tidak menyebut apa pun. */}
             <p className="text-ink-soft">
-              Treasury buybacks execute against the token&apos;s own curve and burn the tokens they buy. There is no external
-              router in the path, so a buyback cannot be sandwiched on a venue we do not control.
+              Buybacks execute against the token&apos;s own curve and burn what they buy. Anyone may trigger
+              one — no key gates it, so an idle operator cannot leave the vault stranded, and there is no
+              withdrawal path for the funds to go anywhere else. Each call is capped at 1% of the curve
+              reserve, which is what makes opening it safe: an unbounded buyback could be sandwiched on the
+              curve itself, wasting the vault&apos;s purchasing power.
             </p>
           </div>
 
@@ -126,11 +139,16 @@ export default async function DocsPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-2">
-              <span className="text-accent font-bold block text-sm">3. 0G TEE Auto-Buyback</span>
+              {/* Judul lama "0G TEE Auto-Buyback" menisbatkan eksekusinya ke agent
+                  di dalam TEE. Tidak ada agent yang menjalankannya: fungsinya kini
+                  tanpa izin dan dipicu siapa pun, dan sebelum itu ia dibatasi ke
+                  dompet creator yang di seluruh testnet memanggilnya nol kali. */}
+              <span className="text-accent font-bold block text-sm">3. Permissionless buyback &amp; burn</span>
               <p className="text-ink-soft font-sans text-xs">
-                On the default 0.30% tier, 0.05% of every swap routes to the token&apos;s 0G TEE Agent treasury, which buys
-                tokens back and burns them. A separate 0.10% goes to the creator, and 0.15% of depth stays in the curve —
-                that retained depth is what lifts the price floor as volume accumulates.
+                On the default 0.30% tier, 0.05% of every swap accrues to the token&apos;s buyback vault, and
+                anyone can spend it buying tokens on the curve and burning them — capped at 1% of the reserve
+                per call. A separate 0.10% goes to the creator, and 0.15% of depth stays in the curve — that
+                retained depth is what lifts the price floor as volume accumulates.
               </p>
             </div>
           </div>
@@ -286,14 +304,32 @@ export default async function DocsPage() {
             </div>
             <div>
               <h3 className="font-bold text-ink text-base">Agent-bound token</h3>
-              <span className="text-xs font-mono text-accent font-bold">Opening-window cap &amp; agent-only buyback</span>
+              <span className="text-xs font-mono text-accent font-bold">Opening-window cap &amp; ownerless token</span>
             </div>
           </div>
+          {/* Kartu ini punya dua klaim yang sudah tidak benar.
+
+              Badge-nya berbunyi "agent-only buyback" dan cuplikannya menampilkan
+              `modifier onlyAgent() { require(msg.sender == agentIdentity); _ }`.
+              Modifier itu SUDAH DIHAPUS dari SovereignCurve: buyback kini tanpa
+              izin, dibatasi ukuran per panggilan. Cuplikannya juga tidak pernah
+              persis begitu bahkan ketika modifier-nya masih ada — yang lama
+              memeriksa `agentTreasury || factory`, bukan `agentIdentity`.
+              Menampilkan kode yang tidak ada di kontrak, di halaman berjudul
+              spesifikasi, runtuh pada pemeriksaan pertama.
+
+              Yang benar sekarang, dan bisa dibuka di berkasnya: cap 1% selama 5
+              blok, token tanpa owner sama sekali, dan buyback tanpa izin
+              berplafon. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Caps any single transfer at 1% of supply for the first 5 blocks, so no wallet can take the opening curve in one shot. This lives in <code className="text-accent">AdextoToken._update</code> and is unrelated to any token standard. <code className="text-accent">executeTreasuryBuyback()</code> is restricted to the immutable agent address set at launch.
+            Caps any single transfer at 1% of supply for the first 5 blocks, so no wallet can take the opening
+            curve in one shot. This lives in <code className="text-accent">AdextoToken._update</code> and is
+            unrelated to any token standard. The token has <strong>no owner and no admin function</strong>, so
+            there is nothing to renounce and no lever to misuse. Buybacks are permissionless — anyone may
+            trigger one, bounded by size rather than by identity.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
-            modifier onlyAgent() &#123; require(msg.sender == agentIdentity); _ &#125;
+            require(nativeAmount * 100 &lt;= virtualNative + _curveNative);
           </div>
         </div>
 
@@ -353,8 +389,11 @@ export default async function DocsPage() {
           Juga: "Intel SGX / AMD SEV-SNP" menyebut dua teknologi yang berbeda
           sekaligus, yang menandakan tidak ada satu pun yang benar-benar diperiksa.
           Dan `teeAttestationRoot` di calldata factory sebenarnya root penyimpanan
-          0G DA — dinamai seolah attestation. Nama itu tidak bisa diubah lagi tanpa
-          factory baru, jadi minimal ia dijelaskan di sini. */}
+          0G DA — dinamai seolah attestation.
+
+          PEMUTAKHIRAN 2026-08-21: nama itu SUDAH diubah menjadi `metadataRoot`, dan
+          factory barunya sudah di-deploy ke keempat testnet. Kalimat "tidak bisa
+          diubah lagi tanpa factory baru" yang dulu ada di sini sudah tidak berlaku. */}
       {/* Seksi ini sudah dua kali salah, ke dua arah berlawanan.
           Mula-mula ia berbunyi "The agent private keys never leave the secure
           hardware boundary… Attestation Protocol: Remote Quote SEV-SNP" tanpa satu
@@ -452,11 +491,18 @@ export default async function DocsPage() {
           names who answered even though it does not attest how.
         </p>
 
+        {/* Paragraf ini dulu ditutup dengan "cannot be corrected without a new
+            factory" — dan itu sudah tidak berlaku, karena factory barunya memang
+            di-deploy dan namanya memang dikoreksi. Membiarkannya berarti halaman
+            ini menyatakan sebuah keterbatasan yang tidak lagi ada. */}
         <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-          One naming trap worth stating plainly: the factory parameter{" "}
-          <code className="text-accent">teeAttestationRoot</code> holds the 0G DA storage root of the launch
-          metadata. It is a content hash of what was uploaded, not a hardware attestation. The name is fixed in a
-          deployed contract signature and cannot be corrected without a new factory.
+          One naming trap worth stating plainly, and it has since been corrected: the factory parameter now
+          reads <code className="text-accent">metadataRoot</code>, and it holds the 0G DA storage root of the
+          launch metadata — a content hash of what was uploaded, not a hardware attestation. It was called{" "}
+          <code className="text-accent">teeAttestationRoot</code> until 2026-08-21, and that name is what let
+          earlier revisions of this site imply an attestation nobody had checked. Renaming a parameter does not
+          change a function selector or an event topic — only types count toward those — so the ABI stayed
+          compatible and existing calldata still matches.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
