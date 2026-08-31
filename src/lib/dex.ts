@@ -95,12 +95,76 @@ export const SOVEREIGN_CURVE_ABI = [
  * terms because 100% of supply enters the curve.
  */
 export const CURVE_FACTORY_ABI = [
-  "function deployTrinity(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 virtualNative, uint256 swapFeeBps, uint256 creatorShareBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot) returns (address token, address curve)",
+  // `metadataRoot`, not `teeAttestationRoot`: the value is a 0G DA storage root, a
+  // content hash, and the old name is what let the product pages claim a hardware
+  // attestation nobody ever checked. Parameter names do not affect the selector.
+  //
+  // `bindAgent` + `agentId` are the ERC-8004 binding, added in factory 0.10.0.
+  // `bindAgent` is a separate flag rather than `agentId == 0` because agent 0 is a
+  // real owned agent on all four mainnets, so zero cannot mean "none".
+  "function deployTrinity(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 virtualNative, uint256 swapFeeBps, uint256 creatorShareBps, uint256 treasuryShareBps, bytes32 metadataRoot, bool bindAgent, uint256 agentId) returns (address token, address curve)",
+  "function AGENT_REGISTRY() view returns (address)",
+  "function agentIdOf(address token) view returns (uint256)",
+  "event AgentBound(address indexed token, uint256 indexed agentId, address indexed agentRegistry, address owner)",
   "function isSymbolAvailable(string symbol) view returns (bool)",
   "function totalProjectsCount() view returns (uint256)",
   "function curveOf(address token) view returns (address)",
   "event TrinityProjectDeployed(address indexed token, address indexed curve, address indexed creator, string name, string symbol, uint256 initialSupply, uint256 curveTokens, uint256 virtualNative, uint256 depthFeeBps, uint256 creatorFeeBps, uint256 treasuryBuybackBps, bytes32 teeAttestationRoot)",
 ];
+
+/**
+ * ERC-8004 Identity Registry. Mirrors `AdextoCurveFactory.AGENT_REGISTRY`.
+ *
+ * The registries are per-chain singletons at the same deterministic address, which
+ * was checked rather than assumed: present and answering `ownerOf` on 0G (16661),
+ * Base (8453), Arbitrum One (42161) and Monad (143) mainnet, and ABSENT on all four
+ * of our testnets. `checkAgentOwnership` therefore reports `missing` on a testnet
+ * instead of pretending the agent is simply unowned.
+ */
+export const AGENT_REGISTRY_ADDRESS = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+
+export const IDENTITY_REGISTRY_ABI = [
+  "function ownerOf(uint256 agentId) view returns (address)",
+  "function tokenURI(uint256 agentId) view returns (string)",
+];
+
+export type AgentOwnership =
+  | { state: "owned"; uri: string }
+  | { state: "not-owned"; owner: string }
+  | { state: "missing" }
+  | { state: "error"; detail: string };
+
+/**
+ * Confirm an agent exists and belongs to `owner`, before a launch spends gas.
+ *
+ * The factory enforces this too, so this is not the security boundary — it exists
+ * so a mistyped id fails in the form rather than as a reverted transaction the
+ * creator paid to discover.
+ */
+export async function checkAgentOwnership(
+  rpcUrl: string,
+  agentId: bigint,
+  owner: string
+): Promise<AgentOwnership> {
+  try {
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
+    if ((await provider.getCode(AGENT_REGISTRY_ADDRESS)) === "0x") return { state: "missing" };
+    const registry = new ethers.Contract(AGENT_REGISTRY_ADDRESS, IDENTITY_REGISTRY_ABI, provider);
+    const actual: string = await registry.ownerOf(agentId);
+    if (actual.toLowerCase() !== owner.toLowerCase()) return { state: "not-owned", owner: actual };
+    let uri = "";
+    try {
+      uri = await registry.tokenURI(agentId);
+    } catch {
+      // An agent can exist with no URI set yet; ownership is what gates the launch.
+    }
+    return { state: "owned", uri };
+  } catch (error) {
+    // `ownerOf` reverts for an id that was never minted, which is indistinguishable
+    // here from a dead RPC — so the message is passed through rather than guessed at.
+    return { state: "error", detail: (error as Error).message.slice(0, 140) };
+  }
+}
 
 export const FACTORY_V2_ABI = [
   "function deployTrinityProject(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 swapFeeBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot, uint256 poolTokenBps) payable returns (address token, address pool)",

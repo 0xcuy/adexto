@@ -6,7 +6,40 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /**
  * @title AdextoToken
  * @notice ERC-20 launched by AdextoCurveFactory for ADEXTO Protocol (adexto.xyz).
- *         Carries an immutable agent identity reference (ERC-8004 style).
+ *         Optionally bound to an ERC-8004 agent identity.
+ *
+ * @dev TWO DIFFERENT THINGS THAT BOTH GOT CALLED "THE AGENT"
+ *
+ * `agentIdentity` is an OPERATIONAL address: the only non-curve caller allowed to
+ * invoke `executeTreasuryBuyback`. It has always existed here.
+ *
+ * `agentId` is an ERC-8004 IDENTITY: an ERC-721 token in the Identity Registry
+ * whose `tokenURI` resolves to a registration file listing the agent's real service
+ * endpoints. It is new, and it is what makes the agent discoverable by anything
+ * outside this project.
+ *
+ * Earlier revisions carried only the address and the header of this file described
+ * it as "ERC-8004 style". That phrasing was doing real work: `style` is an analogy,
+ * and the product pages quietly upgraded the analogy into a compliance claim. The
+ * contract implemented no `supportsInterface`, touched no registry, and had no
+ * `agentId` — so anyone who checked found nothing. Rather than delete the claim,
+ * this revision earns it: the factory verifies the caller owns `agentId` in the
+ * canonical registry before binding it here, permanently.
+ *
+ * WHY THERE IS A SEPARATE `agentBound` FLAG INSTEAD OF TREATING id 0 AS "NONE"
+ *
+ * The first version of this used `agentId == 0` to mean "no identity". Testing
+ * against the live registries killed that: `ownerOf(0)` returns a real owner on 0G,
+ * Base, Arbitrum One and Monad mainnet, so agent 0 is an ordinary agent that
+ * somebody owns on every chain we launch on. A zero sentinel would have made a
+ * legitimately bound agent 0 indistinguishable from an unbound token, and locked
+ * its owner out of ever binding it — permanently, because this bytecode is
+ * immutable.
+ *
+ * The flag is explicit instead. Launching with no agent identity is still fully
+ * supported and still the default, because requiring a registry round-trip would
+ * turn a one-transaction launch into a two-transaction one for every creator,
+ * including those who do not want an agent identity at all.
  *
  * @dev NO OWNER, AND THAT IS THE FIX
  *
@@ -35,7 +68,38 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * every launch.
  */
 contract AdextoToken is ERC20 {
+    /// @notice Operational agent address. May call `executeTreasuryBuyback`.
     address public immutable agentIdentity;
+
+    /**
+     * @notice True when this token is bound to an ERC-8004 agent identity.
+     * @dev Read this BEFORE `agentId`. Agent id 0 is a real, owned agent on every
+     *      mainnet we launch on, so the id alone cannot tell you whether a binding
+     *      exists.
+     */
+    bool public immutable agentBound;
+
+    /**
+     * @notice ERC-8004 agent id bound to this token. Meaningful only if `agentBound`.
+     * @dev Immutable and never reassignable. The factory checked that the launcher
+     *      owned this agent at launch time; ownership of the agent NFT can change
+     *      afterwards, which is by design — the agent is transferable, its binding
+     *      to this token is not.
+     */
+    uint256 public immutable agentId;
+
+    /**
+     * @notice ERC-8004 Identity Registry that `agentId` lives in, or 0 if unbound.
+     * @dev Recorded alongside the id because an agentId is only globally unique
+     *      together with its chain and registry address. ERC-8004 writes that
+     *      triple as `{namespace}:{chainId}:{identityRegistry}`; the chain id is
+     *      implicit in where this token is deployed.
+     */
+    address public immutable agentRegistry;
+
+    /// @notice Emitted once at construction when an ERC-8004 identity is attached.
+    event AgentIdentityBound(uint256 indexed agentId, address indexed agentRegistry);
+
     address public immutable sovereignDexHook;
     uint256 public immutable maxTxAmount;
     uint256 public immutable launchBlock;
@@ -59,11 +123,26 @@ contract AdextoToken is ERC20 {
         uint256 initialSupply,
         address _agentIdentity,
         address _sovereignDexHook,
-        uint256 _maxTxPercentBps
+        uint256 _maxTxPercentBps,
+        bool _agentBound,
+        uint256 _agentId,
+        address _agentRegistry
     ) ERC20(name, symbol) {
         require(_agentIdentity != address(0), "Invalid agent identity");
+        // A binding needs somewhere to resolve, and an unbound token must not carry
+        // an id or a registry that would read as one. Checked rather than assumed,
+        // because both halves are immutable the moment this returns.
+        if (_agentBound) {
+            require(_agentRegistry != address(0), "Bound agent needs a registry");
+        } else {
+            require(_agentRegistry == address(0) && _agentId == 0, "Unbound agent must be zeroed");
+        }
         agentIdentity = _agentIdentity;
+        agentBound = _agentBound;
+        agentId = _agentId;
+        agentRegistry = _agentRegistry;
         sovereignDexHook = _sovereignDexHook;
+        if (_agentBound) emit AgentIdentityBound(_agentId, _agentRegistry);
         maxTxAmount = (initialSupply * 10 ** decimals() * _maxTxPercentBps) / 10000;
         launchBlock = block.number;
         _launcher = msg.sender;

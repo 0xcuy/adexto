@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {AdextoToken} from "./AdextoToken.sol";
 import {SovereignCurve} from "./SovereignCurve.sol";
+import {IIdentityRegistry} from "./IIdentityRegistry.sol";
 
 interface IERC20Approve {
     function approve(address spender, uint256 amount) external returns (bool);
@@ -72,12 +73,31 @@ contract AdextoCurveFactory {
      *      1.0.0 hanya setelah factory ini benar-benar ter-broadcast ke mainnet
      *      dan satu peluncuran nyata berhasil — supaya angkanya berarti sesuatu.
      */
-    string public constant VERSION = "0.9.0";
+    string public constant VERSION = "0.10.0";
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_SUPPLY = 1_000_000_000_000; // 1e12 whole tokens
     /// @dev Anti-sniper window: 1% max transaction for the first blocks.
     uint256 public constant ANTI_SNIPER_BPS = 100;
+
+    /**
+     * @notice ERC-8004 Identity Registry, used to check agent ownership at launch.
+     *
+     * @dev A CONSTANT, BECAUSE IT IS THE SAME ADDRESS ON EVERY CHAIN WE LAUNCH ON
+     *
+     * ERC-8004 deploys its registries as per-chain singletons at a deterministic
+     * address with an `0x8004` vanity prefix. Confirmed present and answering
+     * `ownerOf` at this exact address on all four target mainnets — 0G (16661),
+     * Base (8453), Arbitrum One (42161) and Monad (143) — so a constructor
+     * parameter would add a way to misconfigure a deployment without adding any
+     * capability. Read back from the deployed factory as `AGENT_REGISTRY` if you
+     * want to check rather than trust this comment.
+     *
+     * The registry is an upgradeable proxy owned by a third party. Only a `view`
+     * function is ever called through it, so a hostile or broken upgrade can make
+     * an agent-bound launch revert but can never alter what a launch does.
+     */
+    address public constant AGENT_REGISTRY = 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432;
 
     struct ProjectDeployment {
         address token;
@@ -99,6 +119,14 @@ contract AdextoCurveFactory {
     mapping(address => address) public tokenOf;
     mapping(bytes32 => address) public symbolRegistry;
     mapping(address => address[]) public userDeployments;
+
+    /**
+     * @notice ERC-8004 agent id bound to a launched token, 0 when unbound.
+     * @dev A separate mapping rather than a new field on `ProjectDeployment`, so
+     *      the `allProjects` and `projectAt` return shapes stay exactly as they
+     *      were and existing readers keep working.
+     */
+    mapping(address => uint256) public agentIdOf;
 
     event TrinityProjectCreated(
         address indexed token,
@@ -122,6 +150,24 @@ contract AdextoCurveFactory {
     );
 
     /**
+     * @notice Emitted only when a launch binds an ERC-8004 agent identity.
+     * @dev Deliberately a separate event instead of a field added to
+     *      `TrinityProjectDeployed`: adding a parameter changes an event's
+     *      signature and therefore its `topic0`, which would silently stop every
+     *      existing subgraph mapping and log filter from matching. This is
+     *      additive, so readers that do not care are unaffected.
+     * @param agentRegistry Recorded because an agentId only identifies an agent
+     *        together with its registry, per ERC-8004's
+     *        `{namespace}:{chainId}:{identityRegistry}` form.
+     */
+    event AgentBound(
+        address indexed token,
+        uint256 indexed agentId,
+        address indexed agentRegistry,
+        address owner
+    );
+
+    /**
      * @notice Deploy a token and its bonding curve in one transaction.
      * @param virtualNative Virtual native reserve; equals the opening market cap
      *        in native terms because all supply enters the curve.
@@ -129,8 +175,48 @@ contract AdextoCurveFactory {
      * @param creatorShareBps Portion of `swapFeeBps` streamed to the creator.
      * @param treasuryShareBps Portion of `swapFeeBps` routed to the agent vault.
      * @param metadataRoot 0G DA storage root of the launch metadata.
+     * @param bindAgent Whether to attach an ERC-8004 agent identity at all.
+     * @param agentId ERC-8004 agent id to bind. Ignored, and required to be 0, when
+     *        `bindAgent` is false.
+     *
+     * WHY `bindAgent` IS A SEPARATE FLAG AND NOT `agentId == 0`
+     *
+     * The obvious encoding is to let id 0 mean "no agent". A live check killed it:
+     * `ownerOf(0)` returns a real owner on 0G, Base, Arbitrum One and Monad
+     * mainnet, so agent 0 is an ordinary agent that somebody already owns on every
+     * chain we launch on. Overloading 0 would have permanently barred its owner from
+     * binding it and made a real binding indistinguishable from none — in bytecode
+     * that cannot be changed afterwards.
+     *
      * @dev Deliberately NOT payable. Requiring native here is precisely the
      *      barrier this generation exists to remove.
+     *
+     * WHY `agentId` IS A PARAMETER AND NOT A REGISTRATION PERFORMED HERE
+     *
+     * The obvious design is for this function to call `register()` itself and hand
+     * the resulting agent to the creator, keeping everything in one transaction.
+     * Three findings ruled that out.
+     *
+     * First, ERC-8004's registration file is supposed to carry its own
+     * `registrations[].agentId`, and the id does not exist until `register()`
+     * returns. A file pinned to IPFS before this transaction therefore cannot
+     * contain it, and IPFS addresses are content hashes, so it cannot be patched
+     * afterwards without a new CID and a further transaction. Registering first
+     * makes the file correct the first time.
+     *
+     * Second, the registry is an upgradeable proxy controlled by a third party.
+     * Calling a state-changing function on it from inside an immutable launch path
+     * would let somebody else change what a launch does, after the fact. A single
+     * `view` call cannot.
+     *
+     * Third, ERC-8004 sets the reserved `agentWallet` metadata to the owner at
+     * registration and CLEARS it on transfer. A factory that minted and then
+     * forwarded the agent would hand every creator an agent whose wallet had been
+     * wiped and needed a fresh EIP-712 proof.
+     *
+     * So the creator registers against the registry directly and passes the id
+     * here. `agentId == 0` keeps the plain one-transaction launch available, which
+     * is why the "gas only, one transaction" property survives this change.
      */
     function deployTrinity(
         string memory name,
@@ -141,7 +227,9 @@ contract AdextoCurveFactory {
         uint256 swapFeeBps,
         uint256 creatorShareBps,
         uint256 treasuryShareBps,
-        bytes32 metadataRoot
+        bytes32 metadataRoot,
+        bool bindAgent,
+        uint256 agentId
     ) external returns (address token, address curve) {
         require(bytes(symbol).length > 0 && bytes(symbol).length <= 12, "Factory: bad symbol");
         require(bytes(name).length > 0 && bytes(name).length <= 64, "Factory: bad name");
@@ -153,6 +241,27 @@ contract AdextoCurveFactory {
 
         bytes32 symbolKey = keccak256(abi.encodePacked(_toUpper(symbol)));
         require(symbolRegistry[symbolKey] == address(0), "Factory: symbol already taken");
+
+        // Bind an agent only to the address that owns it. Without this check any
+        // launch could attach itself to somebody else's registered agent and
+        // inherit its reputation — the precise impersonation ERC-8004's identity
+        // layer exists to prevent. `try` is used because the registry is external
+        // and upgradeable: a revert there must produce this contract's own message
+        // rather than an opaque bubbled-up failure.
+        address agentRegistry = address(0);
+        if (bindAgent) {
+            try IIdentityRegistry(AGENT_REGISTRY).ownerOf(agentId) returns (address agentOwner) {
+                require(agentOwner == msg.sender, "Factory: agent not owned by caller");
+            } catch {
+                revert("Factory: agent id not registered");
+            }
+            agentRegistry = AGENT_REGISTRY;
+        } else {
+            // Refuse a non-zero id that will not be bound, rather than ignoring it.
+            // Silently dropping it would hand back a token whose agent the creator
+            // believes is attached, and the mistake is unfixable afterwards.
+            require(agentId == 0, "Factory: agentId set without bindAgent");
+        }
 
         uint256 depthFeeBps = swapFeeBps - creatorShareBps - treasuryShareBps;
 
@@ -175,7 +284,10 @@ contract AdextoCurveFactory {
             initialSupply,
             agentIdentity,
             curve,
-            ANTI_SNIPER_BPS
+            ANTI_SNIPER_BPS,
+            bindAgent,
+            agentId,
+            agentRegistry
         );
         token = address(newToken);
 
@@ -210,6 +322,13 @@ contract AdextoCurveFactory {
             })
         );
         userDeployments[msg.sender].push(token);
+        if (bindAgent) {
+            // `agentIdOf` alone cannot express "bound to agent 0", so the event is
+            // the authoritative record of a binding. Readers wanting a cheap
+            // storage check should use `AdextoToken.agentBound()`.
+            agentIdOf[token] = agentId;
+            emit AgentBound(token, agentId, agentRegistry, msg.sender);
+        }
 
         emit TrinityProjectCreated(token, msg.sender, symbol, metadataRoot);
         emit TrinityProjectDeployed(

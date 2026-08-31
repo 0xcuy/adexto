@@ -28,7 +28,22 @@ const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/governance,/
 const BANNED = [
   ["Zero central points of failure", "satu VPS, satu berkas registry, satu kunci router, satu Worker"],
   ["one launch per human", "produksi menjalankan WORLD_ID_ONE_LAUNCH_PER_HUMAN=false"],
-  ["ERC-8004", "token hanya menyimpan satu address immutable; tidak ada registry standar"],
+  /**
+   * "ERC-8004" TIDAK lagi terlarang seluruhnya, karena sejak factory 0.10.0 klaimnya
+   * bisa dipertahankan: `AdextoCurveFactory` memanggil `ownerOf(agentId)` di registry
+   * kanonik dan menolak launch kalau pemanggil bukan pemiliknya, lalu `AdextoToken`
+   * menyimpan `agentBound`/`agentId`/`agentRegistry` permanen.
+   *
+   * Yang terlarang adalah dua cara MELEBIHKANNYA:
+   *   - menyebut "compliant"/"compliance", padahal hanya Identity Registry yang
+   *     dipakai — Reputation dan Validation tidak, dan standarnya masih Draft;
+   *   - menyebutnya sifat tetap setiap token, padahal pengikatan itu OPSIONAL dan
+   *     mati secara default. Frasa lama "ERC-8004 Token" persis kesalahan ini.
+   */
+  ["ERC-8004 compliant", "hanya Identity Registry yang dipakai; Reputation & Validation tidak, dan standarnya Draft"],
+  ["ERC-8004 compliance", "sama: kepatuhan penuh belum bisa ditunjukkan"],
+  ["ERC-8004 Token", "pengikatan agent bersifat opsional dan mati secara default, bukan sifat setiap token"],
+  ["ERC-8004 Agent Tokens", "sama; menyiratkan setiap token terikat agent"],
   ["1-Click", "peluncuran butuh sambung dompet, attestation, World ID, lalu satu tx per chain"],
   ["physically impossible", "tidak ada jaminan sekuat itu yang bisa kami tunjukkan"],
   ["Hardware Attested", "lencana itu mengaku KAMI yang memverifikasi; kami hanya membaca deklarasi router"],

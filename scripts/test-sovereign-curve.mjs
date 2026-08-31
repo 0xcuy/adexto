@@ -130,7 +130,12 @@ const tx = await factory.deployTrinity(
   30,
   10,
   5,
-  ethers.ZeroHash
+  ethers.ZeroHash,
+  // No ERC-8004 binding: this harness covers curve economics, and the agent path
+  // has its own suite in scripts/test-erc8004-binding.mjs. `false` with id 0 is the
+  // plain one-transaction launch.
+  false,
+  0
 );
 const rc = await tx.wait();
 const gasSpent = await txCost(rc);
@@ -322,7 +327,7 @@ await expectRevert("deadline lampau ditolak", () =>
 );
 await expectRevert("init ulang ditolak", () => curve.initializeCurve.staticCall(1n));
 await expectRevert("symbol duplikat ditolak", () =>
-  factory.deployTrinity.staticCall("Dup", SYMBOL, SUPPLY, wallet.address, VIRTUAL, 30, 10, 5, ethers.ZeroHash)
+  factory.deployTrinity.staticCall("Dup", SYMBOL, SUPPLY, wallet.address, VIRTUAL, 30, 10, 5, ethers.ZeroHash, false, 0)
 );
 
 // ── Ringkasan ───────────────────────────────────────────────────────────────

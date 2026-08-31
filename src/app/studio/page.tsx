@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
-import { CURVE_FACTORY_ABI, describeTxError, ensureWalletChain } from "@/lib/dex";
+import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
@@ -144,6 +144,28 @@ export default function StudioPage() {
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
   const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
   const [selectedModel, setSelectedModel] = useState("glm-5.2");
+
+  /**
+   * ERC-8004 agent identity to bind at launch.
+   *
+   * Off by default, and that is the whole reason the launch keeps its
+   * one-transaction, gas-only shape: binding an identity requires the creator to
+   * have registered an agent in the Identity Registry first, which is a separate
+   * transaction against a contract that is not ours.
+   *
+   * `agentId` is kept as a string because it is typed, and because "" and "0" are
+   * different things here — agent 0 is a real agent somebody owns on every chain we
+   * launch on, so an empty field must not collapse into id 0.
+   */
+  const [agentBinding, setAgentBinding] = useState<{ enabled: boolean; agentId: string }>({
+    enabled: false,
+    agentId: "",
+  });
+  /** Result of checking, on-chain, that the connected wallet owns that agent. */
+  const [agentCheck, setAgentCheck] = useState<{
+    state: "idle" | "checking" | "owned" | "not-owned" | "missing" | "error";
+    detail?: string;
+  }>({ state: "idle" });
 
   const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
   const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
@@ -291,6 +313,45 @@ export default function StudioPage() {
     }, 450);
     return () => clearTimeout(handle);
   }, [tokenTicker, targetChainIds, address]);
+
+  /**
+   * Check agent ownership on-chain while the field is being typed.
+   *
+   * The factory rejects an unowned agent anyway, so this is convenience rather than
+   * security — but a rejected launch costs a signature and a failed transaction per
+   * chain, and finding out in the form is free. Debounced for the same reason the
+   * ticker check is.
+   */
+  useEffect(() => {
+    if (!agentBinding.enabled) {
+      setAgentCheck({ state: "idle" });
+      return;
+    }
+    const raw = agentBinding.agentId.trim();
+    if (!/^\d+$/.test(raw)) {
+      setAgentCheck({ state: "idle" });
+      return;
+    }
+    if (!address) {
+      setAgentCheck({ state: "error", detail: "Connect a wallet to check ownership." });
+      return;
+    }
+    setAgentCheck({ state: "checking" });
+    const handle = setTimeout(async () => {
+      const result = await checkAgentOwnership(primaryChain.rpcUrl, BigInt(raw), address);
+      if (result.state === "owned") {
+        setAgentCheck({ state: "owned", detail: result.uri ? `agentURI ${result.uri.slice(0, 42)}…` : "no agentURI set yet" });
+      } else if (result.state === "not-owned") {
+        setAgentCheck({ state: "not-owned", detail: `owned by ${result.owner.slice(0, 10)}…` });
+      } else if (result.state === "missing") {
+        setAgentCheck({ state: "missing", detail: `no ERC-8004 registry on ${primaryChain.key}` });
+      } else {
+        setAgentCheck({ state: "error", detail: result.detail });
+      }
+    }, 500);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentBinding.enabled, agentBinding.agentId, address, primaryChain.chainId]);
 
   const toggleChain = (chainId: number) => {
     setTargetChainIds((prev) => {
@@ -455,6 +516,10 @@ export default function StudioPage() {
           treasuryCut,
           model: selectedModel,
           persona: agentPersona,
+          // Sent so the anchored metadata records the ERC-8004 binding for THIS
+          // launch. The server only describes it; the factory is what verifies it.
+          bindAgent: agentBinding.enabled,
+          agentId: agentBinding.enabled ? agentBinding.agentId : null,
           deployer: address,
           targetChains: chains.map((c) => c.chainId),
           attestationSignature: attestation.signature,
@@ -504,6 +569,16 @@ export default function StudioPage() {
         BigInt(Math.round(creatorCut * 100)),
         BigInt(treasuryBuybackBps),
         attestationRoot,
+        // ERC-8004 binding. Off unless the creator supplied an agent id they own,
+        // which keeps the default launch at one transaction and gas only.
+        //
+        // The flag is separate from the id on purpose: agent 0 exists and is owned
+        // on every chain we launch on, so `agentId == 0` cannot mean "no agent".
+        // The factory rejects a non-zero id when the flag is false rather than
+        // ignoring it, so a half-filled form fails loudly instead of quietly
+        // producing a token whose agent the creator believes is attached.
+        agentBinding.enabled,
+        agentBinding.enabled ? BigInt(agentBinding.agentId) : 0n,
       ] as const;
 
     const ethereum = getActiveEip1193();
@@ -695,10 +770,17 @@ export default function StudioPage() {
   // menyala, proof-nya juga wajib — dan server menolak launch tanpa itu, jadi
   // mengunci tombol di sini hanya supaya kegagalannya tidak mengejutkan.
   const worldIdSatisfied = !worldIdGate?.enabled || Boolean(worldIdToken);
+  /**
+   * When agent binding is switched on, the id has to be one the wallet actually
+   * owns. The factory enforces it, so this only decides whether the button lets the
+   * user pay for a transaction that is already known to revert.
+   */
+  const agentBindingSatisfied = !agentBinding.enabled || agentCheck.state === "owned";
   const canDeploy =
     isConnected &&
     Boolean(attestation) &&
     worldIdSatisfied &&
+    agentBindingSatisfied &&
     supplyNumber > 0 &&
     liveChains.length > 0 &&
     launchTargets.length > 0;
@@ -1075,6 +1157,72 @@ export default function StudioPage() {
                     className={FIELD_CLASS}
                   />
                 </Field>
+
+                {/* ERC-8004 identity, optional and off by default.
+                    Kept optional deliberately: registering an agent is a separate
+                    transaction against a registry that is not ours, so requiring it
+                    would turn every launch into two transactions — including for
+                    creators who do not want an on-chain agent identity at all. */}
+                <div className="rounded-xl border border-line bg-white p-3 space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agentBinding.enabled}
+                      onChange={(e) => setAgentBinding((p) => ({ ...p, enabled: e.target.checked }))}
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[color:var(--accent)]"
+                    />
+                    <span className="text-[11px] leading-relaxed text-ink-soft">
+                      <strong className="text-ink">Bind an ERC-8004 agent identity.</strong> Links this token to an agent
+                      you already registered in the Identity Registry, so anything outside ADEXTO can discover it. Leave
+                      this off and the launch stays a single transaction.
+                    </span>
+                  </label>
+
+                  {agentBinding.enabled && (
+                    <div className="space-y-1.5 pl-5">
+                      <Field
+                        label="Agent id"
+                        hint={
+                          agentCheck.state === "checking"
+                            ? "checking…"
+                            : agentCheck.state === "owned"
+                            ? `you own this agent · ${agentCheck.detail ?? ""}`
+                            : agentCheck.state === "not-owned"
+                            ? `not yours · ${agentCheck.detail ?? ""}`
+                            : agentCheck.state === "missing"
+                            ? agentCheck.detail
+                            : agentCheck.state === "error"
+                            ? agentCheck.detail
+                            : undefined
+                        }
+                        hintTone={
+                          agentCheck.state === "owned"
+                            ? "ok"
+                            : agentCheck.state === "not-owned" || agentCheck.state === "missing"
+                            ? "error"
+                            : "muted"
+                        }
+                      >
+                        <input
+                          value={agentBinding.agentId}
+                          onChange={(e) =>
+                            setAgentBinding((p) => ({ ...p, agentId: e.target.value.replace(/[^0-9]/g, "") }))
+                          }
+                          placeholder="e.g. 41"
+                          className={`${FIELD_CLASS} font-mono`}
+                        />
+                      </Field>
+                      <p className="text-[10px] leading-relaxed text-ink-faint">
+                        {/* Stated because the number 0 is a live agent here, and a
+                            blank field must not be read as agent 0. */}
+                        Register one first with{" "}
+                        <code className="font-mono text-accent">npx tsx scripts/register-agent-8004.mjs --chain 0g</code>.
+                        The registries exist on mainnet only. Agent id 0 is a real agent, so leaving this blank is not the
+                        same as entering 0.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
                   {/* Pil ini dulu berbunyi "AMD SEV-SNP enclave" sebagai fakta.
                       Router 0G berkata Intel TDX lewat dstack, dan tier untuk model
@@ -1277,6 +1425,11 @@ export default function StudioPage() {
                 ) : launchTargets.length === 0 ? (
                   <>
                     <XCircle className="w-3.5 h-3.5" /> Choose an available ticker
+                  </>
+                ) : !agentBindingSatisfied ? (
+                  <>
+                    <Fingerprint className="w-3.5 h-3.5" />{" "}
+                    {agentCheck.state === "checking" ? "Checking agent ownership…" : "Enter an agent id you own"}
                   </>
                 ) : (
                   <>

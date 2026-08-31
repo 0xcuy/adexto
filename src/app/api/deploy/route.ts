@@ -212,9 +212,12 @@ async function handlePrepare(body: any) {
 
   // Metadata ini di-anchor permanen ke 0G DA dan di-hash jadi metadataRoot. Tiga
   // klaim lama di sini adalah versi tertanam dari yang sudah dibersihkan di UI:
-  //   version "2.5.0"  -> produk belum pernah publish; sekarang 0.9.0.
-  //   standard "ERC-8004" -> AdextoToken hanya menyimpan satu address immutable
-  //     agentIdentity, tidak ada registry identitas/reputasi/validasi ERC-8004.
+  //   version "2.5.0"  -> produk belum pernah publish; sekarang ikut VERSION factory.
+  //   standard "ERC-8004" -> dulu SALAH: AdextoToken hanya menyimpan satu address
+  //     immutable agentIdentity. Sejak factory 0.10.0 token BISA terikat ke agentId
+  //     ERC-8004 sungguhan, tapi hanya kalau creator memilihnya — jadi `standard`
+  //     tetap "ERC-20" (itu yang token ini), dan pengikatan agent dilaporkan
+  //     terpisah di bawah, per-launch, bukan sebagai sifat tetap protokol.
   //   teeEnclave "AMD SEV-SNP Hardware Attested" -> FALSE, dan ini persis klaim
   //     yang dicabut dari landing/docs. Router 0G menyatakan Intel TDX lewat
   //     dstack; kami MEMBACA deklarasi itu, tidak memverifikasi raw quote-nya,
@@ -222,7 +225,7 @@ async function handlePrepare(body: any) {
   //     launch meninggalkan jejak attestation palsu yang permanen.
   const metadata = {
     protocol: "ADEXTO Protocol (adexto.xyz)",
-    version: "0.9.0",
+    version: "0.10.0",
     ecosystem: {
       token: { name, symbol, supply, standard: "ERC-20", curve: "Bonding curve over a virtual reserve" },
       dex: {
@@ -237,6 +240,23 @@ async function handlePrepare(body: any) {
         // Deklarasi router, bukan bukti kami. Lihat /docs dan /api/tee.
         teeAttestation: "0G router reports Intel TDX via dstack; raw quote not verified by ADEXTO",
         persona: String(body.persona || "Autonomous AI agent"),
+        /**
+         * ERC-8004 binding, as requested for THIS launch.
+         *
+         * Recorded per launch rather than as a protocol-wide claim because it is
+         * optional: most launches will not bind an agent, and a metadata field
+         * asserting ERC-8004 on every one of them would be the same overreach the
+         * old `standard: "ERC-8004"` was. The factory verifies ownership on-chain,
+         * so a launch that says `bound: true` had its ownership checked.
+         */
+        erc8004: body.bindAgent
+          ? {
+              bound: true,
+              agentId: String(body.agentId ?? ""),
+              identityRegistry: ADEXTO_CONTRACTS.agentRegistry,
+              note: "Ownership verified on-chain by AdextoCurveFactory at launch.",
+            }
+          : { bound: false, note: "No ERC-8004 agent identity was supplied for this launch." },
       },
     },
     targetChainIds: chains.map((c) => c.chainId),
@@ -245,10 +265,21 @@ async function handlePrepare(body: any) {
   };
 
   const storage = await uploadMetadataTo0G(metadata, `adexto_${symbol.toLowerCase()}_meta.json`);
+  /**
+   * `metadataRoot` is either the 0G DA storage root, or — when anchoring failed — a
+   * keccak commitment to the metadata bytes THEMSELVES.
+   *
+   * The fallback used to be `keccak256("ADEXTO_" + symbol + "_" + Date.now())`, which
+   * committed to nothing: it could not be recomputed from the metadata, so it was an
+   * unverifiable number occupying a field that claims to identify content. Hashing the
+   * actual JSON means anyone can re-derive it from the metadata and check.
+   *
+   * `daStorageOk` below reports which of the two this is, so no caller has to guess.
+   */
   const storageRoot =
     storage.root && /^0x[a-fA-F0-9]{64}$/.test(storage.root)
       ? storage.root
-      : keccak256(toHex(`ADEXTO_${symbol}_${Date.now()}`));
+      : keccak256(toHex(JSON.stringify(metadata)));
 
   return NextResponse.json({
     success: true,

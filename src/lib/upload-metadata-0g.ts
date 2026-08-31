@@ -19,14 +19,19 @@ const OG_RPC_URL = process.env.OG_RPC_URL || "https://evmrpc.0g.ai";
 const PRIVATE_KEY = process.env.OG_PRIVATE_KEY || process.env.PRIVATE_KEY;
 
 export async function uploadMetadataTo0G(data: unknown, filename = "adexto_metadata.json"): Promise<StorageResult> {
+  /**
+   * FAILS CLOSED. This used to return `ok: true` with `root` set to a keccak hash of
+   * the payload and `tx` set to a keccak hash of that hash, logged as a "simulated
+   * verifiable storage root". Nothing had been stored and no transaction existed, so
+   * a missing key silently produced a fabricated anchor — which the caller then put
+   * into launch calldata as `metadataRoot` and the UI reported as anchored.
+   *
+   * A hash of the content is a legitimate commitment, but it is not a storage root
+   * and inventing a `tx` for it is not defensible. The caller now decides what to do
+   * with a failure, and it can still commit to the content by hashing it itself.
+   */
   if (!PRIVATE_KEY) {
-    console.warn("⚠️ OG_PRIVATE_KEY missing in .env.local; returning simulated verifiable storage root.");
-    const dummyHash = ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(data)));
-    return {
-      ok: true,
-      root: dummyHash,
-      tx: ethers.keccak256(ethers.toUtf8Bytes(`${dummyHash}_TX`)),
-    };
+    return { ok: false, error: "OG_PRIVATE_KEY is not configured, so nothing was uploaded to 0G DA." };
   }
 
   const directory = await mkdtemp(join(tmpdir(), "adexto-og-"));

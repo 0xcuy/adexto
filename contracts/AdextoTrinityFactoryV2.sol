@@ -122,7 +122,12 @@ contract AdextoTrinityFactoryV2 {
             initialSupply,
             agentIdentity,
             pool,
-            100 // 1% max tx anti-sniper window
+            100, // 1% max tx anti-sniper window
+            // No ERC-8004 identity, same reason as the v1 factory: this generation
+            // is already deployed and its bytecode is fixed.
+            false,
+            0,
+            address(0)
         );
         token = address(newToken);
 

@@ -8,7 +8,8 @@
 > Launch an agent-bound ERC-20 on its own bonding curve with no liquidity deposit — gas only — on 0G, Base, Arbitrum or Monad.
 
 [![Website](https://img.shields.io/badge/Website-adexto.xyz-7C3AED?style=for-the-badge&logo=google-chrome&logoColor=white)](https://adexto.xyz)
-[![Version](https://img.shields.io/badge/Contracts-v0.9.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
+[![Version](https://img.shields.io/badge/Contracts-v0.10.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
+[![ERC-8004](https://img.shields.io/badge/ERC--8004-identity_only_·_draft-F59E0B?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
 [![Chains](https://img.shields.io/badge/Mainnets-0G_·_Base_·_Arbitrum_·_Monad-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#-mainnet-deployments)
 [![x402](https://img.shields.io/badge/x402_Edge-discovery_only-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
 
@@ -124,7 +125,9 @@ The point of this table is that nothing above it should be read as more finished
 
 | Component | State | What that means precisely |
 |---|---|---|
-| `AdextoCurveFactory` on 4 mainnets | **Live** | Broadcast and read back: `VERSION` `0.9.0`, `totalProjectsCount` 0, runtime bytecode matches a local compile. |
+| `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Broadcast and read back: `totalProjectsCount` 0, runtime bytecode matched a local compile. Superseded by `0.10.0`, which adds the ERC-8004 binding and changes the `deployTrinity` selector. |
+| `AdextoCurveFactory` `0.10.0` | **Not broadcast yet** | Tested on a local devchain: 24 assertions for the agent binding, plus the full curve-economics suite. |
+| ERC-8004 agent identity | **Optional, verified on-chain** | See [below](#erc-8004-agent-identity). Identity registry only; reputation and validation are not used. |
 | Launching through the site | **Not enabled** | `NEXT_PUBLIC_CURVE_FACTORY_*` is intentionally still unset, so the UI keeps launching disabled. |
 | Tokens launched | **Zero** | `totalProjectsCount()` returns 0 on every chain. The market index is empty and says so. |
 | Trading / swap | **No markets yet** | Follows from the line above: nothing has launched, so there is nothing to trade. |
@@ -141,7 +144,33 @@ The point of this table is that nothing above it should be read as more finished
 Two claims were carried in this README for a long time and neither was ever true. They are recorded here rather than quietly deleted.
 
 - **Uniswap v4 hooks.** There is no Uniswap integration. `AdextoCurveFactory`, `SovereignCurve` and `AdextoToken` contain zero references to Uniswap and the project has no Uniswap dependency. The superseded `SovereignHook` declares its *own* local `IPoolManager` interface and an `afterSwap` function, which is not the same thing as being a registered v4 hook — nothing calls it, and 0G and Monad have no Uniswap v4 deployment at all. The curve is its own AMM, which is why there is no migration step to trust.
-- **ERC-8004 compliance.** `AdextoToken` is `ERC20` and nothing more. It carries one `address immutable agentIdentity` and implements no `supportsInterface`, no `IERC165`, and none of the identity, reputation or validation registries the standard specifies. The agent binding is *ERC-8004 style* — an immutable address reference — and is described that way in the source.
+- **~~ERC-8004 compliance.~~** This was false and is now partly true; see [ERC-8004 agent identity](#erc-8004-agent-identity) below for exactly how far it goes. Until factory `0.10.0`, `AdextoToken` was `ERC20` and nothing more, carrying one `address immutable agentIdentity` and touching no registry — so the claim was unsupportable and the source called it "ERC-8004 style", an analogy. A launch can now bind a real agent id, verified on-chain. The reputation and validation registries are still not used.
+
+### ERC-8004 agent identity
+
+Optional, off by default, and real when switched on. A launch may bind the token to an agent registered in the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Identity Registry, and `AdextoCurveFactory` calls `ownerOf(agentId)` and refuses the launch unless the caller owns that agent — so a token cannot attach itself to somebody else's identity and inherit its reputation.
+
+| | |
+|---|---|
+| Identity Registry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` — same address on all four mainnets, verified answering `ownerOf` |
+| Registry on testnets | **absent**, so the agent path can only be exercised on mainnet or a local devchain |
+| Standard status | **Draft**. The registry proxy is upgradeable and controlled by a third party |
+| Reputation / Validation registries | **not used** |
+| Read on a token | `agentBound()`, then `agentId()` and `agentRegistry()` |
+
+Three things worth knowing before relying on it.
+
+**Binding is a separate step from launching.** ERC-8004 wants the registration file to contain its own `agentId`, and the id does not exist until `register()` returns — so a file pinned beforehand cannot contain it. The creator registers first and passes the id to the launch. Leaving the identity off keeps the launch at one transaction, which is why the gas-only property is unaffected.
+
+**`agentBound()` is the flag to read, not `agentId()`.** Agent id 0 is a real agent with a real owner on 0G, Base, Arbitrum One and Monad, so zero cannot mean "no agent". An earlier revision of this used `agentId == 0` as that sentinel; testing against the live registries caught it before it was frozen into immutable bytecode.
+
+**The registration file is `data:` until IPFS pinning is configured.** ERC-8004 permits a base64 `data:` URI for fully on-chain metadata, and that is the default here because an `ipfs://` CID that nobody pins is a dead link recorded permanently. Set `PINATA_JWT` to pin instead; the CID is recomputed locally and compared with what the service reports. This matters: an empirical study of ERC-8004 found most registrations are placeholders with no live endpoint ([arXiv 2606.26028](https://arxiv.org/html/2606.26028)), and reading agent #40 on our own four chains shows an empty string on 0G, un-encoded raw JSON on Monad, and an HTTPS URL whose embedded id does not match the token on Base.
+
+```bash
+npx tsx scripts/register-agent-8004.mjs --chain 0g              # dry run
+npx tsx scripts/register-agent-8004.mjs --chain 0g --broadcast  # registers, then sets the URI
+node scripts/test-erc8004-binding.mjs                           # 24 assertions, local devchain
+```
 
 ### The Graph
 

@@ -44,7 +44,13 @@ contract AdextoTrinityFactory {
             initialSupply,
             agentIdentity,
             address(this),
-            100 // 1% max tx anti-sniper
+            100, // 1% max tx anti-sniper
+            // No ERC-8004 identity. This superseded generation is already deployed
+            // and immutable; the zeros state what it always did rather than
+            // retrofitting a capability its live bytecode does not have.
+            false,
+            0,
+            address(0)
         );
 
         ProjectDeployment memory deployment = ProjectDeployment({

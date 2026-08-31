@@ -89,6 +89,14 @@ export const ADEXTO_CONTRACTS = {
   },
 
   // Shared infrastructure
+  /**
+   * ERC-8004 Identity Registry. A per-chain singleton at the same deterministic
+   * address, which was checked rather than assumed: present and answering `ownerOf`
+   * on 0G (16661), Base (8453), Arbitrum One (42161) and Monad (143) mainnet, and
+   * absent on all four of our testnets. Mirrors
+   * `AdextoCurveFactory.AGENT_REGISTRY`, which is the authority.
+   */
+  agentRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
   deployer: "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
   daStorageIndexer: "https://indexer-storage-turbo.0g.ai",
   computeRouter: "https://router-api.0g.ai/v1",

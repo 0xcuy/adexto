@@ -38,6 +38,24 @@ for (const file of fs.readdirSync(CONTRACTS_DIR).filter((f) => f.endsWith(".sol"
   sources[`contracts/${file}`] = { content: fs.readFileSync(path.join(CONTRACTS_DIR, file), "utf8") };
 }
 
+/**
+ * contracts/test/ holds fixtures, and it is compiled because one of them has to
+ * exist as real bytecode: the ERC-8004 registry is deployed on mainnets only, and
+ * `AdextoCurveFactory.AGENT_REGISTRY` is a constant, so the agent-binding path is
+ * unreachable on every testnet. A local devchain gets the mock's runtime code
+ * injected at that constant address instead.
+ *
+ * Only this directory is walked, not the whole tree, so adding a fixture can never
+ * quietly change which production contracts get compiled. Nothing here is
+ * deployable by the deploy scripts either — those name their artifact explicitly.
+ */
+const TEST_DIR = path.join(CONTRACTS_DIR, "test");
+if (fs.existsSync(TEST_DIR)) {
+  for (const file of fs.readdirSync(TEST_DIR).filter((f) => f.endsWith(".sol"))) {
+    sources[`contracts/test/${file}`] = { content: fs.readFileSync(path.join(TEST_DIR, file), "utf8") };
+  }
+}
+
 const input = {
   language: "Solidity",
   sources,
