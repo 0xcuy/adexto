@@ -13,7 +13,7 @@ export default function Footer() {
               </div>
               <div>
                 <span className="font-semibold text-ink tracking-wide text-base block leading-tight">ADEXTO PROTOCOL</span>
-                <span className="text-[10px] font-mono text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
+                <span className="text-[10px] text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
               </div>
             </div>
             {/* Dulu kalimat ini mengulang nama panjangnya lalu menambahkan
@@ -32,7 +32,7 @@ export default function Footer() {
                   Jadi TEE-nya adalah klaim 0G, bukan klaim yang kami buktikan. */}
               <Link
                 href="/docs"
-                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cream-3 text-ink-soft border border-line hover:text-ink"
+                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-cream-3 text-ink-soft border border-line hover:text-ink"
                 title="0G router reports Intel TDX attestation via dstack. ADEXTO reads that declaration; it does not verify the raw quote."
               >
                 0G TeeML · TDX reported
@@ -40,7 +40,7 @@ export default function Footer() {
               {/* Amber di sini dulu terbaca sebagai peringatan. Cloudflare x402
                   adalah nama fitur, bukan keadaan, jadi warna peringatan
                   dikembalikan untuk keperluan aslinya. */}
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-accent-soft text-accent border border-accent/30">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-accent-soft text-accent border border-accent/30">
                 Cloudflare x402 Edge
               </span>
             </div>
@@ -120,7 +120,7 @@ export default function Footer() {
             href="https://x.com/adexto_"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-mono font-semibold"
+            className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-semibold"
           >
             <Twitter className="w-4 h-4" />
             <span>@adexto_</span>
@@ -129,7 +129,7 @@ export default function Footer() {
             href="https://github.com/0xcuy/adexto"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-mono font-semibold"
+            className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-semibold"
           >
             <Github className="w-4 h-4" />
             <span>GitHub</span>

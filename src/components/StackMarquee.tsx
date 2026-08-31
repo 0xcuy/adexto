@@ -69,7 +69,7 @@ function Chip({ entry }: { entry: StackEntry }) {
           dan mewarnai kelimanya membuat barisan ini terbaca seperti dinding
           peringatan alih-alih daftar status. */}
       {!entry.live && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />}
-      <span className="whitespace-nowrap font-mono text-[11px] tracking-wide text-ink-faint">{entry.role}</span>
+      <span className="whitespace-nowrap text-[11px] tracking-wide text-ink-faint">{entry.role}</span>
     </span>
   );
 }

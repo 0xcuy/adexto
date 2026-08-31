@@ -70,17 +70,17 @@ export default function HomePage() {
         {/* Fakta, tanpa kotak. Garis hairline sudah cukup untuk memisahkan. */}
         <dl className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 border-t border-line pt-8 text-left">
           <div>
-            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Cost to launch</dt>
+            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Cost to launch</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink">Gas only</dd>
             <dd className="text-[11px] text-ink-soft mt-0.5">no liquidity deposit</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Creator take</dt>
+            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Creator take</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink" data-numeric>0.10%</dd>
             <dd className="text-[11px] text-ink-soft mt-0.5">of every swap, forever</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Creator allocation</dt>
+            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Creator allocation</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink" data-numeric>Zero</dd>
             <dd className="text-[11px] text-ink-soft mt-0.5">nothing to unlock or dump</dd>
           </div>
@@ -91,7 +91,7 @@ export default function HomePage() {
                 peluncuran belum di-broadcast, jadi cakupannya dinyatakan
                 terang-terangan. Klaim yang bisa dibantah dengan satu panggilan
                 RPC lebih merugikan daripada klaim kecil yang tepat. */}
-            <dt className="text-[11px] font-mono uppercase tracking-wider text-ink-faint">Deployment</dt>
+            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Deployment</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink">Contracts verified</dd>
             <dd className="text-[11px] text-ink-soft mt-0.5">launch factory pending broadcast</dd>
           </div>
@@ -134,7 +134,7 @@ export default function HomePage() {
 
                 Kata "Ponzi" juga dibuang. Itu tuduhan hukum, bukan pengamatan
                 desain, dan tidak menambah satu pun argumen teknis. */}
-            <div className="flex items-center gap-2 text-danger font-bold text-sm font-mono">
+            <div className="flex items-center gap-2 text-danger font-bold text-sm">
               <AlertCircle className="w-4 h-4" /> WHERE INCENTIVES BREAK
             </div>
             <ul className="space-y-3 text-xs sm:text-sm text-ink-soft font-sans">
@@ -176,7 +176,7 @@ export default function HomePage() {
                 penyimpanan 0G DA, dinamai seolah attestation.
                 Penggantinya adalah tiga hal yang bisa diperiksa dengan membuka
                 kontraknya. */}
-            <div className="flex items-center gap-2 text-ok font-bold text-sm font-mono">
+            <div className="flex items-center gap-2 text-ok font-bold text-sm">
               <CheckCircle2 className="w-4 h-4" /> WHAT THE CONTRACT ENFORCES
             </div>
             <ul className="space-y-3 text-xs sm:text-sm text-ink font-sans">
@@ -223,7 +223,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Pillar 1: A */}
           <div className="glass-panel p-6 rounded-2xl border border-accent/30 flex flex-col justify-between relative overflow-hidden group hover:border-accent/30 transition-all shadow-xl">
             <div className="absolute top-0 right-0 w-28 h-28 bg-accent-soft rounded-full blur-2xl pointer-events-none group-hover:bg-accent-soft transition-all" />
@@ -395,7 +395,7 @@ export default function HomePage() {
                 edge, so a caller learns the terms without touching an RPC node.
               </p>
 
-              <div className="space-y-3.5 text-xs sm:text-sm font-mono">
+              <div className="space-y-3.5 text-xs sm:text-sm">
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
@@ -426,7 +426,7 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4 mb-4">
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-accent" />
-            <span className="text-xs font-mono font-bold text-ink">ON-CHAIN &amp; EDGE CODE</span>
+            <span className="text-xs font-semibold text-ink tracking-wider">ON-CHAIN &amp; EDGE CODE</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button 
