@@ -7,12 +7,14 @@ import {
   Compass, ArrowDownUp, CloudLightning,
   Award, ShieldCheck, Sparkles, Vote, Menu, X, Twitter, Github
 } from "lucide-react";
-import { useWallet } from "@/context/WalletContext";
 import WalletMenu from "@/components/WalletMenu";
+import ChainSwitcher from "@/components/ChainSwitcher";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { isConnected, chainName } = useWallet();
+  // `useWallet` is no longer read here: the chain indicator became ChainSwitcher,
+  // which owns that state itself, so the navbar no longer re-renders on every
+  // wallet event just to print one word.
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   /**
@@ -89,15 +91,18 @@ export default function Navbar() {
             </a>
           </div>
 
-          {/* Wallet: sambung, ganti wallet, ganti akun, putuskan */}
+          {/* Network + wallet.
+              The network used to be an unclickable label — a pulsing green dot and
+              a truncated chain name jammed against the wallet button. On a site
+              where every chain is an independent market, the network decides which
+              token a buy would actually hit, so it has to be changeable from here.
+              It is also rendered whether or not a wallet is connected: the
+              selection still drives prices, explorer links and which market /swap
+              opens on. */}
           <div className="flex items-center gap-2">
-            {isConnected && (
-              <span className="hidden sm:flex flex-col text-right font-mono text-[10px]">
-                <span className="text-ok font-bold flex items-center gap-1 justify-end">
-                  <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" /> {chainName.split(" ")[0]}
-                </span>
-              </span>
-            )}
+            <div className="hidden sm:block">
+              <ChainSwitcher />
+            </div>
             <WalletMenu />
           </div>
 
@@ -126,6 +131,15 @@ export default function Navbar() {
       {/* Mobile Drawer Menu Dropdown */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-cream-2 border-b border-line px-4 py-4 space-y-2 shadow-lg">
+          {/* The switcher belongs here too. It is hidden in the top bar below the
+              `sm` breakpoint for room, and leaving it out of the drawer would mean a
+              phone user could not change network at all — on a site where the
+              network decides which token a buy hits. */}
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-line">
+            <span className="text-[11px] font-semibold text-ink-soft">Network</span>
+            <ChainSwitcher />
+          </div>
+
           <div className="grid grid-cols-2 gap-2 pb-2 border-b border-line">
             <Link
               href="/studio"
