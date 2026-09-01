@@ -38,6 +38,7 @@ dataSources:
         - Project
         - Curve
         - GlobalStats
+        - AgentBinding
       abis:
         - name: AdextoCurveFactory
           file: ./abis/AdextoCurveFactory.json
@@ -47,6 +48,8 @@ dataSources:
         - event: TrinityProjectDeployed(indexed address,indexed address,indexed
             address,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)
           handler: handleTrinityProjectDeployed
+        - event: AgentBound(indexed address,indexed uint256,indexed address,address)
+          handler: handleAgentBound
 templates:
   - kind: ethereum
     name: SovereignCurve

@@ -33,6 +33,32 @@
 # mengklaim attestation yang tidak pernah diverifikasi siapa pun.
 
 """
+Pengikatan ERC-8004 yang tercatat oleh event `AgentBound`.
+
+KENAPA ENTITY INI ADA, BUKAN LANGSUNG DITULIS KE `Project`
+
+Factory memancarkan `AgentBound` SEBELUM `TrinityProjectDeployed` (baris 330 vs
+334 di AdextoCurveFactory.sol), jadi saat handler-nya berjalan entity `Project`
+belum ada. Menulis Project setengah jadi di sana akan melanggar field non-null
+miliknya. Jadi pengikatannya disimpan di sini lebih dulu, lalu digabungkan oleh
+`handleTrinityProjectDeployed` yang berjalan setelahnya di transaksi yang sama.
+
+Entity ini juga tetap berguna sendiri: ia bisa dikueri untuk mencari semua token
+yang terikat ke satu agent.
+"""
+type AgentBinding @entity(immutable: true) {
+  "Alamat token, huruf kecil — sama dengan Project.id."
+  id: ID!
+  token: Bytes!
+  agentId: BigInt!
+  agentRegistry: Bytes!
+  "Pemilik agent saat peluncuran, sebagaimana diverifikasi factory lewat `ownerOf`."
+  ownerAtLaunch: Bytes!
+  boundAtBlock: BigInt!
+  boundAtTx: Bytes!
+}
+
+"""
 Satu peluncuran.
 
 TIDAK ADA `chainId` DI SINI, DAN ITU DISENGAJA. `ethereum.Event` tidak
@@ -57,6 +83,27 @@ type Project @entity(immutable: false) {
   curveTokens: BigInt!
   "Root penyimpanan 0G DA dari metadata launch. Bukan attestation hardware."
   metadataRoot: Bytes!
+
+  """
+  Apakah peluncuran ini mengikat identitas agent ERC-8004.
+
+  BACA FIELD INI DULU, JANGAN `agentId`. Agent id 0 adalah agent nyata yang
+  dimiliki seseorang di keempat mainnet, jadi `agentId == 0` TIDAK bisa berarti
+  "tanpa agent" — kontraknya pernah salah di titik ini dan diperbaiki sebelum
+  di-broadcast.
+  """
+  agentBound: Boolean!
+  "Agent id ERC-8004. Hanya berarti bila `agentBound` true."
+  agentId: BigInt
+  "Identity Registry tempat `agentId` hidup. Null bila tidak terikat."
+  agentRegistry: Bytes
+  """
+  Pemilik agent PADA SAAT peluncuran, sebagaimana diverifikasi factory lewat
+  `ownerOf`. Kepemilikan agent bisa berpindah setelahnya — yang tidak bisa
+  berpindah adalah pengikatannya ke token ini.
+  """
+  agentOwnerAtLaunch: Bytes
+
   createdAtBlock: BigInt!
   createdAtTimestamp: BigInt!
   createdAtTx: Bytes!

@@ -1,7 +1,39 @@
-import { TrinityProjectDeployed } from "../generated/AdextoCurveFactory/AdextoCurveFactory";
+import {
+  AgentBound,
+  TrinityProjectDeployed,
+} from "../generated/AdextoCurveFactory/AdextoCurveFactory";
 import { SovereignCurve as SovereignCurveTemplate } from "../generated/templates";
-import { Curve, Project } from "../generated/schema";
+import { AgentBinding, Curve, Project } from "../generated/schema";
 import { ONE, ZERO, floorPrice, globalStats, priceFrom, WAD } from "./shared";
+
+/**
+ * Pengikatan identitas agent ERC-8004.
+ *
+ * URUTANNYA BERLAWANAN DENGAN DUGAAN, DAN ITU MENENTUKAN BENTUK HANDLER INI
+ *
+ * `AgentBound` dipancarkan factory SEBELUM `TrinityProjectDeployed` — baris 330
+ * dan 334 di AdextoCurveFactory.sol. Jadi ketika handler ini berjalan, entity
+ * `Project` untuk token itu BELUM ADA. Membuatnya di sini secara sebagian akan
+ * melanggar field non-null miliknya (name, symbol, curve, dan seterusnya), dan
+ * kegagalan seperti itu menghentikan seluruh indexer.
+ *
+ * Karena itu pengikatannya ditulis ke entity sendiri, dan
+ * `handleTrinityProjectDeployed` yang menggabungkannya beberapa log kemudian di
+ * transaksi yang sama. Ini kembaran dari jebakan `CurveInitialized` yang
+ * dijelaskan di bawah — dua kali sudah, jadi urutan event di factory ini memang
+ * layak dicurigai, bukan diasumsikan.
+ */
+export function handleAgentBound(event: AgentBound): void {
+  const id = event.params.token.toHexString();
+  const binding = new AgentBinding(id);
+  binding.token = event.params.token;
+  binding.agentId = event.params.agentId;
+  binding.agentRegistry = event.params.agentRegistry;
+  binding.ownerAtLaunch = event.params.owner;
+  binding.boundAtBlock = event.block.number;
+  binding.boundAtTx = event.transaction.hash;
+  binding.save();
+}
 
 /**
  * Satu peluncuran: token + kurva, dari satu transaksi.
@@ -84,6 +116,30 @@ export function handleTrinityProjectDeployed(event: TrinityProjectDeployed): voi
   project.createdAtBlock = event.block.number;
   project.createdAtTimestamp = event.block.timestamp;
   project.createdAtTx = event.transaction.hash;
+
+  /**
+   * Gabungkan pengikatan ERC-8004, bila peluncuran ini punya.
+   *
+   * `handleAgentBound` sudah berjalan lebih dulu di transaksi yang SAMA — factory
+   * memancarkan `AgentBound` sebelum `TrinityProjectDeployed` — jadi entity-nya
+   * sudah ada bila memang ada. Tidak adanya entity berarti peluncuran ini tanpa
+   * identitas agent, yang merupakan keadaan default.
+   *
+   * `agentBound` disimpan eksplisit, bukan diturunkan dari `agentId != 0`. Agent
+   * id 0 adalah agent nyata yang dimiliki seseorang di keempat mainnet, dan
+   * kontraknya pernah salah tepat di titik ini sebelum diperbaiki — jadi bentuk
+   * datanya di sini tidak boleh mengulang kesalahan yang sama.
+   */
+  const binding = AgentBinding.load(tokenId);
+  if (binding == null) {
+    project.agentBound = false;
+  } else {
+    project.agentBound = true;
+    project.agentId = binding.agentId;
+    project.agentRegistry = binding.agentRegistry;
+    project.agentOwnerAtLaunch = binding.ownerAtLaunch;
+  }
+
   project.save();
 
   // ── Mulai indeks kurva ini ───────────────────────────────────────────────

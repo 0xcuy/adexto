@@ -1,8 +1,8 @@
 {
   "0g": {
     "AdextoCurveFactory": {
-      "address": "0x090a586Abfaad1eee258Fc15e8E4584B5c3B67d5",
-      "startBlock": 43164332
+      "address": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "startBlock": 43173642
     }
   },
   "0g-testnet": {
@@ -13,8 +13,8 @@
   },
   "monad": {
     "AdextoCurveFactory": {
-      "address": "0x05EFA7F066FcbefbE650EDd58583C107831A600B",
-      "startBlock": 100842422
+      "address": "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+      "startBlock": 100872196
     }
   },
   "monad-testnet": {
@@ -25,8 +25,8 @@
   },
   "base": {
     "AdextoCurveFactory": {
-      "address": "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
-      "startBlock": 50708028
+      "address": "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
+      "startBlock": 50712524
     }
   },
   "base-sepolia": {
@@ -37,8 +37,8 @@
   },
   "arbitrum-one": {
     "AdextoCurveFactory": {
-      "address": "0x795D11BEAc025771e9e96Bb4489068b1eDC4b47a",
-      "startBlock": 500393825
+      "address": "0x8F3948902c48489fc9E7287590E7eb8A8E915A64",
+      "startBlock": 500429767
     }
   },
   "arbitrum-sepolia": {
@@ -49,8 +49,8 @@
   },
   "devchain": {
     "AdextoCurveFactory": {
-      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-      "startBlock": 1
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "startBlock": 7
     }
   }
 }
