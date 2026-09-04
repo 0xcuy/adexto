@@ -367,6 +367,59 @@ console.log("\n── penyangkalan usang vs keadaan env sebenarnya ──");
   if (hits === 0) ok("tidak ada penyangkalan usang di markdown maupun teks yang dirender");
 }
 
+// ── 7. klaim ketersediaan Uniswap harus mengikuti chain ────────────────────
+console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain ──");
+{
+  /**
+   * README pernah menyatakan "0G dan Monad tidak punya deployment Uniswap v4 sama
+   * sekali" sebagai fakta. Itu benar saat ditulis dan berhenti benar ketika Monad
+   * mendapat Uniswap — dan tidak ada yang memberitahu, karena klaim itu tidak
+   * pernah dibandingkan dengan apa pun.
+   *
+   * Alamat di bawah berasal dari feed deployment resmi Uniswap dan sudah
+   * diverifikasi 24.009 byte masing-masing. Kalau Uniswap memindahkannya, getCode
+   * akan mengembalikan 0 dan pemeriksaan ini berbunyi PERINGATAN, bukan lolos
+   * diam-diam.
+   */
+  const V4_POOL_MANAGER = {
+    8453: "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+    42161: "0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32",
+    143: "0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e",
+    // 0G sengaja tidak ada: tidak satu pun record Uniswap untuk chain ini.
+  };
+
+  const live = [];
+  for (const [id, addr] of Object.entries(V4_POOL_MANAGER)) {
+    try {
+      const code = await providerFor(Number(id)).getCode(addr);
+      const bytes = (code.length - 2) / 2;
+      if (bytes > 0) live.push(CHAINS[id].key);
+      else soft(`v4 PoolManager ${CHAINS[id].key} kini 0 byte`, `${addr} — alamat mungkin berpindah, perbarui daftar`);
+    } catch (e) {
+      soft(`v4 PoolManager ${CHAINS[id].key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+    }
+  }
+  if (live.length) ok(`v4 PoolManager hidup di ${live.join(", ")}`);
+
+  // Untuk chain yang v4-nya HIDUP, dokumen tidak boleh mengatakan chain itu tidak punya.
+  let bogus = 0;
+  for (const path of sourceFiles().filter((p) => p.endsWith(".md"))) {
+    const text = visibleText(path);
+    for (const key of live) {
+      // Cocokkan hanya pernyataan yang MENYANGKAL, dan hanya di luar konteks koreksi.
+      const re = new RegExp(`${key}[^.]{0,80}(no|tidak ada)[^.]{0,40}Uniswap`, "i");
+      const m = text.match(re);
+      if (!m) continue;
+      // Kalimat yang secara eksplisit menandai dirinya koreksi tidak dihitung.
+      const around = text.slice(Math.max(0, m.index - 200), m.index + 200);
+      if (/no longer true|corrected here|used to add|sudah tidak benar|diralat/i.test(around)) continue;
+      bad(`${path} menyangkal Uniswap di ${key}`, `"${m[0].slice(0, 70)}" — v4 PoolManager ada di chain itu`);
+      bogus++;
+    }
+  }
+  if (bogus === 0) ok("tidak ada dokumen yang menyangkal Uniswap di chain yang sebenarnya punya");
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

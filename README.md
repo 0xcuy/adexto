@@ -153,7 +153,24 @@ The point of this table is that nothing above it should be read as more finished
 
 Two claims were carried in this README for a long time and neither was ever true. They are recorded here rather than quietly deleted.
 
-- **Uniswap v4 hooks.** There is no Uniswap integration. `AdextoCurveFactory`, `SovereignCurve` and `AdextoToken` contain zero references to Uniswap and the project has no Uniswap dependency. The superseded `SovereignHook` declares its *own* local `IPoolManager` interface and an `afterSwap` function, which is not the same thing as being a registered v4 hook — nothing calls it, and 0G and Monad have no Uniswap v4 deployment at all. The curve is its own AMM, which is why there is no migration step to trust.
+- **Uniswap v4 hooks.** There is no Uniswap integration. `AdextoCurveFactory`, `SovereignCurve` and `AdextoToken` contain zero references to Uniswap and the project has no Uniswap dependency. The superseded `SovereignHook` declares its *own* local `IPoolManager` interface and an `afterSwap` whose signature does not match the real one, so a genuine `PoolManager` would never call it — it does not inherit `BaseHook`, holds no `PoolManager` address, and its permission bits were never mined.
+
+  This entry used to add "0G and Monad have no Uniswap v4 deployment at all". **That is no longer true and is corrected here.** Read from Uniswap's official deployments feed and confirmed with `eth_getCode`, the v4 `PoolManager` is live on Monad at [`0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e`](https://monadvision.com/address/0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), on Base at `0x498581fF718922c3f8e6A244956aF099B2652b2b`, and on Arbitrum at `0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32` — 24,009 bytes on each. Only 0G is genuinely absent, with no record of any Uniswap protocol. So availability is no longer the reason.
+
+### Why the curve rather than a Uniswap pool
+
+The reason is the launch model, and it is checkable in the contracts rather than a matter of taste.
+
+| | this curve | a Uniswap pool |
+|---|---|---|
+| Capital to open a market | none — the native side starts entirely virtual, and `deployTrinity` is not `payable`, so it cannot accept a deposit | real liquidity must be deposited by someone |
+| Creator's token position | none — the whole supply is minted to the factory and loaded into the curve in the same transaction | the creator must hold tokens to pair with liquidity |
+| Can reserves be pulled out | no — there is no `withdraw`, `rescue`, `sweep`, `drain` or `emergency` function anywhere, no owner and no `onlyOwner`; native leaves only to a seller or to the creator's fee claim | yes, and correctly so: an LP may withdraw at any time |
+| Migration step | none — the curve is the permanent venue | the usual launchpad pattern graduates a curve into a pool, and that step is where much of the historical exploit surface lives |
+| Creator fee | 0.10% of every swap accrues on-chain inside the existing 0.30% | fees accrue to LPs; paying a creator needs a v4 hook, which does not exist on 0G |
+| Code paths across our four chains | one, byte-identical | Uniswap on three chains and something else on 0G |
+
+The third row is the substantive one. That a Uniswap LP can withdraw is not a flaw — it is what an AMM is for. But it means the venue can be removed from under holders, and "we won't" is a promise. Here the same guarantee comes from the absence of code that could do it.
 - **~~ERC-8004 compliance.~~** This was false and is now partly true; see [ERC-8004 agent identity](#erc-8004-agent-identity) below for exactly how far it goes. Until factory `0.10.0`, `AdextoToken` was `ERC20` and nothing more, carrying one `address immutable agentIdentity` and touching no registry — so the claim was unsupportable and the source called it "ERC-8004 style", an analogy. A launch can now bind a real agent id, verified on-chain. The reputation and validation registries are still not used.
 
 ### ERC-8004 agent identity
