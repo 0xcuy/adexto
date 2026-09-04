@@ -76,6 +76,27 @@ else
   echo "  copy: BERSIH"
 fi
 
+# Penjaga konsistensi: klaim statis vs fakta yang bisa dibaca.
+#
+# Pemeriksaan copy di atas melarang kosakata tetap. Yang TIDAK bisa ditangkapnya
+# adalah kelas bug yang paling sering terjadi di proyek ini: pernyataan yang dulu
+# benar lalu diam-diam berhenti benar ketika fakta yang dirujuknya berubah. README
+# menandai factory 0.9.0 sebagai "current" berbulan-bulan setelah 0.10.0 hidup;
+# /swap memberi tahu pengunjung factory belum di-broadcast setelah ia hidup di empat
+# mainnet. Keduanya lolos build, lolos tes, dan lolos pemeriksaan copy di atas.
+#
+# audit_consistency.mjs membandingkan teks dengan chain, .env.local dan kode. Uji
+# mandirinya menyuntikkan ulang enam regresi sejarah dan menangkap keenamnya.
+#
+# `|| fail=1` mengikuti pola yang sama seperti grep di atas: dengan `set -e`, exit
+# bukan-nol dari node akan mematikan skrip sebelum ringkasan tercetak.
+echo "==> penjaga konsistensi klaim"
+if BASE_URL="$PUBLIC_URL" node audit_consistency.mjs; then
+  :
+else
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "==> SELESAI DENGAN MASALAH — periksa keluaran di atas"
   exit 1
