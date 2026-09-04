@@ -183,7 +183,27 @@ export default function StudioPage() {
   const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
   const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
 
-  const [targetChainIds, setTargetChainIds] = useState<number[]>(liveChains.map((c) => c.chainId));
+  /**
+   * SATU chain per peluncuran, dipilih seperti radio.
+   *
+   * Dulu keempat chain menyala secara default dan tombolnya multi-select. Yang
+   * dihasilkan: creator yang tidak berpikir panjang meluncurkan ke empat chain
+   * sekaligus dan mendapat EMPAT pasar tipis, bukan satu yang layak. Karena tidak ada
+   * bridge, keempatnya adalah pasar terpisah dengan harga yang bergerak sendiri-
+   * sendiri — jadi likuiditas yang sudah kecil terbelah empat, dan angka harga yang
+   * berbeda-beda membuat pembacanya menyangka ada yang rusak.
+   *
+   * Tetap disimpan sebagai array, bukan number tunggal, karena seluruh jalur
+   * peluncuran di bawah bekerja per chain dalam loop dan melaporkan hasilnya per
+   * chain. Mengubahnya jadi skalar akan memaksa perubahan di banyak tempat tanpa
+   * menambah kejelasan; yang berubah hanya isinya selalu tepat satu.
+   *
+   * Meluncurkan ke chain lain tetap bisa — sebagai peluncuran TERPISAH, satu per satu,
+   * dengan keputusan sadar tiap kali.
+   */
+  const [targetChainIds, setTargetChainIds] = useState<number[]>(
+    liveChains.length > 0 ? [liveChains[0].chainId] : []
+  );
 
   // ── gating + results ─────────────────────────────────────────────────────
   const [ticker, setTicker] = useState<TickerState>({ checking: false, available: null, reason: null, perChain: [] });
@@ -384,12 +404,14 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentBinding.enabled, agentIdsKey, address, selectedChainsKey]);
 
-  const toggleChain = (chainId: number) => {
-    setTargetChainIds((prev) => {
-      const next = prev.includes(chainId) ? prev.filter((id) => id !== chainId) : [...prev, chainId];
-      return next.length === 0 ? prev : next;
-    });
-  };
+  /**
+   * Memilih chain, bukan menoggle-nya: yang dipilih menjadi satu-satunya.
+   *
+   * Sebelumnya fungsi ini menambah/mengurangi dari daftar, dengan penjaga agar tidak
+   * pernah kosong. Sekarang ia mengganti isi daftar, jadi keadaan "tidak ada chain
+   * terpilih" tidak mungkin terjadi dan penjaga itu tidak lagi diperlukan.
+   */
+  const selectChain = (chainId: number) => setTargetChainIds([chainId]);
 
   const applyPreset = (type: "quant" | "meme" | "defi") => {
     if (type === "meme") {
@@ -949,11 +971,20 @@ export default function StudioPage() {
                     1
                   </span>
                   <h2 className="text-sm font-semibold text-ink">
-                    Chains ({launchTargets.length}/{liveChains.length}) — one market per chain
+                    Chain — one per launch
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+                {/* Satu chain per peluncuran. Kalimat ini ada di depan supaya creator
+                    tidak perlu menemukannya sendiri setelah bertanya-tanya kenapa
+                    pilihannya berpindah, bukan bertambah. */}
+                <p className="text-[10px] leading-relaxed text-ink-soft">
+                  Picking a chain replaces the previous one. Each chain is a separate market with its own supply and
+                  its own price — nothing bridges between them — so a launch goes to one chain at a time. To be on
+                  another chain, launch again there once this one is live.
+                </p>
+
+                <div role="radiogroup" aria-label="Launch chain" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
                   {CHAIN_LIST.map((chain) => {
                     const selectable = chain.dexLive;
                     const selected = selectable && targetChainIds.includes(chain.chainId);
@@ -962,7 +993,9 @@ export default function StudioPage() {
                         key={chain.chainId}
                         type="button"
                         disabled={!selectable}
-                        onClick={() => toggleChain(chain.chainId)}
+                        onClick={() => selectChain(chain.chainId)}
+                        role="radio"
+                        aria-checked={selected}
                         title={
                           !selectable
                             ? `No launch factory is deployed on ${chain.name} yet`
@@ -1504,31 +1537,41 @@ export default function StudioPage() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5" /> Launch on {launchTargets.map((c) => c.key).join(" + ")} · gas
-                    only
+                    {/* Satu chain, jadi tidak ada lagi daftar yang digabung dengan "+". */}
+                    <Sparkles className="w-3.5 h-3.5" /> Launch on {launchTargets[0]?.key ?? "—"} · gas only
                   </>
                 )}
               </button>
 
+              {/* Dengan satu chain per peluncuran, "akan dilewati" berarti tidak ada
+                  yang tersisa untuk diluncurkan — jadi kalimatnya harus menyuruh
+                  memilih chain lain, bukan memberi tahu bahwa satu dari beberapa
+                  chain dibuang. */}
               {skippedTargets.length > 0 && (
                 <p className="text-[10px] text-warn/90 flex items-start gap-1.5">
                   <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                  {skippedTargets.map((c) => c.key).join(", ")} will be skipped: this ticker already has a market there.
+                  This ticker already has a market on {skippedTargets.map((c) => c.key).join(", ")}. Pick another chain,
+                  or change the ticker.
                 </p>
               )}
 
               <div className="rounded-xl border border-line bg-white overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-line bg-cream-3/[0.03] px-3 py-2">
                   <Info className="h-3 w-3 text-accent" />
+                  {/* Judulnya dulu "How a multi-chain launch works", benar ketika satu
+                      peluncuran bisa mengenai empat chain sekaligus. Sekarang satu
+                      peluncuran = satu chain, jadi yang dijelaskan adalah konsekuensi
+                      berada di lebih dari satu chain — lewat beberapa peluncuran. */}
                   <span className="text-[10px] font-bold uppercase tracking-wider text-ink">
-                    How a multi-chain launch works
+                    Launching on more than one chain
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-px bg-cream-3 sm:grid-cols-3">
                   <div className="bg-white p-3">
-                    <p className="text-[9px] uppercase tracking-wider text-ink-faint">One market per chain</p>
+                    <p className="text-[9px] uppercase tracking-wider text-ink-faint">One launch, one chain</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
-                      Each selected chain gets its own token and curve. Supply, depth and price are independent.
+                      Each launch creates one token and one curve on the chain you picked. Supply, depth and price are
+                      independent, so launching the same ticker elsewhere later gives you a second, separate market.
                     </p>
                   </div>
                   <div className="bg-white p-3">

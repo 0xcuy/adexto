@@ -261,10 +261,16 @@ export default function PitchDeckPage() {
                   <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">Never — the curve is permanent</td>
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">Multi-chain launch</td>
+                  {/* Dulu "1–4 chains, one market each", benar ketika studio bisa
+                      mengenai empat chain dalam satu peluncuran. Studio kini satu chain
+                      per peluncuran — dipilih seperti radio — karena default empat chain
+                      membelah likuiditas peluncuran kecil menjadi empat pasar tipis
+                      dengan empat harga yang bergerak sendiri. Keempat chain tetap
+                      tersedia, satu peluncuran per chain. */}
+                  <td className="py-3 pr-4 font-bold text-ink">Chains available</td>
                   <td className="py-3 px-4 text-ink-soft">Single chain</td>
                   <td className="py-3 px-4 text-ink-soft">Base</td>
-                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">1–4 chains, one market each</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">4 chains · one launch each</td>
                 </tr>
                 {/* "ERC-8004 1% Genesis Limit" salah label: cap itu ada di
                     AdextoToken._update dan tidak berhubungan dengan standar mana pun. */}

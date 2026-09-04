@@ -300,22 +300,31 @@ export default async function DocsPage() {
               <Network className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-base">Multi-chain launch</h3>
+              <h3 className="font-bold text-ink text-base">One chain per launch</h3>
               <span className="text-xs font-mono text-accent font-bold">One independent market per chain</span>
             </div>
           </div>
+          {/* "A launch can target 1–4 chains in one flow" berhenti benar: studio kini
+              satu chain per peluncuran, dipilih seperti radio, karena default empat
+              chain membelah likuiditas peluncuran kecil menjadi empat pasar tipis. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
-            A launch can target 1–4 chains in one flow. Each selected chain receives its own{" "}
-            <code className="text-accent">AdextoToken</code> and its own{" "}
-            <code className="text-accent">SovereignCurve</code>, deployed by that chain&apos;s factory in a single
-            transaction. Addresses differ per chain and <strong>supply is not shared</strong>: there is no bridge, so each
-            market has its own depth and its own price.
+            A launch targets one chain. That chain receives its own <code className="text-accent">AdextoToken</code> and
+            its own <code className="text-accent">SovereignCurve</code>, deployed by that chain&apos;s factory in a
+            single transaction. All four chains are available — one launch each. Addresses differ per chain and{" "}
+            <strong>supply is not shared</strong>: there is no bridge, so every market has its own depth and its own
+            price.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft space-y-1">
             <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>
+            {/* Dulu berbunyi "CCIP and LayerZero have no endpoint on 0G or Monad
+                today". Untuk CCIP itu SALAH — router-nya dibaca dengan eth_getCode dan
+                hidup di keempat chain, 10.761 byte di 0G dan 11.130 byte di Monad.
+                LayerZero tidak diverifikasi, jadi tidak diklaim apa pun di sini.
+                Dan penghalang sebenarnya bukan lapisan pesan: supply lintas chain
+                butuh wewenang mint, dan AdextoToken tidak punya — itu yang disebut. */}
             <div className="text-warn">
-              cross-chain supply would need a messaging layer on every chain; CCIP and LayerZero have no endpoint on 0G or
-              Monad today.
+              shared supply across chains would need mint authority on the destination; AdextoToken has none — _mint runs
+              once in the constructor, with no mint function, no minter role and no proxy.
             </div>
           </div>
         </div>

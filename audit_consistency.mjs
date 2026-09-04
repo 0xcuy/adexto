@@ -455,7 +455,16 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
   for (const path of sourceFiles()) {
     const text = visibleText(path);
     for (const key of ccipLive) {
-      const re = new RegExp(`(publishes no router|no router|tidak menerbitkan router)[^.]{0,60}${key}|${key}[^.]{0,60}(publishes no router|tidak menerbitkan router)`, "i");
+      /**
+       * Frasanya diperluas setelah satu kalimat lolos: /docs menulis "CCIP and
+       * LayerZero have no endpoint on 0G or Monad today", yang menyangkal hal yang
+       * sama tanpa memakai kata "router". Menjaga satu susunan kata saja membuat
+       * penjaga ini mudah dilewati tanpa sengaja.
+       */
+      const re = new RegExp(
+        `(publishes no router|no router|no endpoint|tidak menerbitkan router|tidak ada endpoint)[^.]{0,60}${key}|${key}[^.]{0,60}(publishes no router|no endpoint|tidak menerbitkan router|tidak ada endpoint)`,
+        "i"
+      );
       const m = text.match(re);
       if (!m) continue;
       const around = text.slice(Math.max(0, m.index - 200), m.index + 200);
