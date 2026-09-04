@@ -156,16 +156,29 @@ export default function StudioPage() {
    * `agentId` is kept as a string because it is typed, and because "" and "0" are
    * different things here — agent 0 is a real agent somebody owns on every chain we
    * launch on, so an empty field must not collapse into id 0.
+   *
+   * The id is stored PER CHAIN, keyed by chainId, and not as one shared value.
+   * The Identity Registry lives at the same address on all four mainnets, which
+   * makes a single global id look right, but each registry keeps its own state:
+   * `ownerOf(0)` returns three different owners across the four chains. Our own
+   * registrations came back 84622 on Base, 1457 on Arbitrum, 3545431 on 0G and
+   * 10247 on Monad. Sharing one id across a four-chain launch therefore binds on
+   * the chain it came from and reverts on the rest with
+   * "Factory: agent not owned by caller" — after the user has paid gas for each.
    */
-  const [agentBinding, setAgentBinding] = useState<{ enabled: boolean; agentId: string }>({
+  const [agentBinding, setAgentBinding] = useState<{ enabled: boolean; agentIds: Record<number, string> }>({
     enabled: false,
-    agentId: "",
+    agentIds: {},
   });
-  /** Result of checking, on-chain, that the connected wallet owns that agent. */
-  const [agentCheck, setAgentCheck] = useState<{
+  /**
+   * Result of checking, on-chain, that the connected wallet owns that agent —
+   * one result per chain, because ownership is a per-chain fact.
+   */
+  type AgentCheck = {
     state: "idle" | "checking" | "owned" | "not-owned" | "missing" | "error";
     detail?: string;
-  }>({ state: "idle" });
+  };
+  const [agentChecks, setAgentChecks] = useState<Record<number, AgentCheck>>({});
 
   const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
   const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
@@ -322,36 +335,54 @@ export default function StudioPage() {
    * chain, and finding out in the form is free. Debounced for the same reason the
    * ticker check is.
    */
+  const selectedChainsKey = targetChainIds.join(",");
+  const agentIdsKey = JSON.stringify(agentBinding.agentIds);
   useEffect(() => {
     if (!agentBinding.enabled) {
-      setAgentCheck({ state: "idle" });
+      setAgentChecks({});
       return;
     }
-    const raw = agentBinding.agentId.trim();
-    if (!/^\d+$/.test(raw)) {
-      setAgentCheck({ state: "idle" });
-      return;
+    // Every selected chain is checked against ITS OWN rpc. Checking only the
+    // primary chain used to be enough to enable the button while three of four
+    // chains were still guaranteed to revert.
+    const targets = liveChains.filter((c) => targetChainIds.includes(c.chainId));
+    const pending: Record<number, AgentCheck> = {};
+    for (const chain of targets) {
+      const raw = (agentBinding.agentIds[chain.chainId] ?? "").trim();
+      if (!/^\d+$/.test(raw)) pending[chain.chainId] = { state: "idle" };
+      else if (!address) pending[chain.chainId] = { state: "error", detail: "Connect a wallet to check ownership." };
+      else pending[chain.chainId] = { state: "checking" };
     }
-    if (!address) {
-      setAgentCheck({ state: "error", detail: "Connect a wallet to check ownership." });
-      return;
-    }
-    setAgentCheck({ state: "checking" });
+    setAgentChecks(pending);
+    if (!address) return;
+
     const handle = setTimeout(async () => {
-      const result = await checkAgentOwnership(primaryChain.rpcUrl, BigInt(raw), address);
-      if (result.state === "owned") {
-        setAgentCheck({ state: "owned", detail: result.uri ? `agentURI ${result.uri.slice(0, 42)}…` : "no agentURI set yet" });
-      } else if (result.state === "not-owned") {
-        setAgentCheck({ state: "not-owned", detail: `owned by ${result.owner.slice(0, 10)}…` });
-      } else if (result.state === "missing") {
-        setAgentCheck({ state: "missing", detail: `no ERC-8004 registry on ${primaryChain.key}` });
-      } else {
-        setAgentCheck({ state: "error", detail: result.detail });
-      }
+      const settled = await Promise.all(
+        targets.map(async (chain) => {
+          const raw = (agentBinding.agentIds[chain.chainId] ?? "").trim();
+          if (!/^\d+$/.test(raw)) return [chain.chainId, { state: "idle" } as AgentCheck] as const;
+          const result = await checkAgentOwnership(chain.rpcUrl, BigInt(raw), address);
+          let check: AgentCheck;
+          if (result.state === "owned") {
+            check = {
+              state: "owned",
+              detail: result.uri ? `agentURI ${result.uri.slice(0, 28)}…` : "no agentURI set yet",
+            };
+          } else if (result.state === "not-owned") {
+            check = { state: "not-owned", detail: `owned by ${result.owner.slice(0, 10)}…` };
+          } else if (result.state === "missing") {
+            check = { state: "missing", detail: `no ERC-8004 registry on ${chain.key}` };
+          } else {
+            check = { state: "error", detail: result.detail };
+          }
+          return [chain.chainId, check] as const;
+        })
+      );
+      setAgentChecks(Object.fromEntries(settled));
     }, 500);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentBinding.enabled, agentBinding.agentId, address, primaryChain.chainId]);
+  }, [agentBinding.enabled, agentIdsKey, address, selectedChainsKey]);
 
   const toggleChain = (chainId: number) => {
     setTargetChainIds((prev) => {
@@ -519,7 +550,9 @@ export default function StudioPage() {
           // Sent so the anchored metadata records the ERC-8004 binding for THIS
           // launch. The server only describes it; the factory is what verifies it.
           bindAgent: agentBinding.enabled,
-          agentId: agentBinding.enabled ? agentBinding.agentId : null,
+          // A map, not one value: the anchored metadata is shared by every chain in
+          // the launch, and the agent's id differs on each of them.
+          agentIds: agentBinding.enabled ? agentBinding.agentIds : null,
           deployer: address,
           targetChains: chains.map((c) => c.chainId),
           attestationSignature: attestation.signature,
@@ -577,8 +610,13 @@ export default function StudioPage() {
         // The factory rejects a non-zero id when the flag is false rather than
         // ignoring it, so a half-filled form fails loudly instead of quietly
         // producing a token whose agent the creator believes is attached.
+        //
+        // The id is read for THIS chain. It is not one shared value: each registry
+        // keeps its own state, so the same agent has a different id on every chain,
+        // and reusing one id across the loop reverts everywhere except its home
+        // chain.
         agentBinding.enabled,
-        agentBinding.enabled ? BigInt(agentBinding.agentId) : 0n,
+        agentBinding.enabled ? BigInt(agentBinding.agentIds[chain.chainId]) : 0n,
       ] as const;
 
     const ethereum = getActiveEip1193();
@@ -774,8 +812,13 @@ export default function StudioPage() {
    * When agent binding is switched on, the id has to be one the wallet actually
    * owns. The factory enforces it, so this only decides whether the button lets the
    * user pay for a transaction that is already known to revert.
+   *
+   * Every chain being launched on needs its OWN owned id, not just the primary
+   * one, because the binding is checked per chain by that chain's own registry.
    */
-  const agentBindingSatisfied = !agentBinding.enabled || agentCheck.state === "owned";
+  const agentBindingSatisfied =
+    !agentBinding.enabled ||
+    (launchTargets.length > 0 && launchTargets.every((c) => agentChecks[c.chainId]?.state === "owned"));
   const canDeploy =
     isConnected &&
     Boolean(attestation) &&
@@ -1180,45 +1223,62 @@ export default function StudioPage() {
 
                   {agentBinding.enabled && (
                     <div className="space-y-1.5 pl-5">
-                      <Field
-                        label="Agent id"
-                        hint={
-                          agentCheck.state === "checking"
-                            ? "checking…"
-                            : agentCheck.state === "owned"
-                            ? `you own this agent · ${agentCheck.detail ?? ""}`
-                            : agentCheck.state === "not-owned"
-                            ? `not yours · ${agentCheck.detail ?? ""}`
-                            : agentCheck.state === "missing"
-                            ? agentCheck.detail
-                            : agentCheck.state === "error"
-                            ? agentCheck.detail
-                            : undefined
-                        }
-                        hintTone={
-                          agentCheck.state === "owned"
-                            ? "ok"
-                            : agentCheck.state === "not-owned" || agentCheck.state === "missing"
-                            ? "error"
-                            : "muted"
-                        }
-                      >
-                        <input
-                          value={agentBinding.agentId}
-                          onChange={(e) =>
-                            setAgentBinding((p) => ({ ...p, agentId: e.target.value.replace(/[^0-9]/g, "") }))
-                          }
-                          placeholder="e.g. 41"
-                          className={`${FIELD_CLASS} font-mono`}
-                        />
-                      </Field>
+                      {/* One field per selected chain. A single shared field was
+                          wrong: the same agent carries a different id on every
+                          chain, so one value can only ever be correct on one of
+                          them and the rest revert after paying gas. */}
+                      {liveChains
+                        .filter((c) => targetChainIds.includes(c.chainId))
+                        .map((chain) => {
+                          const check = agentChecks[chain.chainId] ?? { state: "idle" as const };
+                          return (
+                            <Field
+                              key={chain.chainId}
+                              label={`Agent id on ${chain.name}`}
+                              hint={
+                                check.state === "checking"
+                                  ? "checking…"
+                                  : check.state === "owned"
+                                  ? `you own this agent · ${check.detail ?? ""}`
+                                  : check.state === "not-owned"
+                                  ? `not yours · ${check.detail ?? ""}`
+                                  : check.state === "missing" || check.state === "error"
+                                  ? check.detail
+                                  : undefined
+                              }
+                              hintTone={
+                                check.state === "owned"
+                                  ? "ok"
+                                  : check.state === "not-owned" || check.state === "missing"
+                                  ? "error"
+                                  : "muted"
+                              }
+                            >
+                              <input
+                                value={agentBinding.agentIds[chain.chainId] ?? ""}
+                                onChange={(e) =>
+                                  setAgentBinding((p) => ({
+                                    ...p,
+                                    agentIds: {
+                                      ...p.agentIds,
+                                      [chain.chainId]: e.target.value.replace(/[^0-9]/g, ""),
+                                    },
+                                  }))
+                                }
+                                placeholder={`id on ${chain.name}`}
+                                className={`${FIELD_CLASS} font-mono`}
+                              />
+                            </Field>
+                          );
+                        })}
                       <p className="text-[10px] leading-relaxed text-ink-faint">
                         {/* Stated because the number 0 is a live agent here, and a
                             blank field must not be read as agent 0. */}
-                        Register one first with{" "}
-                        <code className="font-mono text-accent">npx tsx scripts/register-agent-8004.mjs --chain 0g</code>.
-                        The registries exist on mainnet only. Agent id 0 is a real agent, so leaving this blank is not the
-                        same as entering 0.
+                        One id per chain: the registry sits at the same address everywhere but keeps separate state, so
+                        the same agent has a different id on each chain. Register with{" "}
+                        <code className="font-mono text-accent">node scripts/register-agent-8004.mjs --chain base --broadcast</code>{" "}
+                        and repeat per chain. The registries exist on mainnet only. Agent id 0 is a real agent, so
+                        leaving a field blank is not the same as entering 0.
                       </p>
                     </div>
                   )}
@@ -1429,7 +1489,18 @@ export default function StudioPage() {
                 ) : !agentBindingSatisfied ? (
                   <>
                     <Fingerprint className="w-3.5 h-3.5" />{" "}
-                    {agentCheck.state === "checking" ? "Checking agent ownership…" : "Enter an agent id you own"}
+                    {launchTargets.some((c) => agentChecks[c.chainId]?.state === "checking")
+                      ? "Checking agent ownership…"
+                      : (() => {
+                          // Name the chains still missing an owned id, so the block
+                          // is actionable instead of a generic refusal.
+                          const missing = launchTargets.filter(
+                            (c) => agentChecks[c.chainId]?.state !== "owned"
+                          );
+                          return missing.length === launchTargets.length
+                            ? "Enter an agent id you own on each chain"
+                            : `Agent id needed on ${missing.map((c) => c.key).join(", ")}`;
+                        })()}
                   </>
                 ) : (
                   <>

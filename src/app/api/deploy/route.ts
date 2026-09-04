@@ -248,13 +248,27 @@ async function handlePrepare(body: any) {
          * asserting ERC-8004 on every one of them would be the same overreach the
          * old `standard: "ERC-8004"` was. The factory verifies ownership on-chain,
          * so a launch that says `bound: true` had its ownership checked.
+         *
+         * The id is recorded PER CHAIN. This document is anchored once and shared
+         * by every chain in the launch, so a single `agentId` field would be
+         * accurate on one chain and wrong on the others: the registry is at one
+         * address everywhere but each keeps its own state, so the same agent has a
+         * different id per chain.
          */
         erc8004: body.bindAgent
           ? {
               bound: true,
-              agentId: String(body.agentId ?? ""),
+              agentIdByChain: Object.fromEntries(
+                chains.map((c) => [
+                  String(c.chainId),
+                  {
+                    agentId: String((body.agentIds ?? {})[c.chainId] ?? body.agentId ?? ""),
+                    agentRegistry: `eip155:${c.chainId}:${ADEXTO_CONTRACTS.agentRegistry.toLowerCase()}`,
+                  },
+                ])
+              ),
               identityRegistry: ADEXTO_CONTRACTS.agentRegistry,
-              note: "Ownership verified on-chain by AdextoCurveFactory at launch.",
+              note: "Ownership verified on-chain by AdextoCurveFactory at launch, per chain.",
             }
           : { bound: false, note: "No ERC-8004 agent identity was supplied for this launch." },
       },
