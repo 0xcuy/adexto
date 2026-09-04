@@ -341,11 +341,23 @@ export default function TokenTerminal({
             adalah yang benar-benar dibandingkan orang, jadi itu yang di depan.
             Angka mentahnya tetap bisa dilihat lewat tooltip. */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs text-center">
+          {/* Label menyebut chain-nya, karena angka ini per chain dan tanpa itu ia
+              terbaca sebagai market cap proyek secara keseluruhan.
+              Satu ticker yang diluncurkan di empat chain berarti EMPAT pasar
+              terpisah, masing-masing dengan supply sendiri dan harga sendiri, dan
+              tidak ada bridge yang bisa menyatukannya. Menjumlahkan keempatnya
+              bukan angka yang bermakna, jadi tidak dijumlahkan di mana pun — tapi
+              pembaca yang melihat satu angka besar tanpa keterangan chain akan
+              menganggapnya total. Tooltipnya menyatakan batasannya dengan kata-kata. */}
           <Stat
-            label="Market cap"
+            label={`Market cap · ${chain.key}`}
             value={marketCapUsd > 0 ? formatUsd(marketCapUsd, { compact: true }) : "—"}
             tone="accent"
-            title={marketCapUsd > 0 ? `${marketCapUsd} USD` : undefined}
+            title={
+              marketCapUsd > 0
+                ? `${marketCapUsd} USD on ${chain.name} only. Each chain has its own curve, its own supply and its own price; there is no bridge, so these are separate markets and this figure is not a cross-chain total.`
+                : undefined
+            }
           />
           <Stat
             label="Price USD"
@@ -353,7 +365,15 @@ export default function TokenTerminal({
             tone="ink"
             title={tokenPriceUsd > 0 ? `${tokenPriceUsd.toFixed(18).replace(/0+$/, "")} USD per token` : undefined}
           />
-          <Stat label={`Supply (${project.symbol})`} value={formatTokenAmount(project.supply)} tone="accent" />
+          {/* Sama alasannya: ini supply di chain INI. Ticker yang diluncurkan di
+              empat chain punya empat supply terpisah sebesar ini masing-masing, dan
+              bukan satu supply yang dibagi-bagi. */}
+          <Stat
+            label={`Supply (${project.symbol}) · ${chain.key}`}
+            value={formatTokenAmount(project.supply)}
+            tone="accent"
+            title={`${project.supply.toLocaleString()} ${project.symbol} minted on ${chain.name}. Each chain this ticker launched on has its own separate supply of this size — it is not one supply split across chains.`}
+          />
           <Stat
             label={`Price (${chain.nativeSymbol})`}
             value={swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}
