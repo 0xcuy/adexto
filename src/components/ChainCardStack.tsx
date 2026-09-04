@@ -34,6 +34,25 @@ import { CHAINS } from "@/lib/chains";
  * satu per satu. Itu yang membuat gerakannya terbaca sebagai "terbuka", bukan
  * sebagai empat kartu yang sejak awal sudah berjarak.
  *
+ * INTERAKSI MOUSE
+ *
+ * Setelah tumpukan selesai membuka, mengarahkan mouse ke sebuah kartu menggesernya
+ * KE KANAN keluar dari tumpukan, bukan ke atas. Alasannya bentuk tumpukan itu
+ * sendiri: kartu belakang hanya menyembulkan pita atasnya, jadi menaikkannya lagi
+ * tetap menyembunyikan badannya di balik kartu depan. Geser ke samping yang
+ * membuat seluruh kartunya terbaca.
+ *
+ * Ini butuh DUA LAPIS, dan alasannya teknis. Animasi masuk memakai `animation` pada
+ * `transform` dengan fill-mode `both`, dan nilai animasi menang atas nilai
+ * stylesheet — jadi hover yang menargetkan `transform` pada elemen yang sama tidak
+ * akan pernah terlihat. Lapis luar memegang animasi masuk, lapis dalam memegang
+ * transisi hover, dan keduanya bertumpuk sebagai perkalian matriks.
+ *
+ * Hover tetap PENAMBAHAN, bukan satu-satunya jalan ke informasinya: dek ini
+ * aria-hidden dan kartunya tidak bisa difokus, tetapi nama chain, chain ID, dan
+ * status factory semuanya sudah ada di ticker dan tabel footer yang berdiam di
+ * tempat dan terbaca pembaca layar.
+ *
  * TIGA HAL LAIN YANG TETAP
  *
  * - Tanpa JavaScript. Komponen server, animasi CSS murni, jadi tidak ada biaya
@@ -76,17 +95,20 @@ export default function ChainCardStack() {
       {CARDS.map((card) => {
         const chain = CHAINS[card.key];
         return (
-          <article
+          <div
             key={card.key}
-            className="adexto-card absolute bottom-0 left-3 h-[176px] w-[268px] overflow-hidden rounded-2xl border border-line bg-cream-2 shadow-[0_8px_24px_-12px_rgba(32,24,16,0.35)]"
+            /* Lapis LUAR: animasi masuk. Tidak punya tampilan sendiri — ia hanya
+               menempatkan kartu di posisinya dalam tumpukan. */
+            className="adexto-card absolute bottom-0 left-3 h-[176px] w-[268px]"
             style={
               {
-                zIndex: card.z,
+                "--card-z": card.z,
                 "--card-t": card.transform,
                 "--card-d": `${card.delayMs}ms`,
               } as React.CSSProperties
             }
           >
+          <article className="adexto-card-face relative h-full w-full overflow-hidden rounded-2xl border border-line bg-cream-2 shadow-[0_8px_24px_-12px_rgba(32,24,16,0.35)]">
             <img src={card.art} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.5]" />
             {/* Gradien dari kiri: nama chain harus terbaca di atas tekstur apa pun
                 yang dihasilkan model, bukan bergantung pada keberuntungan warnanya. */}
@@ -118,6 +140,7 @@ export default function ChainCardStack() {
               </div>
             </div>
           </article>
+          </div>
         );
       })}
     </div>
