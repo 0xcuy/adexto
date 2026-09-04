@@ -98,9 +98,11 @@ async function main() {
       subdomain: "https://aegis.adexto.xyz",
     },
     enclave: {
-      model: "glm-5.2",
+      model: "glm-5.3",
       host: "pc.0g.ai/v1",
-      attestation: "AMD SEV-SNP Isolated Hardware",
+      // Vendor TEE yang benar menurut router: Intel TDX lewat dstack. Ini masuk
+      // ke metadata yang ditambatkan ke 0G DA, jadi salahnya permanen.
+      attestation: "Intel TDX via dstack (router-reported)",
       signer: wallet.address,
     },
     createdAt: new Date().toISOString(),

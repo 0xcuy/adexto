@@ -96,7 +96,7 @@ const prepareBody = async (wallet, extra) => ({
   supply: "1000000000",
   swapFee: 0.3,
   treasuryCut: 0.05,
-  model: "glm-5.2",
+  model: "glm-5.3",
   persona: "gate probe",
   deployer: wallet.address,
   ...(await attestationFor(wallet)),

@@ -95,9 +95,15 @@ if (process.argv[1]?.endsWith("upload-metadata-0g.ts")) {
         treasuryBuybackBps: 10,
       },
       agent: {
-        model: "glm-5.2",
+        model: "glm-5.3",
         computeHost: "0G Compute Router Mainnet (Chain 16661)",
-        teeEnclave: "AMD SEV-SNP Hardware Attested",
+        // Router menyatakan Intel TDX lewat dstack. String lama di sini berbunyi
+        // "AMD SEV-SNP Hardware Attested" — vendor TEE yang salah, DAN kata
+        // "Hardware Attested" yang menyiratkan kita memverifikasi quote-nya
+        // sendiri. Kita tidak. Ini yang paling penting diperbaiki dari semua
+        // kemunculan SEV-SNP, karena metadata ini ditambatkan ke 0G DA dan
+        // tidak bisa ditarik kembali.
+        teeEnclave: "Intel TDX via dstack (router-reported)",
       },
     },
     timestamp: new Date().toISOString(),

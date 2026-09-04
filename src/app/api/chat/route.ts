@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const { messages, model, systemPrompt, chain, temperature } = await req.json();
 
     // Default to verified active model on 0G Mainnet Router
-    const targetModel = model || "glm-5.2";
+    const targetModel = model || "glm-5.3";
 
     const systemMessage = {
       role: "system",
@@ -70,7 +70,14 @@ Help developers generate smart contracts, configure dynamic AMM bonding curves, 
         const reader = res.body.getReader();
         let buffer = "";
         /**
-         * glm-5.2 di router 0G mengirim DUA aliran dalam satu delta:
+         * Model GLM di router 0G mengirim DUA aliran dalam satu delta:
+         *
+         * Ditulis "glm-5.2" waktu pertama ditemukan, dan itu bikin penanganan di
+         * bawah terlihat seperti tambalan khusus satu versi yang boleh dibuang saat
+         * versinya naik. Bukan. Diukur ulang pada glm-5.3: satu permintaan
+         * menghasilkan 910 karakter `reasoning_content` berbanding 98 karakter
+         * `content` — jadi perilakunya bertahan, dan membuang penanganan ini akan
+         * menampilkan sembilan kali lebih banyak kalimat berpikir daripada jawaban.
          * `reasoning_content` (deliberasi internal) dan `content` (jawaban).
          * Kode lama memakai `content || reasoning_content`, sehingga yang tampil ke
          * user adalah kalimat berpikir model — "Let's write a concise review",

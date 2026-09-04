@@ -73,7 +73,7 @@ async function startDaemon() {
   console.log("==================================================");
   console.log("🤖 0G TEE AUTONOMOUS AGENT RUNNER STARTED");
   console.log("==================================================");
-  console.log("• Model        : 0G Compute (glm-5.2 + AMD SEV-SNP)");
+  console.log("• Model        : 0G Compute (glm-5.3 · Intel TDX attested)");
   console.log("• Interval     : Auto-market orders every 10s");
   console.log("• Storage Flow : indexer-storage-turbo.0g.ai");
   console.log("==================================================");

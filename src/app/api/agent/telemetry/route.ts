@@ -85,7 +85,7 @@ export async function GET(req: Request) {
       symbol,
       source,
       agentActive: Boolean(project?.poolLive),
-      agentModel: project?.agentModel ?? "0G Router (glm-5.2 + AMD SEV-SNP)",
+      agentModel: project?.agentModel ?? "0G Router (glm-5.3 · Intel TDX attested)",
       chainId: chain.chainId,
       nativeSymbol: chain.nativeSymbol,
       poolAddress: project?.poolAddress ?? null,

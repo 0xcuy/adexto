@@ -326,12 +326,12 @@ await safely("chat co-pilot studio", async () => {
   // Hitung balasan yang sudah ada dulu; menunggu angka tetap akan rapuh kalau
   // panel sudah berisi sapaan pembuka.
   const before = await page.evaluate(
-    () => (document.body.innerText.match(/0G TEE \(GLM-5\.2\)/gi) || []).length
+    () => (document.body.innerText.match(/0G TEE \(GLM-5\.3\)/gi) || []).length
   );
   await page.keyboard.press("Enter");
   // Balasan mengalir (streaming), jadi tunggu jumlahnya BERTAMBAH, bukan sekadar jeda.
   await page.waitForFunction(
-    (n) => (document.body.innerText.match(/0G TEE \(GLM-5\.2\)/gi) || []).length > n,
+    (n) => (document.body.innerText.match(/0G TEE \(GLM-5\.3\)/gi) || []).length > n,
     before,
     { timeout: 120000 }
   );

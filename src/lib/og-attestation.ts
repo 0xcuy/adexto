@@ -22,8 +22,20 @@
  * ter-attestasi supaya setiap hop routing bisa dibuktikan.
  * (Diparafrasekan dari https://0g.ai/blog/deepseek-v4-pro-live-on-0g-private-computer)
  *
- * Ketiga model yang dipakai aplikasi ini — glm-5.2, 0gm-1.0-35b-a3b dan
+ * Ketiga model yang dipakai aplikasi ini — glm-5.3, 0gm-1.0-35b-a3b dan
  * 0gm-1.0-35b-a3b-sia — semuanya TeeML.
+ *
+ * Kalimat itu sempat TIDAK benar dan tidak ada yang memberi tahu. Selama daftar
+ * ini memuat glm-5.2, router melayaninya sebagai TeeTLS, bukan TeeML — jadi
+ * komentar ini mengklaim tingkat attestation yang lebih tinggi daripada yang
+ * sebenarnya dinyatakan. Ditanyakan ulang ke GET /v1/models sebelum pindah:
+ *
+ *   glm-5.2  TeeTLS  attested=true  TDX  dstack
+ *   glm-5.3  TeeML   attested=true  TDX  dstack
+ *
+ * Pindah ke 5.3 membuat kalimat di atas benar lagi, dan `allAttested` di bawah
+ * tetap membacanya dari router — kalau 0G menurunkan tingkatnya lagi, UI yang
+ * berbicara, bukan komentar ini.
  *
  * KENAPA INI PEMERIKSAAN SUNGGUHAN, BUKAN HIASAN
  *
@@ -49,7 +61,7 @@
 
 const ROUTER_URL = (process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1").replace(/\/+$/, "");
 /** Model yang benar-benar bisa dipilih di studio. Harus cocok dengan MODELS di sana. */
-export const AGENT_MODEL_IDS = ["glm-5.2", "0gm-1.0-35b-a3b", "0gm-1.0-35b-a3b-sia"] as const;
+export const AGENT_MODEL_IDS = ["glm-5.3", "0gm-1.0-35b-a3b", "0gm-1.0-35b-a3b-sia"] as const;
 
 export interface ModelAttestation {
   id: string;

@@ -72,7 +72,7 @@ interface TickerState {
 }
 
 const MODELS = [
-  { id: "glm-5.2", label: "0G: GLM-5.2" },
+  { id: "glm-5.3", label: "0G: GLM-5.3" },
   { id: "0gm-1.0-35b-a3b", label: "0G: 0GM-1.0 35B" },
   { id: "0gm-1.0-35b-a3b-sia", label: "0G: 0GM-1.0 SIA" },
 ];
@@ -143,7 +143,7 @@ export default function StudioPage() {
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
   const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
-  const [selectedModel, setSelectedModel] = useState("glm-5.2");
+  const [selectedModel, setSelectedModel] = useState("glm-5.3");
 
   /**
    * ERC-8004 agent identity to bind at launch.

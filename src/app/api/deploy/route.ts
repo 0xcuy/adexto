@@ -30,7 +30,8 @@ import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/li
  */
 export const dynamic = "force-dynamic";
 
-const AGENT_MODEL = "0G Router (glm-5.2 + AMD SEV-SNP)";
+// "+ AMD SEV-SNP" dibuang: router 0G menyatakan tee_type=TDX, verifier dstack.
+const AGENT_MODEL = "0G Router (glm-5.3 · Intel TDX attested)";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -235,7 +236,7 @@ async function handlePrepare(body: any) {
         subdomain: `https://${symbol.toLowerCase()}.adexto.xyz`,
       },
       agent: {
-        model: String(body.model || "glm-5.2"),
+        model: String(body.model || "glm-5.3"),
         computeHost: "0G Compute Router",
         // Deklarasi router, bukan bukti kami. Lihat /docs dan /api/tee.
         teeAttestation: "0G router reports Intel TDX via dstack; raw quote not verified by ADEXTO",
@@ -612,7 +613,10 @@ async function handleConfirm(body: any) {
       },
       agentEnclave: {
         model: record.agentModel,
-        enclaveHost: "pc.0g.ai/v1 (0G AMD SEV-SNP)",
+        // Berkas ini sudah memuat catatan di atas bahwa "AMD SEV-SNP Hardware
+        // Attested" adalah klaim yang salah — lalu baris ini mengirimkannya lagi
+        // di respons API. Router 0G menyatakan tee_type=TDX, verifier dstack.
+        enclaveHost: "pc.0g.ai/v1 (0G Router · Intel TDX, router-reported)",
         storageRoot: record.teeRoot,
         storageTx: record.daStorageTx,
         signerAddress: record.creator,

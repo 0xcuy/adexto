@@ -202,7 +202,7 @@ export default function TokenTerminal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next,
-          model: "glm-5.2",
+          model: "glm-5.3",
           chain: chain.name,
           // Panel ini menawarkan "ask me about pool depth or swap telemetry", jadi
           // state pool NYATA harus ikut dikirim. Sebelumnya prompt hanya memuat

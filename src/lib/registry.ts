@@ -80,9 +80,13 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
     supply: partial.supply ?? 1_000_000_000,
     lpFeeBps: partial.lpFeeBps ?? 20,
     treasuryBuybackBps: partial.treasuryBuybackBps ?? 10,
-    agentModel: partial.agentModel ?? "0G Compute (glm-5.2)",
+    agentModel: partial.agentModel ?? "0G Compute (glm-5.3)",
     agentPersona: partial.agentPersona ?? "Autonomous 24/7 quant market maker and liquidity rebalancer.",
-    agentStatus: partial.agentStatus ?? "Active (0G AMD SEV-SNP)",
+    // Bukan SEV-SNP. Router 0G menyatakan tee_type=TDX dengan verifier dstack;
+    // "AMD SEV-SNP" adalah sisa klaim lama yang sudah diralat di landing page dan
+    // footer tetapi terlewat di sini. "router-reported" ditulis eksplisit karena
+    // yang kita baca deklarasi router, bukan quote TDX mentah.
+    agentStatus: partial.agentStatus ?? "Active (0G Router, Intel TDX attested · router-reported)",
     edgeProvider: partial.edgeProvider ?? "Cloudflare x402 Edge",
     mcpTools: partial.mcpTools ?? ["Signet", "Sentinel", "Helm", "x402"],
     category: partial.category ?? "defi",

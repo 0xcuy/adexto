@@ -536,6 +536,94 @@ console.log("\n── ticker stack: berkas logo & provenance ──");
   );
 }
 
+// ── 9. model agen: dua daftar harus cocok, dan router harus setuju ─────────
+console.log("\n── model agen: daftar di studio vs og-attestation vs router 0G ──");
+{
+  /**
+   * Tiga hal bisa berpisah di sini tanpa ada yang tahu, dan dua di antaranya sudah
+   * pernah terjadi:
+   *
+   *   1. `MODELS` di studio/page.tsx dan `AGENT_MODEL_IDS` di og-attestation.ts
+   *      harus memuat id yang sama. Komentar di og-attestation.ts memang menyuruh
+   *      begitu ("Harus cocok dengan MODELS di sana") tetapi tidak ada yang
+   *      menegakkannya — dan mengganti satu generasi model berarti menyunting dua
+   *      berkas dengan tangan.
+   *   2. Id itu harus benar-benar DILAYANI router. Menawarkan model yang sudah
+   *      dipensiunkan membuat chat gagal dengan galat provider, bukan dengan pesan
+   *      yang bisa dipahami pemakai.
+   *   3. Komentar og-attestation.ts menyatakan ketiga model itu TeeML. Itu SUDAH
+   *      pernah berhenti benar: selama daftarnya memuat glm-5.2, router melayaninya
+   *      sebagai TeeTLS — tingkat attestation yang lebih rendah daripada yang
+   *      diklaim. Tidak ada yang memberi tahu, karena tidak ada yang membandingkan.
+   *
+   * Router tidak bisa dihubungi atau kunci tidak ada = PERINGATAN, bukan kegagalan.
+   * Ketidakcocokan dua daftar = kegagalan, karena itu murni isi repo.
+   */
+  const studioSrc = readFileSync("src/app/studio/page.tsx", "utf8");
+  const attestSrc = readFileSync("src/lib/og-attestation.ts", "utf8");
+
+  const modelsBlock = (studioSrc.match(/const MODELS = \[([\s\S]*?)\];/) || ["", ""])[1];
+  const studioIds = [...modelsBlock.matchAll(/id:\s*"([^"]+)"/g)].map((m) => m[1]);
+  const attestIds = [
+    ...((attestSrc.match(/AGENT_MODEL_IDS = \[([\s\S]*?)\]/) || ["", ""])[1] || "").matchAll(/"([^"]+)"/g),
+  ].map((m) => m[1]);
+
+  check("daftar MODELS studio terbaca", studioIds.length > 0, studioIds.join(", "));
+  const sameSet =
+    studioIds.length === attestIds.length && studioIds.every((id) => attestIds.includes(id));
+  check(
+    "MODELS studio == AGENT_MODEL_IDS",
+    sameSet,
+    sameSet ? `${studioIds.length} id` : `studio [${studioIds.join(", ")}] vs attestation [${attestIds.join(", ")}]`
+  );
+
+  // Klaim tingkat TEE dibaca dari komentar berkasnya sendiri, lalu diuji.
+  const claimsAllTeeML = /semuanya TeeML/.test(attestSrc);
+
+  const routerUrl = (env.OG_ROUTER_URL || "https://router-api.0g.ai/v1").replace(/\/+$/, "");
+  const routerKey = env.OG_ROUTER_API_KEY || "";
+  if (!routerKey) {
+    soft("router 0G tidak ditanya", "OG_ROUTER_API_KEY tidak ada di .env.local");
+  } else {
+    let served = null;
+    try {
+      const res = await fetch(`${routerUrl}/models`, {
+        headers: { authorization: `Bearer ${routerKey}` },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      served = (await res.json())?.data ?? [];
+    } catch (e) {
+      soft("router 0G tidak bisa dihubungi", String(e.message).slice(0, 50));
+    }
+    if (served) {
+      const missing = [];
+      const notAttested = [];
+      const notTeeML = [];
+      for (const id of studioIds) {
+        const m = served.find((x) => x.id === id);
+        if (!m) {
+          missing.push(id);
+          continue;
+        }
+        if (m.tee_attested !== true) notAttested.push(`${id}=${m.tee_attested}`);
+        if (m.verifiability !== "TeeML") notTeeML.push(`${id}=${m.verifiability}`);
+      }
+      check("setiap model yang bisa dipilih dilayani router", missing.length === 0, missing.join(", ") || `${studioIds.length} model`);
+      check("setiap model menyatakan tee_attested", notAttested.length === 0, notAttested.join(", ") || "semua true");
+      if (claimsAllTeeML) {
+        check(
+          'komentar og-attestation menulis "semuanya TeeML" — router harus setuju',
+          notTeeML.length === 0,
+          notTeeML.join(", ") || "semua TeeML"
+        );
+      } else {
+        ok("komentar og-attestation tidak mengklaim tingkat TeeML", "tidak ada yang perlu diuji");
+      }
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

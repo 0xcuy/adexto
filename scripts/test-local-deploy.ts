@@ -32,7 +32,7 @@ async function testDeployerLocal() {
   
   console.log(`🔑 Deployer Account : ${account.address}`);
   console.log(`📡 0G Router Key     : ${process.env.OG_ROUTER_API_KEY ? "CONFIGURED" : "MISSING"}`);
-  console.log(`⚡ 0G AI Model       : ${process.env.OG_MODEL || "glm-5.2"}`);
+  console.log(`⚡ 0G AI Model       : ${process.env.OG_MODEL || "glm-5.3"}`);
   console.log(`🌐 0G Mainnet Chain  : 16661 (evmrpc.0g.ai)`);
   console.log("--------------------------------------------------");
   console.log("Simulating atomic Trinity deployment batch...");
