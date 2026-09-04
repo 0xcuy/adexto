@@ -417,9 +417,9 @@ select option {
 }
 
 .adexto-card {
-  /* z-index lewat custom property, BUKAN gaya inline. Gaya inline menang atas
-     stylesheet, jadi aturan `:hover` di bawah tidak akan berlaku tanpa `!important`
-     kalau nilainya diset inline. */
+  /* z-index lewat custom property, bukan gaya inline, supaya seluruh keadaan visual
+     kartu tinggal di stylesheet dan bukan tersebar antara CSS dan JSX. Nilainya
+     TIDAK berubah saat hover — lihat alasannya di aturan hover di bawah. */
   z-index: var(--card-z, 1);
   transform: var(--card-t);
   transform-origin: 50% 100%;
@@ -430,25 +430,27 @@ select option {
   will-change: transform, opacity;
 }
 
-/* Kartu yang disentuh mouse naik ke atas semuanya. Tanpa ini ia bergeser keluar
-   tetapi tetap tertimpa kartu di depannya, dan yang terlihat cuma tepinya bergerak. */
-.adexto-card:hover {
-  z-index: 50;
-}
-
 /* Lapis dalam. Ia yang menerima transform hover, karena lapis luar transform-nya
    sudah dipakai animasi masuk — dan animasi dengan fill-mode `both` menang atas
    stylesheet, sehingga hover di elemen yang sama tidak akan pernah terlihat. */
 .adexto-card-face {
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms ease;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
 }
 
-/* Digeser ke kanan, bukan ke atas. Kartu belakang hanya menyembulkan pita atasnya;
-   menaikkannya lagi tetap menyembunyikan badannya di balik kartu depan. Menggeser
-   ke samping mengeluarkannya dari tumpukan sehingga seluruh kartunya terbaca. */
+/* Naik 10px DI TEMPAT. Bukan keluar tumpukan, dan bukan ke depan.
+   Versi sebelumnya menggeser kartu 40px ke kanan DAN menaikkan z-index ke 50, dan
+   itu yang membuatnya terasa melompat ke depan: z-index tidak bisa dianimasikan,
+   jadi perpindahan ke atas seluruh tumpukan terjadi dalam satu frame tanpa transisi.
+   Sekarang urutan tumpukannya tidak disentuh sama sekali — kartu belakang yang naik
+   tetap berada di belakang kartu depannya, dan yang berubah hanya pita atasnya
+   menjadi 62px alih-alih 52px.
+
+   Catatan untuk pembaca berikutnya: alasan yang dulu tertulis di sini — "menaikkan
+   kartu belakang tetap menyembunyikan badannya" — memang salah. Ia benar hanya kalau
+   z-index tidak ikut naik, sementara aturan di sebelahnya justru menaikkannya. */
 .adexto-card:hover .adexto-card-face {
-  transform: translate3d(40px, -8px, 0);
-  box-shadow: 0 18px 40px -18px rgba(32, 24, 16, 0.45);
+  transform: translate3d(0, -10px, 0);
+  box-shadow: 0 12px 26px -14px rgba(32, 24, 16, 0.4);
 }
 
 @media (prefers-reduced-motion: reduce) {

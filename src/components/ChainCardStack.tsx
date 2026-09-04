@@ -36,11 +36,15 @@ import { CHAINS } from "@/lib/chains";
  *
  * INTERAKSI MOUSE
  *
- * Setelah tumpukan selesai membuka, mengarahkan mouse ke sebuah kartu menggesernya
- * KE KANAN keluar dari tumpukan, bukan ke atas. Alasannya bentuk tumpukan itu
- * sendiri: kartu belakang hanya menyembulkan pita atasnya, jadi menaikkannya lagi
- * tetap menyembunyikan badannya di balik kartu depan. Geser ke samping yang
- * membuat seluruh kartunya terbaca.
+ * Setelah tumpukan selesai membuka, mengarahkan mouse ke sebuah kartu menaikkannya
+ * 10px DI TEMPAT. Bukan keluar tumpukan, dan urutan tumpukannya tidak disentuh: kartu
+ * belakang yang naik tetap berada di belakang kartu depannya, dan yang berubah hanya
+ * pita atasnya menjadi 62px alih-alih 52px.
+ *
+ * Versi sebelumnya menggeser kartu 40px ke kanan dan menaikkan z-index ke 50, dan itu
+ * terasa melompat ke depan — z-index tidak bisa dianimasikan, jadi perpindahannya
+ * terjadi dalam satu frame tanpa transisi. Isyarat kecil di tempat lebih tepat untuk
+ * elemen yang tugasnya menyebut empat chain, bukan memamerkan satu kartu.
  *
  * Ini butuh DUA LAPIS, dan alasannya teknis. Animasi masuk memakai `animation` pada
  * `transform` dengan fill-mode `both`, dan nilai animasi menang atas nilai
