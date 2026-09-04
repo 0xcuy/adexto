@@ -46,12 +46,32 @@ export async function GET(req: Request) {
       }
     }
 
-    const fallbackPrice = project?.priceNative ?? trades[0]?.priceNative ?? 0;
+    const fallbackPrice = project?.priceNative ?? 0;
     const candles = buildCandles(trades, { bucketSeconds, buckets: 48, fallbackPrice });
 
-    const latestPrice = trades[0]?.priceNative ?? fallbackPrice;
-    const oldestPrice = candles.length > 0 ? candles[0].open : latestPrice;
-    const changePct = oldestPrice > 0 ? ((latestPrice - oldestPrice) / oldestPrice) * 100 : 0;
+    /**
+     * Latest price is found by TIMESTAMP, not by taking `trades[0]`.
+     *
+     * Both trade sources happen to sort newest-first today, so indexing worked by
+     * coincidence. That coincidence is exactly what broke the candles, and it would
+     * break this readout the moment a source changed its ordering. It is also
+     * `priceNativeAfter` — the curve's spot price after that trade — so this figure
+     * matches the spot price the trade panel reads from the contract, instead of an
+     * execution price that sits above it on a buy.
+     */
+    const newest = trades.reduce<TradeEvent | null>((best, t) => {
+      if (!Number.isFinite(Date.parse(t.timestamp))) return best;
+      if (!best) return t;
+      const d = Date.parse(t.timestamp) - Date.parse(best.timestamp);
+      return d > 0 || (d === 0 && (t.blockNumber ?? 0) > (best.blockNumber ?? 0)) ? t : best;
+    }, null);
+
+    const latestPrice = newest?.priceNativeAfter ?? newest?.priceNative ?? fallbackPrice;
+    // Measured from the curve's opening price when we know it, so the percentage
+    // answers "how far has this token moved since launch" rather than "since the
+    // oldest trade still inside the lookback window".
+    const openingPrice = fallbackPrice > 0 ? fallbackPrice : candles.length > 0 ? candles[0].open : latestPrice;
+    const changePct = openingPrice > 0 ? ((latestPrice - openingPrice) / openingPrice) * 100 : 0;
 
     return NextResponse.json({
       success: true,

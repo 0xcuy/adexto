@@ -108,6 +108,28 @@ export async function readOnChainSwaps(
       const amountToken = Number(ethers.formatUnits(isBuy ? amountOut : amountIn, decimals));
       const seconds = blockTimes.get(log.blockNumber);
 
+      /**
+       * The curve's true spot price after this trade, from the event's own
+       * post-trade reserves: spot = nativeReserveAfter / tokenReserveAfter, the
+       * same expression as `spotPriceNativePerToken()`.
+       *
+       * This exists because `amountNative / amountToken` is an EXECUTION price
+       * that includes fees asymmetrically, so plotting it makes a buy-only curve
+       * look like it moves when the market price only ever rose.
+       *
+       * The two pool generations name these fields differently AND place them at
+       * different positions — the hook emits `reserveNativeAfter` at index 7, the
+       * curve emits `nativeReserveAfter` at index 8 — so both names are read.
+       */
+      const nativeAfterRaw = parsed.args.nativeReserveAfter ?? parsed.args.reserveNativeAfter;
+      const tokenAfterRaw = parsed.args.tokenReserveAfter ?? parsed.args.reserveTokenAfter;
+      let priceNativeAfter: number | null = null;
+      if (nativeAfterRaw !== undefined && tokenAfterRaw !== undefined) {
+        const nativeAfter = Number(ethers.formatEther(BigInt(nativeAfterRaw)));
+        const tokenAfter = Number(ethers.formatUnits(BigInt(tokenAfterRaw), decimals));
+        if (tokenAfter > 0) priceNativeAfter = nativeAfter / tokenAfter;
+      }
+
       trades.push({
         id: `${log.transactionHash}_${log.index}`,
         txHash: log.transactionHash,
@@ -117,6 +139,7 @@ export async function readOnChainSwaps(
         amountNative,
         nativeSymbol: chain.nativeSymbol,
         priceNative: amountToken > 0 ? amountNative / amountToken : 0,
+        priceNativeAfter,
         trader: String(parsed.args.trader),
         timestamp: new Date((seconds ?? Math.floor(Date.now() / 1000)) * 1000).toISOString(),
         blockNumber: log.blockNumber,
@@ -146,8 +169,48 @@ export interface Candle {
   volume: number;
 }
 
+/**
+ * Aggregate trades into OHLC candles.
+ *
+ * WHY THIS SORTS, AND WHY IT PLOTS THE POST-TRADE SPOT PRICE
+ *
+ * Two bugs used to combine here to make a brand new token appear to dump on a
+ * curve where dumping is arithmetically impossible.
+ *
+ * First, order. `readOnChainSwaps` returns NEWEST-FIRST (it reverses the logs so
+ * the trade feed reads top-down), and `listTrades` sorts descending too. This
+ * function consumed that array as if it were chronological, so within a bucket
+ * `prices[0]` was the newest fill and `prices[length - 1]` was the oldest. It then
+ * set `open` from the newest and `close` from the oldest — on a rising curve that
+ * is open=high, close=low, i.e. a red candle for every bucket, and a series that
+ * marches downward no matter how much buying happened. Order is now established
+ * here by timestamp rather than trusted from the caller, so it cannot be broken
+ * again by a caller changing its own sort.
+ *
+ * Second, which price. A fill's `priceNative` is an EXECUTION price and is
+ * fee-inclusive asymmetrically: a buy's input is gross of fees so its print sits
+ * above the curve, a sell's output is net so its print sits below. Mixing both
+ * into one series manufactures movement that the market price never made. Where
+ * the `Swap` event gave us post-trade reserves we plot `priceNativeAfter`, the
+ * curve's actual spot price at that block, which rises on every buy and falls only
+ * on a sell — and which equals the spot price the trade panel shows, so the chart
+ * and the panel stop disagreeing.
+ *
+ * Pre-history is no longer invented. Buckets before the first real fill used to be
+ * emitted as flat candles at the seed price, which drew a long horizontal line at
+ * a price that had never traded and then dropped into the first real bucket. The
+ * series now starts at the first fill. The one price legitimately available before
+ * any trade is the curve's opening spot (`virtualNative / supply`), and that is
+ * used only as the first candle's `open`, because the curve really did stand there.
+ */
 export function buildCandles(
-  trades: Array<{ timestamp: string; priceNative: number; amountNative: number }>,
+  trades: Array<{
+    timestamp: string;
+    priceNative: number;
+    priceNativeAfter?: number | null;
+    amountNative: number;
+    blockNumber?: number | null;
+  }>,
   opts: { bucketSeconds?: number; buckets?: number; fallbackPrice: number }
 ): Candle[] {
   const bucketSeconds = opts.bucketSeconds ?? 300;
@@ -155,29 +218,42 @@ export function buildCandles(
   const nowBucket = Math.floor(Date.now() / 1000 / bucketSeconds) * bucketSeconds;
   const startBucket = nowBucket - (bucketCount - 1) * bucketSeconds;
 
+  // Chronological, oldest first. Block number breaks ties inside a shared
+  // timestamp: several swaps can land in one block, and on fast chains many blocks
+  // share a second.
+  const ordered = trades
+    .map((trade) => ({ trade, seconds: Math.floor(Date.parse(trade.timestamp) / 1000) }))
+    .filter(({ trade, seconds }) => {
+      const price = trade.priceNativeAfter ?? trade.priceNative;
+      return Number.isFinite(seconds) && Number.isFinite(price) && price > 0;
+    })
+    .sort((a, b) => a.seconds - b.seconds || (a.trade.blockNumber ?? 0) - (b.trade.blockNumber ?? 0));
+
   const byBucket = new Map<number, Array<{ price: number; volume: number }>>();
-  for (const trade of trades) {
-    const seconds = Math.floor(Date.parse(trade.timestamp) / 1000);
-    if (!Number.isFinite(seconds) || trade.priceNative <= 0) continue;
+  for (const { trade, seconds } of ordered) {
     const bucket = Math.floor(seconds / bucketSeconds) * bucketSeconds;
     if (bucket < startBucket || bucket > nowBucket) continue;
     if (!byBucket.has(bucket)) byBucket.set(bucket, []);
-    byBucket.get(bucket)!.push({ price: trade.priceNative, volume: trade.amountNative || 0 });
+    byBucket.get(bucket)!.push({
+      price: (trade.priceNativeAfter ?? trade.priceNative) as number,
+      volume: trade.amountNative || 0,
+    });
   }
+
+  const filledBuckets = [...byBucket.keys()].sort((a, b) => a - b);
+  if (filledBuckets.length === 0) return [];
 
   const candles: Candle[] = [];
+  // The curve's opening price is a real level, so the first candle may open there.
+  // Anything else would open the first candle on its own close and hide the very
+  // first move.
   let last = opts.fallbackPrice > 0 ? opts.fallbackPrice : 0;
 
-  // Seed from the oldest observed fill so the series does not open on a flat line.
-  const oldest = [...byBucket.keys()].sort((a, b) => a - b)[0];
-  if (oldest !== undefined) {
-    const first = byBucket.get(oldest)!;
-    last = first[0].price;
-  }
-
-  for (let bucket = startBucket; bucket <= nowBucket; bucket += bucketSeconds) {
+  for (let bucket = filledBuckets[0]; bucket <= nowBucket; bucket += bucketSeconds) {
     const fills = byBucket.get(bucket);
     if (!fills || fills.length === 0) {
+      // A gap after trading has begun is genuine: the price did not move because
+      // nobody traded. Flat is the truth here.
       if (last <= 0) continue;
       candles.push({ time: bucket, open: last, high: last, low: last, close: last, volume: 0 });
       continue;

@@ -156,11 +156,21 @@ export default function RealtimeCandleChart({
               color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(244,63,94,0.35)",
             }))
           );
-          const last = sorted[sorted.length - 1];
-          const first = sorted[0];
-          setPriceNative(last.close);
-          setChangePct(first.open > 0 ? ((last.close - first.open) / first.open) * 100 : 0);
-        } else if (Number.isFinite(data.priceNative) && data.priceNative > 0) {
+        }
+
+        /**
+         * The header reads the API's numbers instead of recomputing them from the
+         * candles.
+         *
+         * It used to derive the price from `last.close` and the change from
+         * `first.open`, which made this component a third, independent definition of
+         * "the price" alongside the API and the on-chain spot price in the trade
+         * panel — and it inherited any candle bug directly into the headline figure.
+         * The API now reports the curve's post-trade spot price and measures change
+         * from the launch price, so there is one definition and the panel agrees
+         * with it.
+         */
+        if (Number.isFinite(data.priceNative) && data.priceNative > 0) {
           setPriceNative(data.priceNative);
           setChangePct(Number(data.changePct) || 0);
         }

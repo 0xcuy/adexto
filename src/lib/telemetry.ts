@@ -27,8 +27,23 @@ export interface TradeEvent {
   /** Native asset moved. */
   amountNative: number;
   nativeSymbol: string;
-  /** Price of one token denominated in the native asset. */
+  /**
+   * EXECUTION price of one token denominated in the native asset — what this
+   * trader actually paid or received, fees included. Correct for the trade feed,
+   * but it is NOT the market price: a buy's `amountIn` is gross of the depth,
+   * creator and treasury fees, so a buy print sits above the curve price and a
+   * sell print below it.
+   */
   priceNative: number;
+  /**
+   * The curve's SPOT price immediately after this trade, taken from the `Swap`
+   * event's own post-trade reserves. This is the market price, identical to what
+   * `spotPriceNativePerToken()` would return at that block, and it is what a
+   * price chart must plot: it rises on every buy and falls only on a sell.
+   *
+   * Absent for agent-reported fills, which carry no reserve snapshot.
+   */
+  priceNativeAfter?: number | null;
   trader: string;
   timestamp: string;
   blockNumber: number | null;
