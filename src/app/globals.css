@@ -384,6 +384,102 @@ select option {
 }
 
 /* ============================================================================
+   Kartu: muncul saat masuk layar, terangkat saat disentuh
+   ----------------------------------------------------------------------------
+   Dua primitif yang dipakai kartu pilar di landing page dan blok kartu lain di
+   halaman yang sama.
+
+   `.adexto-rise` tidak memakai JavaScript. Cara biasa untuk ini adalah
+   IntersectionObserver, dan itu menambah komponen klien plus biaya hidrasi ke
+   halaman yang paling penting cepatnya — untuk hiasan. `animation-timeline: view()`
+   mengikat progres animasi ke posisi elemen di viewport, bukan ke waktu.
+
+   Fallback-nya aman, dan itu alasan `from { opacity: 0 }` boleh dipakai. Kalau
+   `animation-timeline` tidak didukung, deklarasinya diabaikan dan animasinya kembali
+   berbasis waktu: ia berjalan sekali saat halaman dimuat, dan `both` menahan nilai
+   keyframe TERAKHIR — jadi tidak mungkin berakhir pada opacity 0. Kartu di bawah
+   lipatan sudah selesai beranimasi sebelum terlihat, dan yang dilihat pemakai adalah
+   kartu yang sudah muncul. Tanpa jaminan itu, separuh halaman bisa tidak terlihat di
+   browser yang tidak mendukung, dan itu jauh lebih mahal daripada tidak ada animasi.
+   ========================================================================== */
+/* Memakai properti `translate`, BUKAN `transform`.
+   Alasannya presedensi, bukan gaya: animasi dengan fill-mode `both` menahan nilai
+   keyframe terakhirnya, dan nilai animasi menang atas stylesheet — jadi kalau
+   keyframe ini menyentuh `transform`, aturan `.adexto-lift:hover { transform: ... }`
+   pada elemen yang sama tidak akan pernah terlihat. Sudah terjadi sekali dan terbukti
+   dari pengukuran: saat hover, border/bayangan/rel berubah tetapi kartunya tidak
+   terangkat sedikit pun.
+
+   `translate` adalah properti transform independen yang DIKOMPOSISI dengan
+   `transform` (urutan spesifikasi: translate, rotate, scale, lalu transform), jadi
+   keduanya bisa hidup pada satu elemen. Itu penting di sini karena `.adexto-rise`
+   dipakai di sembilan tempat dan tidak boleh menuntut struktur DOM tertentu. */
+@keyframes adexto-rise {
+  from {
+    opacity: 0;
+    translate: 0 20px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.adexto-rise {
+  animation: adexto-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Jenjang hanya berlaku pada jalur waktu (lihat @supports di bawah). */
+  animation-delay: var(--rise-d, 0ms);
+}
+
+@supports (animation-timeline: view()) {
+  .adexto-rise {
+    animation-timeline: view();
+    /* Selesai sebelum kartunya sampai tengah layar; kalau tidak, ia masih memudar
+       ketika pemakai sudah mulai membacanya. */
+    animation-range: entry 10% cover 32%;
+    animation-duration: auto;
+    /* Dinolkan dengan sengaja: pada timeline progres, delay tidak berarti waktu, dan
+       jenjang tidak dibutuhkan — tiap kartu punya progresnya sendiri. Di desktop
+       keempatnya masuk bersamaan, di mobile bertumpuk sehingga muncul satu per satu. */
+    animation-delay: 0s;
+  }
+}
+
+/* Terangkat sedikit saat disentuh. Bayangannya yang mengerjakan kesan naik; tanpa itu
+   pergeseran 4px hanya terbaca sebagai kartu yang bergeser, bukan terangkat. */
+.adexto-lift {
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 260ms ease,
+    border-color 260ms ease;
+  box-shadow: 0 1px 2px rgba(32, 24, 16, 0.04);
+}
+
+.adexto-lift:hover {
+  transform: translate3d(0, -4px, 0);
+  /* `--accent-rgb`, bukan `--accent`. Yang kedua berisi hex (#7c3aed) dan tidak bisa
+     disuntik alpha; hanya varian kanal yang bisa. Kekeliruan ini gagal secara SENYAP
+     di CSS \u2014 deklarasi yang tidak sah dibuang tanpa pesan, jadi border hover-nya
+     sekadar tidak berubah dan tidak ada yang memberi tahu. */
+  border-color: rgb(var(--accent-rgb) / 0.3);
+  box-shadow: 0 18px 34px -20px rgba(32, 24, 16, 0.3), 0 2px 6px rgba(32, 24, 16, 0.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adexto-rise {
+    animation: none;
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  .adexto-lift {
+    transition: box-shadow 260ms ease, border-color 260ms ease;
+  }
+
+  .adexto-lift:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================================
    Tumpukan kartu chain di hero
    ----------------------------------------------------------------------------
    Empat kartu terurai dari satu tumpukan saat halaman dibuka. CSS murni, tanpa

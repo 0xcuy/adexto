@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import StackMarquee from "@/components/StackMarquee";
-import {
-  Layers, Cpu, ShieldCheck, ArrowRight, CheckCircle2,
-  Coins, TrendingUp, Lock, Globe, Code2,
-  CloudLightning, AlertCircle, HelpCircle
-} from "lucide-react";
+/* Cpu, Layers, Coins, TrendingUp, Lock dan Globe dibuang dari sini: keenamnya hanya
+   dipakai empat kartu pilar, yang sekarang tinggal di PillarCards.tsx bersama
+   ikon-ikonnya. */
+import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCircle, HelpCircle } from "lucide-react";
 import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
 import ChainCardStack from "@/components/ChainCardStack";
+import PillarCards from "@/components/PillarCards";
 
 export default function HomePage() {
   const [activeCodeTab, setActiveCodeTab] = useState<"factory" | "hook" | "cloudflare">("factory");
@@ -157,7 +157,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Problem */}
-          <div className="glass-panel p-8 rounded-2xl border border-danger/30 space-y-4">
+          <div className="adexto-rise glass-panel space-y-4 rounded-2xl border border-danger/30 p-8">
             {/* Tiga klaim di kolom ini diperbaiki karena yang pertama SALAH dan
                 dua lainnya tidak bisa dipertahankan.
 
@@ -206,7 +206,7 @@ export default function HomePage() {
           </div>
 
           {/* Solution */}
-          <div className="glass-panel p-8 rounded-2xl border border-ok/30 space-y-4">
+          <div className="adexto-rise glass-panel space-y-4 rounded-2xl border border-ok/30 p-8" style={{ "--rise-d": "90ms" } as React.CSSProperties}>
             {/* "Verifiable 0G TEE — no human can extract private keys" dihapus.
                 Tidak ada satu baris pun di repo ini yang mengambil, mengurai, atau
                 memverifikasi laporan attestation SEV-SNP; `/api/chat` adalah
@@ -264,149 +264,13 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Pillar 1: A */}
-          <div className="glass-panel p-6 rounded-2xl border border-accent/30 flex flex-col justify-between relative overflow-hidden group hover:border-accent/30 transition-all shadow-xl">
-            <div className="absolute top-0 right-0 w-28 h-28 bg-accent-soft rounded-full blur-2xl pointer-events-none group-hover:bg-accent-soft transition-all" />
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent border border-accent/30 flex items-center justify-center font-semibold text-lg shadow-lg shadow-accent/10 group-hover:scale-105 transition-transform">
-                  <Cpu className="w-6 h-6 text-accent" />
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-[10px] font-bold">
-                  PILLAR 01 [A]
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Autonomous Agent</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">0G Compute · TeeML</span>
-              </div>
-              {/* Kartu ini sudah dua kali salah. Mula-mula: "hardware-isolated AMD
-                  SEV-SNP enclaves" dengan lencana "Hardware Attested", tanpa satu pun
-                  pemeriksaan. Lalu saya menghapus klaim TEE-nya seluruhnya, dan itu
-                  juga salah — router 0G memang menyatakan attestation per model.
-                  Hardware-nya juga bukan SEV-SNP: router berkata Intel TDX, diverifikasi
-                  lewat dstack. Halaman /docs membaca deklarasi itu langsung dari router
-                  saat render, dan /api/tee menyajikannya mentah supaya bisa dicek. */}
-              <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                Each token is bound to an agent address at launch. The agent runs on 0G Compute, whose
-                router reports Intel TDX attestation via dstack for every model we call. We read that
-                declaration rather than assert it — but we do not verify the raw quote ourselves.
-              </p>
-            </div>
-            <Link
-              href="/docs"
-              className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4 hover:underline"
-            >
-              <span>See the live attestation table</span>
-              <ShieldCheck className="w-4 h-4 text-accent" />
-            </Link>
-          </div>
-
-          {/* Pillar 2: DEX */}
-          <div className="glass-panel p-6 rounded-2xl border border-accent/30 flex flex-col justify-between relative overflow-hidden group hover:border-accent/30 transition-all shadow-xl">
-            <div className="absolute top-0 right-0 w-28 h-28 bg-accent-soft rounded-full blur-2xl pointer-events-none group-hover:bg-accent-soft transition-all" />
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent border border-accent/30 flex items-center justify-center font-semibold text-lg shadow-lg shadow-accent/10 group-hover:scale-105 transition-transform">
-                  <Layers className="w-6 h-6 text-accent" />
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-[10px] font-bold">
-                  PILLAR 02 [DEX]
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Sovereign DEX</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">Sovereign Bonding Curve</span>
-              </div>
-              <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                A curve that opens against a virtual reserve, so a launch needs no liquidity deposit. The 0.30% swap fee
-                splits three ways on-chain: 0.15% depth stays in the curve, 0.10% to the creator, 0.05% to the buyback vault.
-              </p>
-            </div>
-            <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              {/* Bukan "100% Fee Retained": creator menerima 0.10% dari total fee,
-                  bukan seluruh fee. Protokol mengambil 0.05% (lihat /pitch), dan
-                  sisanya mengendap di kurva. */}
-              <span>Creator paid every swap</span>
-              <TrendingUp className="w-4 h-4 text-accent" />
-            </div>
-          </div>
-
-          {/* Pillar 3: T */}
-          <div className="glass-panel p-6 rounded-2xl border border-accent/30 flex flex-col justify-between relative overflow-hidden group hover:border-accent/30 transition-all shadow-xl">
-            <div className="absolute top-0 right-0 w-28 h-28 bg-accent-soft rounded-full blur-2xl pointer-events-none group-hover:bg-accent-soft transition-all" />
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent border border-accent/30 flex items-center justify-center font-semibold text-lg shadow-lg shadow-accent/10 group-hover:scale-105 transition-transform">
-                  <Coins className="w-6 h-6 text-accent" />
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-[10px] font-bold">
-                  PILLAR 03 [T]
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Token Factory</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">ERC-20, agent-bound</span>
-              </div>
-              {/* Dua koreksi.
-                  "ERC-8004": AdextoToken hanya menyimpan satu `address immutable
-                  agentIdentity`. Tidak ada supportsInterface, tidak ada registry
-                  identitas/reputasi/validasi seperti yang ditetapkan standar itu.
-                  Menyebutnya kepatuhan ERC-8004 tidak bisa ditunjukkan, jadi yang
-                  ditulis sekarang adalah apa yang benar-benar dilakukan field itu.
-                  "1-Click": peluncuran menuntut sambung dompet, tanda tangan
-                  attestation, proof World ID, lalu satu transaksi PER chain. */}
-              {/* Koreksi ketiga: "transfer hook is bound to one immutable agent
-                  address" salah menyebut apa yang mengikat apa. `_update`
-                  mengecualikan `_launcher` (factory) supaya seeding 100% supply ke
-                  kurva lolos dari batas 1%; `agentIdentity` tidak muncul di jalur
-                  transfer sama sekali — ia menjaga `executeTreasuryBuyback`. Dan
-                  token ini sekarang TIDAK punya owner: `Ownable` dibuang karena
-                  owner()-nya adalah factory yang tidak punya fungsi untuk
-                  memakainya, sehingga explorer melaporkan tuas admin yang tidak
-                  pernah ada. Itu hal pertama yang dicek pembeli, jadi disebut. */}
-              <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                An ERC-20 with <strong>no owner at all</strong> — no admin function exists to renounce,
-                because none was ever added. It carries one immutable agent address that cannot be
-                reassigned. 100% of supply enters the curve and is tradable from the launch transaction
-                onward, with a 1%-of-supply transfer cap for the first 5 blocks.
-              </p>
-            </div>
-            <div className="pt-4 border-t border-line text-[11px] text-accent font-bold flex items-center justify-between mt-4">
-              <span>No owner · agent binding immutable</span>
-              <Lock className="w-4 h-4 text-accent" />
-            </div>
-          </div>
-
-          {/* Pillar 4: O */}
-          <div className="glass-panel p-6 rounded-2xl border border-accent/30 flex flex-col justify-between relative overflow-hidden group hover:border-accent/30 transition-all shadow-xl">
-            <div className="absolute top-0 right-0 w-28 h-28 bg-accent/10 rounded-full blur-2xl pointer-events-none group-hover:bg-accent/10 transition-all" />
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-accent/10 text-accent border border-accent/30 flex items-center justify-center font-semibold text-lg shadow-lg shadow-accent/10 group-hover:scale-105 transition-transform">
-                  <CloudLightning className="w-6 h-6 text-accent" />
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-[10px] font-bold">
-                  PILLAR 04 [O]
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-ink group-hover:text-accent transition-colors">Orchestrator</h3>
-                <span className="text-[11px] font-bold text-accent block mt-0.5">Cloudflare Workers x402</span>
-              </div>
-              <p className="text-xs text-ink-soft font-sans leading-relaxed font-normal">
-                An HTTP 402 gate in front of the agent&apos;s API, so another machine can discover the price and
-                the settlement vault without a human in the loop. The buyback vault and its burn path exist in
-                the curve; connecting edge revenue to it is still to come.
-              </p>
-            </div>
-            <div className="pt-4 border-t border-line text-[11px] text-ink-soft font-bold flex items-center justify-between mt-4">
-              <span>402 challenge live · settlement pending</span>
-              <Globe className="w-4 h-4 text-ink-faint" />
-            </div>
-          </div>
-        </div>
+        {/* Empat kartu ini dulu empat blok JSX yang disalin penuh, sekitar 40 baris
+            masing-masing. Sudah mulai berpisah pula: kartu 4 memakai bg-accent/10
+            untuk kotak ikonnya sementara tiga lainnya bg-accent-soft, dan tidak ada
+            yang memutuskan itu. Sekarang satu data array + satu komponen; alasan
+            lengkapnya, termasuk tiga efek hover yang ternyata tidak melakukan apa pun,
+            ada di PillarCards.tsx. */}
+        <PillarCards />
       </section>
 
       {/* ── REAL CODE IMPLEMENTATION ─────────────────────────────────────────── */}
@@ -595,7 +459,7 @@ export default function HomePage() {
         </div>
 
         <div className="space-y-4 text-left">
-          <div className="glass-panel p-6 rounded-2xl border border-line space-y-2">
+          <div className="adexto-rise adexto-lift glass-panel space-y-2 rounded-2xl border border-line p-6">
             <h3 className="text-base font-bold text-ink flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-accent" /> What actually stops the developer from rugging the agent?
             </h3>
@@ -618,7 +482,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="glass-panel p-6 rounded-2xl border border-line space-y-2">
+          <div className="adexto-rise adexto-lift glass-panel space-y-2 rounded-2xl border border-line p-6" style={{ "--rise-d": "90ms" } as React.CSSProperties}>
             <h3 className="text-base font-bold text-ink flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-accent" /> What stops a sniper from taking the whole launch?
             </h3>
@@ -635,7 +499,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="glass-panel p-6 rounded-2xl border border-line space-y-2">
+          <div className="adexto-rise adexto-lift glass-panel space-y-2 rounded-2xl border border-line p-6" style={{ "--rise-d": "180ms" } as React.CSSProperties}>
             <h3 className="text-base font-bold text-ink flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-accent" /> Why serve the payment challenge from the edge?
             </h3>
