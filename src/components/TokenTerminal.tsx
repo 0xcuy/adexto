@@ -453,9 +453,39 @@ export default function TokenTerminal({
                     <span className="font-mono text-[9px] uppercase tracking-wider text-warn">no pool</span>
                   )}
                 </div>
-                <p className="mt-0.5 truncate font-mono text-[10px] text-ink-soft">
-                  {d.priceNative > 0 ? `${formatSmallNumber(d.priceNative)} ${d.nativeSymbol}` : "not priced yet"}
-                </p>
+                {/* USD di depan, native di tooltip — karena inilah panel tempat orang
+                    MEMBANDINGKAN chain, dan satuan native tidak sebanding.
+                    Sebelumnya baris ini hanya menampilkan harga native, sehingga Base
+                    berbunyi 1.5847e-9 ETH dan Monad 1.4604e-4 MON. Dua angka yang
+                    terlihat berbeda jauh padahal nilainya PERSIS sama, $4.000e-6:
+                    keempat kurva dibuka pada market cap USD yang identik. Jadi panel
+                    yang seharusnya memudahkan perbandingan justru membuat keempat
+                    chain tampak paling berbeda, dan yang dibandingkan orang sebenarnya
+                    hanya derau satuan.
+                    Dengan USD di depan, harga yang sama terbaca sama, dan divergensi
+                    yang muncul kemudian adalah divergensi yang sungguhan. */}
+                {(() => {
+                  const chainNativeUsd = assetPriceUsd(d.nativeSymbol, prices);
+                  const usd = d.priceNative * chainNativeUsd;
+                  return (
+                    <p
+                      className="mt-0.5 truncate font-mono text-[10px] text-ink-soft"
+                      title={
+                        d.priceNative > 0
+                          ? `${formatSmallNumber(d.priceNative)} ${d.nativeSymbol} per token on ${c.name}${
+                              usd > 0 ? ` · ${usd} USD` : ""
+                            }`
+                          : undefined
+                      }
+                    >
+                      {d.priceNative <= 0
+                        ? "not priced yet"
+                        : usd > 0
+                        ? `≈ $${formatSmallNumber(usd)}`
+                        : `${formatSmallNumber(d.priceNative)} ${d.nativeSymbol}`}
+                    </p>
+                  );
+                })()}
               </Link>
             );
           })}
