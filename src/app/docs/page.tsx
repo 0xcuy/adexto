@@ -24,7 +24,11 @@ export default async function DocsPage() {
             Chainlink CCIP tetap disebut belum aktif karena lane-nya memang mati.
             Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
             daripada daftar yang lebih pendek. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve and factory contracts, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: the mainnet launch factory, x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. Every section below says which it is.</p>
+        {/* "Not live: the mainnet launch factory" berhenti benar saat 0.10.0
+            di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
+            menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
+            dengan mengklaim yang belum ada. */}
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. No token has been launched through the factory yet. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -65,7 +69,13 @@ export default async function DocsPage() {
                 `network: mainnet` (Ethereum) untuk alamat yang punya 0 byte
                 bytecode di Ethereum dan 7.216 byte di 0G. Ia memindai chain yang
                 SALAH sejak blok 1, jadi barisnya nol dan akan selamanya nol. */}
-            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. A rewritten multi-chain subgraph exists in the repo and is not yet deployed; the explorer reads a server-side registry, so nothing on this site is served by The Graph today.</p>
+            {/* "is not yet deployed" berhenti benar pada 2026-09-04: subgraph
+                multi-chain yang ditulis ulang sudah ter-deploy ke Subgraph Studio
+                untuk Base dan Arbitrum One, terverifikasi sync melewati startBlock
+                factory tanpa indexing error. Yang MASIH benar adalah bagian
+                keduanya — situs ini belum membacanya, karena SUBGRAPH_URL_* sengaja
+                dibiarkan kosong sampai ada satu peluncuran nyata yang terindeks. */}
+            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is now deployed to Subgraph Studio for Base and Arbitrum One at v0.10.0, both synced past the factory&apos;s start block with no indexing errors and both reporting zero projects because nothing has launched. This site still does not read them — the explorer reads a server-side registry — so nothing here is served by The Graph today. 0G and Monad cannot use Studio at all: 0G is absent from The Graph&apos;s networks registry, and Monad is served by Firehose and Substreams only.</p>
           </div>
 
           {/* Amber di kartu ini dulu menempatkan Cloudflare x402 sederet dengan
@@ -364,10 +374,16 @@ export default async function DocsPage() {
             </div>
           </div>
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token terminal. The Governor is deployed on all four chains with a 4,000,000-token quorum and a 100,000-token proposal threshold — but the token those numbers are denominated in does not exist yet, so no vote can be cast.
+            {/* "the token does not exist yet" benar untuk Base dan Monad, tapi
+                kurang tepat untuk 0G dan Arbitrum: di sana governanceToken menunjuk
+                kontrak yang ADA (hook v1, 1.495 byte) namun bukan ERC-20, jadi
+                balanceOf revert. Hasil akhirnya sama — tidak ada suara yang bisa
+                masuk — tapi sebabnya berbeda, dan halaman /governance sudah
+                menyebutkan perbedaan itu. */}
+            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token terminal. The Governor is deployed on all four chains with a 4,000,000-token quorum and a 100,000-token proposal threshold, and <strong className="text-ink">no vote can be cast on any of them</strong>. <code className="text-accent">castVote</code> weighs a ballot with <code className="text-accent">governanceToken.balanceOf(msg.sender)</code>: that address is the zero address on Base and Monad, and on 0G and Arbitrum it points at the superseded v1 hook, which has no <code className="text-accent">balanceOf</code>. Either way the call reverts.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
-            Quorum: 4,000,000 tokens | Period: 3 days | Governance token: not deployed
+            Quorum: 4,000,000 tokens | Period: 3 days | Governance token: unwired on all four chains
           </div>
         </div>
       </div>

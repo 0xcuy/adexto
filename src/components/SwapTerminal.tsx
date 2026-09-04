@@ -334,10 +334,16 @@ export default function SwapTerminal() {
             <div className="mb-4 p-3 rounded-xl bg-white border border-line">
               <div className="flex items-start gap-2 text-[11px] text-ink-soft">
                 <Lock className="w-3.5 h-3.5 text-ink-faint mt-0.5 shrink-0" />
+                {/* The reason had to change when the fact did. This read "the curve
+                    factory has not been broadcast to mainnet", which was true until
+                    0.10.0 went live on all four chains and then quietly became false
+                    — the same trap /explorer already carries a note about. The panel
+                    is still empty, but for a completely different reason: launching
+                    works and nobody has used it yet. */}
                 <span>
-                  <strong className="text-ink">No markets exist yet.</strong> The curve factory has not been
-                  broadcast to mainnet, so nothing has launched and there is nothing to swap. This panel fills in
-                  on its own once the first curve is live.
+                  <strong className="text-ink">No markets exist yet.</strong> The curve factory is live on all four
+                  mainnets and launching is enabled — nothing has been launched through it yet, so there is nothing
+                  to swap. This panel fills in on its own as soon as the first curve goes live.
                 </span>
               </div>
             </div>
