@@ -1,0 +1,82 @@
+ADEXTO — asal berkas logo pihak ketiga di /public/brand/
+
+Berkas di direktori ini BUKAN milik ADEXTO. Masing-masing adalah merek dagang
+pemiliknya dan dipakai di sini hanya untuk merujuk produk yang benar-benar
+dipakai ADEXTO. Tidak ada yang diubah bentuk, dipotong, atau diberi warna baru
+kecuali yang dicatat di baris "perubahan".
+
+Kenapa di-vendor dan bukan dipasang sebagai dependency: @web3icons/core membawa
+17.921 berkas dan simple-icons 3.475, untuk enam glyph yang dipakai di sini.
+
+Setiap entri di bawah menyebut paket-plus-versi-plus-path atau URL persisnya,
+jadi berkasnya bisa dibandingkan ulang dengan sumbernya tanpa menjalankan apa pun
+milik kami:
+
+  npm pack @web3icons/core@4.0.55     -> dist/svgs/<path>.svg.js
+  npm pack simple-icons@16.29.0       -> icons/<name>.svg
+  curl <URL 0G di bawah>
+
+Varian "mono" @web3icons TIDAK dipakai: fill-nya di-hardcode #fff sehingga hilang
+di atas latar cream, dan mewarnainya ulang akan melanggar pedoman seperti milik
+Base yang menetapkan #0000FF (putih hanya untuk dark mode).
+
+--------------------------------------------------------------------------------
+
+file      : base.svg
+sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/base.svg.js
+lisensi   : MIT
+perubahan : tidak ada
+
+file      : arbitrum.svg
+sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/arbitrum-one.svg.js
+lisensi   : MIT
+perubahan : tidak ada
+
+file      : monad.svg
+sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/monad.svg.js
+lisensi   : MIT
+perubahan : tidak ada
+
+file      : world.svg
+sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/world.svg.js
+lisensi   : MIT
+perubahan : tidak ada
+
+file      : chainlink.svg
+sumber    : @web3icons/core 4.0.55  dist/svgs/tokens/branded/LINK.svg.js
+lisensi   : MIT
+perubahan : tidak ada
+
+file      : cloudflare.svg
+sumber    : simple-icons 16.29.0  icons/cloudflare.svg
+lisensi   : CC0-1.0
+perubahan : atribut fill="#F38020" disuntikkan ke elemen <svg>. Berkas aslinya
+            monokrom tanpa fill sehingga tampil hitam; F38020 adalah hex resmi
+            Cloudflare yang diterbitkan simple-icons sendiri di
+            data/simple-icons.json, jadi ini pemakaian yang dimaksudkan, bukan
+            pewarnaan sembarangan.
+
+file      : 0g.svg
+sumber    : https://0g.ai/assets/681c472ba991e2e4ca164fe6_Black-OG-Logo.svg
+            (ditautkan langsung dari brand kit resmi di https://0g.ai/brandkit)
+lisensi   : merek dagang 0G Labs; dipakai untuk merujuk 0G
+perubahan : tidak ada. Berkasnya wordmark 248x120 dan path-nya mengisi penuh
+            viewBox, jadi ia ditampilkan pada tinggi seragam tanpa dipotong —
+            memotong logo dicantumkan sebagai penyalahgunaan di brand kit itu.
+
+--------------------------------------------------------------------------------
+
+TIDAK DIPAKAI — CoinGecko
+
+Pedoman merek CoinGecko (coingecko.com/en/branding) meminta logonya diberi
+hyperlink ke coingecko.com dan didampingi teks "Data provided by CoinGecko",
+serta melarang pemakaian berulang atau menonjol.
+
+Baris ticker di landing page mengulang tiap chip empat kali, beranimasi, dan
+seluruh wadahnya ditandai aria-hidden — jadi ia tidak bisa membawa tautan yang
+bisa difokus maupun kalimat atribusi itu. Karena itu logonya tidak dipasang.
+Namanya tetap tertulis sebagai teks, yang memang bentuk atribusi yang mereka
+izinkan, dan entri itu memakai monogram "CG".
+
+Keputusan ini dijaga mesin: audit_consistency.mjs bagian 8 gagal kalau entri
+CoinGecko di StackMarquee.tsx suatu saat diberi `logo:`.

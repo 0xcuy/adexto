@@ -383,6 +383,47 @@ select option {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
 }
 
+/* ============================================================================
+   Ruang hero — menyusut menurut TINGGI viewport, bukan lebarnya
+   ----------------------------------------------------------------------------
+   Kelas ini ada karena satu keluhan yang bisa diukur: pita ticker harus utuh
+   tanpa menggulir. Sesudah pitanya dipindah ke atas deret angka, dasarnya turun
+   dari 997px ke 780px — cukup untuk 1440x800, masih 12px terlalu jauh untuk
+   1366x768 dan 60px untuk 1280x720.
+
+   Breakpoint Tailwind semuanya berbasis LEBAR, dan lebar bukan variabel yang
+   menentukan di sini: pengukuran menunjukkan dasar pita berada di 780px yang
+   sama pada 1280, 1366, 1440, maupun 1920 karena judulnya membungkus sama
+   banyak. Yang berbeda hanya berapa dari 780px itu yang kelihatan. Karena itu
+   kondisinya max-height, dan angkanya diambil dari tinggi layar yang benar-benar
+   dipakai orang, bukan dibulatkan asal:
+
+     > 820px  -> ruang penuh (1440x900, 1920x1080)
+     <= 820px -> dasar pita ~732px  (1440x800, 1366x768)
+     <= 740px -> dasar pita ~708px  (1280x720)
+
+   Tipografi hero tidak ikut diperkecil. Yang menyusut hanya padding, sehingga
+   halaman ini tidak pernah menampilkan ukuran huruf berbeda kepada dua pembaca.
+   ========================================================================== */
+.hero-pad {
+  padding-top: 5rem;
+  padding-bottom: 4rem;
+}
+
+@media (max-height: 820px) {
+  .hero-pad {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+}
+
+@media (max-height: 740px) {
+  .hero-pad {
+    padding-top: 2rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

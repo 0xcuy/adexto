@@ -476,6 +476,66 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
   if (ccipBogus === 0) ok("tidak ada dokumen yang menyangkal router CCIP di chain yang sebenarnya punya");
 }
 
+// ── 8. logo pihak ketiga: berkasnya ada, dan asalnya tercatat ───────────────
+console.log("\n── ticker stack: berkas logo & provenance ──");
+{
+  /**
+   * Ticker di landing page memuat logo merek orang lain. Ada dua cara ini rusak
+   * tanpa ada yang tahu, dan keduanya kelas bug yang sama dengan sisa berkas ini —
+   * pernyataan yang berhenti benar:
+   *
+   *   1. Berkasnya hilang dari /public/brand/. Build tetap lolos, TypeScript tetap
+   *      lolos, dan yang tampil di produksi adalah ikon gambar rusak di sembilan
+   *      chip beranimasi. Tidak ada yang menangkapnya kecuali mata.
+   *   2. Berkas baru ditambahkan tanpa dicatat asalnya. SOURCES.txt yang ikut
+   *      terbit lalu menjadi daftar yang mengaku lengkap padahal tidak — persis
+   *      jenis klaim yang penjaga ini ada untuk mencegah.
+   *
+   * Sumber kebenarannya bisa dibaca mesin: daftar `logo:` di komponen, isi
+   * direktori /public/brand, dan isi SOURCES.txt.
+   */
+  const comp = "src/components/StackMarquee.tsx";
+  const src = readFileSync(comp, "utf8");
+  const referenced = [...src.matchAll(/logo:\s*"(\/brand\/[^"]+)"/g)].map((m) => m[1]);
+  const unique = [...new Set(referenced)];
+  check(`${comp} merujuk berkas logo`, unique.length > 0, `${unique.length} berkas unik, ${referenced.length} entri`);
+
+  const missing = unique.filter((p) => !existsSync(`public${p}`));
+  check("setiap logo yang dirujuk ada di /public", missing.length === 0, missing.join(", ") || `${unique.length} berkas`);
+
+  const sourcesPath = "public/brand/SOURCES.txt";
+  if (!existsSync(sourcesPath)) {
+    bad("provenance logo tercatat", `${sourcesPath} tidak ada`);
+  } else {
+    const sources = readFileSync(sourcesPath, "utf8");
+    // Setiap SVG di direktori itu harus muncul di SOURCES.txt — termasuk yang belum
+    // dipakai komponen, karena berkasnya tetap ikut terbit ke publik.
+    const onDisk = readdirSync("public/brand").filter((f) => f.endsWith(".svg"));
+    const undocumented = onDisk.filter((f) => !sources.includes(f));
+    check("setiap SVG di /public/brand tercatat asalnya", undocumented.length === 0, undocumented.join(", ") || `${onDisk.length} berkas`);
+    const noLicense = onDisk.length > 0 && !/lisensi\s*:/.test(sources);
+    check("SOURCES.txt menyebut lisensi", !noLicense, noLicense ? "tidak ada baris lisensi" : "ada");
+  }
+
+  /**
+   * CoinGecko adalah satu-satunya entri yang SENGAJA tanpa logo: pedoman merek
+   * mereka meminta hyperlink plus teks atribusi dan melarang pemakaian berulang,
+   * sementara baris ticker ini mengulang tiap chip empat kali di dalam wadah
+   * aria-hidden. Kalau suatu saat logonya ikut dipasang, itu harus keputusan yang
+   * disadari, bukan kebetulan.
+   */
+  // Seluruh objek entri diambil dulu, baru diperiksa. Mencocokkan `name: "CoinGecko"`
+  // lalu `logo:` sesudahnya akan lolos kalau `logo:` ditulis SEBELUM `name:` di
+  // objek yang sama — urutan properti bukan sesuatu yang boleh diandalkan.
+  const cgEntry = (src.match(/\{[^{}]*"CoinGecko"[^{}]*\}/) || [""])[0];
+  const cgHasLogo = /\blogo\s*:/.test(cgEntry);
+  check(
+    "CoinGecko tanpa logo (pedoman mereknya melarang pemakaian berulang tanpa tautan)",
+    !cgHasLogo,
+    cgHasLogo ? "entri CoinGecko sekarang punya logo" : "monogram"
+  );
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

@@ -30,7 +30,10 @@ export default function HomePage() {
           empat kartu berbingkai di dalam halaman yang sudah penuh bingkai
           membuat fakta terlihat seperti hiasan. Catatan "factory pending
           broadcast" tetap dipertahankan kata demi kata. */}
-      <section className="relative w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
+      {/* `hero-pad` menggantikan `pt-20 pb-16`: paddingnya menyusut menurut TINGGI
+          viewport supaya pita ticker di bawah utuh tanpa menggulir. Alasan
+          lengkapnya, termasuk angka hasil pengukurannya, ada di globals.css. */}
+      <section className="hero-pad relative w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* v0.10.0, bukan v1.0.0.
             Semver menyatakan 1.0.0 berarti API publiknya sudah stabil, dan major
             nol berarti masih pengembangan awal di mana apa pun boleh berubah. Yang
@@ -67,8 +70,29 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* Fakta, tanpa kotak. Garis hairline sudah cukup untuk memisahkan. */}
-        <dl className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 border-t border-line pt-8 text-left">
+      </section>
+
+      {/* Ticker stack pindah ke ATAS deret fakta, bukan di bawahnya.
+          Alasannya diukur, bukan selera: dengan urutan lama, pita ini mulai di
+          756px dan berakhir di 997px, sehingga di layar 1440x800 — tinggi laptop
+          paling umum — 197px terbawahnya tidak pernah terlihat tanpa menggulir.
+          Yang menyisipkan jarak itu adalah deret <dl> di bawah (mt-16 + pt-8 +
+          isi ≈ 170px), bukan hero-nya sendiri.
+
+          Pilihan lain adalah memampatkan padding hero sampai pita itu terangkat,
+          tetapi menghitungnya menunjukkan perlu ~140px dan satu-satunya cara
+          mendapatkannya adalah merusak tipografi hero. Menukar urutan memberi
+          hasil yang sama tanpa mengubah satu ukuran huruf pun, dan urutannya
+          justru lebih dekat ke maksud yang sudah ditulis di komentar lama:
+          janji utama -> apa yang menopangnya -> angka-angkanya. */}
+      <StackMarquee />
+
+      <section className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+        {/* Fakta, tanpa kotak. Pita ticker di atas sudah membawa border-y sendiri,
+            jadi `border-t` milik <dl> ini dibuang — kalau tidak, hasilnya dua garis
+            hairline sejajar berjarak beberapa piksel, yang terbaca seperti cacat
+            render alih-alih pemisah. */}
+        <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 text-left">
           <div>
             <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Cost to launch</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink">Gas only</dd>
@@ -100,11 +124,6 @@ export default function HomePage() {
           </div>
         </dl>
       </section>
-
-      {/* Ticker stack: tepat di bawah lipatan pertama, melintang penuh dan
-          terpusat, jadi hal pertama sesudah janji utama adalah daftar apa yang
-          sebenarnya menopangnya. */}
-      <StackMarquee />
 
     {/* ── THE PROBLEM & THE SOLUTION (VC PERSPECTIVE) ────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
