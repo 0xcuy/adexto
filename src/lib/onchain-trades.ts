@@ -46,11 +46,17 @@ const SWAP_IFACES = [new ethers.Interface(SOVEREIGN_CURVE_ABI), new ethers.Inter
 const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
 const ifaceForTopic = (topic0: string) => SWAP_IFACES[SWAP_TOPICS.indexOf(topic0)];
 
+/**
+ * @param limit How many of the most recent swaps to decode. Raised from 60 because
+ *        the indicators need history to exist at all: RSI(14) needs 15 candles,
+ *        MACD(12,26,9) needs 34 and SMA(50) needs 50, so a 60-trade window could
+ *        leave the longer ones permanently warming up on a real market.
+ */
 export async function readOnChainSwaps(
   chain: ChainInfo,
   poolAddress: string,
   symbol: string,
-  limit = 60
+  limit = 400
 ): Promise<TradeEvent[]> {
   if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return [];
 
@@ -81,17 +87,33 @@ export async function readOnChainSwaps(
     }
 
     const recent = logs.slice(-limit).reverse();
+
+    /**
+     * Block timestamps, fetched with a concurrency cap.
+     *
+     * One `getBlock` per unique block is unavoidable — the log carries no timestamp
+     * — but firing all of them at once is what breaks first when the trade limit is
+     * raised to give the indicators enough history. Public RPCs rate-limit or drop
+     * a few hundred simultaneous calls, and a dropped block time silently becomes
+     * `Date.now()` below, which would place an old trade in the newest bucket and
+     * distort every indicator computed from it. Batches of 20 keep it well inside
+     * what public endpoints tolerate.
+     */
     const blockTimes = new Map<number, number>();
-    await Promise.all(
-      [...new Set(recent.map((l) => l.blockNumber))].map(async (blockNumber) => {
-        try {
-          const block = await provider.getBlock(blockNumber);
-          if (block) blockTimes.set(blockNumber, Number(block.timestamp));
-        } catch {
-          // ignore, fall back to null timestamp below
-        }
-      })
-    );
+    const uniqueBlocks = [...new Set(recent.map((l) => l.blockNumber))];
+    const BLOCK_BATCH = 20;
+    for (let i = 0; i < uniqueBlocks.length; i += BLOCK_BATCH) {
+      await Promise.all(
+        uniqueBlocks.slice(i, i + BLOCK_BATCH).map(async (blockNumber) => {
+          try {
+            const block = await provider.getBlock(blockNumber);
+            if (block) blockTimes.set(blockNumber, Number(block.timestamp));
+          } catch {
+            // ignore, fall back below
+          }
+        })
+      );
+    }
 
     const trades: TradeEvent[] = [];
     for (const log of recent) {
@@ -215,8 +237,6 @@ export function buildCandles(
 ): Candle[] {
   const bucketSeconds = opts.bucketSeconds ?? 300;
   const bucketCount = opts.buckets ?? 48;
-  const nowBucket = Math.floor(Date.now() / 1000 / bucketSeconds) * bucketSeconds;
-  const startBucket = nowBucket - (bucketCount - 1) * bucketSeconds;
 
   // Chronological, oldest first. Block number breaks ties inside a shared
   // timestamp: several swaps can land in one block, and on fast chains many blocks
@@ -228,6 +248,23 @@ export function buildCandles(
       return Number.isFinite(seconds) && Number.isFinite(price) && price > 0;
     })
     .sort((a, b) => a.seconds - b.seconds || (a.trade.blockNumber ?? 0) - (b.trade.blockNumber ?? 0));
+
+  /**
+   * The upper bound follows the DATA, not just this server's clock.
+   *
+   * Trade times come from block timestamps while `Date.now()` is the server's
+   * clock, and the two are not the same clock. Using the wall clock alone silently
+   * discarded any trade dated ahead of it — which happens for real on an L2 whose
+   * sequencer timestamp runs a little fast, and happens dramatically on a devchain
+   * where time is advanced deliberately. The newest fill would just vanish from the
+   * chart with no error anywhere. Taking the later of the two means a genuine trade
+   * is never dropped for disagreeing with our clock.
+   */
+  const wallBucket = Math.floor(Date.now() / 1000 / bucketSeconds) * bucketSeconds;
+  const newestSeconds = ordered.length > 0 ? ordered[ordered.length - 1].seconds : 0;
+  const newestBucket = Math.floor(newestSeconds / bucketSeconds) * bucketSeconds;
+  const nowBucket = Math.max(wallBucket, newestBucket);
+  const startBucket = nowBucket - (bucketCount - 1) * bucketSeconds;
 
   const byBucket = new Map<number, Array<{ price: number; volume: number }>>();
   for (const { trade, seconds } of ordered) {

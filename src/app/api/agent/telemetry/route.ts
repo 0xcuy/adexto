@@ -47,7 +47,14 @@ export async function GET(req: Request) {
     }
 
     const fallbackPrice = project?.priceNative ?? 0;
-    const candles = buildCandles(trades, { bucketSeconds, buckets: 48, fallbackPrice });
+    /**
+     * 240 buckets rather than 48, because indicators need bars to exist.
+     * SMA(50) needs 50 of them and MACD needs 34, so a 48-bucket window left the
+     * longer indicators unable to ever produce a value. Empty buckets before the
+     * first trade are not emitted, so a wider window costs nothing on a young
+     * market — it only extends how far back a busy one can be read.
+     */
+    const candles = buildCandles(trades, { bucketSeconds, buckets: 240, fallbackPrice });
 
     /**
      * Latest price is found by TIMESTAMP, not by taking `trades[0]`.
