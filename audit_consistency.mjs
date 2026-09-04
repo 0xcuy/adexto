@@ -388,6 +388,20 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
     // 0G sengaja tidak ada: tidak satu pun record Uniswap untuk chain ini.
   };
 
+  /**
+   * Router CCIP, kelas klaim yang sama dan sudah basi dengan cara yang sama.
+   *
+   * `/docs` menyatakan "Chainlink CCIP publishes no router on 0G or Monad". Daftar
+   * mainnet resmi Chainlink memuat `0g-mainnet` dan `monad-mainnet`, dan keempat
+   * router terbukti ada di chain. Alamat di bawah sudah diverifikasi.
+   */
+  const CCIP_ROUTER = {
+    16661: "0x0aA145a62153190B8f0D3cA00c441e451529f755",
+    8453: "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
+    42161: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
+    143: "0x33566fE5976AAa420F3d5C64996641Fc3858CaDB",
+  };
+
   const live = [];
   for (const [id, addr] of Object.entries(V4_POOL_MANAGER)) {
     try {
@@ -418,6 +432,39 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
     }
   }
   if (bogus === 0) ok("tidak ada dokumen yang menyangkal Uniswap di chain yang sebenarnya punya");
+
+  // ── CCIP: klaim ketersediaan router harus mengikuti chain juga ──
+  const ccipLive = [];
+  for (const [id, addr] of Object.entries(CCIP_ROUTER)) {
+    try {
+      const code = await providerFor(Number(id)).getCode(addr);
+      if ((code.length - 2) / 2 > 0) ccipLive.push(CHAINS[id].key);
+      else soft(`router CCIP ${CHAINS[id].key} kini 0 byte`, `${addr} — perbarui daftar`);
+    } catch (e) {
+      soft(`router CCIP ${CHAINS[id].key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+    }
+  }
+  if (ccipLive.length) ok(`router CCIP hidup di ${ccipLive.join(", ")}`);
+
+  /**
+   * Yang dijaga adalah klaim tentang KETERSEDIAAN Chainlink, bukan tentang keadaan
+   * kita. "lane kami idle" atau "belum kami buka" itu benar dan harus tetap boleh
+   * ditulis; "Chainlink tidak menerbitkan router di sini" tidak boleh.
+   */
+  let ccipBogus = 0;
+  for (const path of sourceFiles()) {
+    const text = visibleText(path);
+    for (const key of ccipLive) {
+      const re = new RegExp(`(publishes no router|no router|tidak menerbitkan router)[^.]{0,60}${key}|${key}[^.]{0,60}(publishes no router|tidak menerbitkan router)`, "i");
+      const m = text.match(re);
+      if (!m) continue;
+      const around = text.slice(Math.max(0, m.index - 200), m.index + 200);
+      if (/no longer true|corrected here|berhenti benar|diralat/i.test(around)) continue;
+      bad(`${path} menyangkal router CCIP di ${key}`, `"${m[0].slice(0, 60)}" — router ada di chain itu`);
+      ccipBogus++;
+    }
+  }
+  if (ccipBogus === 0) ok("tidak ada dokumen yang menyangkal router CCIP di chain yang sebenarnya punya");
 }
 
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);

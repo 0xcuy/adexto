@@ -110,9 +110,23 @@ export default async function DocsPage() {
                 "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
                 hanya di halaman ini. World ID sudah keluar dari daftar ini karena
                 kini benar-benar terpasang. */}
+            {/* "Chainlink CCIP publishes no router on 0G or Monad" berhenti benar,
+                dan diralat di sini. Daftar mainnet resmi Chainlink memuat
+                `0g-mainnet` dan `monad-mainnet`, dan router-nya dibaca dengan
+                eth_getCode: 10.761 byte di 0G, 11.130 byte di Monad, plus
+                tokenAdminRegistry dan tokenPoolFactory di keduanya.
+                Yang MASIH benar adalah bagian keduanya — receiver kita idle, karena
+                belum ada lane yang kami buka. Itu keadaan kami, bukan batasan
+                Chainlink, dan dua hal itu tidak boleh dicampur lagi. */}
             <p className="text-ink-soft">
-              Cross-chain treasury routing is not active: Chainlink CCIP publishes no router on 0G or Monad, so those lanes
-              cannot be opened yet — the receiver contracts are deployed but idle. Aggregator routing (1inch Fusion) is
+              Cross-chain treasury routing is not active. The receiver contracts are deployed on all four chains and sit
+              idle because we have not opened a lane — not because Chainlink is missing: CCIP routers are live on all four,
+              including 0G and Monad. Note also that these ERC-20s cannot be moved by CCIP as they stand. A burn-and-mint
+              token pool needs mint authority and <code className="text-accent">AdextoToken</code> has none —{" "}
+              <code className="text-accent">_mint</code> is called once in the constructor, there is no mint function, no
+              minter role, no <code className="text-accent">owner()</code>, no{" "}
+              <code className="text-accent">getCCIPAdmin()</code> and no proxy. That immutability is the same property
+              that makes the supply and the absent withdrawal path verifiable. Aggregator routing (1inch Fusion) is
               designed for but not integrated.
             </p>
           </div>
