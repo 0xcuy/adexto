@@ -1,8 +1,9 @@
 specVersion: 1.0.0
 description: >
-  ADEXTO curve factory and per-token sovereign bonding curves. Indexes launches,
-  swaps, creator fee claims and agent buyback burns. Curve reserves are derived
-  entirely from event data, so no archive node is required.
+  ADEXTO curve factory and per-token sovereign bonding curves. Indexes launches
+  and their optional ERC-8004 agent identity binding, swaps, creator fee claims,
+  and treasury-funded buyback burns. Reserves and prices come entirely from
+  event data, so the subgraph needs no eth_call and no archive node.
 repository: https://github.com/0xcuy/adexto
 indexerHints:
   prune: auto

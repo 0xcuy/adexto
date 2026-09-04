@@ -146,7 +146,7 @@ The point of this table is that nothing above it should be read as more finished
 | x402 edge gateway | **Discovery only** | The HTTP 402 challenge, price and settlement vault are live and real. EIP-712 voucher settlement and revenue routing into the vault are **not built** — a signed voucher returns 501. |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | Chainlink CCIP | **Receiver deployed, idle** | Contracts exist on all four chains; no lane is open and no message has been sent. |
-| The Graph indexing | **Wired, with nothing to index yet** | `adexto-base` and `adexto-arbitrum` are live at `v0.10.1` and `SUBGRAPH_URL_*` now points at both. Verified reachable from the app: Base at block 50,862,947 and Arbitrum at 501,625,052, `hasIndexingErrors: false` on each. The registry stays the primary source and the indexer is additive, so an empty indexer only leaves `live` null. Because the route asks only about curves the registry already knows, and the registry is empty, no query is actually issued yet. Not published to the decentralized network. See below. |
+| The Graph indexing | **Wired, with nothing to index yet** | `adexto-base` and `adexto-arbitrum` are live at `v0.10.2` and `SUBGRAPH_URL_*` now points at both. Verified reachable from the app: Base at block 50,862,947 and Arbitrum at 501,625,052, `hasIndexingErrors: false` on each. The registry stays the primary source and the indexer is additive, so an empty indexer only leaves `live` null. Because the route asks only about curves the registry already knows, and the registry is empty, no query is actually issued yet. Not published to the decentralized network. See below. |
 | Governance | **Deployed, NOT operational** | Stronger than "unexercised": it cannot be exercised. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote would revert. `proposalCount` is 0 on all four. |
 
 ### Not implemented, despite what earlier drafts of this file claimed
@@ -195,8 +195,10 @@ Deployed for two chains, and **not yet read by this site**. The manifest and per
 
 | Subgraph | Version | Endpoint |
 |---|---|---|
-| `adexto-base` | `v0.10.0` | `https://api.studio.thegraph.com/query/1757874/adexto-base/v0.10.0` |
-| `adexto-arbitrum` | `v0.10.0` | `https://api.studio.thegraph.com/query/1757874/adexto-arbitrum/v0.10.0` |
+| `adexto-base` | `v0.10.2` | `https://api.studio.thegraph.com/query/1757874/adexto-base/v0.10.2` |
+| `adexto-arbitrum` | `v0.10.2` | `https://api.studio.thegraph.com/query/1757874/adexto-arbitrum/v0.10.2` |
+
+`v0.10.1` fixed a unit mismatch where `openingPriceNative` was a 1e18-scaled `BigInt` beside a decimal `spotPriceNative`. `v0.10.2` corrects the manifest description, which claimed "agent buyback burns" — `executeBuyback` has no caller gate at all, so anyone may trigger it and attributing it to an agent overstated what the contract enforces. The same version also stopped omitting the ERC-8004 `AgentBound` binding, which the subgraph indexes and the description had never mentioned.
 
 Both index factory `0.10.0` including the `AgentBound` event, and both were verified rather than assumed: `hasIndexingErrors: false`, and each has indexed **past its factory's start block** — 142,769 blocks on Base and 1,134,799 on Arbitrum. That last check is the one that matters. A subgraph aimed at the *wrong* factory also reports healthy and also returns nothing, and looks identical to a correct one; only having passed the right start block makes an empty result mean "nothing has launched" rather than "watching the wrong address".
 
