@@ -9,6 +9,7 @@ import {
   CloudLightning, AlertCircle, HelpCircle
 } from "lucide-react";
 import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
+import ChainCardStack from "@/components/ChainCardStack";
 
 export default function HomePage() {
   const [activeCodeTab, setActiveCodeTab] = useState<"factory" | "hook" | "cloudflare">("factory");
@@ -34,7 +35,12 @@ export default function HomePage() {
       {/* `hero-pad` menggantikan `pt-20 pb-16`: paddingnya menyusut menurut TINGGI
           viewport supaya pita ticker di bawah utuh tanpa menggulir. Alasan
           lengkapnya, termasuk angka hasil pengukurannya, ada di globals.css. */}
-      <section className="hero-pad relative w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      {/* max-w-7xl, bukan 6xl. Diukur: pada 6xl (1008px) kolom teks tinggal 524px
+          setelah dikurangi padding, dek, dan gap — dan judul 52,5px di kolom itu
+          membungkus empat baris, yang mendorong pita ticker 53px ke bawah lipatan. */}
+      <section className="hero-pad relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-12 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-10">
+          <div className="text-center xl:text-left">
         {/* v0.10.0, bukan v1.0.0.
             Semver menyatakan 1.0.0 berarti API publiknya sudah stabil, dan major
             nol berarti masih pengembangan awal di mana apa pun boleh berubah. Yang
@@ -42,20 +48,20 @@ export default function HomePage() {
             ke keempat mainnet: belum ada satu pun peluncuran nyata, jadi API-nya
             belum pernah diuji oleh pemakaian. Angka ini naik ke 1.0.0 setelah
             peluncuran pertama berhasil — supaya angkanya berarti sesuatu. */}
-        <p className="kicker justify-center mb-6">ADEXTO Protocol v0.10.0</p>
+        <p className="kicker mb-6 justify-center xl:justify-start">ADEXTO Protocol v0.10.0</p>
 
         <h1 className="text-[2.5rem] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.06] text-ink mb-6">
           Launch an AI agent token with no liquidity deposit.{" "}
           <span className="gradient-text">Gas only.</span>
         </h1>
 
-        <p className="mx-auto max-w-2xl text-base sm:text-lg text-ink-soft leading-relaxed mb-9">
+        <p className="mx-auto mb-9 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
           100% of supply opens inside a sovereign bonding curve, so there is nothing to seed and no
           creator allocation to dump. Every swap then pays the creator 0.10% and the buyback vault 0.05%,
           settled on-chain for as long as the market keeps trading.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
+        <div className="flex flex-col items-center justify-center gap-5 sm:flex-row xl:justify-start">
           <Link
             href="/studio"
             className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-[15px] bg-accent hover:bg-accent-strong text-white transition-colors"
@@ -69,8 +75,18 @@ export default function HomePage() {
           >
             Read the deployed contracts
           </Link>
-        </div>
+            </div>
+          </div>
 
+          {/* Tumpukan kartu chain, hanya dari xl (1280px) ke atas.
+              Ambangnya lg dulu, dan diukur ternyata salah: pada 1024px dek selebar
+              ini terpotong 120px oleh tepi viewport, dan kolom teks yang tersisa
+              memaksa judulnya membungkus jadi lima baris. Di bawah xl hero kembali
+              satu kolom terpusat — hiasan tidak boleh memakan tempat kalimatnya. */}
+          <div className="hidden xl:block">
+            <ChainCardStack />
+          </div>
+        </div>
       </section>
 
       {/* Ticker stack pindah ke ATAS deret fakta, bukan di bawahnya.

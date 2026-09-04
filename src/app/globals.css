@@ -384,6 +384,51 @@ select option {
 }
 
 /* ============================================================================
+   Tumpukan kartu chain di hero
+   ----------------------------------------------------------------------------
+   Empat kartu terurai dari satu tumpukan saat halaman dibuka. CSS murni, tanpa
+   JavaScript: `animation` berjalan begitu gaya diterapkan, jadi komponennya tetap
+   komponen server dan tidak ada biaya hidrasi untuk hiasan.
+
+   Transform akhir dan jeda tiap kartu datang lewat custom property yang diset
+   inline (`--card-t`, `--card-d`), sehingga satu keyframe melayani keempatnya.
+   Itu bisa karena var() diselesaikan pada computed-value time, jadi `to` boleh
+   berisi var.
+
+   `transform` juga diset di luar keyframe dengan nilai yang sama. Tanpa itu, pada
+   jeda sebelum animasi mulai kartunya bertumpuk rata di posisi awal — dan pada
+   kartu paling belakang jedanya cukup lama untuk terlihat sebagai kedipan.
+   ========================================================================== */
+@keyframes adexto-card-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0) scale(0.94) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: var(--card-t);
+  }
+}
+
+.adexto-card {
+  transform: var(--card-t);
+  transform-origin: 50% 100%;
+  animation: adexto-card-in 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--card-d, 0ms);
+  will-change: transform, opacity;
+}
+
+/* Gerak minimal: kartunya langsung berada di posisi akhir. Yang dihapus hanya
+   perjalanannya, bukan susunannya \u2014 tumpukan itu sendiri yang membawa artinya. */
+@media (prefers-reduced-motion: reduce) {
+  .adexto-card {
+    animation: none;
+    opacity: 1;
+    transform: var(--card-t);
+  }
+}
+
+/* ============================================================================
    Ruang hero — menyusut menurut TINGGI viewport, bukan lebarnya
    ----------------------------------------------------------------------------
    Kelas ini ada karena satu keluhan yang bisa diukur: pita ticker harus utuh

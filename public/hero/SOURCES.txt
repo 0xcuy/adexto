@@ -1,0 +1,71 @@
+ADEXTO — asal latar kartu chain di /public/hero/
+
+Berkas di sini DIGENERATE. Bukan foto, bukan karya orang lain, dan bukan tangkapan
+layar apa pun. Dibuat dengan model text-to-image z-image-turbo di router 0G Compute,
+yang router-nya sendiri nyatakan verifiability=TeeML dan tee_attested=true (enklave
+milik 0G, Intel TDX lewat dstack — router-reported; kami membaca deklarasi router,
+bukan memverifikasi quote TDX-nya sendiri).
+
+DUA KEPUTUSAN YANG MEMBENTUK BERKAS INI
+
+1. Digenerate SEKALI, disimpan statis — bukan per kunjungan.
+   Membuat gambar saat halaman dibuka berarti hero menunggu beberapa detik, biaya
+   inferensi keluar untuk tiap pengunjung, tampilannya berbeda tiap muat sehingga
+   tidak ada yang bisa mengulang apa yang dilihat orang lain, dan tata letak
+   bergeser sesudah load — yang justru merusak pita ticker yang sudah dipastikan
+   utuh di atas lipatan pada lima tinggi layar.
+
+2. Seni ABSTRAK. Promptnya melarang teks, huruf, angka, grafik, dan antarmuka.
+   Ini bukan selera. Situs ini menjanjikan tidak ada data karangan, dan gambar hasil
+   model yang memuat grafik harga atau angka ADALAH data karangan — dalam bentuk
+   yang paling mudah dipercaya orang, karena ia terlihat seperti tangkapan layar.
+   Semua angka faktual di kartu (nama chain, chain ID, versi factory) dirender DOM
+   dari konfigurasi CHAINS, tidak satu pun berasal dari model.
+
+PERUBAHAN SETELAH GENERATE, dan alasannya
+
+Keluaran mentahnya 1024x1024 PNG, 712–1020 kB per berkas — 3,25 MB untuk empat latar
+dekoratif, lebih besar daripada seluruh JS halaman ini (First Load JS 117 kB), untuk
+gambar yang tidak membawa satu pun informasi. Kartunya juga hanya dirender 248x290
+CSS px, jadi lebar 1024 tidak pernah terpakai.
+
+Jadi tiap berkas dipotong ke 3:4, diperkecil ke 560x746, diberi blur 1.2 dan
+saturasi 0.72, lalu disimpan sebagai WebP kualitas 62. Blur dan penurunan saturasi
+disengaja: ini latar di belakang nama chain, dan tekstur tajam akan bersaing dengan
+teks di atasnya. Hasilnya 3,25 MB -> 13 kB (turun 99,6%). PNG aslinya dihapus;
+menyimpan keduanya berarti 3,25 MB masuk repo untuk berkas yang tidak dirujuk kode
+mana pun.
+
+audit_consistency.mjs bagian 8 menjaga tiga hal di direktori ini: setiap berkas yang
+dirujuk komponen harus ada, setiap berkas harus tercatat di bawah, dan totalnya harus
+tetap di bawah 200 kB — supaya PNG mentah tidak bisa masuk lagi tanpa ada yang
+berbunyi.
+
+──────────────────────────────────────────────────────────────────────────────
+
+model    : z-image-turbo (0G Compute Router, /v1/images/generations)
+provider : 0xE29a72c7629815Eb480aE5b1F2dfA06f06cdF974  (keempat permintaan)
+prompt bersama : abstract geometric texture, soft matte gradient, warm off-white
+           cream background, restrained minimal composition, subtle grain, gentle
+           depth, editorial design, flat vector shapes, no text, no letters, no
+           numbers, no charts, no graphs, no user interface, no logos, no people
+
+file       : chain-0g.webp
+ukuran     : 560x746, 3 kB
+request_id : 278b8611-6118-4809-a623-9af4a8b85e69
+prompt     : deep charcoal and muted violet arcs, + prompt bersama
+
+file       : chain-base.webp
+ukuran     : 560x746, 5 kB
+request_id : 4e36fef7-a87f-46fa-bcc0-e8f6ecd35495
+prompt     : cobalt blue rounded squares, calm repetition, + prompt bersama
+
+file       : chain-arbitrum.webp
+ukuran     : 560x746, 4 kB
+request_id : 35040d9c-ba12-4f46-9855-10da3bff4f04
+prompt     : cool steel blue hexagonal facets, + prompt bersama
+
+file       : chain-monad.webp
+ukuran     : 560x746, 2 kB
+request_id : b71de446-f725-4fc5-aa70-edfeb3f3ec1d
+prompt     : soft purple concentric curves, + prompt bersama

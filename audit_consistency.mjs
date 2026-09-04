@@ -30,7 +30,7 @@
  *
  * Pakai: node audit_consistency.mjs
  */
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { ethers } from "ethers";
 
 const ROOT = process.cwd();
@@ -527,6 +527,49 @@ console.log("\n── ticker stack: berkas logo & provenance ──");
   // Seluruh objek entri diambil dulu, baru diperiksa. Mencocokkan `name: "CoinGecko"`
   // lalu `logo:` sesudahnya akan lolos kalau `logo:` ditulis SEBELUM `name:` di
   // objek yang sama — urutan properti bukan sesuatu yang boleh diandalkan.
+  /**
+   * Latar kartu hero: kelas kegagalan yang SAMA dengan logo ticker di atas, jadi
+   * diperiksa di bagian yang sama.
+   *
+   * Berkasnya hasil generate z-image-turbo, bukan aset pihak ketiga, tetapi risikonya
+   * identik: hilang dari /public/hero dan build tetap lolos, TypeScript tetap lolos,
+   * dan yang tampil di hero adalah empat kotak gambar rusak. Provenance-nya juga harus
+   * tercatat — gambar hasil model yang tidak disebutkan asalnya di situs yang berjanji
+   * tidak ada data karangan adalah justru jenis diam yang paling mahal.
+   */
+  const deckComp = "src/components/ChainCardStack.tsx";
+  if (!existsSync(deckComp)) {
+    soft("ChainCardStack.tsx tidak ada", "pemeriksaan latar hero dilewati");
+  } else {
+    const deckSrc = readFileSync(deckComp, "utf8");
+    const heroRefs = [...new Set([...deckSrc.matchAll(/art:\s*"(\/hero\/[^"]+)"/g)].map((m) => m[1]))];
+    check(`${deckComp} merujuk latar kartu`, heroRefs.length > 0, `${heroRefs.length} berkas`);
+    const heroMissing = heroRefs.filter((f) => !existsSync(`public${f}`));
+    check("setiap latar kartu ada di /public", heroMissing.length === 0, heroMissing.join(", ") || `${heroRefs.length} berkas`);
+
+    const heroSources = "public/hero/SOURCES.txt";
+    if (!existsSync(heroSources)) {
+      bad("provenance latar hero tercatat", `${heroSources} tidak ada`);
+    } else {
+      const hs = readFileSync(heroSources, "utf8");
+      const undoc = heroRefs.filter((f) => !hs.includes(f.split("/").pop()));
+      check("setiap latar kartu tercatat asalnya", undoc.length === 0, undoc.join(", ") || `${heroRefs.length} berkas`);
+      check("SOURCES.txt hero menyebut modelnya", /z-image-turbo/.test(hs), "z-image-turbo");
+    }
+
+    // Total ukuran latar dijaga: keluaran mentah model 1024x1024 PNG sekitar 800 kB
+    // per berkas, dan empat di antaranya (3,3 MB) lebih besar daripada seluruh JS
+    // halaman ini. Kalau suatu saat PNG mentah masuk lagi tanpa dikonversi, angkanya
+    // yang berbunyi — bukan keluhan orang soal hero yang lambat.
+    let heroBytes = 0;
+    for (const f of heroRefs) {
+      const fp = `public${f}`;
+      if (existsSync(fp)) heroBytes += statSync(fp).size;
+    }
+    const kb = Math.round(heroBytes / 1024);
+    check("total latar kartu di bawah 200 kB", heroBytes < 200 * 1024, `${kb} kB untuk ${heroRefs.length} berkas`);
+  }
+
   const cgEntry = (src.match(/\{[^{}]*"CoinGecko"[^{}]*\}/) || [""])[0];
   const cgHasLogo = /\blogo\s*:/.test(cgEntry);
   check(
