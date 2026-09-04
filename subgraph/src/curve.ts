@@ -212,7 +212,16 @@ export function handleCurveInitialized(event: CurveInitialized): void {
   }
   curve.virtualNative = event.params.virtualNative;
   curve.curveTokens = event.params.curveTokens;
-  curve.openingPriceNative = event.params.openingPrice;
+  /**
+   * Diturunkan, bukan disalin dari `event.params.openingPrice`.
+   *
+   * Parameter event itu nilai mentah kontrak — wei per 1e18-token — sedangkan
+   * field ini kini berupa desimal native-utuh-per-token-utuh, sama seperti
+   * `spotPriceNative` di bawahnya. Menyalinnya langsung adalah setengah dari
+   * ketidakcocokan satuan 1e18 yang diperbaiki di sini; separuh lainnya ada di
+   * handler factory.
+   */
+  curve.openingPriceNative = priceFrom(event.params.virtualNative, event.params.curveTokens);
   curve.reserveNative = event.params.virtualNative;
   curve.reserveToken = event.params.curveTokens;
   curve.spotPriceNative = priceFrom(event.params.virtualNative, event.params.curveTokens);

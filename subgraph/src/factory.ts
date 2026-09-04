@@ -4,7 +4,9 @@ import {
 } from "../generated/AdextoCurveFactory/AdextoCurveFactory";
 import { SovereignCurve as SovereignCurveTemplate } from "../generated/templates";
 import { AgentBinding, Curve, Project } from "../generated/schema";
-import { ONE, ZERO, floorPrice, globalStats, priceFrom, WAD } from "./shared";
+// WAD dilepas: satu-satunya pemakaiannya adalah rumus harga pembukaan mentah yang
+// menyebabkan ketidakcocokan satuan 1e18, dan itu kini memakai `priceFrom`.
+import { ONE, ZERO, floorPrice, globalStats, priceFrom } from "./shared";
 
 /**
  * Pengikatan identitas agent ERC-8004.
@@ -66,10 +68,20 @@ export function handleTrinityProjectDeployed(event: TrinityProjectDeployed): voi
   }
   curve.virtualNative = event.params.virtualNative;
   curve.curveTokens = event.params.curveTokens;
-  // Rumus yang sama seperti kontrak: virtualNative * 1e18 / curveTokens.
-  curve.openingPriceNative = event.params.curveTokens.equals(ZERO)
-    ? ZERO
-    : event.params.virtualNative.times(WAD).div(event.params.curveTokens);
+  /**
+   * Harga pembukaan memakai `priceFrom`, satuan yang sama dengan
+   * `spotPriceNative` dan `floorPriceNative`.
+   *
+   * Sebelumnya di sini rumus mentah kontrak (`virtualNative * 1e18 / curveTokens`)
+   * disimpan apa adanya sebagai BigInt — benar sebagai nilai kontrak, tapi itu
+   * wei per 1e18-token, sementara dua field harga di sebelahnya berupa desimal
+   * native-utuh-per-token-utuh. Selisihnya 1e18 di dalam satu entity.
+   *
+   * Pada t=0 reserve native kurva SELURUHNYA virtual dan belum ada token terjual,
+   * jadi harga pembukaan memang persis sama dengan spot saat itu — memakai fungsi
+   * yang sama membuat keduanya tidak bisa lagi berbeda satuan.
+   */
+  curve.openingPriceNative = priceFrom(event.params.virtualNative, event.params.curveTokens);
 
   // Native nyata mulai dari nol; sisi native kurva SELURUHNYA virtual di
   // pembukaan. Itulah alasan sebuah peluncuran tidak butuh setoran.

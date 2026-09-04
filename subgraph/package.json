@@ -1,6 +1,6 @@
 {
   "name": "adexto-subgraph",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "description": "Indexes AdextoCurveFactory launches and per-token SovereignCurve swaps, creator fee claims and agent buyback burns.",
   "scripts": {

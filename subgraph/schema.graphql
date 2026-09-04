@@ -117,7 +117,22 @@ type Curve @entity(immutable: false) {
   virtualNative: BigInt!
   "Token yang dimuat ke kurva saat inisialisasi (T)."
   curveTokens: BigInt!
-  openingPriceNative: BigInt!
+  """
+  Harga pembukaan kurva: native UTUH per token UTUH, satuan yang SAMA dengan
+  `spotPriceNative` dan `floorPriceNative`.
+
+  Dulu field ini `BigInt!` yang menyimpan rumus mentah kontrak
+  (`virtualNative * 1e18 / curveTokens`), yaitu wei per 1e18-token. Jadi satu
+  entity memuat tiga field harga dalam DUA satuan berbeda yang selisihnya 1e18,
+  tanpa penjelasan apa pun, padahal namanya sama-sama berakhiran `PriceNative`.
+  Menghitung "berapa persen naik sejak launch" dari `openingPriceNative` dan
+  `spotPriceNative` memberi hasil yang salah satu triliun kali sejuta.
+
+  Terjaring saat memverifikasi handler terhadap event devchain nyata, sebelum
+  subgraph ini dipublish — mengubah tipe field setelah publish berarti versi baru
+  dan kurasi baru.
+  """
+  openingPriceNative: BigDecimal!
 
   # ── Keadaan langsung, seluruhnya diturunkan dari event ───────────────────
   "virtualNative + native nyata. Diambil dari nativeReserveAfter swap terakhir."
