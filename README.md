@@ -21,6 +21,8 @@ A creator launches a token and it opens **inside a bonding curve against a virtu
 
 The curve is the permanent venue. There is **no graduation step** and no migration into an external pool, which is where most launchpad exploits have historically happened. There is also no withdrawal function anywhere in the curve, so no one — including us — can drain a market.
 
+To be precise about what that does and does not mean: it describes what the protocol does, not a restriction on the token. `AdextoToken` enforces a 1%-of-supply transfer cap only while `block.number <= launchBlock + 5`; after that window `_update` adds no condition at all, and there is no blacklist, no pause, no `Ownable` and no permanent transfer hook. It is a plain ERC-20. So **anyone can pair one of these tokens on Uniswap or anywhere else, without our permission, and we could not stop it** — Uniswap v4 is live on Base, Arbitrum and Monad. A second market with its own price could therefore exist alongside the curve. What the protocol guarantees is narrower and worth stating plainly: *we* never migrate the market, and nobody can withdraw the curve's own reserves.
+
 ### Fee split
 
 One 0.30% swap fee, divided three ways on-chain. Traders are never charged extra to pay the creator.
