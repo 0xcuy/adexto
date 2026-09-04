@@ -56,6 +56,16 @@ export interface SovereignSwap {
   tokenBalance: bigint;
   nativeBalanceFormatted: string;
   tokenBalanceFormatted: string;
+  /**
+   * Isi jumlah dengan sebagian saldo yang BISA DIPAKAI, 1–100 persen.
+   *
+   * Ada di hook, bukan di komponen, karena "bisa dipakai" bukan sekadar saldo:
+   * pada arah beli, gas harus disisakan atau transaksinya gagal setelah pemakai
+   * menekan MAX. Kalau tombol 25/50/75 di panel menghitung sendiri, aturan
+   * penyisihan gas itu akan hidup di dua tempat dan berpisah pada perubahan
+   * pertama. `setMaxAmount` sekarang hanyalah kasus 100 persen dari fungsi ini.
+   */
+  setAmountFraction: (percent: number) => void;
   setMaxAmount: () => void;
 
   busy: boolean;
@@ -194,14 +204,27 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     setTxHash(null);
   }, []);
 
-  const setMaxAmount = useCallback(() => {
-    if (mode === "buy") {
-      const usable = nativeBalance > GAS_HEADROOM ? nativeBalance - GAS_HEADROOM : 0n;
-      setAmountInput(usable > 0n ? ethers.formatEther(usable) : "0");
-    } else {
-      setAmountInput(tokenBalance > 0n ? ethers.formatUnits(tokenBalance, tokenDecimals) : "0");
-    }
-  }, [mode, nativeBalance, tokenBalance, tokenDecimals]);
+  const setAmountFraction = useCallback(
+    (percent: number) => {
+      // Dijepit ke 1..100. Nilai di luar itu hanya bisa datang dari bug pemanggil,
+      // dan menuliskan jumlah negatif ke kolom input akan lolos ke parser.
+      const pct = BigInt(Math.max(1, Math.min(100, Math.round(percent))));
+      if (mode === "buy") {
+        const usable = nativeBalance > GAS_HEADROOM ? nativeBalance - GAS_HEADROOM : 0n;
+        // Dihitung dalam bigint, bukan lewat float. Mengalikan saldo wei sebagai
+        // Number kehilangan presisi di atas 2^53 dan menghasilkan jumlah yang
+        // sedikit berbeda dari yang ditampilkan.
+        const part = (usable * pct) / 100n;
+        setAmountInput(part > 0n ? ethers.formatEther(part) : "0");
+      } else {
+        const part = (tokenBalance * pct) / 100n;
+        setAmountInput(part > 0n ? ethers.formatUnits(part, tokenDecimals) : "0");
+      }
+    },
+    [mode, nativeBalance, tokenBalance, tokenDecimals]
+  );
+
+  const setMaxAmount = useCallback(() => setAmountFraction(100), [setAmountFraction]);
 
   const execute = useCallback(
     async (walletAddress: string | null) => {
@@ -310,6 +333,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     tokenBalanceFormatted: Number(ethers.formatUnits(tokenBalance, tokenDecimals)).toLocaleString(undefined, {
       maximumFractionDigits: 4,
     }),
+    setAmountFraction,
     setMaxAmount,
 
     busy,

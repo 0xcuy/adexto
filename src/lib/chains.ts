@@ -73,6 +73,19 @@ export interface ChainInfo {
   governorAddress: string;
   /** True once a v2 factory exists on this chain, i.e. launches produce real pools. */
   dexLive: boolean;
+  /**
+   * Logo merek chain di /public/brand/, atau null kalau tidak ada berkasnya.
+   *
+   * Ditaruh di sini supaya kedua permukaan trading membacanya dari satu tempat.
+   * Versi pertama menulis peta chain→logo langsung di SwapTerminal, dan TokenTerminal
+   * butuh peta yang sama — dua salinan yang akan berpisah begitu satu chain
+   * ditambahkan.
+   *
+   * Devchain bernilai null dengan sengaja: ia slot uji yang namanya diambil dari env
+   * dan bisa menunjuk chain apa pun, jadi tidak ada logo yang benar untuknya.
+   * Pemakainya HARUS menangani null, bukan mengasumsikan berkas selalu ada.
+   */
+  brandLogo: string | null;
 }
 
 interface ChainSource {
@@ -144,6 +157,15 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     Monad: 60_000,
     Devchain: 1,
   };
+  // Dikunci ke `key`, bukan ke `name`. Nama chain bisa diganti lewat
+  // NEXT_PUBLIC_CHAIN_OVERRIDES ("0G Testnet"), dan logonya tetap logo 0G.
+  const BRAND_LOGO: Record<ChainKey, string | null> = {
+    "0G": "/brand/0g.svg",
+    Arbitrum: "/brand/arbitrum.svg",
+    Base: "/brand/base.svg",
+    Monad: "/brand/monad.svg",
+    Devchain: null,
+  };
 
   return {
     key,
@@ -162,7 +184,36 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     legacyHookAddress: source.sovereignHookAddress,
     governorAddress: source.governorAddress,
     dexLive: Boolean(curveFactoryAddress || factoryV2Address),
+    brandLogo: BRAND_LOGO[key],
   };
+}
+
+/**
+ * Logo ASET native, bukan logo chain.
+ *
+ * Bedanya penting dan mudah terlewat: nilai native di Base dan Arbitrum sama-sama
+ * ETH. Memasang kotak biru Base di sebelah tulisan "ETH" akan menyatakan Base
+ * adalah asetnya, padahal Base adalah tempatnya. Jadi ETH memakai logo Ethereum di
+ * kedua chain, sementara 0G dan MON memakai logonya sendiri karena di sana chain
+ * dan aset memang satu hal.
+ *
+ * Simbol yang tidak dikenal mengembalikan null, dan pemakainya jatuh ke teks biasa.
+ * Itu disengaja: mengarang logo untuk simbol yang belum pernah kita lihat justru
+ * membuat aset asing tampak seperti aset yang sudah dikenal.
+ */
+export function nativeAssetLogo(symbol: string | null | undefined): string | null {
+  switch (String(symbol ?? "").toUpperCase()) {
+    case "ETH":
+    case "WETH":
+      return "/brand/ethereum.svg";
+    case "0G":
+    case "A0GI":
+      return "/brand/0g.svg";
+    case "MON":
+      return "/brand/monad.svg";
+    default:
+      return null;
+  }
 }
 
 export const CHAINS: Record<ChainKey, ChainInfo> = {
@@ -192,6 +243,7 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     legacyHookAddress: "",
     governorAddress: "",
     dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_CURVE_FACTORY || DEVCHAIN_FACTORY),
+    brandLogo: null,
   },
 };
 

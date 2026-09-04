@@ -443,7 +443,7 @@ export default function RealtimeCandleChart({
     <div className="w-full flex flex-col h-full justify-between">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-1 border-b border-line shrink-0">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="text-base sm:text-lg font-semibold text-ink font-mono flex items-center gap-2">
+          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink sm:text-lg">
             <span>
               ${symbol}/{nativeSymbol}
             </span>
@@ -458,17 +458,17 @@ export default function RealtimeCandleChart({
               {changePct.toFixed(2)}%
             </span>
           </div>
-          <span className="text-xs sm:text-sm font-mono text-accent font-bold">
+          <span className="text-xs font-semibold text-accent sm:text-sm" data-numeric>
             {priceNative > 0 ? formatSmallNumber(priceNative) : "—"} {nativeSymbol}
           </span>
           {priceUsd > 0 && (
-            <span className="text-[11px] font-mono text-ink-soft">
+            <span className="text-[11px] text-ink-soft" data-numeric>
               ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1 font-mono text-[10px]">
+        <div className="flex items-center gap-1 text-[11px]">
           {INTERVALS.map((i) => (
             <button
               key={i.label}
@@ -547,7 +547,7 @@ export default function RealtimeCandleChart({
 
       {/* OHLC legend under the crosshair. */}
       {legend && (
-        <div className="flex items-center gap-2.5 pb-1 font-mono text-[10px] text-ink-soft shrink-0 flex-wrap">
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5 pb-1 text-[11px] text-ink-soft" data-numeric>
           {(["open", "high", "low", "close"] as const).map((k) => (
             <span key={k}>
               {k[0].toUpperCase()}
@@ -564,7 +564,7 @@ export default function RealtimeCandleChart({
 
       <div ref={containerRef} className="w-full flex-1 min-h-[300px] overflow-hidden rounded-xl" />
 
-      <div className="pt-1.5 flex items-center justify-between text-[10px] font-mono text-ink-faint shrink-0 gap-2 flex-wrap">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-1.5 text-[11px] text-ink-faint">
         <span>
           Source: <span className={source === "onchain" ? "text-ok" : "text-warn"}>{sourceLabel}</span>
           {tradeCount > 0 ? ` · ${tradeCount} fills · ${candleCount} bars` : ""}

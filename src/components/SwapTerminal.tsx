@@ -4,16 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ethers } from "ethers";
-import {
-  ArrowDownUp, RefreshCw, ExternalLink, Flame, CheckCircle2,
-  AlertTriangle, Lock, Settings2, ShieldCheck,
-} from "lucide-react";
+import { RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, Lock, Settings2, ShieldCheck } from "lucide-react";
 
 import { useWallet } from "@/context/WalletContext";
 import WalletMenu from "@/components/WalletMenu";
-import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
+import MarketPicker, { filterByChain } from "@/components/MarketPicker";
+import { FeeLines, SlippageRow, TradeAmounts, slippagePercent } from "@/components/swap-parts";
+import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { describeTxError } from "@/lib/dex";
-import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
+import { FALLBACK_PRICES, assetPriceUsd, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap, type SwapMarket } from "@/lib/use-sovereign-swap";
 
 /**
@@ -47,7 +46,10 @@ interface Market extends SwapMarket {
   deployedChainCount: number;
 }
 
-const SLIPPAGE_OPTIONS = [50, 100, 300, 500];
+/* Panel jumlah, lencana aset, baris slippage, dan baris biaya hidup di
+   swap-parts.tsx. Halaman ini dan /token/[token] memperdagangkan hal yang sama lewat
+   mesin yang sama, dan sebelumnya tampilannya ditulis dua kali — lengkap dengan
+   selisih yang tidak pernah diputuskan siapa pun. Alasan lengkapnya di berkas itu. */
 
 export default function SwapTerminal() {
   const searchParams = useSearchParams();
@@ -135,10 +137,9 @@ export default function SwapTerminal() {
   // Preselect from ?token= (optionally pinned with ?chain=), then the first
   // tradable market, then the first entry. Selection is by market key because the
   // same ticker can exist on several chains.
-  const visibleMarkets = useMemo(
-    () => (chainFilter === "all" ? markets : markets.filter((m) => m.chainId === Number(chainFilter))),
-    [markets, chainFilter]
-  );
+  // Syarat filternya milik MarketPicker supaya daftar yang DIGAMBAR dan pilihan
+  // yang DIANGGAP SAH tidak pernah memakai aturan berbeda.
+  const visibleMarkets = useMemo(() => filterByChain(markets, chainFilter), [markets, chainFilter]);
 
   /**
    * Satu efek memiliki seluruh urusan pemilihan market, dengan urutan tegas.
@@ -211,18 +212,22 @@ export default function SwapTerminal() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold mb-2">
-          SOVEREIGN BONDING CURVE · VIRTUAL RESERVE
-        </div>
-        <h1 className="text-3xl font-semibold text-ink">Sovereign DEX Swap</h1>
-        <p className="text-xs sm:text-sm text-ink mt-1 max-w-lg mx-auto font-medium">
+      {/* Lencana mono berbingkai "SOVEREIGN BONDING CURVE · VIRTUAL RESERVE" diganti
+          `.kicker`, bentuk eyebrow yang sama dengan seluruh situs. Yang lama adalah
+          satu-satunya elemen bertipografi terminal di atas lipatan halaman ini, dan
+          huruf monospace bertingkat huruf besar pada 12px justru paling lambat
+          dibaca dari semua teks di kartu — tepat kebalikan dari tugas sebuah eyebrow. */}
+      <div className="mb-8 flex flex-col items-center text-center">
+        <p className="kicker mb-3">Sovereign bonding curve · virtual reserve</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Swap</h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
           Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee three ways
           on-chain: depth that stays in the curve, the creator&apos;s share, and the agent buyback vault.
         </p>
         {!loading && (
-          <p className="text-[11px] font-mono text-ink-faint mt-2">
-            {tradableCount} of {markets.length} markets have an executable curve
+          <p className="mt-3 text-xs text-ink-faint">
+            <span data-numeric>{tradableCount}</span> of <span data-numeric>{markets.length}</span> markets have an
+            executable curve
           </p>
         )}
       </div>
@@ -233,106 +238,77 @@ export default function SwapTerminal() {
             navbar sudah menjadi ajakan yang sama — tiga CTA identik dalam satu
             layar hanya membuat bingung. */}
         {isConnected && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-3 py-2">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Trading wallet</span>
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-3.5 py-2.5">
+            <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
             <WalletMenu />
           </div>
         )}
 
-        <div className="glass-panel p-6 rounded-3xl border-2 border-line shadow-2xl">
-          {/* Header + chain filter */}
-          <div className="flex items-center justify-between border-b border-line pb-4 mb-4 gap-3">
-            <div className="min-w-0">
-              <span className="font-bold text-ink text-sm block truncate">
-                {selected ? selected.name : "Select a market"}
-              </span>
-              <span className="text-[10px] text-ink-soft font-mono">
+        {/* `border-2 ... shadow-2xl` dihapus. `.glass-panel` sudah membawa bayangan
+            halusnya sendiri, jadi keduanya bersama menghasilkan garis dobel tebal
+            plus bayangan pekat — berat, dan di tema cream terbaca seperti kartu yang
+            melayang terlalu tinggi. Kedalaman di sini datang dari bayangan, bukan
+            dari bingkai yang makin tebal. */}
+        <div className="glass-panel rounded-3xl p-5 sm:p-6">
+          {/* Pemilih market. Dulu dua `<select>` bawaan sistem — satu untuk chain,
+              satu untuk market — dan alasan lengkap penggantiannya ada di
+              MarketPicker.tsx. Filter chain sekarang hidup DI DALAM pemilih itu,
+              karena "chain mana" hanyalah cara menyaring market, bukan keputusan
+              terpisah yang layak menempati barisnya sendiri di kartu. */}
+          <MarketPicker
+            markets={markets}
+            selectedKey={selectedKey}
+            onSelect={setSelectedKey}
+            chainFilter={chainFilter}
+            onChainFilter={setChainFilter}
+            loading={loading}
+          />
+
+          {selected && (
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1 text-xs">
+              <span className="flex items-center gap-2">
+                <span className={selected.tradable ? "font-medium text-ok" : "font-medium text-warn"}>
+                  {selected.tradable ? "Pool live" : "No executable pool"}
+                </span>
+                <span aria-hidden="true" className="h-3 w-px bg-line-strong" />
                 {/* lpFeeBps kini berarti porsi depth yang mengendap di kurva, jadi
                     labelnya "depth" — bukan "LP", karena tidak ada penyedia likuiditas. */}
-                {selected
-                  ? `${(selected.lpFeeBps / 100).toFixed(2)}% depth / ${(selected.treasuryBuybackBps / 100).toFixed(2)}% buyback`
-                  : "—"}
+                <span className="text-ink-soft">
+                  <span data-numeric>{(selected.lpFeeBps / 100).toFixed(2)}%</span> depth ·{" "}
+                  <span data-numeric>{(selected.treasuryBuybackBps / 100).toFixed(2)}%</span> buyback
+                </span>
               </span>
-            </div>
-            <select
-              value={chainFilter}
-              onChange={(e) => setChainFilter(e.target.value)}
-              className="bg-white border border-line text-accent text-xs font-mono font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer shrink-0"
-              aria-label="Filter markets by chain"
-            >
-              <option value="all">All chains</option>
-              {CHAIN_LIST.map((c) => (
-                <option key={c.chainId} value={c.chainId}>
-                  {c.name} ({c.chainId})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Market selector */}
-          <div className="mb-4 p-3 rounded-xl bg-white border border-line space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-mono text-ink-soft">
-              <span>Market</span>
-              {selected && (
-                <span className={selected.tradable ? "text-ok" : "text-warn"}>
-                  {selected.tradable ? "pool live" : "no executable pool"}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {selected && (
-                <div className="w-7 h-7 rounded-lg overflow-hidden bg-cream-2 shrink-0 border border-line">
-                  <img src={selected.image} alt={selected.name} className="w-full h-full object-cover" />
-                </div>
-              )}
-              <select
-                value={selectedKey ?? ""}
-                onChange={(e) => setSelectedKey(e.target.value)}
-                className="flex-1 bg-transparent text-ink font-mono font-bold text-xs focus:outline-none cursor-pointer"
-                aria-label="Select market"
+              <a
+                href={explorerAddressUrl(chain, selected.poolAddress ?? selected.tokenAddress)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-ink-faint transition-colors hover:text-ink"
               >
-                {visibleMarkets.length === 0 && (
-                  <option value="">{markets.length === 0 ? "No markets yet" : "No markets on this chain"}</option>
-                )}
-                {visibleMarkets.map((m) => (
-                  <option key={m.marketKey} value={m.marketKey} className="bg-white text-ink">
-                    ${m.symbol} · {m.chainKey} — {m.name}
-                    {m.tradable ? "" : " (no pool)"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {selected && (
-              <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-line">
-                <span className="text-accent font-bold">
-                  {selected.chainLabel}
-                  {selected.deployedChainCount > 1 && (
-                    <span className="ml-1.5 text-accent">
-                      · also on {selected.deployedChainCount - 1} more chain{selected.deployedChainCount > 2 ? "s" : ""}
-                    </span>
-                  )}
-                </span>
-                <a
-                  href={explorerAddressUrl(chain, selected.poolAddress ?? selected.tokenAddress)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ink-soft hover:text-ink flex items-center gap-1"
-                >
+                <span className="font-mono">
                   {(selected.poolAddress ?? selected.tokenAddress).slice(0, 6)}…
                   {(selected.poolAddress ?? selected.tokenAddress).slice(-4)}
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              </div>
-            )}
-          </div>
+                </span>
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            </div>
+          )}
+
+          {selected && selected.deployedChainCount > 1 && (
+            <p className="mt-1 px-1 text-xs text-ink-faint">
+              Also launched on <span data-numeric>{selected.deployedChainCount - 1}</span> more chain
+              {selected.deployedChainCount > 2 ? "s" : ""} — each one is a separate market with its own price.
+            </p>
+          )}
+
+          <div className="mt-4" />
 
           {/* Registry benar-benar kosong — penyebabnya BUKAN filter, jadi jangan
               tawarkan "Show all chains" yang sama kosongnya. Sebelum ini keadaan
               ini tidak dijelaskan sama sekali pada filter "all": panel hanya
               menampilkan dropdown kosong tanpa sebab. */}
           {!loading && markets.length === 0 && (
-            <div className="mb-4 p-3 rounded-xl bg-white border border-line">
-              <div className="flex items-start gap-2 text-[11px] text-ink-soft">
+            <div className="mb-4 rounded-2xl border border-line bg-white p-3.5">
+              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
                 <Lock className="w-3.5 h-3.5 text-ink-faint mt-0.5 shrink-0" />
                 {/* The reason had to change when the fact did. This read "the curve
                     factory has not been broadcast to mainnet", which was true until
@@ -351,38 +327,40 @@ export default function SwapTerminal() {
 
           {/* Chain terpilih tidak punya market: jelaskan, jangan biarkan panel kosong tanpa sebab */}
           {!loading && markets.length > 0 && visibleMarkets.length === 0 && chainFilter !== "all" && (
-            <div className="mb-4 p-3 rounded-xl bg-white border border-accent/30 space-y-2">
-              <div className="flex items-start gap-2 text-[11px] font-mono text-accent">
-                <AlertTriangle className="w-3.5 h-3.5 text-accent mt-0.5 shrink-0" />
+            <div className="mb-4 space-y-2 rounded-2xl border border-accent/30 bg-white p-3.5">
+              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
                 <span>
-                  No market on {resolveChainOrDefault(Number(chainFilter)).name} yet. Markets are created per chain, so a
-                  token launched elsewhere does not appear here automatically.
+                  <strong className="font-semibold text-ink">
+                    No market on {resolveChainOrDefault(Number(chainFilter)).name} yet.
+                  </strong>{" "}
+                  Markets are created per chain, so a token launched elsewhere does not appear here automatically.
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setChainFilter("all")}
-                className="w-full py-1.5 rounded-lg bg-accent-soft text-accent border border-accent/30 font-semibold text-[11px]"
+                className="w-full rounded-xl border border-accent/30 bg-accent-soft py-2 text-xs font-semibold text-accent"
               >
-                Show all chains ({markets.length} markets)
+                Show all chains (<span data-numeric>{markets.length}</span> markets)
               </button>
             </div>
           )}
 
           {/* Chain guard */}
           {isConnected && selected && !onCorrectChain && (
-            <div className="mb-4 p-3 rounded-xl bg-warn/10 border border-warn/30 space-y-2">
-              <div className="flex items-start gap-2 text-[11px] font-mono text-warn">
-                <AlertTriangle className="w-3.5 h-3.5 text-warn mt-0.5 shrink-0" />
+            <div className="mb-4 space-y-2 rounded-2xl border border-warn/30 bg-warn/10 p-3.5">
+              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
                 <span>
-                  Wallet is on chain {walletChainId ?? "unknown"}; ${selected.symbol} settles on {chain.name} (
-                  {chain.chainId}).
+                  Wallet is on chain <span className="font-mono">{walletChainId ?? "unknown"}</span>; $
+                  {selected.symbol} settles on {chain.name} (<span className="font-mono">{chain.chainId}</span>).
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => switchToChain(chain).catch((e) => swap.setErrorLine(describeTxError(e)))}
-                className="w-full py-1.5 rounded-lg bg-warn hover:bg-warn/90 text-white font-semibold text-[11px] transition-colors"
+                className="w-full rounded-xl bg-warn py-2 text-xs font-semibold text-white transition-colors hover:bg-warn/90"
               >
                 Switch to {chain.name}
               </button>
@@ -391,25 +369,26 @@ export default function SwapTerminal() {
 
           {/* Pool unavailable */}
           {selected && swap.poolChecked && !swap.tradable && (
-            <div className="mb-4 p-3 rounded-xl bg-cream-3 border border-warn/30 flex items-start gap-2 text-[11px] font-mono text-warn">
-              <Lock className="w-3.5 h-3.5 text-warn mt-0.5 shrink-0" />
+            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-xs leading-relaxed text-ink">
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
               <span>{swap.poolStatusMessage}</span>
             </div>
           )}
 
           {/* Direction */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex rounded-lg bg-cream-2 p-0.5 border border-line font-mono text-[10px]">
+          <div className="mb-2.5 flex items-center justify-between">
+            <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-xs">
               {(["buy", "sell"] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => swap.setMode(m)}
-                  className={`px-3 py-1 rounded-md font-bold uppercase transition-all ${
+                  aria-pressed={swap.mode === m}
+                  className={`rounded-lg px-3.5 py-1.5 font-semibold capitalize transition-colors ${
                     swap.mode === m
                       ? m === "buy"
                         ? "bg-ok/10 text-ok"
                         : "bg-danger/10 text-danger"
-                      : "text-ink-soft"
+                      : "text-ink-soft hover:text-ink"
                   }`}
                 >
                   {m}
@@ -419,180 +398,67 @@ export default function SwapTerminal() {
             <button
               type="button"
               onClick={() => setShowSlippage((v) => !v)}
-              className="p-1 rounded text-ink-soft hover:text-ink"
+              aria-expanded={showSlippage}
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-ink-soft transition-colors hover:bg-cream-2 hover:text-ink"
               title="Slippage settings"
             >
-              <Settings2 className="w-3.5 h-3.5" />
+              <Settings2 className="h-3.5 w-3.5" />
+              <span data-numeric>{slippagePercent(swap.slippageBps)}</span>
             </button>
           </div>
 
-          {showSlippage && (
-            <div className="mb-3 p-2.5 rounded-xl bg-cream-2 border border-line flex items-center justify-between font-mono text-[10px]">
-              <span className="text-ink-soft">Max slippage</span>
-              <div className="flex gap-1">
-                {SLIPPAGE_OPTIONS.map((bps) => (
-                  <button
-                    key={bps}
-                    onClick={() => swap.setSlippageBps(bps)}
-                    className={`px-2 py-0.5 rounded font-bold border ${
-                      swap.slippageBps === bps
-                        ? "bg-accent-soft text-accent border-accent/30"
-                        : "bg-cream-3 text-ink-soft border-transparent"
-                    }`}
-                  >
-                    {(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {showSlippage && <SlippageRow value={swap.slippageBps} onChange={swap.setSlippageBps} />}
 
-          {/* You pay */}
-          <div className="p-4 rounded-2xl bg-white border border-line space-y-2 mb-2">
-            <div className="flex justify-between items-center text-xs text-ink-soft font-medium">
-              <span>You pay</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px]">
-                  {swap.mode === "buy"
-                    ? `${swap.nativeBalanceFormatted} ${chain.nativeSymbol}`
-                    : `${swap.tokenBalanceFormatted} ${selected?.symbol ?? ""}`}
-                </span>
-                {isConnected && (
-                  <button
-                    type="button"
-                    onClick={swap.setMaxAmount}
-                    className="px-1.5 py-0.5 rounded bg-accent-soft text-accent border border-accent/30 text-[10px] font-mono font-semibold uppercase"
-                  >
-                    Max
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="w-1/2">
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={swap.amountInput}
-                  onChange={(e) => swap.setAmountInput(e.target.value)}
-                  className="w-full bg-transparent text-2xl font-semibold text-ink font-mono focus:outline-none"
-                  placeholder="0.0"
-                />
-                <span className="text-[10px] text-ink-soft font-mono block">≈ {formatUsd(inputUsd)}</span>
-              </div>
-              <span className="bg-cream-3 text-ink font-bold text-xs rounded-xl px-3 py-2 border border-line font-mono">
-                {swap.mode === "buy" ? chain.nativeSymbol : selected?.symbol ?? "—"}
-              </span>
-            </div>
-          </div>
+          {/* Panel jumlah, tombol tukar arah, dan rincian kuotasi kini datang dari
+              swap-parts.tsx — satu definisi yang dipakai halaman ini dan
+              /token/[token]. Sebelumnya keduanya menulis panel yang sama dua kali,
+              dan selisihnya (ukuran input, letak saldo, gaya lencana simbol) tidak
+              pernah diputuskan siapa pun. */}
+          <TradeAmounts
+            swap={swap}
+            tokenSymbol={selected?.symbol ?? "—"}
+            tokenLogo={selected?.image ?? null}
+            inputUsd={inputUsd}
+            isConnected={isConnected}
+          />
 
-          <div className="flex justify-center -my-2 z-10 relative">
-            <button
-              type="button"
-              onClick={() => swap.setMode(swap.mode === "buy" ? "sell" : "buy")}
-              className="p-2 rounded-xl bg-accent-soft hover:bg-accent-soft text-ink border border-accent/30 shadow-lg shadow-accent/10 transition-all"
-              title="Flip direction"
-            >
-              <ArrowDownUp className="w-4 h-4" />
-            </button>
-          </div>
+          <div className="mb-4" />
 
-          {/* You receive */}
-          <div className="p-4 rounded-2xl bg-white border border-line space-y-2 mt-2 mb-4">
-            <div className="flex justify-between text-xs text-ink-soft font-medium">
-              <span>You receive (estimated)</span>
-              {selected && (
-                <span
-                  className="font-mono text-[11px]"
-                  title={
-                    swap.spotPriceNative > 0
-                      ? `${plainDecimal(swap.spotPriceNative)} ${chain.nativeSymbol} per token`
-                      : undefined
-                  }
-                >
-                  1 {selected.symbol} ={" "}
-                  {swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}{" "}
-                  {chain.nativeSymbol}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-2xl font-semibold text-accent font-mono truncate w-2/3">
-                {swap.outputAmount > 0 ? formatTokenAmount(swap.outputAmount) : "0"}
-              </div>
-              <span className="bg-accent-soft text-accent font-mono font-bold text-xs rounded-xl px-3 py-2 border border-accent/30">
-                {swap.mode === "buy" ? selected?.symbol ?? "—" : chain.nativeSymbol}
-              </span>
-            </div>
-            {swap.quote && swap.quote.amountOut > 0n && (
-              <div className="pt-1 space-y-0.5 text-[10px] font-mono text-ink-faint border-t border-line">
-                <div className="flex justify-between pt-1">
-                  <span>
-                    Minimum received ({(swap.slippageBps / 100).toFixed(swap.slippageBps % 100 === 0 ? 0 : 1)}%
-                    slippage)
-                  </span>
-                  <span className="text-ink-soft">
-                    {formatTokenAmount(
-                      swap.mode === "buy"
-                        ? Number(ethers.formatUnits(swap.minReceived, swap.tokenDecimals))
-                        : Number(ethers.formatEther(swap.minReceived))
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Price impact</span>
-                  <span className={swap.quote.priceImpactBps > 500 ? "text-warn" : "text-ink-soft"}>
-                    {(swap.quote.priceImpactBps / 100).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Fees */}
           {selected && (
-            <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/30 space-y-1.5 text-xs font-mono mb-5 text-ink">
-              <div className="flex justify-between">
-                <span>Curve depth ({(selected.lpFeeBps / 100).toFixed(2)}%) — stays in curve</span>
-                <span className="text-ink">{formatUsd(feeUsd.lp)}</span>
-              </div>
-              {swap.pool?.creatorFeeBps ? (
-                <div className="flex justify-between text-ok">
-                  <span>↳ Creator ({(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}%)</span>
-                  <span>{formatUsd(feeUsd.creator)}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between text-accent font-bold">
-                <span className="flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-accent" /> Agent buyback (
-                  {(selected.treasuryBuybackBps / 100).toFixed(2)}%)
-                </span>
-                <span>{formatUsd(feeUsd.buyback)}</span>
-              </div>
+            <div className="mb-5">
+              <FeeLines
+                lpFeeBps={selected.lpFeeBps}
+                treasuryBuybackBps={selected.treasuryBuybackBps}
+                creatorFeeBps={swap.pool?.creatorFeeBps ? Number(swap.pool.creatorFeeBps) : null}
+                feeUsd={feeUsd}
+              />
             </div>
           )}
 
           {swap.errorLine && (
-            <div className="mb-4 p-3 rounded-xl bg-danger/10 border border-danger/30 text-[11px] font-mono text-danger flex items-start gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
+            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-xs leading-relaxed text-danger">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
               <span>{swap.errorLine}</span>
             </div>
           )}
 
           {swap.txHash && !swap.errorLine && (
-            <div className="mb-4 p-4 rounded-xl bg-ok/10 border border-ok/30 text-center space-y-2">
-              <div className="flex items-center justify-center gap-2 text-ok font-semibold text-sm">
-                <CheckCircle2 className="w-5 h-5 text-ok" /> Swap settled
+            <div className="mb-4 space-y-2 rounded-2xl border border-ok/30 bg-ok/10 p-4 text-center">
+              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-ok">
+                <CheckCircle2 className="h-5 w-5 text-ok" /> Swap settled
               </div>
-              <p className="text-xs text-ink font-medium">{swap.statusLine}</p>
+              <p className="text-xs text-ink-soft">{swap.statusLine}</p>
               <a
                 href={explorerTxUrl(chain, swap.txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-mono text-accent font-bold hover:underline inline-flex items-center gap-1"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
               >
-                {swap.txHash.slice(0, 10)}…{swap.txHash.slice(-8)} <ExternalLink className="w-3 h-3" />
+                {/* Hash transaksi: string mesin, jadi monospace memang tempatnya. */}
+                <span className="font-mono">
+                  {swap.txHash.slice(0, 10)}…{swap.txHash.slice(-8)}
+                </span>
+                <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           )}
@@ -602,7 +468,7 @@ export default function SwapTerminal() {
             disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n : isConnecting}
             /* Sama seperti tombol launch di studio: keadaan nonaktif diberi warna
                sendiri alih-alih diredupkan, supaya alasan terkuncinya tetap terbaca. */
-            className="w-full py-4 rounded-xl font-semibold text-sm bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[15px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
           >
             {swap.busy ? (
               <>
@@ -624,21 +490,21 @@ export default function SwapTerminal() {
           </button>
 
           {selected && (
-            <div className="mt-4 pt-4 border-t border-line flex items-center justify-between text-[10px] font-mono">
-              <span className="text-ink-faint flex items-center gap-1">
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4 text-xs">
+              <span className="flex items-center gap-1.5 text-ink-faint">
                 {selected.verified ? (
                   <>
-                    <ShieldCheck className="w-3 h-3 text-ok" /> contract verified
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-ok" /> Contract verified
                   </>
                 ) : (
                   <>
-                    <AlertTriangle className="w-3 h-3 text-warn" /> showcase entry
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /> Showcase entry
                   </>
                 )}
               </span>
               <Link
                 href={`/token/${selected.slug}?chain=${selected.chainId}`}
-                className="text-accent hover:underline font-bold"
+                className="shrink-0 font-semibold text-accent hover:underline"
               >
                 Open ${selected.symbol} terminal →
               </Link>

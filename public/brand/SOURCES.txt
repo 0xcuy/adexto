@@ -56,6 +56,15 @@ perubahan : atribut fill="#F38020" disuntikkan ke elemen <svg>. Berkas aslinya
             data/simple-icons.json, jadi ini pemakaian yang dimaksudkan, bukan
             pewarnaan sembarangan.
 
+file      : ethereum.svg
+sumber    : simple-icons 16.29.0  icons/ethereum.svg
+lisensi   : CC0-1.0
+perubahan : atribut fill="#3C3C3D" disuntikkan, hex resmi dari sumber yang sama.
+            Berkas ini melambangkan ASET, bukan chain: nilai native di Base dan
+            Arbitrum adalah ETH, jadi memasang logo Base di sebelah tulisan "ETH"
+            akan menyamakan chain dengan aset. Logo chain dipakai di tempat yang
+            memang berbicara tentang chain (chip filter di pemilih market).
+
 file      : 0g.svg
 sumber    : https://0g.ai/assets/681c472ba991e2e4ca164fe6_Black-OG-Logo.svg
             (ditautkan langsung dari brand kit resmi di https://0g.ai/brandkit)

@@ -124,7 +124,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   const maxSize = Math.max(...asks.map((a) => a.sizeToken), ...bids.map((b) => b.sizeToken), 1);
 
   return (
-    <div className="w-full h-full flex flex-col font-mono text-[11px]">
+    <div className="flex h-full w-full flex-col text-[11px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <span className="text-ink-soft font-bold text-[10px] uppercase">Curve depth ladder</span>
         {asks.length > 0 && <span className="text-ink-faint text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}

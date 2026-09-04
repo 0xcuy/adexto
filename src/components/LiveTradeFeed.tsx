@@ -80,7 +80,7 @@ export default function LiveTradeFeed({
   const isLive = source === "onchain";
 
   return (
-    <div className="w-full h-full flex flex-col font-mono text-[11px]">
+    <div className="flex h-full w-full flex-col text-[11px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <Activity className={`w-3.5 h-3.5 ${isLive ? "text-ok animate-pulse" : "text-warn"}`} />

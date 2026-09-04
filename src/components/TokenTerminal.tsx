@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import {
   ShieldCheck, RefreshCw, ExternalLink, Bot, Send, Copy, Check,
-  CloudLightning, Cpu, AlertTriangle, Lock, ArrowDownUp, Settings2, CheckCircle2, Network,
+  CloudLightning, Cpu, AlertTriangle, Lock, Settings2, CheckCircle2, Network,
 } from "lucide-react";
 
 import { useWallet } from "@/context/WalletContext";
 import WalletMenu from "@/components/WalletMenu";
+import { FeeLines, SlippageRow, TradeAmounts } from "@/components/swap-parts";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import RealtimeCandleChart from "@/components/RealtimeCandleChart";
@@ -73,7 +74,9 @@ export interface TerminalDeployment {
   isCurrent: boolean;
 }
 
-const SLIPPAGE_OPTIONS = [50, 100, 300, 500];
+/* SLIPPAGE_OPTIONS pindah ke swap-parts.tsx bersama baris slippage yang memakainya.
+   Dua salinan angka yang sama, di dua halaman yang menawarkan pilihan yang sama,
+   hanya menunggu untuk berbeda. */
 
 export default function TokenTerminal({
   project,
@@ -275,21 +278,21 @@ export default function TokenTerminal({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-semibold text-ink">{project.name}</h1>
-              <span className="px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-accent/20 to-accent/20 text-accent border border-accent/30 font-mono text-xs font-bold">
+              <span className="rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
                 ${project.symbol}
               </span>
               {project.verified ? (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-ok/10 text-ok border border-ok/30 font-bold inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
                   <ShieldCheck className="w-3 h-3" /> Contract verified on-chain
                 </span>
               ) : (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-warn/10 text-warn border border-warn/30 font-bold inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 rounded-md border border-warn/30 bg-warn/10 px-2 py-0.5 text-[11px] font-semibold text-warn">
                   <AlertTriangle className="w-3 h-3" /> Showcase entry — not factory-minted
                 </span>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-ink-soft mt-1">
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
               <span className="text-accent font-bold bg-accent-soft px-2 py-0.5 rounded border border-accent/30">
                 {project.chainLabel}
               </span>
@@ -298,8 +301,11 @@ export default function TokenTerminal({
                   {deployments.length} chains
                 </span>
               )}
-              <button onClick={copyAddress} className="hover:text-ink flex items-center gap-1">
-                <span>
+              <button onClick={copyAddress} className="flex items-center gap-1 hover:text-ink">
+                {/* Mono dibuang dari WADAH baris meta ini, tetapi alamatnya sendiri
+                    tetap mono — itu string mesin, dan justru bagian yang orang
+                    bandingkan karakter demi karakter dengan explorer. */}
+                <span className="font-mono">
                   {project.tokenAddress.slice(0, 6)}…{project.tokenAddress.slice(-4)}
                 </span>
                 {copied ? <Check className="w-3 h-3 text-ok" /> : <Copy className="w-3 h-3" />}
@@ -340,7 +346,7 @@ export default function TokenTerminal({
             paling jarang dipakai orang untuk memutuskan. Market cap dan nilai USD
             adalah yang benar-benar dibandingkan orang, jadi itu yang di depan.
             Angka mentahnya tetap bisa dilihat lewat tooltip. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs text-center">
+        <div className="grid grid-cols-2 gap-3 text-center text-xs sm:grid-cols-4">
           {/* Label menyebut chain-nya, karena angka ini per chain dan tanpa itu ia
               terbaca sebagai market cap proyek secara keseluruhan.
               Satu ticker yang diluncurkan di empat chain berarti EMPAT pasar
@@ -396,14 +402,14 @@ export default function TokenTerminal({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-cream-3/[0.03] px-3 py-2">
           <div className="flex items-center gap-2">
             <Network className="h-3.5 w-3.5 shrink-0 text-accent" />
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
               ${project.symbol} markets
             </span>
-            <span className="rounded border border-accent/30 bg-accent-soft px-1.5 py-0.5 font-mono text-[9px] font-bold text-accent">
+            <span className="rounded-md border border-accent/30 bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
               {deployments.length} of {CHAIN_LIST.length} chains
             </span>
           </div>
-          <span className="font-mono text-[10px] text-ink-faint">
+          <span className="text-[11px] text-ink-faint">
             Independent pool and price per chain · no bridging
           </span>
         </div>
@@ -418,10 +424,10 @@ export default function TokenTerminal({
               return (
                 <div key={c.chainId} className="bg-white px-3 py-2.5 opacity-60">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] font-bold text-ink-soft">{c.key}</span>
-                    <span className="font-mono text-[9px] uppercase tracking-wider text-ink-faint">not launched</span>
+                    <span className="text-xs font-semibold text-ink-soft">{c.key}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ink-faint">not launched</span>
                   </div>
-                  <p className="mt-0.5 font-mono text-[10px] text-ink-faint">
+                  <p className="mt-0.5 text-[11px] text-ink-faint">
                     No ${project.symbol} market on this chain
                   </p>
                 </div>
@@ -439,18 +445,18 @@ export default function TokenTerminal({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
-                    className={`font-mono text-[11px] font-bold ${d.isCurrent ? "text-accent" : "text-ink"}`}
+                    className={`text-xs font-semibold ${d.isCurrent ? "text-accent" : "text-ink"}`}
                   >
                     {c.key}
                   </span>
                   {d.isCurrent ? (
-                    <span className="flex items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wider text-accent">
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> viewing
                     </span>
                   ) : d.tradable ? (
-                    <span className="font-mono text-[9px] uppercase tracking-wider text-ok">pool live</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ok">pool live</span>
                   ) : (
-                    <span className="font-mono text-[9px] uppercase tracking-wider text-warn">no pool</span>
+                    <span className="text-[10px] uppercase tracking-wider text-warn">no pool</span>
                   )}
                 </div>
                 {/* USD di depan, native di tooltip — karena inilah panel tempat orang
@@ -469,7 +475,8 @@ export default function TokenTerminal({
                   const usd = d.priceNative * chainNativeUsd;
                   return (
                     <p
-                      className="mt-0.5 truncate font-mono text-[10px] text-ink-soft"
+                      className="mt-0.5 truncate text-[11px] text-ink-soft"
+                      data-numeric
                       title={
                         d.priceNative > 0
                           ? `${formatSmallNumber(d.priceNative)} ${d.nativeSymbol} per token on ${c.name}${
@@ -495,7 +502,7 @@ export default function TokenTerminal({
       {/* Chain guard */}
       {isConnected && !onCorrectChain && (
         <div className="p-3 rounded-2xl bg-warn/10 border border-warn/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-2 text-xs font-mono text-warn">
+          <div className="flex items-start gap-2.5 text-xs leading-relaxed text-warn">
             <AlertTriangle className="w-4 h-4 text-warn mt-0.5 shrink-0" />
             <span>
               Your wallet is on chain <strong>{walletChainId ?? "unknown"}</strong> but this market settles on{" "}
@@ -518,7 +525,7 @@ export default function TokenTerminal({
 
       {/* Pool not tradable */}
       {swap.poolChecked && !swap.tradable && (
-        <div className="p-3 rounded-2xl bg-cream-3 border border-warn/30 flex items-start gap-2 text-xs font-mono text-warn">
+        <div className="flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-xs leading-relaxed text-warn">
           <Lock className="w-4 h-4 text-warn mt-0.5 shrink-0" />
           <span>{swap.poolStatusMessage}</span>
         </div>
@@ -536,7 +543,7 @@ export default function TokenTerminal({
               nativeUsd={nativeUsd}
               poolLive={swap.tradable}
             />
-            <div className="p-2.5 rounded-xl bg-white border border-line flex items-center justify-between text-[10px] font-mono text-ink-soft mt-2 shrink-0">
+            <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-white p-2.5 text-[11px] text-ink-soft">
               <span className="flex items-center gap-1.5 text-ink">
                 <Cpu className="w-3.5 h-3.5 text-accent" /> {project.agentModel}
               </span>
@@ -575,10 +582,10 @@ export default function TokenTerminal({
             swap.pool.creator.toLowerCase() === address.toLowerCase() && (
               <div className="rounded-2xl border border-ok/30 bg-ok/10 p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-ok/90">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
                     Your creator revenue
                   </span>
-                  <span className="font-mono text-[10px] text-ink-faint">
+                  <span className="text-[11px] text-ink-faint">
                     {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
                   </span>
                 </div>
@@ -587,7 +594,7 @@ export default function TokenTerminal({
                     {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
                         orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
                     <p
-                      className="font-mono text-lg font-bold text-ink"
+                      className="text-lg font-semibold text-ink" data-numeric
                       title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
                     >
                       {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
@@ -595,7 +602,7 @@ export default function TokenTerminal({
                         <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
                       )}
                     </p>
-                    <p className="font-mono text-[10px] text-ink-faint">unclaimed</p>
+                    <p className="text-[11px] text-ink-faint">unclaimed</p>
                   </div>
                   <button
                     type="button"
@@ -619,12 +626,12 @@ export default function TokenTerminal({
                         setClaimingFees(false);
                       }
                     }}
-                    className="rounded-xl bg-ok px-3 py-2 font-mono text-[11px] font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
+                    className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
                   >
                     {claimingFees ? "Claiming…" : "Claim"}
                   </button>
                 </div>
-                {claimLine && <p className="font-mono text-[10px] text-ok">{claimLine}</p>}
+                {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
               </div>
             )}
 
@@ -632,14 +639,14 @@ export default function TokenTerminal({
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
           {isConnected && (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-3 py-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Trading wallet</span>
+              <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
               <WalletMenu />
             </div>
           )}
 
-          <div className="glass-panel p-5 rounded-3xl border-2 border-line shadow-2xl bg-white space-y-3">
+          <div className="glass-panel space-y-3 rounded-3xl p-5">
             <div className="flex items-center justify-between border-b border-line pb-2.5">
-              <span className="font-mono text-xs font-bold text-ink">Sovereign Curve Swap</span>
+              <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -649,17 +656,18 @@ export default function TokenTerminal({
                 >
                   <Settings2 className="w-3.5 h-3.5" />
                 </button>
-                <div className="flex rounded-lg bg-cream-2 p-0.5 border border-line font-mono text-[10px]">
+                <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-xs">
                   {(["buy", "sell"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => swap.setMode(m)}
-                      className={`px-3 py-1 rounded-md font-bold transition-all uppercase ${
+                      aria-pressed={swap.mode === m}
+                      className={`rounded-lg px-3.5 py-1.5 font-semibold capitalize transition-colors ${
                         swap.mode === m
                           ? m === "buy"
                             ? "bg-ok/10 text-ok"
                             : "bg-danger/10 text-danger"
-                          : "text-ink-soft"
+                          : "text-ink-soft hover:text-ink"
                       }`}
                     >
                       {m}
@@ -669,159 +677,38 @@ export default function TokenTerminal({
               </div>
             </div>
 
-            {showSlippage && (
-              <div className="p-2.5 rounded-xl bg-cream-2 border border-line flex items-center justify-between font-mono text-[10px]">
-                <span className="text-ink-soft">Max slippage</span>
-                <div className="flex gap-1">
-                  {SLIPPAGE_OPTIONS.map((bps) => (
-                    <button
-                      key={bps}
-                      onClick={() => swap.setSlippageBps(bps)}
-                      className={`px-2 py-0.5 rounded font-bold border ${
-                        swap.slippageBps === bps
-                          ? "bg-accent-soft text-accent border-accent/30"
-                          : "bg-cream-3 text-ink-soft border-transparent"
-                      }`}
-                    >
-                      {(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {showSlippage && <SlippageRow value={swap.slippageBps} onChange={swap.setSlippageBps} />}
 
-            <div className="space-y-2 font-mono text-xs">
-              {/* You pay */}
-              <div className="p-3 rounded-2xl bg-cream-2 border border-line space-y-1">
-                <div className="flex justify-between text-[10px] text-ink-soft">
-                  <span>You pay</span>
-                  <div className="flex items-center gap-1.5">
-                    <span>
-                      Balance:{" "}
-                      {swap.mode === "buy"
-                        ? `${swap.nativeBalanceFormatted} ${chain.nativeSymbol}`
-                        : `${swap.tokenBalanceFormatted} ${project.symbol}`}
-                    </span>
-                    {isConnected && (
-                      <button
-                        type="button"
-                        onClick={swap.setMaxAmount}
-                        className="px-1.5 rounded bg-accent-soft text-accent border border-accent/30 text-[9px] font-bold"
-                      >
-                        MAX
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={swap.amountInput}
-                    onChange={(e) => swap.setAmountInput(e.target.value)}
-                    className="w-2/3 bg-transparent text-xl font-semibold text-ink focus:outline-none"
-                    placeholder="0.0"
-                  />
-                  {/* The pool only accepts the chain's native asset, so this is fixed
-                      rather than a dropdown of assets it cannot route. */}
-                  <span className="bg-white border border-line text-accent font-bold px-2.5 py-1 rounded-lg text-xs">
-                    {swap.mode === "buy" ? chain.nativeSymbol : project.symbol}
-                  </span>
-                </div>
-                <span className="text-[10px] text-ink-faint block">≈ {formatUsd(inputUsd)}</span>
-              </div>
+            {/* Panel jumlah, tombol tukar arah, rincian kuotasi, dan baris biaya
+                datang dari swap-parts.tsx — satu definisi yang dipakai halaman ini
+                dan /swap. Sebelumnya keduanya menulis panel yang sama dua kali, dan
+                selisihnya (input 20px di sini vs 24px di sana, saldo di dalam label
+                vs di baris bawah, lencana simbol berlatar putih vs cream) tidak
+                pernah diputuskan siapa pun — semuanya sisa dari menulis dua kali. */}
+            <TradeAmounts
+              swap={swap}
+              tokenSymbol={project.symbol}
+              tokenLogo={project.image || null}
+              inputUsd={inputUsd}
+              isConnected={isConnected}
+            />
 
-              <div className="flex justify-center -my-1">
-                <button
-                  type="button"
-                  onClick={() => swap.setMode(swap.mode === "buy" ? "sell" : "buy")}
-                  className="p-1.5 rounded-lg bg-accent-soft hover:bg-accent-soft text-ink border border-accent/30"
-                  title="Flip direction"
-                >
-                  <ArrowDownUp className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* You receive */}
-              <div className="p-3 rounded-2xl bg-cream-2 border border-line space-y-1">
-                <div className="flex justify-between text-[10px] text-ink-soft">
-                  <span>You receive (estimated)</span>
-                  <span
-                    title={
-                      swap.spotPriceNative > 0
-                        ? `${plainDecimal(swap.spotPriceNative)} ${chain.nativeSymbol} per token`
-                        : undefined
-                    }
-                  >
-                    1 {project.symbol} ={" "}
-                    {swap.spotPriceNative > 0 ? formatSmallNumber(swap.spotPriceNative) : "—"}{" "}
-                    {chain.nativeSymbol}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-xl font-semibold text-accent truncate w-2/3">
-                    {swap.outputAmount > 0 ? formatTokenAmount(swap.outputAmount) : "0"}
-                  </div>
-                  <span className="font-bold text-accent bg-accent-soft px-2.5 py-1 rounded-lg text-xs">
-                    {swap.mode === "buy" ? `$${project.symbol}` : chain.nativeSymbol}
-                  </span>
-                </div>
-                {swap.quote && swap.quote.amountOut > 0n && (
-                  <div className="pt-1 space-y-0.5 text-[10px] text-ink-faint">
-                    <div className="flex justify-between">
-                      <span>
-                        Minimum received ({(swap.slippageBps / 100).toFixed(swap.slippageBps % 100 === 0 ? 0 : 1)}%
-                        slippage)
-                      </span>
-                      <span className="text-ink-soft">
-                        {formatTokenAmount(
-                          swap.mode === "buy"
-                            ? Number(ethers.formatUnits(swap.minReceived, swap.tokenDecimals))
-                            : Number(ethers.formatEther(swap.minReceived))
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Price impact</span>
-                      <span className={swap.quote.priceImpactBps > 500 ? "text-warn" : "text-ink-soft"}>
-                        {(swap.quote.priceImpactBps / 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Three fee lines, because the fee genuinely splits three ways now.
-                  Showing only depth and buyback would hide where the creator's
-                  revenue comes from. */}
-              <div className="p-2.5 rounded-xl bg-accent-soft border border-accent/30 text-[10px] space-y-1 text-ink-soft">
-                <div className="flex justify-between">
-                  <span>Curve depth ({(project.lpFeeBps / 100).toFixed(2)}%) — stays in curve</span>
-                  <span>{formatUsd(feeUsd.lp)}</span>
-                </div>
-                {swap.pool?.creatorFeeBps ? (
-                  <div className="flex justify-between text-ok">
-                    <span>↳ Creator ({(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}%)</span>
-                    <span>{formatUsd(feeUsd.creator)}</span>
-                  </div>
-                ) : null}
-                <div className="flex justify-between text-accent font-bold">
-                  <span>↳ Agent buyback ({(project.treasuryBuybackBps / 100).toFixed(2)}%)</span>
-                  <span>{formatUsd(feeUsd.buyback)}</span>
-                </div>
-              </div>
-            </div>
+            <FeeLines
+              lpFeeBps={project.lpFeeBps}
+              treasuryBuybackBps={project.treasuryBuybackBps}
+              creatorFeeBps={swap.pool?.creatorFeeBps ? Number(swap.pool.creatorFeeBps) : null}
+              feeUsd={feeUsd}
+            />
 
             {swap.errorLine && (
-              <div className="p-2.5 rounded-xl bg-danger/10 border border-danger/30 text-[10px] font-mono text-danger flex items-start gap-2">
+              <div className="flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-xs leading-relaxed text-danger">
                 <AlertTriangle className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
                 <span>{swap.errorLine}</span>
               </div>
             )}
 
             {swap.txHash && !swap.errorLine && (
-              <div className="p-2.5 rounded-xl bg-ok/10 border border-ok/30 text-[10px] font-mono text-ok flex items-start gap-2">
+              <div className="flex items-start gap-2.5 rounded-2xl border border-ok/30 bg-ok/10 p-3.5 text-xs leading-relaxed text-ok">
                 <CheckCircle2 className="w-3.5 h-3.5 text-ok mt-0.5 shrink-0" />
                 <div className="space-y-1">
                   <div>{swap.statusLine}</div>
@@ -829,9 +716,12 @@ export default function TokenTerminal({
                     href={explorerTxUrl(chain, swap.txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline font-bold text-accent inline-flex items-center gap-1"
+                    className="inline-flex items-center gap-1 font-semibold text-accent underline"
                   >
-                    {swap.txHash.slice(0, 10)}…{swap.txHash.slice(-8)} <ExternalLink className="w-2.5 h-2.5" />
+                    <span className="font-mono">
+                      {swap.txHash.slice(0, 10)}…{swap.txHash.slice(-8)}
+                    </span>
+                    <ExternalLink className="h-2.5 w-2.5" />
                   </a>
                 </div>
               </div>
@@ -845,7 +735,7 @@ export default function TokenTerminal({
                  tombol beli dan tombol jual berbagi separuh warna yang sama — pada
                  satu-satunya kontrol di halaman yang salah tekannya mahal. Sekarang
                  satu warna pekat per arah, teks putih supaya kontrasnya lolos. */
-              className={`w-full py-3.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
+              className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
                 swap.mode === "buy" ? "bg-ok text-white" : "bg-danger text-white"
               }`}
             >
@@ -867,7 +757,7 @@ export default function TokenTerminal({
             </button>
 
             {swap.mode === "sell" && swap.tradable && (
-              <p className="text-[9px] font-mono text-ink-faint leading-relaxed">
+              <p className="text-[11px] leading-relaxed text-ink-faint">
                 Selling moves ERC-20 tokens via <code className="text-accent">approve</code> +{" "}
                 <code className="text-accent">transferFrom</code>. No native {chain.nativeSymbol} leaves your wallet
                 beyond gas.
@@ -880,9 +770,9 @@ export default function TokenTerminal({
             <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-accent" />
-                <span className="font-mono text-xs font-bold text-ink">Chat with ${project.symbol} agent</span>
+                <span className="text-sm font-semibold text-ink">Chat with ${project.symbol} agent</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-ok/10 text-ok border border-ok/30 font-bold">
+              <span className="rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
                 0G TEE
               </span>
             </div>
@@ -897,14 +787,14 @@ export default function TokenTerminal({
                       : "bg-white border border-line text-ink mr-2"
                   }`}
                 >
-                  <span className="text-[9px] font-mono font-bold block mb-1 uppercase text-ink-faint">
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
                     {m.role === "user" ? "You" : `${project.name} (0G TEE)`}
                   </span>
                   <FormattedMarkdown text={m.content} />
                 </div>
               ))}
               {chatLoading && (
-                <div className="p-2 rounded-xl bg-cream-2 text-accent font-mono text-[11px] flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 rounded-xl bg-cream-2 p-2 text-[11px] text-accent">
                   <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G…
                 </div>
               )}
