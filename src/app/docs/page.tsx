@@ -2,6 +2,7 @@ import Link from "next/link";
 import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
 import { ShieldCheck, Cpu, Database, Zap, Lock, Terminal, Layers, Sparkles, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
 import { agentAttestation } from "@/lib/og-attestation";
+import { LAUNCH_CLAUSE } from "@/lib/launch-state";
 
 /**
  * Halaman ini server component, jadi status attestation dibaca langsung dari
@@ -28,7 +29,7 @@ export default async function DocsPage() {
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. No token has been launched through the factory yet. Every section below says which it is.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}

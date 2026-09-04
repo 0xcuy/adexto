@@ -8,6 +8,7 @@ import {
   Coins, TrendingUp, Lock, Globe, Code2,
   CloudLightning, AlertCircle, HelpCircle
 } from "lucide-react";
+import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
 
 export default function HomePage() {
   const [activeCodeTab, setActiveCodeTab] = useState<"factory" | "hook" | "cloudflare">("factory");
@@ -120,7 +121,9 @@ export default function HomePage() {
                 ada. */}
             <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Deployment</dt>
             <dd className="mt-1.5 text-lg font-semibold text-ink">Launching live</dd>
-            <dd className="text-[11px] text-ink-soft mt-0.5">4 mainnets · no token launched yet</dd>
+            <dd className="text-[11px] text-ink-soft mt-0.5">
+              {LAUNCH_BADGE} · {LAUNCH_CLAUSE}
+            </dd>
           </div>
         </dl>
       </section>

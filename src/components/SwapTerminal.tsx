@@ -14,6 +14,7 @@ import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/
 import { describeTxError } from "@/lib/dex";
 import { FALLBACK_PRICES, assetPriceUsd, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap, type SwapMarket } from "@/lib/use-sovereign-swap";
+import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
 
 /**
  * Sovereign DEX swap surface.
@@ -317,9 +318,7 @@ export default function SwapTerminal() {
                     is still empty, but for a completely different reason: launching
                     works and nobody has used it yet. */}
                 <span>
-                  <strong className="text-ink">No markets exist yet.</strong> The curve factory is live on all four
-                  mainnets and launching is enabled — nothing has been launched through it yet, so there is nothing
-                  to swap. This panel fills in on its own as soon as the first curve goes live.
+                  <strong className="text-ink">{EMPTY_TITLE}.</strong> {EMPTY_BODY}
                 </span>
               </div>
             </div>

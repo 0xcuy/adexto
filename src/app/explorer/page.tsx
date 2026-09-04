@@ -9,6 +9,7 @@ import {
   Search, ExternalLink, ShieldCheck, ArrowUpRight, CheckCircle2,
   CloudLightning, Sparkles, AlertTriangle, Lock, RefreshCw,
 } from "lucide-react";
+import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
 
 /**
  * Live market index.
@@ -252,15 +253,12 @@ export default function ExplorerPage() {
            their filter was at fault when in fact nothing has launched yet. */
         <div className="mx-auto max-w-md py-20 text-center">
           <Lock className="mx-auto mb-3 h-5 w-5 text-ink-faint" />
-          <p className="text-sm font-semibold text-ink">No markets yet</p>
+          <p className="text-sm font-semibold text-ink">{EMPTY_TITLE}</p>
           {/* The reason changed and the text had to change with it. This used to
               read "the curve factory has not been broadcast", which was true and
               then quietly became false the moment it was. Launching is live now;
               the index is empty simply because nobody has used it yet. */}
-          <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
-            Nothing has been launched yet. The curve factory is live on all four mainnets, so this index fills in
-            on its own as soon as the first launch registers itself.
-          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">{EMPTY_BODY}</p>
           <Link
             href="/docs"
             className="mt-4 inline-block text-xs font-semibold text-accent underline-offset-4 hover:underline"

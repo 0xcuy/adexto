@@ -5,6 +5,7 @@ import { ChevronDown, Search, X } from "lucide-react";
 
 import { CHAIN_LIST } from "@/lib/chains";
 import { formatSmallNumber } from "@/lib/pricing";
+import { EMPTY_BODY, EMPTY_TITLE, LAUNCH_CLAUSE } from "@/lib/launch-state";
 
 /**
  * Pemilih market untuk permukaan trading.
@@ -172,10 +173,10 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
         ) : (
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-ink">
-              {loading ? "Loading markets…" : markets.length === 0 ? "No markets yet" : "Select a market"}
+              {loading ? "Loading markets…" : markets.length === 0 ? EMPTY_TITLE : "Select a market"}
             </span>
             <span className="block text-xs text-ink-soft">
-              {markets.length === 0 ? "nothing has been launched yet" : `${markets.length} available`}
+              {markets.length === 0 ? LAUNCH_CLAUSE : `${markets.length} available`}
             </span>
           </span>
         )}
@@ -278,14 +279,14 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                 <div className="px-5 py-8 text-center">
                   <p className="text-sm font-semibold text-ink">
                     {markets.length === 0
-                      ? "No markets yet"
+                      ? EMPTY_TITLE
                       : query.trim()
                       ? "Nothing matches that"
                       : "No market on this chain"}
                   </p>
                   <p className="mx-auto mt-1 max-w-[15rem] text-xs text-ink-soft">
                     {markets.length === 0
-                      ? "The curve factory is live on all four mainnets. Nothing has been launched through it yet."
+                      ? EMPTY_BODY
                       : query.trim()
                       ? "Try a symbol, a project name, or paste the token address."
                       : "Markets are created per chain, so a token launched elsewhere does not appear here."}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Terminal, Shield, Cpu, Zap, Github, Twitter, Layers, CloudLightning } from "lucide-react";
+import { LAUNCH_SENTENCE } from "@/lib/launch-state";
 
 export default function Footer() {
   return (
@@ -102,10 +103,7 @@ export default function Footer() {
                 stale sentence everywhere — it kept saying launching was disabled
                 after the curve factory had actually been broadcast to all four
                 mainnets, contradicting the studio two scrolls above it. */}
-            <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
-              The curve factory is live on all four, so launching works on each of them. No token has been
-              launched yet, which is why there is still nothing to trade.
-            </p>
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">{LAUNCH_SENTENCE}</p>
           </div>
         </div>
 

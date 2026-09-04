@@ -624,6 +624,88 @@ console.log("\n── model agen: daftar di studio vs og-attestation vs router 0
   }
 }
 
+// ── 10. keadaan "belum ada peluncuran": satu kosakata, dan mati sendiri ────
+console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di chain ──");
+{
+  /**
+   * Ini penjaga yang paling sering dibutuhkan dan paling lama tidak ada.
+   *
+   * Keadaan "factory hidup, belum ada yang meluncurkan" diucapkan di DELAPAN
+   * halaman. Sebelum src/lib/launch-state.ts, setiap halaman mengarang kalimatnya
+   * sendiri — dua belas varian, diukur dari halaman yang dirender. Akibatnya keadaan
+   * ini mustahil disapu sekali: memperbaiki satu halaman selalu meninggalkan tujuh
+   * lainnya. Itu keluhan yang berulang, dan penyebabnya struktural, bukan kelalaian.
+   *
+   * Dua hal ditegakkan di sini, dan yang kedua jauh lebih penting:
+   *
+   *   A. Tidak ada .tsx yang boleh menuliskan varian sendiri. Kalimatnya harus
+   *      datang dari launch-state.ts.
+   *   B. Kalau `totalProjectsCount()` di chain sudah BUKAN nol, seluruh kalimat itu
+   *      berubah menjadi klaim palsu — dan audit ini GAGAL sampai teksnya diganti.
+   *
+   * B adalah bagian yang membuat keadaan ini mati sendiri. Selama ini urutannya
+   * selalu: fakta berubah dulu, teks menyusul berbulan kemudian, dan yang menemukan
+   * adalah pembaca. Sesudah ini, yang menemukan adalah deploy.
+   */
+  const launchStatePath = "src/lib/launch-state.ts";
+  check("launch-state.ts ada", existsSync(launchStatePath));
+
+  // A. varian yang diketik langsung di komponen.
+  const VARIANTS = [
+    /no launches yet/i,
+    /nothing has been launched/i,
+    /no token has been launched/i,
+    /no markets? (?:exist )?yet/i,
+    /no token launched yet/i,
+  ];
+  let hardcoded = 0;
+  for (const path of sourceFiles().filter((f) => f.endsWith(".tsx"))) {
+    const text = visibleText(path);
+    for (const re of VARIANTS) {
+      const m = text.match(re);
+      if (!m) continue;
+      bad(`${path} menuliskan sendiri kalimat keadaan peluncuran`, `"${m[0]}" — impor dari ${launchStatePath}`);
+      hardcoded++;
+    }
+  }
+  if (hardcoded === 0) ok("tidak ada .tsx yang mengarang varian sendiri", "semua lewat launch-state.ts");
+
+  // B. bandingkan dengan chain.
+  const FACTORY_ABI = ["function totalProjectsCount() view returns (uint256)"];
+  let totalLaunches = 0n;
+  let readable = 0;
+  for (const [id, c] of Object.entries(CHAINS)) {
+    const addr = env[c.factoryEnv];
+    if (!addr) continue;
+    try {
+      const n = await new ethers.Contract(addr, FACTORY_ABI, providerFor(Number(id))).totalProjectsCount();
+      totalLaunches += n;
+      readable++;
+    } catch (e) {
+      soft(`totalProjectsCount ${c.key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+    }
+  }
+
+  if (readable === 0) {
+    soft("jumlah peluncuran tidak bisa dibaca", "semua RPC gagal — klaim tidak diuji");
+  } else {
+    ok(`totalProjectsCount() di ${readable} chain`, `${totalLaunches} peluncuran`);
+    const src = existsSync(launchStatePath) ? readFileSync(launchStatePath, "utf8") : "";
+    const stillClaimsZero = /no token has been launched|nothing has been launched|no launches yet|No markets yet/i.test(src);
+    if (totalLaunches === 0n) {
+      check("chain berkata nol, jadi kalimatnya boleh berdiri", stillClaimsZero, stillClaimsZero ? "cocok" : "launch-state.ts tidak lagi menyatakannya");
+    } else {
+      // Sengaja kegagalan, bukan peringatan: teks yang bertahan di sini adalah
+      // klaim palsu di delapan halaman sekaligus.
+      check(
+        `chain berkata ${totalLaunches} peluncuran — kalimat "belum ada peluncuran" WAJIB dicabut`,
+        !stillClaimsZero,
+        stillClaimsZero ? `${launchStatePath} masih menyatakan nol` : "sudah dicabut"
+      );
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

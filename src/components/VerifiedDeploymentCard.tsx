@@ -7,6 +7,7 @@ import {
   CheckCircle2, ExternalLink, ShieldCheck, Database, Copy, Check, 
   Cpu, Layers, Sparkles 
 } from "lucide-react";
+import { LAUNCH_CLAUSE } from "@/lib/launch-state";
 
 export default function VerifiedDeploymentCard() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -161,8 +162,8 @@ export default function VerifiedDeploymentCard() {
             <p className="text-xs sm:text-sm text-ink-soft mt-1">
               Addresses below are the <strong className="text-ink">v1</strong> generation, deployed and verifiable on
               each chain. The executable <code className="text-accent">AdextoCurveFactory</code> is now live on all
-              four mainnets, so launching is enabled — but no token has been launched through it yet, which is why
-              there is still nothing to trade.
+              four mainnets, so launching is enabled — but {LAUNCH_CLAUSE}, which is why there is still nothing
+              to trade.
             </p>
           </div>
 

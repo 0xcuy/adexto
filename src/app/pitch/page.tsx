@@ -5,6 +5,7 @@ import {
   Layers, Users, CheckCircle2, BarChart3, CloudLightning, RefreshCw, Flame, Globe,
   ShieldAlert
 } from "lucide-react";
+import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
 
 export default function PitchDeckPage() {
   return (
@@ -21,7 +22,7 @@ export default function PitchDeckPage() {
         </h1>
         <p className="text-ink-soft text-sm sm:text-base mt-4 leading-relaxed">
           August 2026 · adexto.xyz · seeking $150K–$500K in ecosystem grants, primarily 0G and Base.
-          The curve factory is live on all four mainnets and no token has been launched through it yet; this memo
+          The curve factory is live on all four mainnets and {LAUNCH_CLAUSE}; this memo
           says so wherever it matters rather than reading as traction it does not have.
         </p>
       </div>
@@ -308,17 +309,24 @@ export default function PitchDeckPage() {
                 yang benar sampai factory-nya benar-benar dikirim dan langsung
                 basi setelahnya.
                 Sekarang berbunyi apa yang bisa diperiksa dengan satu panggilan
-                RPC: factory-nya ada di keempat mainnet. Kata "no launches yet"
-                ikut dibawa supaya tidak ada yang membaca ini sebagai traksi. */}
+                RPC: factory-nya ada di keempat mainnet.
+
+                Caveat "belum ada peluncuran" TETAP ADA — tanpanya sebuah baris
+                milestone berpil hijau terbaca sebagai traksi yang tidak ada — tetapi
+                ia pindah keluar dari pil ke deskripsi di sebelahnya. Hijau berarti
+                selesai, jadi pil hijau berbunyi "NO LAUNCHES YET" memuat dua pesan
+                yang berlawanan dalam satu bentuk. Kata-katanya sendiri kini datang
+                dari src/lib/launch-state.ts, karena keadaan ini diucapkan di delapan
+                halaman dan sebelumnya setiap halaman mengarang versinya sendiri. */}
             <div>
               <strong className="text-ink block text-sm">Phase 1 — contracts and app</strong>
               <span className="text-ink-soft text-xs">
                 Curve and factory written, tested on five EVMs; app complete end to end; x402 quote endpoint
-                deployed; curve factory v0.10.0 broadcast to 0G, Base, Arbitrum and Monad
+                deployed; curve factory v0.10.0 broadcast to 0G, Base, Arbitrum and Monad — {LAUNCH_CLAUSE}
               </span>
             </div>
-            <span className="px-3 py-1 rounded bg-ok/10 text-ok border border-ok/30 font-bold text-xs">
-              4 MAINNETS · NO LAUNCHES YET
+            <span className="px-3 py-1 rounded bg-ok/10 text-ok border border-ok/30 font-bold text-xs uppercase">
+              {LAUNCH_BADGE}
             </span>
           </div>
 
