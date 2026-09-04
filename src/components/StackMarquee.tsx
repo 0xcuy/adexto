@@ -59,17 +59,30 @@ const STACK: StackEntry[] = [
   // apa pun sambil bergerak. Footer sudah memuat tabel nama-plus-ID yang berdiam
   // di tempat, dan di sana angka itu memang berguna.
   //
-  // Empat baris chain ini SEBELUMNYA berbunyi "launch + curve" dan ditandai live.
-  // Itu salah, dan salahnya jenis terburuk: catatan di hero — dua inci di atas
-  // ticker ini — sudah menyatakan "launch factory pending broadcast". Jadi
-  // halaman yang sama mengatakan peluncuran jalan di tiga mainnet DAN belum jalan
-  // di mana pun. Pembaca akan memercayai yang lebih berani, lalu membuka studio
-  // dan menemukan tombolnya terkunci. Yang benar-benar berjalan di keempat chain
-  // hari ini: dompet, harga, tautan explorer, dan kontrak Governor.
-  { name: CHAINS["0G"].name, role: "agent router · launch pending", live: false, logo: "/brand/0g.svg", mark: "0G", tint: "#111827" },
-  { name: CHAINS.Base.name, role: "curve ready · launch pending", live: false, logo: "/brand/base.svg", mark: "B", tint: "#0052FF" },
-  { name: CHAINS.Arbitrum.name, role: "curve ready · launch pending", live: false, logo: "/brand/arbitrum.svg", mark: "A", tint: "#12AAFF" },
-  { name: CHAINS.Monad.name, role: "curve ready · launch pending", live: false, logo: "/brand/monad.svg", mark: "M", tint: "#836EF9" },
+  // Empat baris ini sudah dua kali salah, ke dua arah yang berlawanan, dan
+  // riwayatnya ditulis lengkap supaya tidak diputar untuk ketiga kalinya.
+  //
+  // Mula-mula berbunyi "launch + curve" dan ditandai live, padahal catatan di hero
+  // saat itu menyatakan "launch factory pending broadcast" — halaman yang sama
+  // mengatakan peluncuran jalan DAN belum jalan. Itu diperbaiki menjadi "curve
+  // ready · launch pending" dengan titik amber.
+  //
+  // Perbaikan itu sekarang yang jadi salah. Factory 0.10.0 sudah di-broadcast ke
+  // keempat mainnet, dan hero di atas berbunyi "Launching live". Jadi tabrakannya
+  // cuma berbalik arah: hero bilang hidup, ticker bilang tertunda. Pembaca yang
+  // percaya ticker akan menyangka studio-nya masih terkunci padahal tidak.
+  //
+  // Yang dinyatakan sekarang adalah kemampuan yang bisa dibaca dari chain: factory
+  // 0.10.0 ada byte-nya di keempat chain (20.054 B, dan ukuran itu sudah diikat ke
+  // README oleh audit_consistency.mjs bagian 1), registry ERC-8004 hidup di
+  // keempatnya, dan agent-nya milik deployer. Berapa token yang sudah lahir BUKAN
+  // urusan baris ini — itu sudah dinyatakan sekali di deret angka hero, dan
+  // mengulangnya di sini hanya membuat sembilan chip berbunyi seperti daftar
+  // tunggu.
+  { name: CHAINS["0G"].name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/0g.svg", mark: "0G", tint: "#111827" },
+  { name: CHAINS.Base.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/base.svg", mark: "B", tint: "#0052FF" },
+  { name: CHAINS.Arbitrum.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/arbitrum.svg", mark: "A", tint: "#12AAFF" },
+  { name: CHAINS.Monad.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/monad.svg", mark: "M", tint: "#836EF9" },
   // Bukan "one launch per human": produksi menjalankan
   // WORLD_ID_ONE_LAUNCH_PER_HUMAN=false, jadi yang ditegakkan adalah nullifier
   // yang terikat ke satu wallet — bukan satu peluncuran per orang selamanya.
@@ -133,9 +146,11 @@ function Chip({ entry }: { entry: StackEntry }) {
       <span className="whitespace-nowrap text-sm font-semibold tracking-tight text-ink">{entry.name}</span>
       <span aria-hidden="true" className="h-3.5 w-px bg-line-strong" />
       {/* Yang belum berjalan ditandai satu titik amber, bukan seluruh teksnya
-          diberi warna peringatan. Lima dari sembilan entri memang belum berjalan,
-          dan mewarnai kelimanya membuat barisan ini terbaca seperti dinding
-          peringatan alih-alih daftar status. */}
+          diberi warna peringatan. Dulu lima dari sembilan entri bertitik amber dan
+          barisan ini terbaca seperti dinding peringatan; sekarang tinggal satu —
+          Chainlink CCIP, receiver-nya ter-deploy tapi lane-nya memang belum
+          dibuka. Titiknya tetap satu titik, bukan teks berwarna, supaya kalau
+          jumlahnya naik lagi barisannya tidak berubah jadi peringatan massal. */}
       {!entry.live && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />}
       <span className="whitespace-nowrap text-[11px] tracking-wide text-ink-faint">{entry.role}</span>
     </span>
