@@ -1068,8 +1068,48 @@ console.log("\n── /security: klaim mesin vs security-report.json ──");
         /* di luar git */
       }
       if (head && rep.commit) {
-        if (rep.commit === head) ok("laporan dipindai pada commit HEAD", head.slice(0, 12));
-        else soft("laporan dipindai pada commit LAIN", `laporan ${String(rep.commit).slice(0, 12)} vs HEAD ${head.slice(0, 12)} — pindai ulang`);
+        if (rep.commit === head) {
+          ok("laporan dipindai pada commit HEAD", head.slice(0, 12));
+        } else if (!/^[0-9a-f]{40}$/.test(String(rep.commit))) {
+          bad("commit di laporan bukan sha yang sah", String(rep.commit).slice(0, 24));
+        } else {
+          /**
+           * Commit yang berbeda BELUM berarti laporannya basi.
+           *
+           * Versi pertama penjaga ini memperingatkan begitu hash berbeda, dan hasilnya
+           * berbunyi terus-terusan: setiap commit yang tidak menyentuh kontrak —
+           * perbaikan halaman, skrip, .rsyncignore — menggeser HEAD dan membuat laporan
+           * "beda commit" padahal angkanya masih menggambarkan kode yang sama.
+           * Peringatan yang selalu menyala melatih orang mengabaikannya, dan penjaga
+           * yang diabaikan sama saja dengan tidak ada.
+           *
+           * Yang benar-benar menentukan cuma satu: apakah contracts/ berubah di antara
+           * commit laporan dan HEAD. Kalau tidak, angkanya masih sah. Kalau ya, halaman
+           * sedang memasang angka milik kode lain — dan itu KEGAGALAN, bukan peringatan,
+           * karena halaman keamanan yang menggambarkan bytecode yang salah lebih buruk
+           * daripada tidak ada halaman.
+           */
+          let changed = null;
+          try {
+            changed = execSync(`git diff --name-only ${rep.commit}..HEAD -- contracts/`, { encoding: "utf8" }).trim();
+          } catch {
+            /* commit laporan tidak ada di riwayat ini (mis. setelah rebase) */
+          }
+          if (changed === null) {
+            soft("commit laporan tidak ada di riwayat repo ini", `${String(rep.commit).slice(0, 12)} — pindai ulang`);
+          } else if (changed.length === 0) {
+            ok(
+              "laporan dari commit lain, tetapi contracts/ identik",
+              `${String(rep.commit).slice(0, 12)} → ${head.slice(0, 12)}, 0 kontrak berubah`
+            );
+          } else {
+            const list = changed.split("\n");
+            bad(
+              "kontrak berubah setelah pemindaian terakhir",
+              `${list.length} berkas (${list.slice(0, 3).join(", ")}) — jalankan node scripts/security-scan.mjs`
+            );
+          }
+        }
       }
 
       // Kontrak berubah setelah pemindaian terakhir? Angkanya jadi basi.
