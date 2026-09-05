@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-05T10:20:19.186Z",
-  "commit": "149671b979024650c8743f7e8647cc9f7da38881",
-  "commitTime": "2026-09-05T17:18:45+07:00",
-  "dirty": false,
+  "generatedAt": "2026-09-05T11:02:19.125Z",
+  "commit": "7b055144c225f96f2f5b238406d53a59a9c792c0",
+  "commitTime": "2026-09-05T17:37:04+07:00",
+  "dirty": true,
   "scope": {
     "launchPath": [
       "contracts/AdextoCurveFactory.sol",
@@ -23,7 +23,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "42 artefak terkompilasi, 0 warning, 0 error"
+      "detail": "42 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -36,7 +36,7 @@
         "passed": 9,
         "failed": 0
       },
-      "detail": "9 properti lolos, 0 gagal · 4096 run per properti",
+      "detail": "9 properties passed, 0 failed · 4096 runs each",
       "cases": [
         "testFuzz_buyQuoteMatchesExecution(uint256)",
         "testFuzz_buyRoundsInFavourOfCurve(uint256)",
@@ -60,7 +60,7 @@
         "passed": 1,
         "failed": 0
       },
-      "detail": "1 suite invariant lolos · 512 run x 64 aksi acak"
+      "detail": "1 invariant suite passed · 512 runs x 64 random actions"
     },
     {
       "id": "slither",
@@ -82,7 +82,7 @@
         "Low": 8,
         "Informational": 3
       },
-      "detail": "45 temuan pada 102 detektor · 0 High di jalur peluncuran"
+      "detail": "45 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -100,7 +100,7 @@
       "launchPathCounts": {
         "HighInstances": 15
       },
-      "detail": "4 jenis High / 13 jenis Low · 88 detektor"
+      "detail": "4 High kinds / 13 Low kinds · 88 detectors"
     },
     {
       "id": "solhint",
@@ -113,7 +113,7 @@
         "errors": 0,
         "warnings": 693
       },
-      "detail": "0 error, 693 warning (gaya & gas)"
+      "detail": "0 errors, 693 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -127,7 +127,7 @@
         "filesScanned": 11,
         "configErrors": 0
       },
-      "detail": "0 temuan pada 11 berkas · ruleset umum p/security-audit"
+      "detail": "0 findings across 11 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -139,10 +139,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50127,
+        "totalCalls": 50110,
         "uniqueInstructions": 7193
       },
-      "detail": "4/4 properti lolos · 50.127 panggilan",
+      "detail": "4/4 properties passed · 50,110 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

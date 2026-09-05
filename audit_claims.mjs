@@ -145,6 +145,27 @@ const MUST_BE_QUALIFIED = [
   ["Target: $", ["planned", "not built", "not yet", "no billing", "does not exist", "none of these"]],
 ];
 
+/**
+ * Situs ini berbahasa Inggris. Kata fungsi Indonesia di teks yang DIRENDER adalah bug.
+ *
+ * Komentar kode di repo ini memang Indonesia dan itu disengaja — yang dilihat
+ * pengunjung tidak. Penjaga ini ada karena kesalahan itu benar-benar terjadi: halaman
+ * /security dibangun dengan seluruh blok penjelasan dan seluruh string `detail` di
+ * security-report.json berbahasa Indonesia, sementara sembilan halaman lain dan README
+ * seluruhnya Inggris. Jadi satu-satunya halaman yang dibuat untuk dibaca orang luar
+ * justru satu-satunya yang berganti bahasa di tengah, dan tidak ada yang menangkapnya
+ * sampai dibaca manusia.
+ *
+ * Yang dicocokkan hanya kata FUNGSI — kata yang tidak mungkin muncul sebagai istilah
+ * teknis Inggris, nama kontrak, atau ticker. "pada" dan "untuk" sengaja tidak
+ * dimasukkan karena keduanya muncul sebagai substring di kata Inggris.
+ */
+const ID_WORDS = [
+  "tidak", "yang", "dengan", "adalah", "karena", "bukan", "sudah", "supaya",
+  "harus", "dipakai", "dibaca", "temuan", "berkas", "halaman", "jalur",
+  "peluncuran", "kurva", "tetapi", "sehingga", "milik", "setiap",
+];
+
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
 const page = await ctx.newPage();
@@ -158,6 +179,13 @@ for (const route of ROUTES) {
 
   const hits = BANNED.filter(([phrase]) => text.includes(phrase));
   const clashes = CONTRADICTIONS.filter((c) => html.includes(c.a) && html.includes(c.b));
+
+  // Kata Indonesia yang bocor ke teks yang dirender. `innerText` sudah bebas tag dan
+  // bebas komentar JSX, jadi yang terhitung memang yang dilihat pengunjung.
+  const idLeaks = ID_WORDS.map((w) => {
+    const n = (text.toLowerCase().match(new RegExp(`\\b${w}\\b`, "g")) || []).length;
+    return n > 0 ? `${w}(${n})` : null;
+  }).filter(Boolean);
 
   /**
    * Setiap kemunculan frasa berpenanda-wajib diperiksa TERHADAP KARTUNYA SENDIRI,
@@ -180,11 +208,12 @@ for (const route of ROUTES) {
     }
   }
 
-  if (hits.length === 0 && clashes.length === 0 && unqualified.length === 0) {
+  if (hits.length === 0 && clashes.length === 0 && unqualified.length === 0 && idLeaks.length === 0) {
     console.log(`BERSIH   ${route}`);
   } else {
-    fail += hits.length + clashes.length + unqualified.length;
+    fail += hits.length + clashes.length + unqualified.length + idLeaks.length;
     console.log(`MASALAH  ${route}`);
+    if (idLeaks.length) console.log(`           - teks Indonesia dirender: ${idLeaks.join(" ")}`);
     for (const u of unqualified) console.log(`           - ${u}`);
     for (const [phrase, why] of hits) console.log(`           - "${phrase}" — ${why}`);
     for (const c of clashes) console.log(`           - bertentangan: "${c.a}" + "${c.b}" — ${c.why}`);

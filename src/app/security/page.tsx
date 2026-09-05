@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit } from "lucide-react";
+import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit, FileSearch } from "lucide-react";
 import report from "@/config/security-report.json";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
@@ -52,10 +52,24 @@ type Engine = {
  */
 const engines = report.engines as unknown as Engine[];
 
+/**
+ * Label ini dulu berbunyi "findings, triaged" dengan warna amber, dan dua-duanya
+ * salah untuk keadaan yang diwakilinya.
+ *
+ * "Triaged" adalah istilah internal: pembaca pertama yang melihatnya bertanya apa
+ * artinya, dan itu sendiri cacat di halaman yang seluruh gunanya mudah diperiksa.
+ * Amber lebih buruk lagi — di seluruh situs ini amber berarti PERINGATAN, sehingga
+ * baris yang sebenarnya berarti "semuanya sudah dibaca dan dijelaskan" justru terbaca
+ * seperti alarm. Angka temuannya tetap tampil utuh di kolom sebelahnya, jadi warna
+ * netral tidak menyembunyikan apa pun; ia hanya berhenti melebih-lebihkan.
+ *
+ * Amber sekarang dipesan untuk `findings`, yaitu keadaan yang memang menuntut
+ * tindakan dan belum ada penjelasannya.
+ */
 const STATUS: Record<string, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
   clean: { label: "no findings", className: "text-ok bg-ok/10 border-ok/30", Icon: CheckCircle2 },
-  triaged: { label: "findings, triaged", className: "text-warn bg-warn/10 border-warn/30", Icon: AlertTriangle },
-  findings: { label: "findings", className: "text-warn bg-warn/10 border-warn/30", Icon: AlertTriangle },
+  triaged: { label: "reviewed below", className: "text-ink-soft bg-cream-3 border-line", Icon: FileSearch },
+  findings: { label: "needs action", className: "text-warn bg-warn/10 border-warn/30", Icon: AlertTriangle },
   error: { label: "run failed", className: "text-danger bg-danger/10 border-danger/30", Icon: XCircle },
   "not-installed": { label: "not run", className: "text-ink-soft bg-cream-3 border-line", Icon: XCircle },
 };
@@ -68,55 +82,63 @@ const STATUS: Record<string, { label: string; className: string; Icon: typeof Ch
  * state-changing adalah executeTreasuryBuyback" adalah sesuatu yang bisa dibantah
  * pembaca dalam satu menit dengan membuka berkasnya. Bentuk kedua yang membuat
  * halaman ini ada.
+ *
+ * ISI STRING DI BAWAH WAJIB BAHASA INGGRIS.
+ *
+ * Versi pertama halaman ini menulis seluruh penjelasan dalam bahasa Indonesia,
+ * sementara sembilan halaman lain dan README seluruhnya Inggris — jadi satu-satunya
+ * halaman yang dibuat untuk dibaca orang luar justru satu-satunya yang berganti
+ * bahasa di tengah. Komentar kode boleh tetap Indonesia seperti sisa repo ini; yang
+ * DIRENDER tidak boleh.
  */
 const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   {
     title: "No owner, no admin",
     where: "AdextoToken.sol · SovereignCurve.sol",
     how:
-      "AdextoToken mengimpor satu hal, ERC20 dari OpenZeppelin. Tidak ada Ownable, tidak ada owner(), tidak ada onlyOwner, tidak ada peran. SovereignCurve punya satu modifier berhak-istimewa, onlyFactory, dan ia hanya menggerbangi bindToken dan initializeCurve — keduanya sekali pakai dan tidak memindahkan native.",
+      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. SovereignCurve has a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native.",
   },
   {
     title: "No upgradeability",
     where: "AdextoCurveFactory.sol",
     how:
-      "Token dan kurva dibuat dengan `new` biasa (CREATE), bukan proxy dan bukan CREATE2. Tidak ada slot implementasi, tidak ada delegatecall di ketiga kontrak jalur peluncuran. Yang di-deploy adalah yang berjalan selamanya.",
+      "The token and the curve are created with a plain `new` (CREATE) — no proxy, no CREATE2. There is no implementation slot and no delegatecall anywhere in the three launch-path contracts. What is deployed is what runs, permanently.",
   },
   {
     title: "Fixed supply, no privileged mint",
     where: "AdextoToken.sol",
     how:
-      "`_mint` dipanggil tepat sekali, di dalam konstruktor. Setelah itu tidak ada fungsi mint, tidak ada peran minter, dan tidak ada jalur yang bisa menambah supply. Arah satu-satunya yang mungkin adalah turun, lewat pembakaran buyback.",
+      "`_mint` is called exactly once, inside the constructor. After that there is no mint function, no minter role, and no path that can increase supply. The only direction available is down, through buyback burns.",
   },
   {
     title: "No arbitrary withdrawal",
     where: "SovereignCurve.sol",
     how:
-      "Tepat dua fungsi mengirim native keluar: `sell` membayar penjual, dan `claimCreatorFees` membayar alamat creator yang immutable. Tidak ada withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct, maupun fallback. Siapa pun boleh MEMICU klaim fee, tapi uangnya hanya bisa mendarat di creator.",
+      "Exactly two functions send native out: `sell` pays the seller, and `claimCreatorFees` pays the immutable creator address. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback. Anyone may trigger the fee claim, but the money can only ever land on the creator.",
   },
   {
     title: "100% of supply enters the curve",
     where: "AdextoCurveFactory.sol",
     how:
-      "Seluruh supply dicetak ke factory, dipindahkan ke kurva pada transaksi yang sama, lalu factory MEWAJIBKAN saldonya sendiri nol sebelum peluncuran dianggap berhasil. Creator tidak menerima satu token pun — pendapatannya dari irisan fee tiap swap.",
+      "The whole supply is minted to the factory, moved into the curve in the same transaction, and then the factory requires its own balance to be zero before the launch is allowed to succeed. The creator receives no tokens at all — their income is a slice of each swap fee.",
   },
   {
     title: "Immutable agent address",
     where: "AdextoToken.sol",
     how:
-      "`agentIdentity`, `agentId`, `agentRegistry`, `agentBound` dan `sovereignDexHook` semuanya `immutable`. Tidak ada setter. Pengikatan ERC-8004 diperiksa on-chain saat peluncuran dan tidak bisa dipindah sesudahnya.",
+      "`agentIdentity`, `agentId`, `agentRegistry`, `agentBound` and `sovereignDexHook` are all `immutable`, with no setters. An ERC-8004 binding is verified on-chain at launch and cannot be moved afterwards.",
   },
   {
     title: "Permanent market",
     where: "SovereignCurve.sol",
     how:
-      "Tidak ada langkah graduasi dan tidak ada migrasi ke venue lain. Kurva adalah tempatnya, permanen. Pola launchpad yang memindahkan kurva ke pool eksternal justru di langkah itulah sebagian besar riwayat eksploit terjadi.",
+      "There is no graduation step and no migration to another venue. The curve is the market, permanently. The usual launchpad pattern moves a curve into an external pool, and that step is where much of the historical exploit surface lives.",
   },
   {
     title: "Bounded, permissionless buyback",
     where: "SovereignCurve.sol",
     how:
-      "`executeBuyback` sengaja TIDAK bergerbang pemanggil — yang membatasinya ukuran: maksimum 1% reserve native per panggilan. Native-nya tidak keluar dari kontrak; ia berpindah dari kantong buyback ke reserve kurva, dan token yang dibelinya dibakar.",
+      "`executeBuyback` deliberately has no caller gate — what restrains it is size: at most 1% of the native reserve per call. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned.",
   },
 ];
 
@@ -134,39 +156,39 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
     engine: "Slither · Medium",
     where: "SovereignCurve.getSellQuote",
     why:
-      "Fee dihitung dari `grossOut` yang sudah dibagi, jadi presisinya memang hilang sedikit. Arahnya yang menentukan: pembagian membulatkan ke bawah sehingga sisa selalu tinggal di kurva, bukan di pedagang. Sifat ekonominya diuji langsung — properti fuzz `roundTripNeverProfitable` dan `buyRoundsInFavourOfCurve` gagal kalau arah itu pernah terbalik.",
+      "Fees are computed from `grossOut`, which is itself the result of a division, so a little precision is genuinely lost. The direction is what settles it: the division floors, so the remainder always stays with the curve rather than the trader. The economic consequence is tested directly — the fuzz properties `roundTripNeverProfitable` and `buyRoundsInFavourOfCurve` fail if that direction ever inverts.",
   },
   {
     finding: "incorrect-equality",
     engine: "Slither · Medium/High",
     where: "AdextoCurveFactory.deployTrinity",
     why:
-      "Perbandingan ketat yang ditandai adalah `require(balanceOf(address(this)) == 0)`. Di sini kesetaraan persis itulah maksudnya: peluncuran harus gagal kecuali seluruh supply benar-benar pindah ke kurva. Melunakkannya jadi `<=` akan membolehkan sisa token tertinggal di factory.",
+      "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory.",
   },
   {
     finding: "reentrancy-no-eth",
-    engine: "Slither · Medium (7 instansi)",
+    engine: "Slither · Medium (7 instances)",
     where: "SovereignCurve.sell, initializeCurve, receive · AdextoCurveFactory.deployTrinity",
     why:
-      "Ketiga fungsi kurva memakai modifier `nonReentrant`; Slither tidak memodelkan guard buatan sendiri sehingga tetap menandainya. `initializeCurve` juga `onlyFactory` dan sekali pakai. `deployTrinity` memanggil kontrak yang baru saja ia buat sendiri, jadi tidak ada kode pihak ketiga di jalur itu. Invarian solvensi dijalankan terhadap urutan aksi acak oleh dua mesin fuzz yang berbeda dan tidak pernah patah.",
+      "All three curve functions carry the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. The solvency invariant was driven against random action sequences by two different fuzzing engines and never broke.",
   },
   {
     finding: "nonReentrant is not the first modifier",
     engine: "Aderyn · Low",
     where: "SovereignCurve.initializeCurve",
     why:
-      "Urutannya `onlyFactory nonReentrant`. Aman di sini karena `onlyFactory` hanya membandingkan `msg.sender` dan tidak melakukan panggilan eksternal, jadi tidak ada apa pun yang bisa masuk kembali sebelum guard-nya aktif.",
+      "The order is `onlyFactory nonReentrant`. That is safe here because `onlyFactory` only compares `msg.sender` and makes no external call, so nothing can re-enter before the guard takes effect.",
   },
   {
     finding: "ETH transferred without address checks",
     engine: "Aderyn · High",
     where: "SovereignCurve.claimCreatorFees",
     why:
-      "Tujuannya adalah `creator` yang `immutable`, diisi dari `msg.sender` pemanggil `deployTrinity`. Alamat nol tidak bisa mengirim transaksi, jadi ia tidak mungkin menjadi nilai itu. Fungsinya juga tidak menerima parameter tujuan sama sekali.",
+      "The destination is the `immutable` `creator`, set from the `msg.sender` that called `deployTrinity`. The zero address cannot send a transaction, so it can never hold that value. The function also takes no destination parameter at all.",
   },
   {
     finding: "Contract locks Ether without a withdraw function",
-    engine: "Aderyn · High (4 instansi)",
+    engine: "Aderyn · High (4 instances)",
     /**
      * Nama keempat kontraknya TIDAK dituliskan di sini, dan itu bukan penyembunyian.
      *
@@ -178,16 +200,16 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
      * Presisinya tidak hilang — `build/security/aderyn.json` menyebut tiap berkas dan
      * nomor barisnya, dan tabel alamat di /docs menyebut keempatnya.
      */
-    where: "empat kontrak generasi v1, semuanya di luar jalur peluncuran",
+    where: "four v1-generation contracts, all outside the launch path",
     why:
-      "Benar, dan sudah diakui di tempat lain di situs ini: native yang dikirim ke receiver jembatan lintas-chain itu terkunci selamanya, karena kontraknya tidak punya withdraw, sweep, maupun transfer. Itu justru salah satu alasan jalur lintas-chain DICABUT, bukan diperbaiki — memperbaikinya berarti menambahkan jalur penarikan yang seluruh protokol ini janjikan tidak ada. Keempatnya di luar jalur peluncuran; sebuah launch tidak pernah menyentuhnya. Nama berkas dan nomor barisnya ada di build/security/aderyn.json.",
+      "True, and admitted elsewhere on this site: native sent to those superseded bridge receivers is locked forever, because the contracts have no withdraw, sweep or transfer. That is one of the reasons the cross-chain path was dropped rather than repaired — repairing it would mean adding the withdrawal path this protocol promises does not exist. All four sit outside the launch path; a launch never touches them. The exact filenames and line numbers are in build/security/aderyn.json.",
   },
   {
     finding: "reentrancy-eth",
     engine: "Slither · High",
     where: "AdextoTrinityFactoryV2.deployTrinityProject",
     why:
-      "Satu-satunya temuan High dari Slither, dan ia ada di generasi v1 yang sudah superseded. `AdextoCurveFactory` tidak memanggilnya dan studio tidak pernah men-deploy lewatnya. Kontraknya tetap di chain karena alamat ter-deploy itu permanen; membiarkannya tidak terdokumentasi akan lebih buruk daripada menyebutnya di sini.",
+      "Slither's only High finding, and it sits in the superseded v1 generation. `AdextoCurveFactory` never calls it and the studio has never deployed through it. The contract stays on chain because a deployed address is permanent; leaving it undocumented would be worse than naming it here.",
   },
 ];
 
@@ -305,6 +327,22 @@ export default function SecurityPage() {
                   </span>
                   <div className="font-mono text-[11px]">
                     <Count counts={e.counts} />
+                    {/* Hitungan jalur-peluncuran ditampilkan untuk SETIAP mesin yang
+                        punya, bukan cuma Slither.
+                        Versi pertama hanya menyebutnya di kalimat pengantar, dan itu
+                        menyesatkan pembaca yang menyapu cepat: ia membawa "0 High"
+                        milik Slither ke baris Aderyn, padahal pada skala Aderyn sendiri
+                        15 dari 34 high instances-nya justru ADA di jalur peluncuran.
+                        Angkanya sudah dihitung skrip pemindai sejak awal — cuma tidak
+                        pernah ditampilkan. */}
+                    {e.launchPathCounts && Object.keys(e.launchPathCounts).length > 0 && (
+                      <div className="mt-1 border-l-2 border-accent/30 pl-2">
+                        <span className="text-[9px] uppercase tracking-wider text-ink-faint">on launch path</span>
+                        <div className="text-[10px]">
+                          <Count counts={e.launchPathCounts} />
+                        </div>
+                      </div>
+                    )}
                     {e.detail && <div className="mt-0.5 text-[10px] leading-snug text-ink-faint">{e.detail}</div>}
                   </div>
                 </div>
@@ -380,6 +418,14 @@ export default function SecurityPage() {
             <strong className="text-ink">No human audit.</strong> No firm has reviewed this code. Static analysers and
             fuzzers find classes of bug; they do not find design mistakes, and they do not replace a reviewer.
           </li>
+          {/* Batasan yang paling mudah dilewatkan pembaca, dan paling penting disebut:
+              triage-nya penilaian KAMI. Tanpa baris ini, tabel bertanda "reviewed below"
+              menyiratkan pemeriksaan independen yang tidak pernah terjadi. */}
+          <li>
+            <strong className="text-ink">The triage above is ours, not a third party&apos;s.</strong> Every explanation
+            names the contract and the mechanism precisely so it can be checked against the source — but if you do not
+            check it, you are trusting our reasoning. Nobody outside the project has reviewed these judgements.
+          </li>
           <li>
             <strong className="text-ink">No formal verification.</strong> The invariants below are tested against random
             action sequences, not proven for all inputs. A property that holds across {(engines.find((e) => e.id === "echidna")?.counts?.totalCalls ?? 0).toLocaleString("en-US")} Echidna calls and 512 Foundry sequences is
@@ -428,13 +474,13 @@ export default function SecurityPage() {
 git checkout ${commitShort}
 npm install
 
-# bytecode yang di-deploy
+# the bytecode that gets deployed
 node scripts/compile-contracts.mjs --via-ir
 
-# seluruh tabel di atas
+# every row in the table above
 node scripts/security-scan.mjs
 
-# hanya fuzz + invariant
+# fuzz + invariants only
 forge test`}
           </pre>
         </div>

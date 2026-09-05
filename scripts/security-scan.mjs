@@ -104,7 +104,7 @@ log("→ compiler (jalur deploy, solc via-IR)");
       status: errors === 0 && warnings === 0 ? "clean" : "findings",
       ran: true,
       counts: { errors, warnings },
-      detail: `${artifacts} artefak terkompilasi, ${warnings} warning, ${errors} error`,
+      detail: `${artifacts} artifacts compiled, ${warnings} warnings, ${errors} errors`,
     });
   } catch (e) {
     add({ id: "solc", name: "Compiler warnings", tool: "solc 0.8.26", status: "error", ran: false, detail: String(e.message).slice(0, 200) });
@@ -161,7 +161,7 @@ if (!has(BIN.forge)) {
     status: f.failed === 0 && f.passed > 0 ? "clean" : "findings",
     ran: true,
     counts: { passed: f.passed, failed: f.failed },
-    detail: `${f.passed} properti lolos, ${f.failed} gagal · 4096 run per properti`,
+    detail: `${f.passed} properties passed, ${f.failed} failed · 4096 runs each`,
     cases: f.cases.map((c) => c.name),
   });
 
@@ -177,7 +177,7 @@ if (!has(BIN.forge)) {
     status: i.failed === 0 && i.passed > 0 ? "clean" : "findings",
     ran: true,
     counts: { passed: i.passed, failed: i.failed },
-    detail: `${i.passed} suite invariant lolos · 512 run x 64 aksi acak`,
+    detail: `${i.passed} invariant suite passed · 512 runs x 64 random actions`,
   });
 }
 
@@ -220,7 +220,7 @@ if (!has(BIN.slither)) {
       ran: true,
       counts: { total: dets.length, ...sev },
       launchPathCounts: sevLaunch,
-      detail: `${dets.length} temuan pada 102 detektor · ${highLaunch} High di jalur peluncuran`,
+      detail: `${dets.length} findings across 102 detectors · ${highLaunch} High on the launch path`,
     });
   }
 }
@@ -249,7 +249,7 @@ if (!has(BIN.aderyn)) {
       ran: true,
       counts: { highKinds: kinds("high_issues"), highInstances: count("high_issues"), lowKinds: kinds("low_issues"), lowInstances: count("low_issues") },
       launchPathCounts: { HighInstances: highInstances },
-      detail: `${kinds("high_issues")} jenis High / ${kinds("low_issues")} jenis Low · ${j?.detectors_used?.length ?? 0} detektor`,
+      detail: `${kinds("high_issues")} High kinds / ${kinds("low_issues")} Low kinds · ${j?.detectors_used?.length ?? 0} detectors`,
     });
   } catch (e) {
     add({ id: "aderyn", name: "Aderyn", tool: "aderyn", version: version(BIN.aderyn), status: "error", ran: false, detail: String(e.message).slice(0, 200) });
@@ -280,7 +280,7 @@ if (!has(BIN.solhint)) {
       status: errors === 0 ? "clean" : "findings",
       ran: true,
       counts: { errors, warnings },
-      detail: `${errors} error, ${warnings} warning (gaya & gas)`,
+      detail: `${errors} errors, ${warnings} warnings (style & gas rules)`,
     });
   } catch (e) {
     add({ id: "solhint", name: "Solhint", tool: "solhint", status: "error", ran: false, detail: String(e.message).slice(0, 200) });
@@ -317,7 +317,7 @@ if (!has(BIN.semgrep)) {
        * Analisis Solidity yang sesungguhnya datang dari Slither dan Aderyn; Semgrep
        * di sini pelengkap, dan halaman harus mengatakan begitu.
        */
-      detail: `${results.length} temuan pada ${scanned} berkas · ruleset umum p/security-audit`,
+      detail: `${results.length} findings across ${scanned} files · general p/security-audit ruleset`,
     });
   } catch (e) {
     add({ id: "semgrep", name: "Semgrep", tool: "semgrep", status: "error", ran: false, detail: String(e.message).slice(0, 200) });
@@ -334,7 +334,7 @@ log("→ echidna");
   } catch { /* image belum ada */ }
 
   if (!imageOk) {
-    add({ id: "echidna", name: "Echidna", tool: "echidna (docker)", status: "not-installed", ran: false, detail: "image ghcr.io/crytic/echidna belum di-pull" });
+    add({ id: "echidna", name: "Echidna", tool: "echidna (docker)", status: "not-installed", ran: false, detail: "the ghcr.io/crytic/echidna image has not been pulled" });
   } else {
     try {
       const uid = process.getuid ? process.getuid() : 1000;
@@ -358,7 +358,7 @@ log("→ echidna");
         status: failed === 0 && props.length > 0 ? "clean" : "findings",
         ran: true,
         counts: { properties: props.length, failed, totalCalls: calls, uniqueInstructions: instr },
-        detail: `${props.length - failed}/${props.length} properti lolos · ${calls.toLocaleString("id-ID")} panggilan`,
+        detail: `${props.length - failed}/${props.length} properties passed · ${calls.toLocaleString("en-US")} calls`,
         cases: props.map((p) => p.name),
       });
     } catch (e) {
