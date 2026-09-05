@@ -77,6 +77,10 @@ export default function Footer() {
                   memeriksa attestation — tidak. Halaman docs sekarang menyatakan
                   status keduanya, jadi tautannya diberi nama sesuai isinya. */}
               <li><Link href="/docs" className="hover:text-accent transition-colors">Technical status</Link></li>
+              {/* Ditaruh di footer, bukan navbar. Navbar sudah memuat enam tautan dan
+                  komentarnya mencatat barisnya sudah mepet di 1280 px; menambah entri
+                  ketujuh menukar satu masalah dengan masalah lain. */}
+              <li><Link href="/security" className="hover:text-accent transition-colors">Security &amp; analyser output</Link></li>
               <li><Link href="/pitch" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
             </ul>
           </div>

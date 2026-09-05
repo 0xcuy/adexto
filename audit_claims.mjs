@@ -19,7 +19,14 @@
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
-const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/governance,/agent/demo".split(",");
+/**
+ * `/security` ikut dipindai, dan justru itu rute terpenting di daftar ini.
+ *
+ * Halaman keamanan adalah tempat sebuah klaim palsu paling merusak dan paling jarang
+ * diperiksa pembaca. Melewatkannya dari daftar frasa terlarang berarti satu-satunya
+ * halaman yang seluruh gunanya adalah bisa diverifikasi justru tidak diverifikasi.
+ */
+const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/governance,/security,/agent/demo".split(",");
 
 /**
  * Frasa terlarang, masing-masing dengan alasannya. Alasan ikut dicetak supaya

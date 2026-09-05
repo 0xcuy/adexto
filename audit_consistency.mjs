@@ -31,6 +31,8 @@
  * Pakai: node audit_consistency.mjs
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+// Dipakai bagian 13 untuk membandingkan commit laporan pemindaian dengan HEAD.
+import { execSync } from "node:child_process";
 import { ethers } from "ethers";
 
 const ROOT = process.cwd();
@@ -997,6 +999,112 @@ console.log("\n── VerifiedDeploymentCard: caption vs isi tabelnya sendiri �
       } else {
         ok("/explorer tidak menduplikasi daftar kontrak", rendersCard ? "kartu dipasang, tanpa ajakan ganda" : "kartu dicabut");
       }
+    }
+  }
+}
+
+// ── 13. /security: tabel harus terikat ke laporan pemindaian ────────────────
+console.log("\n── /security: klaim mesin vs security-report.json ──");
+{
+  /**
+   * Kelas bug yang dijaga di sini.
+   *
+   * Halaman keamanan adalah tempat paling menggoda untuk berbohong, karena pembaca
+   * hampir tidak pernah memeriksanya. Bentuk kebohongan yang paling umum bukan
+   * kalimat palsu, melainkan tabel berisi centang yang dulu benar: sebuah "✅" yang
+   * diketik tangan tetap hijau setelah kontraknya berubah, setelah tool-nya dicabut,
+   * dan setelah pemindaiannya berhenti dijalankan.
+   *
+   * Jadi yang diperiksa bukan kata-kata di halaman, tapi IKATANNYA:
+   *   1. laporan ada dan bisa di-parse;
+   *   2. halaman tidak boleh menuliskan nama mesin sebagai teks tetap — angkanya
+   *      harus datang dari laporan (dideteksi dari ketiadaan tabel hardcode);
+   *   3. commit di laporan harus commit yang sekarang, kalau tidak angkanya milik
+   *      kode lain;
+   *   4. mesin berstatus "clean" wajib benar-benar `ran: true`.
+   */
+  const PAGE = "src/app/security/page.tsx";
+  const REPORT = "src/config/security-report.json";
+
+  if (!existsSync(PAGE)) {
+    soft("halaman /security tidak ada", "bagian ini menganggur sampai halamannya dibuat");
+  } else if (!existsSync(REPORT)) {
+    bad("halaman /security ada tapi laporannya tidak", `${REPORT} hilang — jalankan node scripts/security-scan.mjs`);
+  } else {
+    const src = readFileSync(PAGE, "utf8");
+    let rep = null;
+    try {
+      rep = JSON.parse(readFileSync(REPORT, "utf8"));
+    } catch (e) {
+      bad("security-report.json tidak bisa di-parse", String(e.message).slice(0, 60));
+    }
+
+    if (rep) {
+      check("halaman membaca laporan, bukan angka tetap", /from "@\/config\/security-report\.json"/.test(src), "diimpor");
+
+      const engines = Array.isArray(rep.engines) ? rep.engines : [];
+      check("laporan memuat hasil mesin", engines.length > 0, `${engines.length} mesin`);
+
+      // Status "clean"/"triaged" hanya sah kalau mesinnya benar-benar jalan.
+      const bogus = engines.filter((e) => e.status !== "not-installed" && e.status !== "error" && e.ran !== true);
+      check(
+        "tidak ada mesin berstatus lolos tanpa benar-benar jalan",
+        bogus.length === 0,
+        bogus.length ? bogus.map((e) => e.id).join(", ") : `${engines.filter((e) => e.ran).length} jalan`
+      );
+
+      /**
+       * Laporan harus milik commit yang sekarang.
+       *
+       * Ini penjaga yang paling mungkin berbunyi, dan memang harus: begitu kontrak
+       * disunting tanpa memindai ulang, angka di halaman berhenti menggambarkan kode
+       * yang di-deploy. PERINGATAN, bukan kegagalan, supaya perubahan yang tidak
+       * menyentuh kontrak tidak memblokir deploy — tapi tetap terlihat.
+       */
+      let head = null;
+      try {
+        head = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+      } catch {
+        /* di luar git */
+      }
+      if (head && rep.commit) {
+        if (rep.commit === head) ok("laporan dipindai pada commit HEAD", head.slice(0, 12));
+        else soft("laporan dipindai pada commit LAIN", `laporan ${String(rep.commit).slice(0, 12)} vs HEAD ${head.slice(0, 12)} — pindai ulang`);
+      }
+
+      // Kontrak berubah setelah pemindaian terakhir? Angkanya jadi basi.
+      if (rep.generatedAt) {
+        const scanned = new Date(rep.generatedAt).getTime();
+        let newest = 0;
+        let newestFile = "";
+        for (const f of readdirSync("contracts").filter((f) => f.endsWith(".sol"))) {
+          const m = statSync(`contracts/${f}`).mtimeMs;
+          if (m > newest) {
+            newest = m;
+            newestFile = f;
+          }
+        }
+        if (newest > scanned) {
+          soft("kontrak lebih baru daripada laporan", `contracts/${newestFile} disunting setelah pemindaian — jalankan ulang security-scan.mjs`);
+        } else {
+          ok("tidak ada kontrak yang disunting setelah pemindaian terakhir");
+        }
+      }
+
+      /**
+       * Halaman tidak boleh menyebut dirinya "audited".
+       *
+       * Tidak ada firma yang mengaudit kode ini. Kata itu punya arti spesifik di
+       * industri ini, dan memakainya tanpa laporan yang bisa ditunjuk adalah klaim
+       * yang paling merusak yang bisa dipasang di halaman keamanan.
+       */
+      const visible = visibleText(PAGE);
+      const auditClaim = visible.match(/\b(has been|fully|independently|professionally)\s+audited\b/i);
+      check(
+        "halaman tidak mengklaim sudah diaudit",
+        !auditClaim,
+        auditClaim ? `"${auditClaim[0]}"` : "menyatakan belum diaudit"
+      );
     }
   }
 }

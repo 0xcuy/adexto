@@ -102,3 +102,18 @@ devchain/node_modules/
 # key, tidak ada token, tidak ada string 64-hex di dalamnya; dua kemunculan
 # `ghp_` hanyalah prefix telanjang yang dipakai sebagai pola grep.
 ADEXTO-RUNBOOK.md
+
+# Toolchain keamanan: dependensi pihak ketiga dan keluaran perkakas, bukan sumber.
+#
+# `lib/forge-std` di-clone oleh setup (lihat halaman /security untuk perintahnya),
+# bukan submodule — supaya .gitmodules tidak ikut berubah dan clone repo ini tidak
+# menarik apa pun secara diam-diam.
+lib/
+# crytic-compile menulis ini saat Echidna jalan; bisa dibuat ulang kapan saja.
+crytic-export/
+# Keluaran mentah tiap mesin. `build/` sudah diabaikan, disebut di sini supaya
+# jelas bahwa laporan yang DIPUBLIKASIKAN adalah src/config/security-report.json
+# — satu-satunya artefak keamanan yang memang di-commit.
+build/security/
+build/forge-out/
+build/forge-cache/

@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-09-05T10:01:27.860Z",
+  "commit": "6a4c264012b97aef7fe6a9aecdd6f2facb10f9b3",
+  "commitTime": "2026-09-05T16:07:11+07:00",
+  "dirty": true,
+  "scope": {
+    "launchPath": [
+      "contracts/AdextoCurveFactory.sol",
+      "contracts/SovereignCurve.sol",
+      "contracts/AdextoToken.sol",
+      "contracts/IIdentityRegistry.sol"
+    ]
+  },
+  "engines": [
+    {
+      "id": "solc",
+      "name": "Compiler warnings",
+      "tool": "solc 0.8.26 (via-IR, optimizer 200)",
+      "version": "0.8.26",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "errors": 0,
+        "warnings": 0
+      },
+      "detail": "42 artefak terkompilasi, 0 warning, 0 error"
+    },
+    {
+      "id": "forge-fuzz",
+      "name": "Foundry fuzzing",
+      "tool": "forge",
+      "version": "forge Version: 1.8.1",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "passed": 9,
+        "failed": 0
+      },
+      "detail": "9 properti lolos, 0 gagal · 4096 run per properti",
+      "cases": [
+        "testFuzz_buyQuoteMatchesExecution(uint256)",
+        "testFuzz_buyRoundsInFavourOfCurve(uint256)",
+        "testFuzz_buybackCappedAtOnePercent(uint256,address)",
+        "testFuzz_cannotSellMoreThanOutstanding(uint256,uint256)",
+        "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
+        "testFuzz_feesNeverExceedInput(uint256)",
+        "testFuzz_roundTripNeverProfitable(uint256)",
+        "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
+        "testFuzz_supplyNeverGrows(uint256)"
+      ]
+    },
+    {
+      "id": "forge-invariant",
+      "name": "Foundry invariants",
+      "tool": "forge",
+      "version": "forge Version: 1.8.1",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      },
+      "detail": "1 suite invariant lolos · 512 run x 64 aksi acak"
+    },
+    {
+      "id": "slither",
+      "name": "Slither",
+      "tool": "slither",
+      "version": "0.11.6",
+      "status": "triaged",
+      "ran": true,
+      "counts": {
+        "total": 45,
+        "High": 1,
+        "Medium": 15,
+        "Low": 23,
+        "Informational": 5,
+        "Optimization": 1
+      },
+      "launchPathCounts": {
+        "Medium": 8,
+        "Low": 8,
+        "Informational": 3
+      },
+      "detail": "45 temuan pada 102 detektor · 0 High di jalur peluncuran"
+    },
+    {
+      "id": "aderyn",
+      "name": "Aderyn",
+      "tool": "aderyn",
+      "version": "aderyn 0.6.8",
+      "status": "triaged",
+      "ran": true,
+      "counts": {
+        "highKinds": 4,
+        "highInstances": 34,
+        "lowKinds": 13,
+        "lowInstances": 76
+      },
+      "launchPathCounts": {
+        "HighInstances": 15
+      },
+      "detail": "4 jenis High / 13 jenis Low · 88 detektor"
+    },
+    {
+      "id": "solhint",
+      "name": "Solhint",
+      "tool": "solhint",
+      "version": "6.2.4",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "errors": 0,
+        "warnings": 693
+      },
+      "detail": "0 error, 693 warning (gaya & gas)"
+    },
+    {
+      "id": "semgrep",
+      "name": "Semgrep",
+      "tool": "semgrep",
+      "version": "1.176.1",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "findings": 0,
+        "filesScanned": 11,
+        "configErrors": 0
+      },
+      "detail": "0 temuan pada 11 berkas · ruleset umum p/security-audit"
+    },
+    {
+      "id": "echidna",
+      "name": "Echidna",
+      "tool": "echidna (docker)",
+      "version": "2.3.3",
+      "status": "clean",
+      "ran": true,
+      "counts": {
+        "properties": 4,
+        "failed": 0,
+        "totalCalls": 50123,
+        "uniqueInstructions": 7193
+      },
+      "detail": "4/4 properti lolos · 50.123 panggilan",
+      "cases": [
+        "echidna_solvent",
+        "echidna_tokensSoldWithinCurve",
+        "echidna_supplyNeverGrows",
+        "echidna_inventoryMatchesBalance"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+# Foundry dipasang DI ATAS tata letak yang sudah ada, bukan menggantinya.
+#
+# Kontrak tidak dipindah, dan `scripts/compile-contracts.mjs` tetap jadi jalur yang
+# menghasilkan bytecode untuk deploy. Alasannya: bytecode di keempat mainnet sudah
+# diverifikasi identik dengan keluaran skrip itu, jadi menukar compiler pipeline
+# untuk deploy berarti membatalkan bukti yang sudah ada. Foundry di sini bertugas
+# MENGUJI, bukan mem-build rilis.
+#
+# `test` menunjuk ke test/ di root, BUKAN contracts/test/. Itu bukan selera:
+# compile-contracts.mjs membaca contracts/*.sol DAN contracts/test/*.sol (baris 54),
+# jadi menaruh test Foundry di sana akan menarik forge-std ke dalam compile deploy —
+# solc-js tidak bisa me-resolve-nya dan seluruh jalur deploy pecah.
+[profile.default]
+src = "contracts"
+test = "test"
+out = "build/forge-out"
+cache_path = "build/forge-cache"
+libs = ["lib", "node_modules"]
+
+# Dicocokkan dengan scripts/compile-contracts.mjs: solc 0.8.26, optimizer 200 runs.
+# Kalau salah satu bergeser, yang diuji bukan lagi yang di-deploy.
+solc = "0.8.26"
+optimizer = true
+optimizer_runs = 200
+
+# via_ir WAJIB, bukan pilihan.
+#
+# Percobaan pertama menyetelnya false dengan alasan kecepatan fuzz. Compiler menolak:
+#
+#   Error: Compiler error (LValue.cpp:51): Stack too deep.
+#     --> contracts/SovereignCurve.sol:472
+#
+# `sell()` memegang lebih banyak variabel lokal daripada yang bisa dijangkau pipeline
+# lama. Jadi via-IR memang satu-satunya cara kontrak ini terkompilasi — itu sebabnya
+# jalur deploy memakai --via-ir, bukan sekadar preferensi. Efek sampingnya bagus:
+# yang diuji fuzz dan invariant adalah pipeline yang SAMA dengan yang di-deploy.
+via_ir = true
+
+remappings = [
+  "@openzeppelin/=node_modules/@openzeppelin/",
+  "forge-std/=lib/forge-std/src/",
+]
+
+# Jumlah run bawaan dinaikkan dari 256. Sifat yang diuji di sini soal aritmetika
+# kurva dan solvensi; 256 sampel terlalu sedikit untuk menyentuh tepi rentang uint256.
+[fuzz]
+runs = 4096
+max_test_rejects = 500000
+
+# Invariant stateful: 512 urutan, masing-masing 64 aksi acak. Ini yang mencari
+# urutan aksi yang membuat kurva insolven, bukan sekadar satu panggilan buruk.
+[invariant]
+runs = 512
+depth = 64
+fail_on_revert = false
+call_override = false

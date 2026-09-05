@@ -1,0 +1,20 @@
+# Konfigurasi Echidna untuk invarian SovereignCurve.
+#
+# `testMode: property` — Echidna memanggil fungsi publik secara acak lalu memeriksa
+# setiap `echidna_*` masih true. Mode assertion tidak dipakai karena propertinya
+# memang lebih jelas dinyatakan sebagai fungsi boolean daripada assert di dalam aksi.
+testMode: property
+
+# 50.000 panggilan. Cukup untuk membangun corpus yang berarti tanpa membuat
+# pemeriksaan ini jadi sesuatu yang orang matikan karena lama.
+testLimit: 50000
+seqLen: 64
+
+# Kurva butuh native untuk dibeli. Tanpa saldo, seluruh aksi `buy` langsung keluar
+# dan yang teruji cuma jalur kosong.
+balanceContract: 5000000000000000000000000
+
+corpusDir: build/security/echidna-corpus
+
+# Dua-duanya penting untuk laporan yang bisa dibaca mesin.
+format: text
