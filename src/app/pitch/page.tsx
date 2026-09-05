@@ -330,14 +330,39 @@ export default function PitchDeckPage() {
             </span>
           </div>
 
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-line">
+          {/* Baris ini menyalahkan Chainlink untuk hambatan yang tidak ada.
+              Bunyinya dulu: "cross-chain lanes pending CCIP support for 0G and
+              Monad". Ditanyakan ke router masing-masing chain dengan
+              `isChainSupported(destinationChainSelector)` \u2014 12 dari 12 arah
+              TERBUKA, termasuk kesepuluh pasangan yang menyentuh 0G atau Monad.
+              Selectornya diambil dari direktori resmi Chainlink, dan keempat
+              alamat router-nya cocok dengan yang sudah diverifikasi on-chain.
+
+              Hambatannya milik KITA, dan lebih serius daripada menunggu pihak
+              lain: `AdextoCCIPReceiver` sudah ter-deploy di keempat chain, tetapi
+              `router` di dalamnya salah di tiga di antaranya \u2014 0G menunjuk EOA
+              deployer, Arbitrum menunjuk alamat tanpa bytecode (0x141F0578\u2026,
+              hanya enam karakter awal sama dengan router sesungguhnya, berbau
+              alamat terpotong), dan Monad menunjuk alamat nol. Karena `router`
+              dideklarasikan `immutable`, tidak ada setter yang bisa
+              memperbaikinya; ketiganya harus di-deploy ulang.
+
+              Menyalahkan dependensi eksternal yang ternyata tidak menahan apa pun
+              adalah bentuk ketidakjujuran yang paling mudah lolos, karena ia
+              terdengar seperti kehati-hatian \u2014 sekaligus menyembunyikan cacat
+              sendiri. Penjaga bagian 7 di audit_consistency.mjs juga melewatkannya:
+              ia hanya mencocokkan frasa "no router"/"no endpoint", bukan "pending
+              CCIP support". Celah itu ditutup di commit yang sama. */}
+          <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-white border border-line">
             <div>
               <strong className="text-ink block text-sm">Phase 2 (Q4 2026):</strong>
               <span className="text-ink-soft text-xs">
-                DAO governance on 0G · cross-chain lanes pending CCIP support for 0G and Monad
+                DAO governance and cross-chain buybacks. CCIP lanes are already open in all twelve directions
+                between the four chains, so the hold-up is ours: the receiver is correctly wired to the CCIP
+                router only on Base, and the Governor cannot weigh a vote until a governance token is set.
               </span>
             </div>
-            <span className="px-3 py-1 rounded bg-accent-soft text-accent font-bold text-xs">IN PROGRESS</span>
+            <span className="shrink-0 px-3 py-1 rounded bg-accent-soft text-accent font-bold text-xs">IN PROGRESS</span>
           </div>
         </div>
       </div>

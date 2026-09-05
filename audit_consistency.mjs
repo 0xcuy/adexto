@@ -461,8 +461,20 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
        * sama tanpa memakai kata "router". Menjaga satu susunan kata saja membuat
        * penjaga ini mudah dilewati tanpa sengaja.
        */
+      /**
+       * Daftar frasanya diperluas untuk KEDUA kalinya, dan itu sendiri sebuah
+       * temuan. Versi pertama menjaga "publishes no router"; lalu "no endpoint"
+       * ditambahkan setelah /docs lolos dengan susunan kata lain. Sekarang
+       * "pending ... support" ditambahkan setelah /pitch lolos berbulan dengan
+       * "cross-chain lanes pending CCIP support for 0G and Monad" — menyangkal
+       * ketersediaan yang sama tanpa memakai satu pun kata yang dijaga.
+       *
+       * Pelajarannya: klaim ketersediaan bisa diucapkan dengan tak terhingga cara,
+       * jadi daftar kata akan selalu ketinggalan. Itu alasan bagian 11 di bawah
+       * memeriksa KEADAAN kontraknya, bukan kata-katanya.
+       */
       const re = new RegExp(
-        `(publishes no router|no router|no endpoint|tidak menerbitkan router|tidak ada endpoint)[^.]{0,60}${key}|${key}[^.]{0,60}(publishes no router|no endpoint|tidak menerbitkan router|tidak ada endpoint)`,
+        `(publishes no router|no router|no endpoint|pending [a-z ]{0,12}support|awaiting [a-z ]{0,12}support|tidak menerbitkan router|tidak ada endpoint|menunggu dukungan)[^.]{0,60}${key}|${key}[^.]{0,60}(publishes no router|no endpoint|pending [a-z ]{0,12}support|awaiting [a-z ]{0,12}support|tidak menerbitkan router|tidak ada endpoint|menunggu dukungan)`,
         "i"
       );
       const m = text.match(re);
@@ -746,6 +758,114 @@ console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di 
         stillClaimsZero ? `${launchStatePath} masih menyatakan nol` : "sudah dicabut"
       );
     }
+  }
+}
+
+// ── 11. receiver CCIP terpasang: `router` harus benar-benar router CCIP ─────
+console.log("\n── AdextoCCIPReceiver: router yang tertanam vs router CCIP resmi ──");
+{
+  /**
+   * Kenapa keadaan kontrak, bukan kata-kata.
+   *
+   * `AdextoCCIPReceiver` menyimpan `address public immutable router` dan
+   * `onlyRouter` membandingkan msg.sender dengannya. Kalau nilainya salah, receiver
+   * itu tidak akan pernah bisa menerima pesan CCIP — dan karena immutable, tidak ada
+   * setter yang bisa memperbaikinya. Satu-satunya jalan deploy ulang.
+   *
+   * Tiga dari empat receiver terpasang dengan nilai yang salah, dan tidak satu pun
+   * pemeriksa yang ada akan menemukannya: keempatnya ter-deploy, bytecode-nya identik,
+   * dan dari luar terlihat sehat. Yang membedakan hanya satu kata storage.
+   *
+   * Alamat router diambil dari daftar yang sudah diverifikasi di bagian 7, jadi kedua
+   * bagian ini tidak bisa berpisah soal alamat mana yang resmi.
+   */
+  const RECEIVER = {
+    16661: "0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4",
+    42161: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
+    8453: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
+    143: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
+  };
+  const ROUTER = {
+    16661: "0x0aA145a62153190B8f0D3cA00c441e451529f755",
+    8453: "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
+    42161: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
+    143: "0x33566fE5976AAa420F3d5C64996641Fc3858CaDB",
+  };
+  const ABI = ["function router() view returns (address)"];
+
+  /**
+   * Cacat yang DIAKUI, bukan disembunyikan.
+   *
+   * Ketiganya nyata dan hanya bisa diperbaiki dengan deploy ulang — keputusan yang
+   * butuh izin pemilik dan biaya gas di tiga mainnet. Kalau ini dibiarkan GAGAL,
+   * seluruh deploy terblokir termasuk perbaikan yang tidak berhubungan; kalau
+   * diturunkan jadi peringatan biasa, ia akan terlupakan.
+   *
+   * Cabang ketiga di bawah yang membuat daftar ini tidak bisa membusuk: begitu sebuah
+   * receiver di-deploy ulang dengan benar, audit MEMAKSA entrinya dicabut. Jadi daftar
+   * ini tidak bisa diam-diam jadi tempat menyimpan masalah selamanya.
+   */
+  const KNOWN_BROKEN = {
+    16661: "router = EOA deployer; hanya dompet kami yang bisa memanggil ccipReceive",
+    42161: "router = 0x141F0578… yang tidak punya bytecode; berbau alamat terpotong",
+    143: "router = alamat nol; onlyRouter tidak mungkin lolos",
+  };
+
+  const wrong = [];
+  let checked = 0;
+  for (const [id, addr] of Object.entries(RECEIVER)) {
+    const key = CHAINS[id]?.key ?? id;
+    const known = KNOWN_BROKEN[id];
+    try {
+      const provider = providerFor(Number(id));
+      const bytes = ((await provider.getCode(addr)).length - 2) / 2;
+      if (bytes === 0) {
+        soft(`receiver ${key} tidak ada byte-nya`, `${addr} — belum di-deploy di chain ini`);
+        continue;
+      }
+      const got = await new ethers.Contract(addr, ABI, provider).router();
+      checked++;
+      const want = ROUTER[id];
+      const correct = got.toLowerCase() === want.toLowerCase();
+
+      if (correct && known) {
+        // Sudah diperbaiki, tetapi masih terdaftar. Kegagalan, supaya daftarnya
+        // tidak menyimpan entri yang sudah tidak benar.
+        bad(`receiver ${key} sudah benar tetapi masih terdaftar cacat`, `cabut entri ${id} dari KNOWN_BROKEN`);
+      } else if (correct) {
+        ok(`receiver ${key} menunjuk router CCIP resmi`);
+      } else if (known) {
+        wrong.push(key);
+        soft(`receiver ${key} router-nya salah (DIAKUI)`, `${known} — perlu deploy ulang; harusnya ${want}`);
+      } else {
+        wrong.push(key);
+        bad(`receiver ${key} menunjuk router yang SALAH dan belum diakui`, `${got} — seharusnya ${want}; \`router\` immutable, hanya bisa diperbaiki dengan deploy ulang`);
+      }
+    } catch (e) {
+      soft(`receiver ${key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 44));
+    }
+  }
+  if (checked > 0 && wrong.length === 0) ok(`setiap receiver terpasang benar`, `${checked} diperiksa`);
+  else if (wrong.length) console.log(`        → ${wrong.length} receiver menunggu deploy ulang: ${wrong.join(", ")}`);
+
+  /**
+   * Dan selama masih ada receiver yang salah, halaman tidak boleh menyatakan buyback
+   * lintas-chain sebagai sesuatu yang berjalan. Ini pasangan dari pemeriksaan di atas:
+   * satu memeriksa kontraknya, satu memeriksa apa yang dikatakan tentang kontraknya.
+   */
+  if (wrong.length > 0) {
+    const CLAIMS = [/cross-chain buybacks? (are |is )?(now )?live/i, /lanes? (are |is )?(now )?open and working/i, /buyback flows across chains/i];
+    let bogus = 0;
+    for (const path of sourceFiles()) {
+      const text = visibleText(path);
+      for (const re of CLAIMS) {
+        const m = text.match(re);
+        if (!m) continue;
+        bad(`${path} menyatakan buyback lintas-chain berjalan`, `"${m[0].slice(0, 50)}" — receiver salah di ${wrong.length} chain`);
+        bogus++;
+      }
+    }
+    if (bogus === 0) ok("tidak ada halaman yang menyatakan buyback lintas-chain berjalan", `${wrong.length} receiver masih salah`);
   }
 }
 
