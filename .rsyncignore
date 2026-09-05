@@ -17,3 +17,18 @@ playwright-report/
 public/adexto_testnet_demo.mp4
 public/adexto_testnet_demo.webm
 public/demo-raw/
+
+# Artefak toolchain keamanan. Semuanya bisa dibuat ulang di mesin mana pun dengan
+# `node scripts/security-scan.mjs`, dan produksi tidak membutuhkannya: halaman
+# /security membaca src/config/security-report.json, yang ikut ter-commit.
+lib/
+crytic-export/
+build/security/
+build/forge-out/
+build/forge-cache/
+
+# Video demo lama. Sudah tidak dirujuk satu baris kode pun — hanya berkas yang
+# menghasilkannya yang menyebut namanya — jadi 10 MB ini ikut ke image tanpa pernah
+# disajikan ke siapa pun. Pasangan testnet-nya sudah dikecualikan di atas.
+public/adexto_demo.mp4
+public/adexto_demo.webm
