@@ -100,6 +100,22 @@ const PACE = Number(process.env.DEMO_PACE || 0.62);
 const beat = (page, ms = 900) => page.waitForTimeout(Math.max(180, Math.round(ms * PACE)));
 const fmt = (v) => Number(ethers.formatUnits(v, 18)).toLocaleString("id-ID", { maximumFractionDigits: 2 });
 
+/**
+ * Tombol launch, dicocokkan dari AWAL teksnya.
+ *
+ * `button:has-text("Launch on")` mencocokkan SUBSTRING dan mengabaikan huruf besar,
+ * sementara panel co-pilot memuat chip saran berbunyi "Which chain should I launch on
+ * first, and why?" yang lebih dulu dalam urutan DOM selama chat belum dipakai. Jadi
+ * `.first()` mengembalikan chip itu, dan penjaga "apakah masih lebih dari satu chain
+ * terpilih" di bawah sebenarnya memeriksa teks chat — penjaga yang tidak menjaga apa
+ * pun. Terlihat dari log rekaman yang mencetak
+ * `tombol: Which chain should I launch on first, and why?`.
+ *
+ * Teks tombol sesungguhnya "Launch on <chain> · gas only", jadi jangkarnya ^ cukup
+ * untuk memisahkannya dari kalimat mana pun yang kebetulan memuat frasa itu.
+ */
+const launchButton = (page) => page.getByRole("button", { name: /^Launch on\b/i });
+
 /** Mengetik seperti manusia supaya video tidak terasa seperti tempelan. */
 async function typeInto(page, locator, text) {
   await locator.click();
@@ -271,7 +287,7 @@ for (const name of ALL_CHAINS) {
   }
 }
 await beat(page, 1600);
-const allLabel = ((await page.locator('button:has-text("Launch on")').first().textContent().catch(() => "")) ?? "")
+const allLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
 console.log(`  semua chain dicentang -> tombol: ${allLabel || "(belum aktif)"}`);
@@ -297,7 +313,7 @@ await beat(page, 1400);
 // Konfirmasi keras: label tombol launch HARUS tepat satu chain sebelum lanjut.
 // Kalau tidak, video akan meluncurkan ke chain yang salah — lebih baik gagal di
 // sini daripada menghasilkan rekaman "1 of 2" yang harus dibuang di akhir.
-const narrowLabel = ((await page.locator('button:has-text("Launch on")').first().textContent().catch(() => "")) ?? "")
+const narrowLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
 console.log(`  dipersempit -> tombol: ${narrowLabel || "(belum aktif)"}`);
@@ -323,18 +339,29 @@ await safely("chat co-pilot studio", async () => {
     { delay: 22 }
   );
   await beat(page, 700);
-  // Hitung balasan yang sudah ada dulu; menunggu angka tetap akan rapuh kalau
-  // panel sudah berisi sapaan pembuka.
-  const before = await page.evaluate(
-    () => (document.body.innerText.match(/0G TEE \(GLM-5\.3\)/gi) || []).length
-  );
   await page.keyboard.press("Enter");
-  // Balasan mengalir (streaming), jadi tunggu jumlahnya BERTAMBAH, bukan sekadar jeda.
-  await page.waitForFunction(
-    (n) => (document.body.innerText.match(/0G TEE \(GLM-5\.3\)/gi) || []).length > n,
-    before,
-    { timeout: 120000 }
-  );
+  /**
+   * Penantian dipindah dari "gelembung balasan muncul" ke "indikator selesai".
+   *
+   * Menghitung label "0G TEE (GLM-5.3)" berhenti bisa dipakai begitu studio
+   * memasang gelembung asisten SEBELUM permintaan dikirim (supaya jalur galat
+   * mengisi gelembung yang sama, bukan menambah satu lagi). Labelnya ikut terpasang
+   * seketika, jadi hitungannya naik sebelum ada satu token pun dan adegan ini
+   * terpotong di tengah model berpikir.
+   *
+   * Sekarang urutannya mengikuti keadaan yang sebenarnya, dan sekalian memamerkan
+   * indikator progres SSE: tunggu indikatornya MUNCUL, tahan supaya penghitung
+   * karakternya terlihat bergerak, lalu tunggu indikatornya HILANG — itu penanda
+   * jawabannya sudah utuh.
+   */
+  await page
+    .waitForFunction(() => /Reasoning on 0G/i.test(document.body.innerText), null, { timeout: 60000 })
+    .catch(() => {
+      // Jawaban bisa datang begitu cepat sehingga indikatornya tidak pernah
+      // tertangkap. Bukan kegagalan; lanjut ke penantian selesai di bawah.
+    });
+  await beat(page, 3000);
+  await page.waitForFunction(() => !/Reasoning on 0G/i.test(document.body.innerText), null, { timeout: 180000 });
   // Panel chat menggulir sendiri ke bawah saat balasan masuk, jadi cukup ditahan
   // supaya jawabannya terbaca; menggulirnya manual justru berkelahi dengan autoscroll.
   await beat(page, 5200);
@@ -363,7 +390,7 @@ await signBtn.click();
 await page.waitForSelector("text=SIGNED", { timeout: 60000 });
 await beat(page, 1400);
 
-const launchBtn = page.locator('button:has-text("Launch on")').first();
+const launchBtn = launchButton(page).first();
 console.log(`  tombol: ${((await launchBtn.textContent()) ?? "").replace(/\s+/g, " ").trim()}`);
 await launchBtn.hover();
 await beat(page, 600);
