@@ -6,11 +6,13 @@ import { CHAINS } from "@/lib/chains";
  * Aturan yang membentuk isi daftar di bawah:
  *
  * 1. Sebuah nama hanya masuk kalau ADEXTO benar-benar berjalan di atasnya, dan
- *    `role` menyebutkan pemakaiannya secara harfiah. Uniswap sengaja TIDAK ada
- *    meskipun sempat diminta: integrasinya nol — kurva ini AMM-nya sendiri, bukan
- *    hook Uniswap v4 — jadi logonya akan jadi klaim yang bisa dibantah dengan satu
- *    pencarian di repo. Chainlink masuk, tetapi dengan label apa adanya: receiver
- *    CCIP sudah ter-deploy, lane-nya belum dibuka.
+ *    `role` menyebutkan pemakaiannya secara harfiah. Dua nama pernah diminta masuk
+ *    dan keduanya sudah dicabut: satu AMM eksternal (integrasinya nol — kurva ini
+ *    AMM-nya sendiri, jadi logonya adalah klaim yang bisa dibantah dengan satu
+ *    pencarian di repo) dan satu jembatan lintas-chain (receiver-nya ter-deploy
+ *    tapi tidak pernah dipakai, dan tidak akan dipakai karena tidak ada nilai yang
+ *    bisa keluar dari kurva). Keduanya kini ada di daftar BANNED audit_claims.mjs,
+ *    jadi kalau namanya muncul lagi di halaman mana pun auditnya gagal.
  *
  * 2. Nama chain dibaca dari `CHAINS`, bukan ditulis ulang di sini. Kalau
  *    NEXT_PUBLIC_CHAIN_OVERRIDES mengarahkan aplikasi ke testnet, ticker ikut
@@ -96,7 +98,6 @@ const STACK: StackEntry[] = [
   // registry identitas/reputasi/validasi seperti yang standar itu tetapkan.
   // Menyebutnya "ERC-8004" adalah klaim kepatuhan yang tidak bisa ditunjukkan.
   { name: "0G DA", role: "launch metadata anchored", live: true, logo: "/brand/0g.svg", mark: "DA", tint: "#111827" },
-  { name: "Chainlink CCIP", role: "receiver deployed · lanes idle", live: false, logo: "/brand/chainlink.svg", mark: "LINK", tint: "#375BD2" },
 ];
 
 /**
@@ -147,10 +148,10 @@ function Chip({ entry }: { entry: StackEntry }) {
       <span aria-hidden="true" className="h-3.5 w-px bg-line-strong" />
       {/* Yang belum berjalan ditandai satu titik amber, bukan seluruh teksnya
           diberi warna peringatan. Dulu lima dari sembilan entri bertitik amber dan
-          barisan ini terbaca seperti dinding peringatan; sekarang tinggal satu —
-          Chainlink CCIP, receiver-nya ter-deploy tapi lane-nya memang belum
-          dibuka. Titiknya tetap satu titik, bukan teks berwarna, supaya kalau
-          jumlahnya naik lagi barisannya tidak berubah jadi peringatan massal. */}
+          barisan ini terbaca seperti dinding peringatan; sekarang nol, karena entri
+          terakhir yang belum berjalan dicabut seluruhnya alih-alih diturunkan
+          statusnya. Kode titiknya SENGAJA dibiarkan di sini: begitu ada entri
+          `live: false` lagi, penandanya langsung bekerja tanpa perubahan lain. */}
       {!entry.live && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />}
       <span className="whitespace-nowrap text-[11px] tracking-wide text-ink-faint">{entry.role}</span>
     </span>
@@ -190,10 +191,12 @@ export default function StackMarquee() {
       <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
         The stack, stated plainly
       </p>
-      <p className="mb-5 flex items-center justify-center gap-2 text-center text-[11px] text-ink-soft">
-        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
-        marks what is deployed but not yet carrying traffic
-      </p>
+      {/* Legenda titik amber dicabut bersama entri jembatan lintas-chain.
+          Sesudah entri itu hilang tidak ada lagi entri `live: false`, jadi legendanya
+          menjelaskan penanda yang tidak pernah muncul — dan legenda yang menjanjikan
+          sesuatu yang tidak ada lebih membingungkan daripada tidak ada legenda.
+          Kode titiknya SENGAJA dibiarkan di Chip: begitu ada entri yang belum
+          berjalan lagi, penandanya langsung bekerja dan legendanya dipasang kembali. */}
 
       <div className="adexto-marquee-wrap flex flex-col gap-2.5 overflow-hidden">
         <Row dir="left" />

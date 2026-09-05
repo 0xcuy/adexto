@@ -17,19 +17,16 @@ export default async function DocsPage() {
       <div className="border-b-2 border-line pb-6 mb-10">
         <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
         <h1 className="text-3xl sm:text-4xl font-semibold text-ink">Technical status, component by component</h1>
-        {/* Jangan mendaftar World ID ZKP dan Chainlink CCIP sebagai bagian arsitektur
-            yang berjalan: seksi "status jujur" di bawah menyatakan keduanya BELUM aktif.
-            Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
-            daripada daftar yang lebih pendek. */}
-        {/* World ID sudah keluar dari daftar "belum aktif": gerbangnya menyala.
-            Chainlink CCIP tetap disebut belum aktif karena lane-nya memang mati.
-            Header yang membantah isi halamannya sendiri lebih merusak kepercayaan
-            daripada daftar yang lebih pendek. */}
+        {/* Aturan header: apa pun yang disebut di sini harus cocok dengan seksi
+            "status jujur" di bawah. Header yang membantah isi halamannya sendiri
+            lebih merusak kepercayaan daripada daftar yang lebih pendek. World ID
+            naik ke daftar "live" begitu gerbangnya menyala; jembatan lintas-chain
+            turun dari halaman ini sepenuhnya, bukan cuma ditandai belum aktif. */}
         {/* "Not live: the mainnet launch factory" berhenti benar saat 0.10.0
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, Chainlink CCIP lanes, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -111,24 +108,25 @@ export default async function DocsPage() {
                 "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
                 hanya di halaman ini. World ID sudah keluar dari daftar ini karena
                 kini benar-benar terpasang. */}
-            {/* "Chainlink CCIP publishes no router on 0G or Monad" berhenti benar,
-                dan diralat di sini. Daftar mainnet resmi Chainlink memuat
-                `0g-mainnet` dan `monad-mainnet`, dan router-nya dibaca dengan
-                eth_getCode: 10.761 byte di 0G, 11.130 byte di Monad, plus
-                tokenAdminRegistry dan tokenPoolFactory di keduanya.
-                Yang MASIH benar adalah bagian keduanya — receiver kita idle, karena
-                belum ada lane yang kami buka. Itu keadaan kami, bukan batasan
-                Chainlink, dan dua hal itu tidak boleh dicampur lagi. */}
+            {/* Klaim lintas-chain dicabut, bukan diperhalus. Alasannya struktural dan
+                ada di paragraf di bawah: buyback memindahkan nilai antar dua bucket di
+                DALAM satu kontrak, jadi tidak ada nilai yang bisa dikirim ke chain lain
+                tanpa menambah fungsi penarikan — justru fungsi yang halaman ini
+                janjikan tidak ada. Revisi-revisi sebelumnya salah karena mencampur
+                "penyedianya tidak menyediakan" dengan "kami belum memakai": yang benar
+                cuma yang kedua, dan sekarang tidak ada satu pun yang diklaim. */}
             <p className="text-ink-soft">
-              Cross-chain treasury routing is not active. The receiver contracts are deployed on all four chains and sit
-              idle because we have not opened a lane — not because Chainlink is missing: CCIP routers are live on all four,
-              including 0G and Monad. Note also that these ERC-20s cannot be moved by CCIP as they stand. A burn-and-mint
-              token pool needs mint authority and <code className="text-accent">AdextoToken</code> has none —{" "}
-              <code className="text-accent">_mint</code> is called once in the constructor, there is no mint function, no
-              minter role, no <code className="text-accent">owner()</code>, no{" "}
-              <code className="text-accent">getCCIPAdmin()</code> and no proxy. That immutability is the same property
-              that makes the supply and the absent withdrawal path verifiable. Aggregator routing (1inch Fusion) is
-              designed for but not integrated.
+              Cross-chain treasury routing is not part of this protocol. A buyback moves value between two buckets
+              inside one contract — out of the buyback balance and into the curve reserve — so nothing leaves the
+              contract and there is no path that could send it to another chain. Adding one would mean adding the
+              withdrawal function this design promises does not exist. Aggregator routing (1inch Fusion) is designed
+              for but not integrated.
+            </p>
+            <p className="text-ink-soft">
+              The same immutability is what makes the rest checkable:{" "}
+              <code className="text-accent">_mint</code> is called once in the constructor, and there is no mint
+              function, no minter role, no <code className="text-accent">owner()</code> and no proxy — so the supply
+              and the absent withdrawal path can both be read straight off the contract.
             </p>
           </div>
         </div>
@@ -317,12 +315,13 @@ export default async function DocsPage() {
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft space-y-1">
             <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>
-            {/* Dulu berbunyi "CCIP and LayerZero have no endpoint on 0G or Monad
-                today". Untuk CCIP itu SALAH — router-nya dibaca dengan eth_getCode dan
-                hidup di keempat chain, 10.761 byte di 0G dan 11.130 byte di Monad.
-                LayerZero tidak diverifikasi, jadi tidak diklaim apa pun di sini.
-                Dan penghalang sebenarnya bukan lapisan pesan: supply lintas chain
-                butuh wewenang mint, dan AdextoToken tidak punya — itu yang disebut. */}
+            {/* Dulu berbunyi bahwa dua lapisan pesan lintas-chain tidak punya endpoint
+                di 0G atau Monad. Untuk yang pertama itu SALAH — router-nya dibaca dengan
+                eth_getCode dan hidup di keempat chain, 10.761 byte di 0G dan 11.130 byte
+                di Monad. Yang kedua tidak pernah diverifikasi, jadi tidak diklaim apa
+                pun tentangnya. Dan penghalang sebenarnya bukan lapisan pesan: supply
+                lintas chain butuh wewenang mint, dan AdextoToken tidak punya — itu yang
+                disebut di bawah, karena itu yang benar-benar mengikat. */}
             <div className="text-warn">
               shared supply across chains would need mint authority on the destination; AdextoToken has none — _mint runs
               once in the constructor, with no mint function, no minter role and no proxy.

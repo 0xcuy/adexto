@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="Banner/banner 1.png" alt="ADEXTO Protocol Banner" width="100%" />
-</p>
-
 # ADEXTO Protocol (`adexto.xyz`)
 
 > **Autonomous Decentralized EXchange & Token Orchestrator**
@@ -21,7 +17,7 @@ A creator launches a token and it opens **inside a bonding curve against a virtu
 
 The curve is the permanent venue. There is **no graduation step** and no migration into an external pool, which is where most launchpad exploits have historically happened. There is also no withdrawal function anywhere in the curve, so no one — including us — can drain a market.
 
-To be precise about what that does and does not mean: it describes what the protocol does, not a restriction on the token. `AdextoToken` enforces a 1%-of-supply transfer cap only while `block.number <= launchBlock + 5`; after that window `_update` adds no condition at all, and there is no blacklist, no pause, no `Ownable` and no permanent transfer hook. It is a plain ERC-20. So **anyone can pair one of these tokens on Uniswap or anywhere else, without our permission, and we could not stop it** — Uniswap v4 is live on Base, Arbitrum and Monad. A second market with its own price could therefore exist alongside the curve. What the protocol guarantees is narrower and worth stating plainly: *we* never migrate the market, and nobody can withdraw the curve's own reserves.
+To be precise about what that does and does not mean: it describes what the protocol does, not a restriction on the token. `AdextoToken` enforces a 1%-of-supply per-transaction cap only while `block.number <= launchBlock + 5`; after that window `_update` adds no condition at all, and there is no blacklist, no pause, no `Ownable` and no permanent transfer hook. It is a plain ERC-20. So **anyone can list one of these tokens on any external AMM, without our permission, and we could not stop it.** A second market with its own price could therefore exist alongside the curve. What the protocol guarantees is narrower and worth stating plainly: *we* never migrate the market, and nobody can withdraw the curve's own reserves.
 
 ### Fee split
 
@@ -31,9 +27,11 @@ One 0.30% swap fee, divided three ways on-chain. Traders are never charged extra
 |---|---|---|
 | Depth | 0.15% | stays in the curve, raising the price floor as volume accumulates |
 | Creator | 0.10% | streamed to the creator's wallet on every swap |
-| Buyback | 0.05% | agent buyback vault, which burns on execution |
+| Buyback | 0.05% | accrues on the curve as `treasuryNative`; a buyback call spends it on the curve and burns what it bought |
 
-Three tiers are selectable at launch (0.10% / 0.30% / 0.50% total); the table shows the 0.30% standard tier. The contract derives depth as `swapFeeBps − creatorShareBps − treasuryShareBps`, so the three shares can never exceed the total.
+The studio offers three presets (0.10% / 0.30% / 0.50% total) and the table shows the 0.30% standard one, but the preset list is UI only — the contract accepts any split subject to `swapFeeBps <= 500`. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps` and the curve re-checks the sum against its own 5% ceiling, so the three shares cannot exceed the total.
+
+Two details about the buyback share, because "buyback" usually implies more than this one does. It is **permissionless** — `executeBuyback` carries only `nonReentrant` and `live`, so any address may call it, capped at 1% of the native reserve per call. And the native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns the tokens that purchase bought, so the effect is a permanent supply reduction rather than a payment to anyone. `agentTreasury` on the curve is a reference field and receives nothing, ever.
 
 ---
 
@@ -41,31 +39,36 @@ Three tiers are selectable at launch (0.10% / 0.30% / 0.50% total); the table sh
 
 ```mermaid
 graph TD
-    Creator([Creator]) -->|1 tx per chain, gas only| Factory[AdextoCurveFactory v0.10.0]
+    Creator([Creator]) -->|1 tx per chain, gas only<br/>deployTrinity is NOT payable| Factory[AdextoCurveFactory v0.10.0]
+
+    Registry[[ERC-8004 Identity Registry<br/>optional, off by default]] -.->|ownerOf agentId — launch reverts<br/>unless the caller owns that agent| Factory
+    Meta[0G DA<br/>launch metadata anchored] -.->|metadataRoot in calldata| Factory
 
     subgraph "Deployed atomically in that transaction"
-        Factory -->|deploys| Token[AdextoToken — ERC-20<br/>no owner, immutable agent address<br/>1% transfer cap for 5 blocks]
-        Factory -->|deploys| Curve[SovereignCurve — own AMM<br/>virtual reserve, no deposit<br/>no withdrawal function]
-        Factory -->|seeds 100% of supply| Curve
+        Factory -->|1. deploys curve first,<br/>so the token can bind it immutably| Curve[SovereignCurve — own AMM<br/>virtual reserve, no deposit<br/>no owner, no withdraw/sweep/rescue]
+        Factory -->|2. deploys token,<br/>mints 100% of supply to itself| Token[AdextoToken — plain ERC-20<br/>no owner, no pause, no blacklist<br/>1%-per-tx cap through launchBlock+5]
+        Factory ==>|3. seeds 100% into the curve, then<br/>asserts its own balance is zero| Curve
     end
 
-    Curve -->|0.15%| Depth[Depth retained in curve]
-    Curve -->|0.10%| CreatorFee[Creator, every swap]
-    Curve -->|0.05%| Vault[Buyback vault → burn]
+    Curve -->|0.15% depth| Depth[stays in the curve,<br/>raising the floor]
+    Curve -->|0.10% creator| CreatorFee[claimCreatorFees →<br/>immutable creator address]
+    Curve -->|0.05% buyback| Vault[treasuryNative —<br/>a balance on the curve,<br/>not a separate contract]
 
-    Agent[0G Compute agent<br/>router reports Intel TDX via dstack] -.->|bound by address at launch| Token
-    Edge[Cloudflare Worker x402<br/>HTTP 402 quote only] -.->|settlement NOT built| Vault
-    Meta[0G DA<br/>launch metadata anchored] -.->|metadataRoot in calldata| Factory
+    Vault -->|executeBuyback: no caller gate,<br/>max 1% of reserve per call| Burn[buys along the curve,<br/>burns what it bought]
 
     classDef live fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px,color:#201810;
     classDef partial fill:#fffbeb,stroke:#f59e0b,stroke-width:2px,color:#201810;
-    class Factory,Token,Curve,Depth,CreatorFee,Vault live;
-    class Agent,Edge,Meta partial;
+    classDef ext fill:#eef2ff,stroke:#4338ca,stroke-width:2px,color:#201810;
+    class Factory,Token,Curve,Depth,CreatorFee,Vault,Burn live;
+    class Meta partial;
+    class Registry ext;
 ```
 
-<p align="center">
-  <img src="Banner/banner 2.png" alt="ADEXTO Full Ecosystem" width="100%" />
-</p>
+Three things in that picture are worth separating from the launch path, because they are real but they are not part of `deployTrinity`:
+
+- **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
+- **The 0G Compute agent and the x402 edge are not wired into the curve.** The agent is an inference route; the x402 worker answers an HTTP 402 quote. Neither holds a key to anything on-chain, and neither can move the buyback balance. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a settlement path that has never existed in the code.
+- **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call.
 
 ---
 
@@ -85,7 +88,6 @@ Every address below was confirmed to hold bytecode by a direct `eth_getCode` cal
 | AdextoCurveFactory | [`0x090a586Abfaad1eee258Fc15e8E4584B5c3B67d5`](https://chainscan.0g.ai/address/0x090a586Abfaad1eee258Fc15e8E4584B5c3B67d5) | superseded · `VERSION` `0.9.0` · 18,460 B · block 43164332 · still live |
 | AdextoGovernor | [`0x5045b117dDF788078c535f37837fDB6384da034d`](https://chainscan.0g.ai/address/0x5045b117dDF788078c535f37837fDB6384da034d) | **not operational** · `governanceToken` points at the v1 hook, which has no `balanceOf` |
 | ERC-8004 agent (ours) | [`3545431`](https://chainscan.0g.ai/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
-| AdextoCCIPReceiver | [`0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4`](https://chainscan.0g.ai/address/0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4) | deployed, CCIP lanes idle |
 | AdextoTrinityFactory | [`0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0`](https://chainscan.0g.ai/address/0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0) | superseded v1 |
 | SovereignHook | [`0x592c697aD1Fa712c6701C90991B96264aB2E98d8`](https://chainscan.0g.ai/address/0x592c697aD1Fa712c6701C90991B96264aB2E98d8) | superseded v1, cannot settle trades |
 
@@ -97,7 +99,6 @@ Every address below was confirmed to hold bytecode by a direct `eth_getCode` cal
 | AdextoCurveFactory | [`0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39`](https://basescan.org/address/0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) | superseded · `VERSION` `0.9.0` · 18,460 B · block 50708028 · still live |
 | AdextoGovernor | [`0x01b250a2db25561dB185f4628B93C72048D8bc1B`](https://basescan.org/address/0x01b250a2db25561dB185f4628B93C72048D8bc1B) | **not operational** · `governanceToken` is the zero address |
 | ERC-8004 agent (ours) | [`84622`](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
-| AdextoCCIPReceiver | [`0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d`](https://basescan.org/address/0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d) | deployed, CCIP lanes idle |
 | AdextoTrinityFactory | [`0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D`](https://basescan.org/address/0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D) | superseded v1 |
 | SovereignHook | [`0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3`](https://basescan.org/address/0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3) | superseded v1, cannot settle trades |
 
@@ -109,7 +110,6 @@ Every address below was confirmed to hold bytecode by a direct `eth_getCode` cal
 | AdextoCurveFactory | [`0x795D11BEAc025771e9e96Bb4489068b1eDC4b47a`](https://arbiscan.io/address/0x795D11BEAc025771e9e96Bb4489068b1eDC4b47a) | superseded · `VERSION` `0.9.0` · 18,460 B · block 500393825 · still live |
 | AdextoGovernor | [`0x33811F9c53da5071A130F18D844f64999dBD43bA`](https://arbiscan.io/address/0x33811F9c53da5071A130F18D844f64999dBD43bA) | **not operational** · `governanceToken` points at the v1 hook, which has no `balanceOf` |
 | ERC-8004 agent (ours) | [`1457`](https://arbiscan.io/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
-| AdextoCCIPReceiver | [`0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3`](https://arbiscan.io/address/0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3) | deployed, CCIP lanes idle |
 | AdextoTrinityFactory | [`0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56`](https://arbiscan.io/address/0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56) | superseded v1 |
 | SovereignHook | [`0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39`](https://arbiscan.io/address/0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) | superseded v1, cannot settle trades |
 
@@ -121,7 +121,6 @@ Every address below was confirmed to hold bytecode by a direct `eth_getCode` cal
 | AdextoCurveFactory | [`0x05EFA7F066FcbefbE650EDd58583C107831A600B`](https://monadvision.com/address/0x05EFA7F066FcbefbE650EDd58583C107831A600B) | superseded · `VERSION` `0.9.0` · 18,460 B · block 100842422 · still live |
 | AdextoGovernor | [`0x01b250a2db25561dB185f4628B93C72048D8bc1B`](https://monadvision.com/address/0x01b250a2db25561dB185f4628B93C72048D8bc1B) | **not operational** · `governanceToken` is the zero address |
 | ERC-8004 agent (ours) | [`10247`](https://monadvision.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
-| AdextoCCIPReceiver | [`0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d`](https://monadvision.com/address/0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d) | deployed, CCIP lanes idle |
 | AdextoTrinityFactory | [`0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D`](https://monadvision.com/address/0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D) | superseded v1 |
 | SovereignHook | [`0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3`](https://monadvision.com/address/0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3) | superseded v1, cannot settle trades |
 
@@ -138,7 +137,7 @@ The point of this table is that nothing above it should be read as more finished
 | Component | State | What that means precisely |
 |---|---|---|
 | `AdextoCurveFactory` `0.10.0` on 4 mainnets | **Live** | Broadcast and read back on each chain: `VERSION` `0.10.0`, `totalProjectsCount` 0, runtime bytecode byte-identical to a local compile (20,054 B), and `AGENT_REGISTRY` resolving to a live ERC-8004 registry answering `name()`. |
-| `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` adds the ERC-8004 binding, which changes the `deployTrinity` selector. Addresses kept below so nobody mistakes one for the other. |
+| `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` adds the ERC-8004 binding, which changes the `deployTrinity` selector. Both generations are listed in the tables above so nobody mistakes one for the other. |
 | ERC-8004 agent identity | **Optional, verified on-chain** | See [below](#erc-8004-agent-identity). Identity registry only; reputation and validation are not used. |
 | Launching through the site | **Enabled** | All four `NEXT_PUBLIC_CURVE_FACTORY_*` are set to the `0.10.0` addresses above, so the studio can launch. This row said "not enabled" for a while after it stopped being true. |
 | Tokens launched | **Zero on the curve factories** | `totalProjectsCount()` returns 0 on `0.10.0` and on `0.9.0`, on all four chains. One caveat rather than a round number: the superseded v1 `AdextoTrinityFactory` on 0G reports **1**, from before this generation. The market index reads the curve generation and is empty. |
@@ -147,33 +146,29 @@ The point of this table is that nothing above it should be read as more finished
 | Agent compute (0G) | **Live, partially attested** | The 0G router reports Intel TDX attestation via dstack for each model we call. We read that declaration; we do **not** fetch or verify the raw quote. |
 | x402 edge gateway | **Discovery only** | The HTTP 402 challenge, price and settlement vault are live and real. EIP-712 voucher settlement and revenue routing into the vault are **not built** — a signed voucher returns 501. |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
-| Chainlink CCIP | **Receiver deployed, idle** | Contracts exist on all four chains; no lane is open and no message has been sent. |
 | The Graph indexing | **Wired, with nothing to index yet** | `adexto-base` and `adexto-arbitrum` are live at `v0.10.2` and `SUBGRAPH_URL_*` now points at both. Verified reachable from the app: Base at block 50,862,947 and Arbitrum at 501,625,052, `hasIndexingErrors: false` on each. The registry stays the primary source and the indexer is additive, so an empty indexer only leaves `live` null. Because the route asks only about curves the registry already knows, and the registry is empty, no query is actually issued yet. Not published to the decentralized network. See below. |
 | Governance | **Deployed, NOT operational** | Stronger than "unexercised": it cannot be exercised. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote would revert. `proposalCount` is 0 on all four. |
 
-### Not implemented, despite what earlier drafts of this file claimed
+### A claim this file used to make
 
-Two claims were carried in this README for a long time and neither was ever true. They are recorded here rather than quietly deleted.
+One claim was carried in this README for a long time and was not true when it was written. It is recorded here rather than quietly deleted, because a corrected file that hides its corrections asks to be trusted on nothing but its current wording.
 
-- **Uniswap v4 hooks.** There is no Uniswap integration. `AdextoCurveFactory`, `SovereignCurve` and `AdextoToken` contain zero references to Uniswap and the project has no Uniswap dependency. The superseded `SovereignHook` declares its *own* local `IPoolManager` interface and an `afterSwap` whose signature does not match the real one, so a genuine `PoolManager` would never call it — it does not inherit `BaseHook`, holds no `PoolManager` address, and its permission bits were never mined.
+- **~~ERC-8004 compliance.~~** This was false and is now partly true; see [ERC-8004 agent identity](#erc-8004-agent-identity) below for exactly how far it goes. Until factory `0.10.0`, `AdextoToken` was `ERC20` and nothing more, carrying one `address immutable agentIdentity` and touching no registry — so the claim was unsupportable and the source called it "ERC-8004 style", an analogy. A launch can now bind a real agent id, verified on-chain. The reputation and validation registries are still not used.
 
-  This entry used to add "0G and Monad have no Uniswap v4 deployment at all". **That is no longer true and is corrected here.** Read from Uniswap's official deployments feed and confirmed with `eth_getCode`, the v4 `PoolManager` is live on Monad at [`0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e`](https://monadvision.com/address/0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), on Base at `0x498581fF718922c3f8e6A244956aF099B2652b2b`, and on Arbitrum at `0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32` — 24,009 bytes on each. Only 0G is genuinely absent, with no record of any Uniswap protocol. So availability is no longer the reason.
-
-### Why the curve rather than a Uniswap pool
+### Why a bonding curve rather than a liquidity pool
 
 The reason is the launch model, and it is checkable in the contracts rather than a matter of taste.
 
-| | this curve | a Uniswap pool |
+| | this curve | a standard liquidity pool |
 |---|---|---|
 | Capital to open a market | none — the native side starts entirely virtual, and `deployTrinity` is not `payable`, so it cannot accept a deposit | real liquidity must be deposited by someone |
-| Creator's token position | none — the whole supply is minted to the factory and loaded into the curve in the same transaction | the creator must hold tokens to pair with liquidity |
-| Can reserves be pulled out | no — there is no `withdraw`, `rescue`, `sweep`, `drain` or `emergency` function anywhere, no owner and no `onlyOwner`; native leaves only to a seller or to the creator's fee claim | yes, and correctly so: an LP may withdraw at any time |
+| Creator's token position | none — the whole supply is minted to the factory and loaded into the curve in the same transaction, and the factory then requires its own balance to be zero before the launch can succeed | the creator must hold tokens to pair with liquidity |
+| Can reserves be pulled out | no — there is no `withdraw`, `rescue`, `sweep`, `drain` or `emergency` function anywhere, no owner and no `onlyOwner`; native leaves through exactly two paths, a seller's payout and the creator's fee claim to an immutable address | yes, and correctly so: a provider may withdraw at any time |
 | Migration step | none — the curve is the permanent venue | the usual launchpad pattern graduates a curve into a pool, and that step is where much of the historical exploit surface lives |
-| Creator fee | 0.10% of every swap accrues on-chain inside the existing 0.30% | fees accrue to LPs; paying a creator needs a v4 hook, which does not exist on 0G |
-| Code paths across our four chains | one, byte-identical | Uniswap on three chains and something else on 0G |
+| Creator fee | 0.10% of every swap accrues on-chain inside the existing 0.30% | fees accrue to liquidity providers; paying a creator needs custom hook support the venue may not offer |
+| Code paths across our four chains | one, byte-identical | whatever venue happens to exist per chain |
 
-The third row is the substantive one. That a Uniswap LP can withdraw is not a flaw — it is what an AMM is for. But it means the venue can be removed from under holders, and "we won't" is a promise. Here the same guarantee comes from the absence of code that could do it.
-- **~~ERC-8004 compliance.~~** This was false and is now partly true; see [ERC-8004 agent identity](#erc-8004-agent-identity) below for exactly how far it goes. Until factory `0.10.0`, `AdextoToken` was `ERC20` and nothing more, carrying one `address immutable agentIdentity` and touching no registry — so the claim was unsupportable and the source called it "ERC-8004 style", an analogy. A launch can now bind a real agent id, verified on-chain. The reputation and validation registries are still not used.
+The third row is the substantive one. That a liquidity provider can withdraw is not a flaw — it is what an AMM is for. But it means the venue can be removed from under holders, and "we won't" is a promise. Here the same guarantee comes from the absence of code that could do it.
 
 ### ERC-8004 agent identity
 

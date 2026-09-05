@@ -376,6 +376,11 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
    * mendapat Uniswap — dan tidak ada yang memberitahu, karena klaim itu tidak
    * pernah dibandingkan dengan apa pun.
    *
+   * Kalimat itu kini sudah dicabut seluruhnya dari dokumen, jadi pemeriksaan ini
+   * seharusnya tidak menemukan apa pun. Sengaja TIDAK dihapus: yang membuat klaim
+   * seperti ini lolos dulu bukan karena tidak ada yang tahu, tapi karena tidak ada
+   * yang mengukur. Dibiarkan sebagai kawat pemicu untuk kalau kalimatnya kembali.
+   *
    * Alamat di bawah berasal dari feed deployment resmi Uniswap dan sudah
    * diverifikasi 24.009 byte masing-masing. Kalau Uniswap memindahkannya, getCode
    * akan mengembalikan 0 dan pemeriksaan ini berbunyi PERINGATAN, bukan lolos
@@ -389,11 +394,13 @@ console.log("\n── klaim 'chain X tidak punya Uniswap' vs kenyataan on-chain 
   };
 
   /**
-   * Router CCIP, kelas klaim yang sama dan sudah basi dengan cara yang sama.
+   * Router CCIP, kelas klaim yang sama dan pernah basi dengan cara yang sama.
    *
-   * `/docs` menyatakan "Chainlink CCIP publishes no router on 0G or Monad". Daftar
-   * mainnet resmi Chainlink memuat `0g-mainnet` dan `monad-mainnet`, dan keempat
-   * router terbukti ada di chain. Alamat di bawah sudah diverifikasi.
+   * `/docs` dulu menyatakan "CCIP publishes no router on 0G or Monad". Daftar mainnet
+   * resminya memuat `0g-mainnet` dan `monad-mainnet`, dan keempat router terbukti ada
+   * di chain — jadi penyangkalan itu salah, dan sekarang seluruh topiknya sudah
+   * dicabut dari dokumen. Daftar ini tetap dipakai bagian 11 sebagai pembanding, dan
+   * pemeriksaan penyangkalan di bawah dibiarkan hidup sebagai kawat pemicu.
    */
   const CCIP_ROUTER = {
     16661: "0x0aA145a62153190B8f0D3cA00c441e451529f755",
@@ -761,20 +768,32 @@ console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di 
   }
 }
 
-// ── 11. receiver CCIP terpasang: `router` harus benar-benar router CCIP ─────
-console.log("\n── AdextoCCIPReceiver: router yang tertanam vs router CCIP resmi ──");
+// ── 11. receiver CCIP: ditinggalkan di tempat, dan harus TETAP begitu ───────
+console.log("\n── AdextoCCIPReceiver: keadaan harus cocok dengan keputusan mencabut CCIP ──");
 {
   /**
-   * Kenapa keadaan kontrak, bukan kata-kata.
+   * Bagian ini berubah arah, dan alasannya perlu ditulis supaya tidak dibalik lagi
+   * tanpa sadar.
    *
-   * `AdextoCCIPReceiver` menyimpan `address public immutable router` dan
-   * `onlyRouter` membandingkan msg.sender dengannya. Kalau nilainya salah, receiver
-   * itu tidak akan pernah bisa menerima pesan CCIP — dan karena immutable, tidak ada
-   * setter yang bisa memperbaikinya. Satu-satunya jalan deploy ulang.
+   * Dulu tujuannya "pastikan router-nya benar, tiga receiver perlu deploy ulang".
+   * Itu sudah tidak berlaku: CCIP DICABUT, bukan ditunda. Yang mengubah keputusan
+   * bukan biaya gas-nya, melainkan apa yang didapat setelah dibayar. Receiver yang
+   * ter-deploy hanya punya `ccipReceive` dan `receive() external payable {}` — tidak
+   * ada withdraw, sweep, atau transfer — jadi pesan yang berhasil masuk cuma
+   * menaikkan counter dan memancarkan event, sementara native apa pun yang dikirim
+   * TERKUNCI selamanya. `targetHook` disimpan tapi tidak pernah dibaca, dan
+   * `sendTreasurySignal` mengirim `tokenAmounts` kosong, jadi tidak ada nilai yang
+   * ikut berpindah. Versi yang benar-benar berguna harus memindahkan nilai keluar
+   * dari kurva — dan jalur keluar itu justru yang seluruh protokol ini janjikan
+   * tidak ada. Jadi ini bukan pekerjaan tertunda, ini fitur yang bertentangan
+   * dengan intinya.
    *
-   * Tiga dari empat receiver terpasang dengan nilai yang salah, dan tidak satu pun
-   * pemeriksa yang ada akan menemukannya: keempatnya ter-deploy, bytecode-nya identik,
-   * dan dari luar terlihat sehat. Yang membedakan hanya satu kata storage.
+   * Maka yang dijaga sekarang bukan "apakah router-nya benar" tapi "apakah keadaan
+   * masih sesuai keputusan". Kalau suatu saat ada receiver yang router-nya menjadi
+   * benar, berarti seseorang men-deploy ulang, berarti keputusan di atas berubah —
+   * dan itu WAJIB gagal, supaya dokumennya ditinjau ulang bersamaan, bukan
+   * ketinggalan diam-diam. Pemeriksaan `router()` tetap ada, perannya saja yang
+   * bergeser dari daftar tugas menjadi kawat pemicu.
    *
    * Alamat router diambil dari daftar yang sudah diverifikasi di bagian 7, jadi kedua
    * bagian ini tidak bisa berpisah soal alamat mana yang resmi.
@@ -794,33 +813,34 @@ console.log("\n── AdextoCCIPReceiver: router yang tertanam vs router CCIP re
   const ABI = ["function router() view returns (address)"];
 
   /**
-   * Cacat yang DIAKUI, bukan disembunyikan.
+   * Keadaan yang DIHARAPKAN per chain, bukan daftar tugas.
    *
-   * Ketiganya nyata dan hanya bisa diperbaiki dengan deploy ulang — keputusan yang
-   * butuh izin pemilik dan biaya gas di tiga mainnet. Kalau ini dibiarkan GAGAL,
-   * seluruh deploy terblokir termasuk perbaikan yang tidak berhubungan; kalau
-   * diturunkan jadi peringatan biasa, ia akan terlupakan.
+   * `true` berarti `router()` memang menunjuk router CCIP resmi, `false` berarti tidak.
+   * Keempatnya sengaja dibiarkan seperti apa adanya. Yang penting: nilai di sini harus
+   * SAMA dengan yang dibaca dari chain. Selisih ke arah mana pun berarti ada yang
+   * men-deploy ulang atau alamatnya bergeser, dan dua-duanya harus meledak keras.
    *
-   * Cabang ketiga di bawah yang membuat daftar ini tidak bisa membusuk: begitu sebuah
-   * receiver di-deploy ulang dengan benar, audit MEMAKSA entrinya dicabut. Jadi daftar
-   * ini tidak bisa diam-diam jadi tempat menyimpan masalah selamanya.
+   * Base satu-satunya yang router-nya benar, dan itu tidak membuatnya berguna: isi
+   * kontraknya sama inert-nya dengan tiga lainnya. Jadi jangan baca baris Base sebagai
+   * "yang ini jalan".
    */
-  const KNOWN_BROKEN = {
-    16661: "router = EOA deployer; hanya dompet kami yang bisa memanggil ccipReceive",
-    42161: "router = 0x141F0578… yang tidak punya bytecode; berbau alamat terpotong",
-    143: "router = alamat nol; onlyRouter tidak mungkin lolos",
+  const EXPECT_ROUTER_OK = {
+    16661: false, // router = EOA deployer 0x8a3c7524…ee7D; hanya dompet kami yang bisa memanggil ccipReceive
+    42161: false, // router = 0x141F0578… tanpa bytecode; berbau alamat terpotong
+    143: false, // router = alamat nol; onlyRouter tidak mungkin lolos
+    8453: true, // router benar, tapi kontraknya tetap inert dan tidak dipakai
   };
 
-  const wrong = [];
   let checked = 0;
+  let drifted = 0;
   for (const [id, addr] of Object.entries(RECEIVER)) {
     const key = CHAINS[id]?.key ?? id;
-    const known = KNOWN_BROKEN[id];
+    const expect = EXPECT_ROUTER_OK[id];
     try {
       const provider = providerFor(Number(id));
       const bytes = ((await provider.getCode(addr)).length - 2) / 2;
       if (bytes === 0) {
-        soft(`receiver ${key} tidak ada byte-nya`, `${addr} — belum di-deploy di chain ini`);
+        soft(`receiver ${key} tidak ada byte-nya`, `${addr} — tidak pernah di-deploy di chain ini`);
         continue;
       }
       const got = await new ethers.Contract(addr, ABI, provider).router();
@@ -828,44 +848,64 @@ console.log("\n── AdextoCCIPReceiver: router yang tertanam vs router CCIP re
       const want = ROUTER[id];
       const correct = got.toLowerCase() === want.toLowerCase();
 
-      if (correct && known) {
-        // Sudah diperbaiki, tetapi masih terdaftar. Kegagalan, supaya daftarnya
-        // tidak menyimpan entri yang sudah tidak benar.
-        bad(`receiver ${key} sudah benar tetapi masih terdaftar cacat`, `cabut entri ${id} dari KNOWN_BROKEN`);
-      } else if (correct) {
-        ok(`receiver ${key} menunjuk router CCIP resmi`);
-      } else if (known) {
-        wrong.push(key);
-        soft(`receiver ${key} router-nya salah (DIAKUI)`, `${known} — perlu deploy ulang; harusnya ${want}`);
+      if (correct === expect) {
+        // Cocok dengan keputusan. Kalimatnya sengaja tidak memakai kata "benar" untuk
+        // yang cocok, karena router yang benar pun tidak membuat kontraknya berfungsi.
+        ok(`receiver ${key} masih inert seperti yang diputuskan`, correct ? "router resmi, kontraknya tetap tidak dipakai" : "router salah, dibiarkan begitu");
+      } else if (correct && !expect) {
+        drifted++;
+        bad(
+          `receiver ${key} kini menunjuk router CCIP resmi — keadaan berubah`,
+          `seseorang men-deploy ulang. Keputusan "CCIP dicabut" jadi basi: tinjau ulang README, /docs dan /pitch, lalu perbarui EXPECT_ROUTER_OK[${id}]`
+        );
       } else {
-        wrong.push(key);
-        bad(`receiver ${key} menunjuk router yang SALAH dan belum diakui`, `${got} — seharusnya ${want}; \`router\` immutable, hanya bisa diperbaiki dengan deploy ulang`);
+        drifted++;
+        bad(
+          `receiver ${key} router-nya berubah menjadi salah`,
+          `${got} — sebelumnya cocok dengan ${want}; alamat resmi mungkin bergeser, periksa daftar di bagian 7`
+        );
       }
     } catch (e) {
       soft(`receiver ${key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 44));
     }
   }
-  if (checked > 0 && wrong.length === 0) ok(`setiap receiver terpasang benar`, `${checked} diperiksa`);
-  else if (wrong.length) console.log(`        → ${wrong.length} receiver menunggu deploy ulang: ${wrong.join(", ")}`);
+  if (checked > 0 && drifted === 0) ok(`keadaan receiver cocok dengan keputusan mencabut CCIP`, `${checked} diperiksa, 0 bergeser`);
 
   /**
-   * Dan selama masih ada receiver yang salah, halaman tidak boleh menyatakan buyback
-   * lintas-chain sebagai sesuatu yang berjalan. Ini pasangan dari pemeriksaan di atas:
-   * satu memeriksa kontraknya, satu memeriksa apa yang dikatakan tentang kontraknya.
+   * Pasangan dari pemeriksaan di atas: satu memeriksa kontraknya, satu memeriksa apa
+   * yang dikatakan tentang kontraknya.
+   *
+   * Dulu blok ini hanya jalan kalau ada receiver yang salah. Itu keliru — begitu
+   * SEMUA receiver "sesuai harapan", pemeriksanya diam, padahal justru saat itulah
+   * halaman paling mungkin mulai menjanjikan sesuatu. Sekarang jalan tanpa syarat:
+   * fiturnya dicabut, jadi tidak ada keadaan di mana klaim ini boleh muncul.
+   *
+   * Nama merek dan singkatan protokolnya dijaga di audit_claims.mjs (daftar BANNED,
+   * dibaca dari halaman yang benar-benar dirender). Di sini yang dijaga adalah
+   * klaim yang bisa ditulis TANPA menyebut nama itu sama sekali.
    */
-  if (wrong.length > 0) {
-    const CLAIMS = [/cross-chain buybacks? (are |is )?(now )?live/i, /lanes? (are |is )?(now )?open and working/i, /buyback flows across chains/i];
+  {
+    const CLAIMS = [
+      /cross-chain buybacks? (are |is )?(now )?live/i,
+      /lanes? (are |is )?(now )?open and working/i,
+      /buyback flows across chains/i,
+      /cross-chain (treasury )?(routing|buyback)[^.]{0,30}\b(live|active|enabled|working)\b/i,
+      /unified buyback pressure/i,
+    ];
     let bogus = 0;
     for (const path of sourceFiles()) {
       const text = visibleText(path);
       for (const re of CLAIMS) {
         const m = text.match(re);
         if (!m) continue;
-        bad(`${path} menyatakan buyback lintas-chain berjalan`, `"${m[0].slice(0, 50)}" — receiver salah di ${wrong.length} chain`);
+        bad(
+          `${path} menyatakan buyback lintas-chain berjalan`,
+          `"${m[0].slice(0, 50)}" — fiturnya dicabut; tidak ada nilai yang bisa keluar dari kurva`
+        );
         bogus++;
       }
     }
-    if (bogus === 0) ok("tidak ada halaman yang menyatakan buyback lintas-chain berjalan", `${wrong.length} receiver masih salah`);
+    if (bogus === 0) ok("tidak ada halaman yang menyatakan buyback lintas-chain berjalan");
   }
 }
 

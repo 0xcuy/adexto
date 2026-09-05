@@ -42,11 +42,6 @@ sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/world.svg.js
 lisensi   : MIT
 perubahan : tidak ada
 
-file      : chainlink.svg
-sumber    : @web3icons/core 4.0.55  dist/svgs/tokens/branded/LINK.svg.js
-lisensi   : MIT
-perubahan : tidak ada
-
 file      : cloudflare.svg
 sumber    : simple-icons 16.29.0  icons/cloudflare.svg
 lisensi   : CC0-1.0

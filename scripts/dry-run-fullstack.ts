@@ -56,10 +56,16 @@ async function dryRunFullStack() {
     console.error("Compilation Errors:", output.errors.filter((e: any) => e.severity === "error"));
     throw new Error("Compilation failed");
   }
-  console.log("   ✅ AdextoToken.sol (ERC-8004) Compiled.");
-  console.log("   ✅ SovereignHook.sol (Uniswap v4 Fee Splitter) Compiled.");
-  console.log("   ✅ AdextoTrinityFactory.sol (1-Click Deployer) Compiled.");
-  console.log("   ✅ AdextoCCIPTreasuryRouter.sol (Chainlink CCIP Cross-Chain) Compiled.");
+  // Label di sini pernah mengklaim lebih dari isi kontraknya: AdextoToken disebut
+  // "(ERC-8004)" padahal ia ERC-20 dengan pengikatan identitas OPSIONAL, dan
+  // SovereignHook disebut fee splitter AMM v4 padahal ia mendeklarasikan interface
+  // pool-nya sendiri dengan signature yang tidak cocok, jadi PoolManager sungguhan
+  // tidak akan pernah memanggilnya. Centang hijau di sebelah label yang salah lebih
+  // menyesatkan daripada tidak ada centang.
+  console.log("   ✅ AdextoToken.sol (ERC-20, optional ERC-8004 identity) Compiled.");
+  console.log("   ✅ SovereignHook.sol (superseded v1, cannot settle trades) Compiled.");
+  console.log("   ✅ AdextoTrinityFactory.sol (superseded v1 deployer) Compiled.");
+  console.log("   ✅ AdextoCCIPTreasuryRouter.sol (superseded v1, unused) Compiled.");
 
   // 2. Test Chainlink CCIP Router simulation
   console.log("\n🔹 2. Chainlink CCIP Cross-Chain Treasury Simulation...");

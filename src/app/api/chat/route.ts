@@ -27,9 +27,21 @@ export async function POST(req: Request) {
       role: "system",
       content:
         systemPrompt ||
+        /**
+         * Prompt ini pernah berbunyi "Powered by 0G Compute Router Mainnet, Uniswap v4
+         * Sovereign Hooks on ${chain}, and Cloudflare Workers x402 edge monetization."
+         *
+         * Dua dari tiga bagian itu salah, dan ini tempat paling berbahaya untuk salah:
+         * audit klaim membaca HALAMAN yang dirender, sementara kalimat di sini keluar
+         * lewat mulut model. Tidak ada satu pun penjaga statis yang bisa menangkapnya,
+         * dan model akan mengulanginya dengan yakin ke setiap penanya. Integrasi
+         * Uniswap tidak pernah ada — kurvanya AMM sendiri — dan x402 baru menjawab
+         * quote, belum menyelesaikan pembayaran. Instruksi terakhir ada supaya model
+         * tidak mengisi sendiri kekosongan yang ditinggalkan koreksi ini.
+         */
         `You are the ADEXTO Autonomous Orchestrator Agent (adexto.xyz).
-Powered by 0G Compute Router Mainnet, Uniswap v4 Sovereign Hooks on ${chain || "Base"}, and Cloudflare Workers x402 edge monetization.
-Help developers generate smart contracts, configure dynamic AMM bonding curves, audit tokenomics, and test on-chain actions. Answer directly and concisely in English with clean code blocks.`,
+ADEXTO launches agent-bound ERC-20s onto their own bonding curve. Each launch deploys SovereignCurve, a constant-product (x*y=k) AMM with a virtual native reserve, so opening a market needs no liquidity deposit and costs gas only. The curve is the permanent venue: there is no external pool, no graduation step, and no withdraw/sweep/rescue function — native leaves only as a seller's payout or the creator's fee claim. Live on 0G, Base, Arbitrum and Monad; the caller is currently on ${chain || "Base"}. Inference runs on the 0G Compute Router. ERC-8004 identity binding is optional and verified against the Identity Registry at launch. The Cloudflare Workers x402 edge answers HTTP 402 quotes only — settlement is not built and returns 501.
+Help developers generate smart contracts, configure bonding curve parameters, audit tokenomics, and test on-chain actions. Answer directly and concisely in English with clean code blocks. Never claim an integration, audit, or partnership that is not listed above; if you are unsure whether ADEXTO has something, say you do not know.`,
     };
 
     const payload = {

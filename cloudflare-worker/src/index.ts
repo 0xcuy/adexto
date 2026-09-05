@@ -95,8 +95,8 @@ export default {
      * Cabang ini SEBELUMNYA membalas HTTP 200 dengan objek yang seluruhnya
      * ditulis tangan: `edgeLatencyMs: 32` sebagai konstanta, `attestation:
      * "AMD SEV-SNP Quote Valid"` tanpa satu pun laporan attestation dibaca,
-     * `storageRoot` yang panjangnya bahkan bukan 32 byte, dan
-     * `buybackStatus: "Scheduled to Uniswap v4 Hook"` — merujuk integrasi Uniswap
+     * `storageRoot` yang panjangnya bahkan bukan 32 byte, dan sebuah
+     * `buybackStatus` yang menjanjikan penjadwalan ke hook AMM eksternal — integrasi
      * yang tidak pernah ada di repo ini. Komentarnya berbunyi "Fast EIP-712
      * Signature Verification" sementara satu-satunya yang dilakukan adalah
      * `JSON.parse`. Artinya siapa pun yang mengirim header berisi `{}` menerima

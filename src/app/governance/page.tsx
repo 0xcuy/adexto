@@ -324,9 +324,20 @@ export default function GovernancePage() {
             </span>
           </li>
         </ol>
+        {/* Kalimat di sini dulu menyalahkan penyedia jembatan lintas-chain: katanya
+            tidak ada router yang diterbitkan untuk 0G dan Monad sehingga lane-nya tidak
+            mungkin dibuka. Itu SALAH — router-nya hidup di keempat chain dan keduabelas
+            arah lane-nya terbuka, diperiksa dengan `isChainSupported` di tiap router.
+            Kalimat itu juga lolos dari penjaga frasa karena singkatan protokolnya
+            menyelip di antara "no" dan "router"; pelajarannya dicatat di daftar BANNED
+            audit_claims.mjs, yang kini menjaga nama merek dan singkatannya terpisah.
+
+            Dicabut, bukan diperbaiki: vote lintas-chain tidak terhambat oleh siapa pun
+            di luar. Ia tidak ada dalam desain ini, karena buyback memindahkan nilai
+            antar dua kantong di dalam SATU kontrak dan tidak ada jalur keluar. */}
         <p className="pt-2 text-xs text-ink-soft">
-          Cross-chain treasury votes are blocked for a separate reason: Chainlink publishes no CCIP router on 0G
-          or Monad, so those lanes cannot be opened by us at all.{" "}
+          The scope above is per chain. Nothing in this design carries a vote or its outcome to another chain, and
+          the curve holds no path that could send value across one.{" "}
           <Link href="/docs" className="font-semibold text-accent hover:underline">
             Details in the docs
           </Link>

@@ -86,11 +86,23 @@ if (process.argv[1]?.endsWith("upload-metadata-0g.ts")) {
       token: {
         name: "Aegis Sentinel AI",
         symbol: "AEGIS",
-        standard: "ERC-8004",
-        curve: "Dynamic Exponential AMM",
+        // Tokennya ERC-20 biasa; ERC-8004 itu identitas OPSIONAL yang diikat saat
+        // launch, bukan standar tokennya. Menulis "ERC-8004" di sini mengulang klaim
+        // yang sudah ditarik di README.
+        standard: "ERC-20",
+        agentIdentity: "ERC-8004, optional",
+        // "Dynamic Exponential AMM" salah: kurvanya produk-konstan. Frasa itu bahkan
+        // sudah ada di daftar BANNED audit_claims.mjs untuk halaman web, jadi
+        // membiarkannya di sini cuma memindahkan klaim yang sama ke tempat yang tidak
+        // diaudit.
+        curve: "Constant-product bonding curve (x*y=k) with a virtual native reserve",
       },
       dex: {
-        type: "Uniswap v4 Sovereign Hook",
+        // Dulu "Uniswap v4 Sovereign Hook" — integrasi yang tidak pernah ada di repo
+        // ini. Sama seperti string SEV-SNP di bawah, yang membuat ini penting bukan
+        // besarnya kesalahan tapi tujuannya: payload ini ditambatkan ke 0G DA dan
+        // tidak bisa ditarik kembali.
+        type: "SovereignCurve, deployed per launch",
         lpFeeBps: 20,
         treasuryBuybackBps: 10,
       },

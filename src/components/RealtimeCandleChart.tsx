@@ -22,8 +22,9 @@ import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicato
  * A TradingView or GeckoTerminal embed resolves a symbol or pool from that
  * provider's database. A token launched minutes ago on our own factory is not in
  * either, so an embed renders an empty frame — which is why the reference
- * screenshots show TIBBIR (listed on MEXC and Uniswap V2) rather than anything of
- * ours. `lightweight-charts` is TradingView's renderer but ships no indicators, so
+ * screenshots show TIBBIR, a token that is listed on established venues, rather
+ * than anything of ours. `lightweight-charts` is TradingView's renderer but ships
+ * no indicators, so
  * they are computed in @/lib/indicators from the same candles the chart draws.
  *
  * WHAT THIS COMPONENT REFUSES TO DO

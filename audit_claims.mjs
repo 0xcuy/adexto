@@ -57,6 +57,15 @@ const BANNED = [
   ["exponential curve", "kurvanya produk-konstan, x*y=k"],
   ["settled trustlessly", "penyelesaian x402 belum dibangun"],
   ["Uniswap", "nol integrasi Uniswap di repo ini"],
+  // Chainlink dan CCIP dicabut bersama-sama, dan dilarang dengan alasan yang lebih
+  // kuat daripada "belum dipakai": TIDAK ADA versi yang berguna tanpa memindahkan
+  // nilai keluar dari kurva, dan tidak ada jalur keluar dari kurva — receiver yang
+  // ter-deploy hanya bisa menaikkan counter. Jadi ini bukan pekerjaan yang tertunda
+  // yang boleh disebut "coming soon", ini fitur yang tidak akan ada. Nama merek dan
+  // singkatan protokolnya dilarang terpisah karena percobaan sebelumnya lolos dengan
+  // menulis "no CCIP router" — kata larangannya ada di dalam kalimat penyangkalan.
+  ["Chainlink", "nol integrasi Chainlink; klaimnya dicabut, bukan ditunda"],
+  ["CCIP", "receiver ter-deploy tapi inert; tidak ada nilai yang bisa keluar dari kurva"],
   ["receive 0% of ongoing", "tidak benar: pump.fun membayar creator bagian fee trading"],
   ["Platform takes all", "sama"],
   ["/mo ARR", "ARR itu tahunan; 'per bulan ARR' bukan satuan"],

@@ -330,36 +330,40 @@ export default function PitchDeckPage() {
             </span>
           </div>
 
-          {/* Baris ini menyalahkan Chainlink untuk hambatan yang tidak ada.
-              Bunyinya dulu: "cross-chain lanes pending CCIP support for 0G and
-              Monad". Ditanyakan ke router masing-masing chain dengan
+          {/* Baris ini dulu menyalahkan penyedia jembatan lintas-chain untuk hambatan
+              yang tidak ada: "cross-chain lanes pending ... support for 0G and Monad".
+              Ditanyakan ke router masing-masing chain dengan
               `isChainSupported(destinationChainSelector)` \u2014 12 dari 12 arah
-              TERBUKA, termasuk kesepuluh pasangan yang menyentuh 0G atau Monad.
-              Selectornya diambil dari direktori resmi Chainlink, dan keempat
-              alamat router-nya cocok dengan yang sudah diverifikasi on-chain.
+              TERBUKA, termasuk kesepuluh pasangan yang menyentuh 0G atau Monad, dan
+              keempat alamat router-nya cocok dengan yang sudah diverifikasi on-chain.
 
-              Hambatannya milik KITA, dan lebih serius daripada menunggu pihak
-              lain: `AdextoCCIPReceiver` sudah ter-deploy di keempat chain, tetapi
-              `router` di dalamnya salah di tiga di antaranya \u2014 0G menunjuk EOA
-              deployer, Arbitrum menunjuk alamat tanpa bytecode (0x141F0578\u2026,
-              hanya enam karakter awal sama dengan router sesungguhnya, berbau
-              alamat terpotong), dan Monad menunjuk alamat nol. Karena `router`
-              dideklarasikan `immutable`, tidak ada setter yang bisa
-              memperbaikinya; ketiganya harus di-deploy ulang.
+              Hambatannya milik KITA, dan lebih dalam daripada menunggu pihak lain:
+              receiver-nya sudah ter-deploy di keempat chain, tetapi `router` di
+              dalamnya salah di tiga di antaranya (EOA deployer di 0G, alamat tanpa
+              bytecode di Arbitrum, alamat nol di Monad) dan `immutable`, jadi tidak
+              ada setter yang bisa memperbaikinya.
+
+              Yang penting: itu pun BUKAN alasan akhirnya dicabut. Deploy ulang cuma
+              menghasilkan counter yang naik dan sebuah event, karena receiver-nya
+              tidak punya withdraw/sweep/transfer sama sekali \u2014 native yang masuk
+              terkunci selamanya. Versi yang berguna harus memindahkan nilai keluar
+              dari kurva, dan jalur keluar itu justru yang protokol ini janjikan tidak
+              ada. Jadi fiturnya bertentangan dengan intinya, bukan tertunda.
 
               Menyalahkan dependensi eksternal yang ternyata tidak menahan apa pun
               adalah bentuk ketidakjujuran yang paling mudah lolos, karena ia
               terdengar seperti kehati-hatian \u2014 sekaligus menyembunyikan cacat
               sendiri. Penjaga bagian 7 di audit_consistency.mjs juga melewatkannya:
-              ia hanya mencocokkan frasa "no router"/"no endpoint", bukan "pending
-              CCIP support". Celah itu ditutup di commit yang sama. */}
+              ia hanya mencocokkan "no router"/"no endpoint", bukan "pending ...
+              support". Celah itu ditutup, dan bagian 11 sekarang memeriksa KEADAAN
+              receiver-nya, bukan kata-katanya. */}
           <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-white border border-line">
             <div>
               <strong className="text-ink block text-sm">Phase 2 (Q4 2026):</strong>
               <span className="text-ink-soft text-xs">
-                DAO governance and cross-chain buybacks. CCIP lanes are already open in all twelve directions
-                between the four chains, so the hold-up is ours: the receiver is correctly wired to the CCIP
-                router only on Base, and the Governor cannot weigh a vote until a governance token is set.
+                DAO governance. The Governor is deployed on all four chains and cannot weigh a vote until a
+                governance token is set, so the scope it would govern has to be decided before the vote, not
+                after. Cross-chain buybacks were dropped rather than postponed — see below.
               </span>
             </div>
             <span className="shrink-0 px-3 py-1 rounded bg-accent-soft text-accent font-bold text-xs">IN PROGRESS</span>
