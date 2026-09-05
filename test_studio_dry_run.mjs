@@ -18,10 +18,13 @@ import { chromium } from 'playwright';
   console.log('1. Navigating to Studio with Connected 0G Wallet...');
   await page.goto('https://adexto.xyz/studio', { waitUntil: 'networkidle' });
 
-  console.log('2. Verifying World ID Proof of Humanity...');
-  const verifyBtn = page.locator('button:has-text("Verify with World ID")');
-  await verifyBtn.click();
-  await page.waitForTimeout(1500);
+  // Langkah World ID dihapus: gerbangnya dicabut, tombolnya tidak ada, dan
+  // `verifyBtn.click()` akan menggantung sampai timeout.
+  //
+  // PERINGATAN: sisa berkas ini pun sudah relik. Ia masih mencari "Deploy Selected"
+  // dan "Deployment Succeeded", dua string yang dicabut waktu klaim palsu dibersihkan,
+  // jadi jangan pakai ini sebagai bukti apa pun. Yang hidup: record_demo_testnet.mjs
+  // untuk rekaman dan audit_claims.mjs untuk pemeriksaan copy.
 
   console.log('3. Triggering 1-Click Deploy on 0G Mainnet...');
   const deployBtn = page.locator('button:has-text("Deploy Selected")');

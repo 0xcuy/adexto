@@ -31,8 +31,15 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "ADEXTO",
     title: "ADEXTO — launch an AI agent token with no liquidity deposit",
+    /**
+     * Kalimat terakhir dulu berbunyi "World ID proves each creator is a distinct
+     * person." Gerbangnya sudah dicabut, jadi kalimat itu jadi klaim palsu — dan
+     * yang paling berbahaya, karena description openGraph tersalin ke pratinjau X,
+     * Discord, dan Telegram lalu tersimpan di cache mereka jauh lebih lama daripada
+     * halamannya sendiri. Penggantinya menyebut ERC-8004, yang benar-benar berjalan.
+     */
     description:
-      "100% of supply enters a sovereign bonding curve, a launch costs gas only, and the creator earns 0.10% of every swap. World ID proves each creator is a distinct person.",
+      "100% of supply enters a sovereign bonding curve, a launch costs gas only, and the creator earns 0.10% of every swap. Tokens can be bound to an ERC-8004 agent identity at launch.",
     url: "/",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "ADEXTO — sovereign bonding curve launchpad" }],
   },

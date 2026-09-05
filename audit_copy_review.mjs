@@ -3,7 +3,7 @@
  * kalimat demi kalimat.
  *
  * Kenapa bukan `curl`: separuh permukaan situs ini dirender setelah hidrasi —
- * panel World ID, daftar market, status pool, harga. Memeriksa dengan curl
+ * daftar market, status pool, harga. Memeriksa dengan curl
  * berulang kali membuat saya menyimpulkan copy belum terpasang padahal HTML
  * awalnya memang belum memuatnya.
  *

@@ -40,29 +40,83 @@ if (!PK) {
   process.exit(1);
 }
 
-/** Chain demo. 0G Testnet: saldo lega, dan ini chain utama proyek. */
-const CHAIN = {
-  chainId: 16602,
-  key: "0G",
-  name: "0G Testnet",
-  rpc: "https://evmrpc-testnet.0g.ai",
-  sym: "0G",
+/**
+ * Chain demo, sekarang bisa dipilih: testnet atau MAINNET.
+ *
+ * `DEMO_NET=mainnet` mengarahkan perekam ke 0G mainnet. Nama berkas ini tetap
+ * `record_demo_testnet.mjs` supaya runbook dan riwayat commit tidak berpisah dari
+ * berkasnya, tapi isinya tidak lagi khusus testnet.
+ *
+ * YANG BERBEDA DI MAINNET, DAN HARUS DISADARI SEBELUM DIJALANKAN:
+ *   - Token dan kurvanya PERMANEN. Ticker-nya terklaim di `symbolRegistry` tanpa
+ *     setter dan tanpa owner, jadi tidak ada cara mencabutnya.
+ *   - `totalProjectsCount()` naik permanen, dan itu membuat kalimat "belum ada
+ *     peluncuran" di delapan halaman langsung salah. Siapkan teks penggantinya
+ *     SEBELUM menjalankan ini.
+ *   - Nominal beli/jual adalah uang sungguhan. Bawaan DEMO_BUY diperkecil di mainnet.
+ */
+const NET = (process.env.DEMO_NET || "testnet").toLowerCase();
+const CHAINS_BY_NET = {
+  testnet: {
+    chainId: 16602,
+    key: "0G",
+    name: "0G Testnet",
+    rpc: "https://evmrpc-testnet.0g.ai",
+    explorer: "https://chainscan-galileo.0g.ai",
+    sym: "0G",
+  },
+  mainnet: {
+    chainId: 16661,
+    key: "0G",
+    name: "0G Mainnet",
+    rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai",
+    explorer: "https://chainscan.0g.ai",
+    sym: "0G",
+  },
 };
+const CHAIN = CHAINS_BY_NET[NET];
+if (!CHAIN) {
+  console.error(`DEMO_NET tidak dikenal: "${NET}". Pakai "testnet" atau "mainnet".`);
+  process.exit(1);
+}
+const IS_MAINNET = NET === "mainnet";
 /**
  * Tidak ada lagi DEMO_SEED. AdextoCurveFactory memakai bonding curve dengan reserve
  * virtual, jadi tidak ada setoran likuiditas — dan field seed-nya sudah tidak ada
  * di studio, sehingga mengisinya akan membuat perekaman macet.
  */
-const BUY = process.env.DEMO_BUY || "0.01";
+const BUY = process.env.DEMO_BUY || (IS_MAINNET ? "0.004" : "0.01");
 const RUN = Math.floor(Math.random() * 900 + 100);
 const TICKER = process.env.DEMO_TICKER || `NOVA${RUN}`;
 const NAME = process.env.DEMO_NAME || "Nova Sentinel AI";
 
+/**
+ * Ticker protokol TIDAK BOLEH dipakai perekam.
+ *
+ * Ticker terklaim permanen di `symbolRegistry` begitu peluncuran berhasil. Kalau
+ * perekaman demonstrasi mengambil ADEXTO atau ADX, token protokolnya sendiri kehilangan
+ * namanya selamanya — kesalahan yang tidak bisa diperbaiki dengan cara apa pun. Jadi
+ * dilarang di sini, bukan cuma dihindari lewat kebiasaan.
+ */
+const PROTOCOL_TICKERS = new Set(["ADEXTO", "ADX"]);
+if (PROTOCOL_TICKERS.has(TICKER.toUpperCase())) {
+  console.error(
+    `DEMO_TICKER "${TICKER}" adalah ticker protokol. Perekaman demonstrasi tidak boleh ` +
+      `mengklaimnya: klaim ticker bersifat permanen dan tidak bisa dicabut.`
+  );
+  process.exit(1);
+}
+
 const W = 1920;
 const H = 1080;
 const RAW_DIR = path.join(process.cwd(), "public", "demo-raw");
-const OUT_MP4 = path.join(process.cwd(), "public", "adexto_testnet_demo.mp4");
-const OUT_WEBM = path.join(process.cwd(), "public", "adexto_testnet_demo.webm");
+/**
+ * Nama keluaran mengikuti jaringan, supaya rekaman mainnet tidak menimpa rekaman
+ * testnet yang sudah bagus. Keduanya sudah ada di .gitignore lewat pola yang sama.
+ */
+const OUT_BASE = IS_MAINNET ? "adexto_mainnet_demo" : "adexto_testnet_demo";
+const OUT_MP4 = path.join(process.cwd(), "public", `${OUT_BASE}.mp4`);
+const OUT_WEBM = path.join(process.cwd(), "public", `${OUT_BASE}.webm`);
 
 const req = new ethers.FetchRequest(CHAIN.rpc);
 req.timeout = 60000;
@@ -187,7 +241,17 @@ console.log(`akun    : ${ACCOUNT}`);
 console.log(`saldo   : ${ethers.formatEther(await provider.getBalance(ACCOUNT))} ${CHAIN.sym}`);
 console.log(`token   : $${TICKER} — ${NAME}   beli=${BUY}  (tanpa setoran likuiditas)`);
 
+/**
+ * `DEMO_HEADED=1` menjalankan browser yang TERLIHAT.
+ *
+ * Dulu WAJIB karena gerbang World ID menuntut manusia memindai QR dengan World App.
+ * Gerbang itu sudah dicabut, jadi seluruh perekaman kini bisa headless dari awal
+ * sampai akhir. Opsinya dipertahankan untuk menonton jalannya saat mendiagnosis
+ * adegan yang gagal — bukan lagi sebagai syarat.
+ */
+const HEADED = process.env.DEMO_HEADED === "1";
 const browser = await chromium.launch({
+  headless: !HEADED,
   args: ["--hide-scrollbars", "--disable-features=IsolateOrigins,site-per-process"],
 });
 const ctx = await browser.newContext({
@@ -258,10 +322,23 @@ await beat(page, 600);
 await typeInto(page, page.locator('input[value="Aegis Quant AI"]').first(), NAME);
 await beat(page, 1500);
 
-// Tunjukkan dulu bahwa satu klik bisa menargetkan SEMUA chain: centang keempatnya
-// dan biarkan label tombol berubah. Baru setelah itu dipersempit ke satu chain
-// untuk peluncuran nyata, supaya dana testnet tidak terpakai di empat tempat.
-const ALL_CHAINS = ["0G Testnet", "Arbitrum Sepolia", "Base Sepolia", "Monad Testnet"];
+/**
+ * Adegan ini dulu diberi narasi yang salah, dan narasinya penting karena ia yang
+ * membentuk apa yang penonton simpulkan.
+ *
+ * Komentar lamanya berbunyi "centang keempatnya, lalu dipersempit ke satu", seolah
+ * studio bisa menargetkan beberapa chain sekaligus. Tidak bisa: `selectChain` di
+ * src/app/studio/page.tsx berbunyi `setTargetChainIds([chainId])` — MENGGANTI, bukan
+ * menambah. Studio single-select, jadi mengklik empat tombol hanya berpindah-pindah
+ * dan berakhir di yang terakhir diklik.
+ *
+ * Jadi adegannya tetap berguna, tapi maknanya lain: ia memperlihatkan keempat chain
+ * memang tersedia sebagai target, lalu berhenti di chain yang akan dipakai. Bukan
+ * "satu klik ke empat chain".
+ */
+const ALL_CHAINS = IS_MAINNET
+  ? ["0G Mainnet", "Arbitrum One", "Base Mainnet", "Monad Mainnet"]
+  : ["0G Testnet", "Arbitrum Sepolia", "Base Sepolia", "Monad Testnet"];
 
 // Deteksi state terpilih dari class tombolnya SENDIRI.
 //
@@ -274,7 +351,7 @@ const ALL_CHAINS = ["0G Testnet", "Arbitrum Sepolia", "Base Sepolia", "Monad Tes
 // sinyal terpilih yang andal.
 const isSelected = async (btn) => ((await btn.getAttribute("class")) ?? "").includes("text-accent");
 
-scene("1a) Pilih target chain — semua dulu, lalu dipersempit ke satu");
+scene("1a) Perlihatkan keempat chain tersedia, lalu berhenti di chain target");
 for (const name of ALL_CHAINS) {
   const btn = page.locator(`button[title*="${name}"]`).first();
   if ((await btn.count()) === 0) continue;
@@ -290,7 +367,7 @@ await beat(page, 1600);
 const allLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
-console.log(`  semua chain dicentang -> tombol: ${allLabel || "(belum aktif)"}`);
+console.log(`  setelah menelusuri keempat chain -> tombol: ${allLabel || "(belum aktif)"}`);
 await beat(page, 1400);
 
 // Persempit ke satu chain: deselect semua kecuali CHAIN.name.
@@ -310,18 +387,45 @@ if (!(await isSelected(chainBtn))) {
 }
 await beat(page, 1400);
 
-// Konfirmasi keras: label tombol launch HARUS tepat satu chain sebelum lanjut.
-// Kalau tidak, video akan meluncurkan ke chain yang salah — lebih baik gagal di
-// sini daripada menghasilkan rekaman "1 of 2" yang harus dibuang di akhir.
+/**
+ * Konfirmasi keras sebelum uang sungguhan bergerak — dan penjaganya DIGANTI, karena
+ * yang lama tidak mungkin berbunyi.
+ *
+ * Versi lama membaca label tombol launch dan membatalkan kalau memuat "+".
+ * Label itu dirender `Launch on {launchTargets[0]?.key} · gas only` — hanya elemen
+ * PERTAMA. Jadi ia tidak pernah bisa memuat "+", berapa pun chain yang terpilih, dan
+ * penjaga itu sudah mati sejak ditulis. Kelas cacat yang sama dengan penjaga chain di
+ * commit sebelumnya: terlihat melindungi, sebenarnya tidak memeriksa apa pun.
+ *
+ * Sekarang yang dihitung KEADAAN UI-nya: berapa tombol chain yang benar-benar
+ * bertanda terpilih. Harus tepat satu, dan harus chain yang dituju. Kalau tidak,
+ * rekaman dibatalkan sebelum satu transaksi pun dikirim.
+ *
+ * Catatan: studio memang single-select, jadi dalam keadaan sehat hitungannya selalu 1.
+ * Penjaga ini justru untuk keadaan TIDAK sehat — misalnya kalau model pemilihan itu
+ * diubah lagi nanti tanpa ada yang memperbarui perekam ini.
+ */
+const selectedChains = [];
+for (const name of ALL_CHAINS) {
+  const btn = page.locator(`button[title*="${name}"]`).first();
+  if ((await btn.count()) === 0) continue;
+  if (await isSelected(btn)) selectedChains.push(name);
+}
 const narrowLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
-console.log(`  dipersempit -> tombol: ${narrowLabel || "(belum aktif)"}`);
-if (narrowLabel && /\+/.test(narrowLabel)) {
-  console.error(`  masih lebih dari satu chain terpilih (${narrowLabel}) — rekaman dibatalkan`);
+console.log(`  chain terpilih: ${selectedChains.join(", ") || "(tidak ada)"}`);
+console.log(`  tombol        : ${narrowLabel || "(belum aktif)"}`);
+if (selectedChains.length !== 1 || selectedChains[0] !== CHAIN.name) {
+  console.error(
+    `  target salah: terpilih [${selectedChains.join(", ")}], seharusnya tepat "${CHAIN.name}" — rekaman dibatalkan`
+  );
   await ctx.close();
   await browser.close();
   process.exit(1);
+}
+if (IS_MAINNET) {
+  console.log(`  MAINNET: transaksi berikutnya PERMANEN. ticker "${TICKER}" akan terklaim selamanya.`);
 }
 
 // Tidak ada field seed untuk diisi. Cukup tahan sebentar supaya penonton melihat
@@ -382,7 +486,20 @@ await beat(page, 2400);
 await glidePanel(page, "BONDING CURVE", -700);
 await beat(page, 900);
 
-scene("2) Attestation lalu launch (transaksi 0G Testnet nyata)");
+/**
+ * Adegan "1d) Gerbang World ID" DIHAPUS bersama gerbangnya.
+ *
+ * Dulu perekam berhenti di sini sampai manusia memindai QR dengan World App, karena
+ * proof-nya tidak bisa diotomasi dan memalsukan tokennya berarti video menampilkan
+ * verifikasi yang tidak terjadi. Sekarang tidak ada yang perlu ditunggu: satu-satunya
+ * gerbang adalah attestation wallet di adegan 2, dan itu ditandatangani oleh shim
+ * dompet perekam sendiri.
+ *
+ * Konsekuensi yang disengaja: perekaman kini bisa berjalan tanpa pengawasan dari awal
+ * sampai akhir, jadi tidak ada lagi jeda 5 menit yang bisa membatalkan rekaman.
+ */
+
+scene(`2) Attestation lalu launch (transaksi ${CHAIN.name} nyata)`);
 const signBtn = page.getByRole("button", { name: "Sign attestation", exact: true });
 await signBtn.hover();
 await beat(page, 400);

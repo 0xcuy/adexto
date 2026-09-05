@@ -34,7 +34,28 @@ const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/governance,/
  */
 const BANNED = [
   ["Zero central points of failure", "satu VPS, satu berkas registry, satu kunci router, satu Worker"],
-  ["one launch per human", "produksi menjalankan WORLD_ID_ONE_LAUNCH_PER_HUMAN=false"],
+  /**
+   * Gerbang proof-of-personhood DICABUT, bukan cuma dimatikan.
+   *
+   * Alasan larangan ini berubah, dan perubahannya membuatnya lebih kuat. Dulu:
+   * "produksi menjalankan WORLD_ID_ONE_LAUNCH_PER_HUMAN=false" — yaitu gerbangnya
+   * ada tapi kuotanya longgar. Sekarang gerbangnya sudah tidak ada sama sekali, jadi
+   * yang salah bukan lagi angka kuotanya melainkan seluruh gagasan bahwa situs ini
+   * bisa membedakan satu orang dari orang lain.
+   *
+   * Kata-kata di bawah ditambahkan supaya klaim itu tidak bisa pulang diam-diam
+   * lewat sinonim. Ini bukan paranoia: kalimat World ID sempat hidup di metadata
+   * openGraph, di kartu /docs, di chip StackMarquee, DAN dipanggang ke dalam og.png
+   * — lima tempat dari satu keputusan. Larangan per-frasa jauh lebih murah daripada
+   * mengejarnya lagi satu per satu.
+   */
+  ["one launch per human", "tidak ada gerbang proof-of-personhood; satu orang boleh berapa pun ticker"],
+  ["proof of personhood", "gerbang World ID sudah dicabut dari seluruh jalur launch"],
+  ["proof-of-personhood", "sama; bentuk bertanda hubung"],
+  ["World ID", "integrasinya dicabut; menyebut namanya menyiratkan verifikasi yang tidak terjadi"],
+  ["verified human", "tidak ada verifikasi manusia di jalur mana pun"],
+  ["distinct person", "situs ini tidak bisa membedakan satu orang dari orang lain"],
+  ["unique human", "sama; tidak ada lapisan keunikan manusia"],
   /**
    * "ERC-8004" TIDAK lagi terlarang seluruhnya, karena sejak factory 0.10.0 klaimnya
    * bisa dipertahankan: `AdextoCurveFactory` memanggil `ownerOf(agentId)` di registry
@@ -51,7 +72,7 @@ const BANNED = [
   ["ERC-8004 compliance", "sama: kepatuhan penuh belum bisa ditunjukkan"],
   ["ERC-8004 Token", "pengikatan agent bersifat opsional dan mati secara default, bukan sifat setiap token"],
   ["ERC-8004 Agent Tokens", "sama; menyiratkan setiap token terikat agent"],
-  ["1-Click", "peluncuran butuh sambung dompet, attestation, World ID, lalu satu tx per chain"],
+  ["1-Click", "peluncuran butuh sambung dompet, attestation, lalu satu tx per chain"],
   ["physically impossible", "tidak ada jaminan sekuat itu yang bisa kami tunjukkan"],
   ["Hardware Attested", "lencana itu mengaku KAMI yang memverifikasi; kami hanya membaca deklarasi router"],
   // Hardware-nya salah, dan salah ini bertahan berbulan-bulan di enam halaman.

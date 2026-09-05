@@ -85,10 +85,11 @@ const STACK: StackEntry[] = [
   { name: CHAINS.Base.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/base.svg", mark: "B", tint: "#0052FF" },
   { name: CHAINS.Arbitrum.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/arbitrum.svg", mark: "A", tint: "#12AAFF" },
   { name: CHAINS.Monad.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/monad.svg", mark: "M", tint: "#836EF9" },
-  // Bukan "one launch per human": produksi menjalankan
-  // WORLD_ID_ONE_LAUNCH_PER_HUMAN=false, jadi yang ditegakkan adalah nullifier
-  // yang terikat ke satu wallet — bukan satu peluncuran per orang selamanya.
-  { name: "World ID", role: "proof of personhood", live: true, logo: "/brand/world.svg", mark: "W", tint: "#3C3C3C" },
+  // Chip World ID "proof of personhood" DICABUT bersama gerbangnya. Jangan
+  // dikembalikan sebagai chip mati bertanda `live: false`: deret ini dibaca sebagai
+  // daftar apa yang dipakai ADEXTO, jadi logo World di sini menyiratkan verifikasi
+  // manusia yang tidak lagi terjadi — dan logo pihak ketiga untuk integrasi yang
+  // tidak berjalan adalah klaim palsu yang paling mudah dipercaya orang.
   { name: "Cloudflare Workers", role: "x402 payment challenge", live: true, logo: "/brand/cloudflare.svg", mark: "CF", tint: "#F38020" },
   // Satu-satunya entri tanpa logo, atas permintaan pemiliknya sendiri; lihat
   // catatan 3 di atas dan /public/brand/SOURCES.txt.

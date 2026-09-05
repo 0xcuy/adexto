@@ -16,6 +16,8 @@ playwright-report/
 # dan tidak perlu ada di produksi (91 MB, memperlambat rsync + build image).
 public/adexto_testnet_demo.mp4
 public/adexto_testnet_demo.webm
+public/adexto_mainnet_demo.mp4
+public/adexto_mainnet_demo.webm
 public/demo-raw/
 
 # Artefak toolchain keamanan. Semuanya bisa dibuat ulang di mesin mana pun dengan

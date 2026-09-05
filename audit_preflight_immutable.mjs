@@ -132,8 +132,8 @@ if (deployedNets[0]) {
       "TINGGI",
       "Tidak ada cara mencadangkan ticker on-chain, dan deployTrinity tanpa access control",
       `symbolRegistry first-come-first-served dan permanen; tidak ada fungsi untuk mencadangkan atau melepas. ` +
-        `deployTrinity juga sama sekali tanpa access control, jadi gerbang World ID itu MURNI frontend dan ` +
-        `RESERVED_SYMBOLS di src/lib/registry.ts hanya berlaku untuk peluncuran yang lewat /api/deploy. ` +
+        `deployTrinity juga sama sekali tanpa access control, jadi RESERVED_SYMBOLS di src/lib/registry.ts ` +
+        `hanya berlaku untuk peluncuran yang lewat /api/deploy. ` +
         `Siapa pun bisa memanggil factory langsung dan mengklaim ADEXTO, AEGIS, atau USDC on-chain, permanen. ` +
         `Peluncuran hanya berbiaya gas, jadi menyerobot ticker itu murah.`,
       "Klaim ticker milik proyek di keempat mainnet SEGERA setelah broadcast, di transaksi yang sama kalau bisa.",

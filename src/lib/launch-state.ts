@@ -1,44 +1,40 @@
 /**
- * Satu tempat untuk satu kenyataan: factory hidup di empat mainnet, dan belum ada
- * satu pun token diluncurkan lewatnya.
+ * Satu tempat untuk satu kenyataan: factory hidup di empat mainnet, dan peluncuran
+ * nyata lewatnya sudah terjadi di 0G.
  *
  * KENAPA BERKAS INI ADA
  *
- * Keadaan itu diucapkan di delapan halaman, dan sebelum berkas ini ada, setiap
- * halaman mengarang kalimatnya sendiri. Dihitung dari halaman yang benar-benar
- * dirender, bukan dari sumber: DUA BELAS varian untuk satu keadaan.
+ * Keadaan itu diucapkan di delapan halaman, dan sebelum berkas ini ada, setiap halaman
+ * mengarang kalimatnya sendiri — dihitung dari halaman yang benar-benar dirender, ada
+ * DUA BELAS varian untuk satu keadaan. Akibatnya bukan sekadar tidak rapi: memperbaiki
+ * satu halaman selalu meninggalkan tujuh lainnya.
  *
- *   "no launches yet"                                    /pitch (di dalam pil hijau)
- *   "no token launched yet"                              /
- *   "No token has been launched yet, which is why ..."   footer, jadi 5 halaman
- *   "no token has been launched through it yet; ..."     /pitch intro
- *   "no token has been launched through it yet, ..."     /explorer
- *   "No token has been launched through the factory yet" /docs
- *   "Nothing has been launched yet"                      /explorer
- *   "nothing has been launched yet"                      /swap
- *   "No markets exist yet"                               /swap
- *   "No markets yet"                                     /explorer, /swap
- *   "Launching live"                                     /
- *   "launch factory 0.10.0 live"                         ticker
+ * Dan yang paling mahal sudah terbukti. Saat peluncuran pertama benar-benar terjadi,
+ * kalimat "belum ada peluncuran" berubah menjadi salah SEKALIGUS di delapan tempat.
+ * Karena semuanya membaca berkas ini, penggantiannya satu suntingan, bukan delapan —
+ * dan `audit_consistency.mjs` bagian 10 yang memaksanya terjadi: ia membaca
+ * `totalProjectsCount()` dari chain dan MENGGAGALKAN deploy selama teks di sini masih
+ * menyatakan nol.
  *
- * Akibatnya bukan sekadar tidak rapi. Ia membuat keadaan ini MUSTAHIL disapu
- * sekali: memperbaiki satu halaman selalu meninggalkan tujuh lainnya, dan itu
- * persis keluhan yang berulang. Dan yang lebih mahal: saat peluncuran pertama
- * benar-benar terjadi, dua belas kalimat itu semuanya berubah menjadi salah, di
- * delapan tempat, tanpa satu pun yang saling tahu.
+ * KENAPA TOKEN UJI TIDAK DISEBUT DI SINI
  *
- * Jadi kalimatnya dipindah ke sini. Satu suntingan di berkas ini mengubah seluruh
- * situs, dan `audit_consistency.mjs` bagian 10 menegakkan dua hal: tidak ada
- * halaman yang boleh mengarang varian sendiri, DAN kalau `totalProjectsCount()` di
- * chain sudah bukan nol, kalimat-kalimat ini wajib berhenti dipakai.
+ * Ada dua token dengan ticker buangan di 0G mainnet, sisa percobaan perekaman video.
+ * Keduanya TIDAK disebut di teks mana pun, dan itu keputusan yang benar: keduanya bukan
+ * produk, tidak terdaftar di registry situs ini, dan menyebutnya hanya memasang artefak
+ * uji ke permukaan yang dibaca calon pengguna.
  *
- * YANG BUKAN URUSAN BERKAS INI
+ * Yang tetap dijaga: kalimat di bawah tidak menyatakan NOL peluncuran, karena angka
+ * on-chain bisa dibaca siapa pun dan `totalProjectsCount()` bernilai 2. Jadi yang
+ * ditulis adalah dua hal yang sama-sama benar dan sama-sama relevan bagi pembaca —
+ * factory-nya hidup, dan token $ADEXTO belum diluncurkan. Tidak berbohong, tidak pula
+ * memamerkan sampah uji. Rinciannya ada di ADEXTO-RUNBOOK.md, bukan di situs.
  *
- * Ini bukan tempat untuk memperhalus fakta. Angkanya nol, dan nol harus terbaca
- * nol. Pil hijau "NO LAUNCHES YET" di /pitch bukan diperbaiki dengan menghapus
- * kalimatnya — kalimatnya benar, dan tanpanya sebuah baris milestone berpil hijau
- * terbaca sebagai traksi yang tidak ada. Yang salah di sana adalah caveat-nya
- * ditaruh DI DALAM lencana keberhasilan; ia pindah ke deskripsi di sebelahnya.
+ * CATATAN UNTUK PENYUNTING BERIKUTNYA
+ *
+ * Penjaga bagian 10 mencocokkan polanya ke SELURUH berkas ini, termasuk komentar. Jadi
+ * jangan mengutip frasa "belum ada peluncuran" versi Inggrisnya secara harfiah di sini
+ * — mengutipnya saja sudah cukup untuk menggagalkan deploy. Itu terjadi sekali saat
+ * berkas ini ditulis ulang.
  */
 
 /** Ringkas, untuk lencana dan label sempit. */
@@ -47,20 +43,27 @@ export const LAUNCH_BADGE = "broadcast to 4 mainnets";
 /**
  * Satu klausa, untuk disisipkan di akhir kalimat lain.
  * Contoh: "… broadcast to 0G, Base, Arbitrum and Monad — {LAUNCH_CLAUSE}".
+ *
+ * Sengaja menyebut $ADEXTO, bukan jumlah peluncuran. Klausa yang menyebut angka akan
+ * basi setiap kali ada launch baru; klausa ini tetap benar sampai token protokolnya
+ * sendiri benar-benar diluncurkan.
  */
-export const LAUNCH_CLAUSE = "no token has been launched through it yet";
+export const LAUNCH_CLAUSE = "the ADEXTO token itself has not launched yet";
 
 /** Kalimat utuh, untuk footer dan blok penjelas. */
 export const LAUNCH_SENTENCE =
-  "The curve factory is live on all four mainnets, so launching works on each of them. No token has been launched through it yet, which is why there is still nothing to trade.";
+  "The curve factory is live on all four mainnets. The ADEXTO token itself has not launched yet.";
 
 /**
  * Judul dan penjelasan untuk keadaan kosong (registry, daftar market, pemilih).
  *
- * Dipisah dari yang di atas karena tugasnya beda: yang ini harus menjelaskan
- * kenapa sebuah DAFTAR kosong, dan pernah salah menyalahkan filter pemakai
- * ("No markets match this filter") padahal registry-nya memang belum berisi.
+ * Dipisah dari yang di atas karena tugasnya beda: yang ini menjelaskan kenapa sebuah
+ * DAFTAR kosong. Kata-katanya berubah bersama peluncuran pertama, dan alasannya bukan
+ * kosmetik: judul lamanya menyatakan tidak ada pasar sama sekali, dan itu berhenti
+ * benar begitu sebuah pasar ada di chain — bahkan ketika daftar di situs ini memang
+ * masih kosong. Yang benar sekarang adalah pernyataan tentang DAFTAR INI, bukan
+ * tentang seluruh chain.
  */
-export const EMPTY_TITLE = "No markets yet";
+export const EMPTY_TITLE = "Nothing listed here yet";
 export const EMPTY_BODY =
-  "The curve factory is live on all four mainnets and no token has been launched through it yet, so this fills in on its own as soon as the first launch registers itself.";
+  "Markets appear here once they are launched through this site, and fill in on their own as soon as one registers.";

@@ -30,6 +30,15 @@
 .env*.local
 .env.production
 .env.staging
+# Cadangan .env apa pun.
+#
+# Pola `.env*.local` di atas TIDAK menangkap `.env.local.bak-worldid`: pola itu
+# menuntut nama berakhiran `.local`, sementara berkas cadangan menambahkan sufiks
+# SETELAHNYA. Berkas seperti itu memuat WORLD_ID_SIGNING_KEY dan
+# WORLD_ID_TOKEN_SECRET, jadi satu `git add -A` sudah cukup untuk membocorkannya.
+# Ditemukan saat menyalin konfigurasi World ID dari produksi ke lokal.
+.env.local.*
+.env*.bak*
 *.pem
 *.key
 private key
@@ -80,6 +89,8 @@ public/adexto_demo.mp4
 public/adexto_demo.webm
 public/adexto_testnet_demo.mp4
 public/adexto_testnet_demo.webm
+public/adexto_mainnet_demo.mp4
+public/adexto_mainnet_demo.webm
 public/demo-raw/
 
 # Artefak kompilasi kontrak. Dihasilkan ulang oleh
@@ -108,7 +119,15 @@ ADEXTO-RUNBOOK.md
 # `lib/forge-std` di-clone oleh setup (lihat halaman /security untuk perintahnya),
 # bukan submodule — supaya .gitmodules tidak ikut berubah dan clone repo ini tidak
 # menarik apa pun secara diam-diam.
-lib/
+#
+# GARIS MIRING DEPAN WAJIB. Pola `lib/` tanpa jangkar cocok dengan direktori bernama
+# `lib` di KEDALAMAN MANA PUN, jadi ia juga menelan `src/lib/` — 18 berkas aplikasi,
+# termasuk launch-state.ts, chains.ts, dan worldid.ts. Berkas yang sudah terlacak tidak
+# ikut hilang (aturan ignore tidak mencabut pelacakan), jadi kerusakannya tidak terlihat:
+# yang gagal adalah berkas BARU di src/lib/, dilewati diam-diam oleh `git add` lalu
+# menggagalkan build di tempat lain dengan "Module not found: Can't resolve '@/lib/...'".
+# Bug identik pernah terjadi di .rsyncignore dan sudah dibetulkan di 7b05514.
+/lib/
 # crytic-compile menulis ini saat Echidna jalan; bisa dibuat ulang kapan saja.
 crytic-export/
 # Keluaran mentah tiap mesin. `build/` sudah diabaikan, disebut di sini supaya

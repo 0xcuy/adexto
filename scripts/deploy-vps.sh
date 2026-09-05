@@ -28,7 +28,34 @@ PUBLIC_URL="${ADEXTO_PUBLIC_URL:-https://adexto.xyz}"
 SSH=(ssh -i "$KEY" -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new)
 
 echo "==> 1/4 kirim berkas ke $HOST:$REMOTE_DIR"
-rsync -rlptvz --exclude-from="$LOCAL_DIR/.rsyncignore" \
+#
+# `--delete` WAJIB, dan ketiadaannya sempat memecahkan produksi dengan cara yang
+# sulit dilihat.
+#
+# Tanpa itu rsync hanya MENAMBAH dan MENIMPA, jadi berkas yang dihapus di lokal
+# hidup terus di VPS. Akibatnya bukan sekadar sampah menumpuk:
+#
+#   1. Rute API yang sudah dihapus TETAP DISAJIKAN. Saat World ID dicabut,
+#      /api/worldid/verify masih menjawab 200 di adexto.xyz karena berkas rutenya
+#      masih ada di sana — endpoint yang sudah tidak ada di repo, masih hidup.
+#   2. Build produksi GAGAL karena berkas basi itu masih ikut dikompilasi:
+#      src/lib/worldid.ts yang tertinggal mengimpor @worldcoin/idkit-server yang
+#      sudah dicabut dari package.json, dan `npm run build` di dalam image berhenti
+#      dengan "Module not found" untuk modul yang lokal tidak butuh lagi.
+#
+# Saat flag ini ditambahkan, 45 entri basi menumpuk di VPS: rute World ID, kontrak
+# factory V3, komponen yang sudah diganti, perekam-perekam lama, logo Chainlink yang
+# sudah dicabut klaimnya, DAN lima berkas `.env.local.bak*` berisi rahasia yang
+# menganggur di dalam konteks build Docker.
+#
+# Yang membuatnya aman: rsync TIDAK menghapus berkas yang dikecualikan, jadi seluruh
+# isi .rsyncignore terlindungi — termasuk `.env.local` produksi, `data/`, `.data/`,
+# dan `build/deployments.json`. `--delete-excluded` JANGAN pernah ditambahkan; itu
+# akan menghapus justru berkas-berkas itu.
+#
+# Sebelum mengubah daftar kecualian, periksa dampaknya lebih dulu dengan:
+#   rsync -rlptvz --dry-run --delete --exclude-from=.rsyncignore ... | grep '^deleting'
+rsync -rlptvz --delete --exclude-from="$LOCAL_DIR/.rsyncignore" \
   -e "ssh -i $KEY -o ConnectTimeout=20" \
   "$LOCAL_DIR/" "$HOST:$REMOTE_DIR/" | tail -3
 

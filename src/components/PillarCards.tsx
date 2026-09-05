@@ -119,8 +119,10 @@ const PILLARS: Pillar[] = [
     //   "ERC-8004": AdextoToken hanya menyimpan satu `address immutable agentIdentity`.
     //   Tidak ada supportsInterface, tidak ada registry identitas/reputasi/validasi
     //   seperti yang ditetapkan standar itu, jadi kepatuhannya tidak bisa ditunjukkan.
-    //   "1-Click": peluncuran menuntut sambung dompet, tanda tangan attestation, proof
-    //   World ID, lalu satu transaksi PER chain.
+    //   "1-Click": peluncuran menuntut sambung dompet, tanda tangan attestation, lalu
+    //   satu transaksi PER chain. (Langkah proof World ID sudah tidak ada — gerbangnya
+    //   dicabut — tapi "1-Click" tetap salah karena sisa langkahnya masih lebih dari
+    //   satu, dan tiap chain punya transaksinya sendiri.)
     //   "transfer hook is bound to one immutable agent address" salah menyebut apa yang
     //   mengikat apa: `_update` mengecualikan `_launcher` (factory) supaya seeding 100%
     //   supply ke kurva lolos batas 1%; `agentIdentity` tidak muncul di jalur transfer

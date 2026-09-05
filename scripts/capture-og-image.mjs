@@ -5,15 +5,13 @@
  *
  * Aplikasi ini sama sekali tidak punya metadata `openGraph`, jadi setiap tautan
  * yang dibagikan ke X, Discord, atau Telegram muncul sebagai pratinjau kosong.
- * Developer Portal World ID juga meminta "Meta tag image" untuk keperluan yang
- * sama persis, jadi satu desain melayani keduanya.
  *
- * KENAPA DUA UKURAN
+ * KENAPA SEKARANG SATU UKURAN
  *
- * Portal menuntut tepat 1113x557 (rasio 2:1). Pratinjau tautan di web memakai
- * 1200x630 (1,91:1). Keduanya dibuat dari desain yang sama, dan ukuran huruf
- * diskalakan dari lebar supaya proporsinya tetap — bukan dipotong, karena
- * memotong akan memakan barisan fakta di bawah.
+ * Dulu ada dua: 1113x557 untuk Developer Portal World ID dan 1200x630 untuk
+ * pratinjau tautan web. Integrasi World ID sudah dicabut, jadi target portal ikut
+ * hilang bersama seluruh public/showcase/. Ukuran huruf tetap diskalakan dari lebar
+ * — bukan dipotong, karena memotong akan memakan barisan fakta di bawah.
  *
  * Font Geist DISEMATKAN dari node_modules, bukan diambil dari jaringan, supaya
  * kartunya identik dengan tipografi situs dan tetap bisa dibuat tanpa internet.
@@ -25,13 +23,14 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const ROOT = process.cwd();
-const SHOWCASE_DIR = path.join(ROOT, "public", "showcase");
-/** Batas unggah portal. Diperiksa di sini, bukan diserahkan ke penolakan unggahan. */
+/**
+ * Batas ukuran berkas. Dulu ini batas unggah Developer Portal; dipertahankan karena
+ * pengurai pratinjau tautan juga menyerah pada gambar besar, dan 500 KB masih jauh
+ * di atas apa yang dibutuhkan kartu sesederhana ini.
+ */
 const MAX_KB = 500;
 
 const TARGETS = [
-  // Ukuran yang diminta Developer Portal, harus persis.
-  { width: 1113, height: 557, out: path.join(SHOWCASE_DIR, "meta-og-1113x557.png"), label: "portal World ID" },
   // Standar pratinjau tautan web, dipakai metadata situs.
   { width: 1200, height: 630, out: path.join(ROOT, "public", "og.png"), label: "metadata situs" },
 ];
@@ -101,9 +100,14 @@ const buildHtml = (width, height) => {
     <h1>Launch an AI agent token<br/>with <em>no liquidity deposit</em>. Gas only.</h1>
 
     <div class="facts">
+      <!-- Fakta ketiga dulu "World ID verified humans". Gerbangnya dicabut, jadi
+           klaim itu harus keluar DARI GAMBARNYA, bukan cuma dari teks halaman:
+           og.png ikut tersalin ke cache pratinjau X/Discord/Telegram, dan gambar
+           tidak bisa dibantah oleh pembaca yang cuma melihat kartunya. Penggantinya
+           adalah jumlah mainnet, yang bisa diverifikasi lewat alamat factory. -->
       <div class="fact"><b>100%</b> of supply in the curve</div>
       <div class="fact"><b>0.10%</b> of every swap to the creator</div>
-      <div class="fact"><b>World ID</b> verified humans</div>
+      <div class="fact"><b>4</b> mainnets, one transaction each</div>
     </div>
 
     <div class="foot">
@@ -114,7 +118,9 @@ const buildHtml = (width, height) => {
 </body></html>`;
 };
 
-fs.mkdirSync(SHOWCASE_DIR, { recursive: true });
+// public/ sudah pasti ada di repo ini, tapi dibuat kalau-kalau skrip dipanggil dari
+// checkout yang bersih sebelum ada aset lain.
+fs.mkdirSync(path.join(ROOT, "public"), { recursive: true });
 const browser = await chromium.launch();
 /** Dipisah supaya pesan galatnya menunjuk sebab yang benar. */
 let over = 0; // melewati batas ukuran berkas

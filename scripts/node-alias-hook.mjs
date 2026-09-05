@@ -1,10 +1,10 @@
 /**
  * Membuat alias `@/` milik TypeScript bisa dipakai Node langsung.
  *
- * Berguna untuk menguji lib SERVER tanpa melewati HTTP. Sebagian aturan hanya
- * bisa dibuktikan dengan memanggil fungsinya: kuota World ID, misalnya, baru
- * terisi di tahap confirm yang menuntut transaksi on-chain — jadi harness HTTP
- * memeriksanya pada keadaan kosong dan lolos secara palsu.
+ * Berguna untuk menguji lib SERVER tanpa melewati HTTP. Sebagian aturan hanya bisa
+ * dibuktikan dengan memanggil fungsinya langsung: `checkSymbolAvailable`, misalnya,
+ * bergantung pada isi registry, jadi harness HTTP yang menembaknya pada registry
+ * kosong akan lolos secara palsu.
  *
  * Node tidak membaca `paths` dari tsconfig, jadi `@/lib/x` diterjemahkan di sini
  * ke `<root>/src/lib/x.ts`.

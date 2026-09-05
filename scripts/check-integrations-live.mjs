@@ -1,8 +1,10 @@
 /**
  * Pemeriksaan read-only: integrasi mana yang benar-benar ada di mainnet?
  *
- * Dibuat untuk menjawab "Uniswap, CCIP, dan World ID aktif atau tidak?" dengan
- * bukti, bukan ingatan. Murni `eth_getCode`, jadi tanpa biaya sama sekali.
+ * Dibuat untuk menjawab "Uniswap dan CCIP aktif atau tidak?" dengan bukti, bukan
+ * ingatan. Murni `eth_getCode`, jadi tanpa biaya sama sekali. (World ID dulu ikut
+ * ditanyakan di sini; ia tidak pernah punya kontrak untuk diperiksa, dan sekarang
+ * integrasinya dicabut sepenuhnya.)
  *
  * Pakai: node --experimental-strip-types scripts/check-integrations-live.mjs
  *

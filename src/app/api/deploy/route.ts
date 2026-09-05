@@ -6,7 +6,6 @@ import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
 import { checkSymbolAvailable, findProjectGroup, registerProject, listProjects } from "@/lib/registry";
 import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
-import { recordLaunch, verifyWorldIdToken, worldIdConfig } from "@/lib/worldid";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
 /**
@@ -111,30 +110,17 @@ async function handlePrepare(body: any) {
   if (!name) return NextResponse.json({ error: "Token name is required." }, { status: 400 });
   if (supply <= 0) return NextResponse.json({ error: "Supply must be greater than zero." }, { status: 400 });
 
-  // Lapis pertama: tanda tangan wallet, terikat ke deployer yang diklaim, dan
-  // diverifikasi di sini — bukan boolean di sisi klien seperti flag
-  // "World ID verified" yang lama.
+  // Tanda tangan wallet, terikat ke deployer yang diklaim, dan diverifikasi di
+  // sini — bukan boolean di sisi klien. Inilah satu-satunya gerbang endpoint ini.
+  //
+  // Yang dibuktikannya: pemanggil mengendalikan alamat yang diklaimnya. Yang TIDAK
+  // dibuktikannya: bahwa pemanggil orang yang berbeda dari pemanggil sebelumnya —
+  // alamat baru bisa dibuat tanpa batas dan tanpa biaya. Gerbang proof-of-personhood
+  // dulu dimaksudkan menutup celah itu dan sudah DICABUT; lihat catatan pada
+  // `verifyLaunchAttestation` untuk apa yang sebenarnya masih membatasi spam.
   const attestation = verifyLaunchAttestation(body);
   if (!attestation.ok) {
     return NextResponse.json({ error: attestation.error, code: "ATTESTATION_INVALID" }, { status: 401 });
-  }
-
-  // Lapis kedua: proof World ID. Tanda tangan wallet hanya membuktikan kendali
-  // atas SEBUAH alamat, dan alamat baru bisa dibuat tanpa batas, jadi lapis
-  // pertama sendirian bukan hambatan Sybil. Gerbang ini menyala hanya bila World
-  // ID dikonfigurasi; kalau tidak, perilaku lama dipertahankan dan UI menyatakan
-  // apa adanya.
-  //
-  // Wajib diperiksa DI SINI, bukan cuma di UI: tanpa ini penyerang tinggal
-  // memanggil endpoint ini langsung dan melewati widget sepenuhnya.
-  const worldId = worldIdConfig();
-  let worldIdNullifier: string | null = null;
-  if (worldId.enabled) {
-    const check = verifyWorldIdToken(String(body.worldIdToken || ""), attestation.signer);
-    if (!check.ok) {
-      return NextResponse.json({ error: check.error, code: check.code }, { status: 401 });
-    }
-    worldIdNullifier = check.nullifier;
   }
 
   const requested: string[] = Array.isArray(body.targetChains) && body.targetChains.length > 0
@@ -301,9 +287,10 @@ async function handlePrepare(body: any) {
     stage: "prepare",
     symbol,
     // Dilaporkan supaya klien (dan harness) bisa memastikan gerbang mana yang
-    // benar-benar dilewati, bukan menebak dari copy UI.
-    sybilGate: worldId.enabled ? "world-id-zkp" : "wallet-signature-only",
-    worldIdNullifierPrefix: worldIdNullifier ? `${worldIdNullifier.slice(0, 10)}…` : null,
+    // benar-benar dilewati, bukan menebak dari copy UI. Nilainya kini konstan
+    // karena hanya ada satu gerbang; dipertahankan supaya klien lama tidak
+    // membaca `undefined` dan menyimpulkan ada gerbang yang lebih kuat.
+    sybilGate: "wallet-signature-only",
     attestationRoot: storageRoot,
     daStorageTx: storage.tx ?? null,
     daStorageOk: storage.ok,
@@ -379,9 +366,17 @@ type AttestationResult = { ok: true; signer: string } | { ok: false; error: stri
  * Verify that whoever is launching controls the address they claim.
  *
  * Ini sengaja disebut attestation ALAMAT: ia membuktikan kendali atas sebuah
- * alamat, bukan keunikan manusia. Lapisan anti-Sybil-nya terpisah, lewat proof
- * World ID di `src/lib/worldid.ts`, dan menyala begitu
- * NEXT_PUBLIC_WORLD_ID_APP_ID serta NEXT_PUBLIC_WORLD_ID_ACTION terisi.
+ * alamat, bukan keunikan manusia. Tidak ada lapisan anti-Sybil di belakangnya —
+ * gerbang World ID sudah dicabut, jadi satu orang boleh meluncurkan berapa pun
+ * ticker dari berapa pun alamat. Jangan menulis copy yang menyiratkan sebaliknya.
+ *
+ * Yang tetap membatasi penyalahgunaan, dan sengaja tidak diganti dengan gerbang
+ * identitas:
+ *   - `checkSymbolAvailable` — satu ticker satu pemilik per chain, jadi spam tidak
+ *     bisa merebut nama yang sudah dipakai.
+ *   - biaya gas nyata — stage confirm menuntut receipt tx yang SUDAH mined beserta
+ *     event factory-nya, jadi setiap entri registry berharga gas di mainnet.
+ * Batas itu ekonomis, bukan identitas, dan itu memang klaim yang bisa kami dukung.
  */
 function verifyLaunchAttestation(body: any): AttestationResult {
   const signature = String(body.attestationSignature || "");
@@ -428,29 +423,6 @@ async function handleConfirm(body: any) {
   if (!chain) return NextResponse.json({ error: "Unknown chainId." }, { status: 400 });
 
   const symbol = String(body.symbol || "").trim().toUpperCase();
-
-  // Gerbang World ID ditegakkan di TAHAP INI JUGA, bukan hanya di prepare.
-  // Tahap inilah yang menulis ke registry, dan ia bisa dipanggil langsung tanpa
-  // pernah melewati prepare — jadi memeriksa hanya di prepare menyisakan pintu
-  // samping yang lebar.
-  const worldId = worldIdConfig();
-  let confirmedNullifier: string | null = null;
-  if (worldId.enabled) {
-    const claimant = /^0x[a-fA-F0-9]{40}$/.test(String(body.creator || "")) ? String(body.creator) : "";
-    if (!claimant) {
-      return NextResponse.json(
-        { error: "A creator address is required while the World ID gate is active.", code: "BAD_ADDRESS" },
-        { status: 400 }
-      );
-    }
-    // Ticker diteruskan supaya mode ketat mengizinkan chain ke-2..4 dari
-    // peluncuran YANG SAMA, dan hanya menolak ticker baru.
-    const check = verifyWorldIdToken(String(body.worldIdToken || ""), claimant, symbol);
-    if (!check.ok) {
-      return NextResponse.json({ error: check.error, code: check.code }, { status: 401 });
-    }
-    confirmedNullifier = check.nullifier;
-  }
 
   // Scoped to this chain, so chains 2..4 of a multi-chain launch are not rejected
   // as duplicates of chain 1.
@@ -571,17 +543,12 @@ async function handleConfirm(body: any) {
     poolLive,
   });
 
-  // Kuota dicatat SETELAH launch benar-benar terdaftar, bukan saat verifikasi.
-  // Kalau dicatat lebih awal, percobaan yang gagal — tx revert, RPC putus —
-  // akan menghanguskan hak launch seseorang tanpa dia mendapat apa pun.
-  if (confirmedNullifier) recordLaunch(confirmedNullifier, symbol);
-
   const siblings = findProjectGroup(symbol).filter((p) => p.chainId !== chain.chainId);
 
   return NextResponse.json({
     success: true,
     stage: "confirm",
-    sybilGate: worldId.enabled ? "world-id-zkp" : "wallet-signature-only",
+    sybilGate: "wallet-signature-only",
     message: `${symbol} verified on ${chain.name} and registered.`,
     project: record,
     alsoOn: siblings.map((p) => ({

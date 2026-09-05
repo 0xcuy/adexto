@@ -22,9 +22,10 @@ export default function WhitepaperPage() {
         <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-white p-4 rounded-xl border border-line">
           {/* Abstrak lama menyebut "1-Click Token Launchpads" dan "backed by 0G
               Private Computer (TEE)". Peluncuran menuntut sambung dompet, tanda
-              tangan attestation, proof World ID, lalu satu transaksi per chain —
-              bukan satu klik. Dan bagian TEE-nya adalah klaim 0G yang tidak kami
-              verifikasi. */}
+              tangan attestation, lalu satu transaksi per chain — bukan satu klik.
+              (Dulu ada langkah proof World ID di antaranya; gerbangnya sudah
+              dicabut, jadi langkahnya dihapus dari daftar ini juga.) Dan bagian
+              TEE-nya adalah klaim 0G yang tidak kami verifikasi. */}
           <strong className="text-accent">Abstract:</strong> ADEXTO (adexto.xyz) deploys, in one transaction
           per chain, an agent-bound ERC-20 and a bonding curve that opens against a virtual reserve — so a
           launch costs gas and nothing else, and 100% of supply is tradable immediately. The creator receives no

@@ -62,13 +62,10 @@ async function recordCrispDemo() {
   await page.getByText("⚡ All (Omnichain)").first().click();
   await page.waitForTimeout(1000);
 
-  // Click World ID Anti-Sybil Gate
-  console.log("📹 Verifying World ID...");
-  const worldIdBtn = page.getByRole("button", { name: /Verify with World ID/i });
-  if (await worldIdBtn.isVisible()) {
-    await worldIdBtn.click();
-    await page.waitForTimeout(1200);
-  }
+  // Blok gerbang World ID dihapus: gerbangnya dicabut, tombolnya tidak ada lagi.
+  // (Perekam ini memang sudah usang — ia juga masih mengklik "⚡ All (Omnichain)"
+  // yang hilang sejak studio jadi single-select. Yang menggantikannya adalah
+  // record_demo_testnet.mjs.)
 
   // AI Co-Pilot chat prompt in Studio
   const studioAiChat = page.getByPlaceholder(/Ask 0G/i);

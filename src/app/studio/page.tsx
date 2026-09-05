@@ -7,7 +7,6 @@ import {
   Cpu, RefreshCw, Sparkles, ShieldCheck, Send, Bot, ChevronDown,
   Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets, Fingerprint,
 } from "lucide-react";
-import dynamic from "next/dynamic";
 
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
@@ -17,13 +16,6 @@ import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
-
-/**
- * `@worldcoin/idkit` menarik Tailwind sebagai dependensi runtime, jadi ia dimuat
- * dinamis dan tanpa SSR: chunk-nya baru diunduh ketika gerbang World ID memang
- * menyala di deployment ini.
- */
-const WorldIdVerifyButton = dynamic(() => import("@/components/WorldIdVerifyButton"), { ssr: false });
 
 /**
  * Launch console.
@@ -42,6 +34,19 @@ const WorldIdVerifyButton = dynamic(() => import("@/components/WorldIdVerifyButt
  *   4. The "World ID Proof of Humanity" gate was a plain `personal_sign` with no
  *      server verification. It is now labelled as address attestation and the
  *      signature is verified server-side.
+ *
+ * GERBANG PROOF-OF-PERSONHOOD SUDAH DICABUT
+ *
+ * Pernah ada lapis kedua World ID di sini. Ia dicabut karena menuntut verifikasi Orb
+ * untuk lewat, dan itu berarti hampir semua calon pengguna — termasuk pemilik proyek
+ * ini — terkunci di luar konsol peluncurannya sendiri. Gerbang yang tidak bisa dilewati
+ * siapa pun bukan keamanan, itu halaman mati.
+ *
+ * Yang HARUS diingat kalau ada yang tergoda memasangnya kembali: `deployTrinity` di
+ * factory tidak punya access control sama sekali, jadi gerbang apa pun di sini hanya
+ * menjaga PENDAFTARAN di registry situs, bukan peluncuran on-chain. Siapa pun selalu
+ * bisa memanggil factory langsung. Karena itu jangan pernah menulis copy yang
+ * menyatakan setiap kreator adalah orang yang terverifikasi berbeda.
  */
 
 type DeployStatus = "pending" | "signing" | "confirming" | "registering" | "success" | "failed" | "skipped";
@@ -133,23 +138,6 @@ export default function StudioPage() {
   /** Streamed to the creator on every swap — the reason no free token allocation is needed. */
   const [creatorCut, setCreatorCut] = useState(0.1);
   const [treasuryCut, setTreasuryCut] = useState(0.05);
-  /**
-   * Gerbang World ID.
-   *
-   * `gate` diambil dari server, bukan dari `process.env` di klien, supaya UI tidak
-   * pernah menawarkan verifikasi yang tidak bisa diselesaikan — dan tidak pernah
-   * mengklaim proteksi yang sebenarnya mati. Tokennya diterbitkan server setelah
-   * proof lolos; nilainya ikut dikirim di tahap prepare MAUPUN confirm.
-   */
-  const [worldIdGate, setWorldIdGate] = useState<{
-    enabled: boolean;
-    appId: string | null;
-    action: string | null;
-    allowLegacyProofs?: boolean;
-  } | null>(null);
-  const [worldIdToken, setWorldIdToken] = useState<string | null>(null);
-  const [worldIdError, setWorldIdError] = useState<string | null>(null);
-  const [worldIdBusy, setWorldIdBusy] = useState(false);
   /** Harga native USD, untuk menampilkan market cap buka yang sama di tiap chain. */
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
@@ -271,61 +259,6 @@ export default function StudioPage() {
       alive = false;
     };
   }, []);
-
-  // Status gerbang dibaca dari server sekali per muat halaman.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/worldid/verify")
-      .then((r) => r.json())
-      .then((d) => {
-        if (alive)
-          setWorldIdGate({
-            enabled: Boolean(d?.enabled),
-            appId: d?.appId ?? null,
-            action: d?.action ?? null,
-            allowLegacyProofs: Boolean(d?.allowLegacyProofs),
-          });
-      })
-      .catch(() => {
-        // Gagal membaca status BUKAN alasan untuk menganggap gerbang mati; itu
-        // akan menyembunyikan tombol verifikasi padahal server tetap menolak
-        // launch. Dibiarkan null sehingga UI menampilkan keadaan "memeriksa".
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // Token World ID terikat ke alamat, jadi ganti akun membatalkannya — sama
-  // seperti attestation di atas.
-  useEffect(() => {
-    setWorldIdToken(null);
-    setWorldIdError(null);
-  }, [address]);
-
-  /** Kirim proof dari IDKit ke server; hanya server yang boleh memutuskan sah atau tidak. */
-  const submitWorldIdProof = useCallback(
-    async (proof: unknown) => {
-      setWorldIdBusy(true);
-      setWorldIdError(null);
-      try {
-        const res = await fetch("/api/worldid/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, payload: proof }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.token) throw new Error(data?.error || `verification failed (${res.status})`);
-        setWorldIdToken(data.token);
-      } catch (error) {
-        setWorldIdToken(null);
-        setWorldIdError((error as Error).message);
-      } finally {
-        setWorldIdBusy(false);
-      }
-    },
-    [address]
-  );
 
   // ── ticker availability, evaluated per selected chain ────────────────────
   // A multi-chain launch needs per-chain availability: the same creator extending
@@ -599,7 +532,6 @@ export default function StudioPage() {
           targetChains: chains.map((c) => c.chainId),
           attestationSignature: attestation.signature,
           attestationMessage: attestation.message,
-          worldIdToken,
         }),
       });
       const data = await res.json();
@@ -685,7 +617,10 @@ export default function StudioPage() {
             const candidate = new ethers.Contract(chain.curveFactoryAddress as string, CURVE_FACTORY_ABI, signer);
 
             // Simulate first: a revert here costs nothing and gives the real reason.
-            updateResult(chain.chainId, { message: "Simulating launch…" });
+            // Sama seperti di use-sovereign-swap: yang ditulis TUJUANNYA, bukan nama
+            // tekniknya. "Simulating launch…" terbaca seperti peluncuran pura-pura,
+            // padahal yang terjadi adalah pemeriksaan agar revert tidak membuang gas.
+            updateResult(chain.chainId, { message: "Checking the launch would succeed…" });
             await candidate.deployTrinity.staticCall(...argsFor(chain));
             factory = candidate;
           } catch (error) {
@@ -752,7 +687,6 @@ export default function StudioPage() {
             attestationRoot,
             daStorageTx,
             targetChainIds: chains.map((c) => c.chainId),
-            worldIdToken,
           }),
         });
         const confirmData = await confirmRes.json();
@@ -860,10 +794,7 @@ export default function StudioPage() {
   const skippedTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && blockedChainIds.has(c.chainId));
 
   // No seed to validate any more: a launch needs supply, a signed attestation and
-  // at least one chain that is not already using this ticker. Bila gerbang World ID
-  // menyala, proof-nya juga wajib — dan server menolak launch tanpa itu, jadi
-  // mengunci tombol di sini hanya supaya kegagalannya tidak mengejutkan.
-  const worldIdSatisfied = !worldIdGate?.enabled || Boolean(worldIdToken);
+  // at least one chain that is not already using this ticker.
   /**
    * When agent binding is switched on, the id has to be one the wallet actually
    * owns. The factory enforces it, so this only decides whether the button lets the
@@ -878,7 +809,6 @@ export default function StudioPage() {
   const canDeploy =
     isConnected &&
     Boolean(attestation) &&
-    worldIdSatisfied &&
     agentBindingSatisfied &&
     supplyNumber > 0 &&
     liveChains.length > 0 &&
@@ -979,7 +909,7 @@ export default function StudioPage() {
                   },
                   { id: "step-curve", label: "Curve", done: totalSwapFee > 0 },
                   { id: "step-agent", label: "Agent", done: Boolean(agentPersona.trim()) },
-                  { id: "step-verify", label: "Verify", done: Boolean(attestation) && worldIdSatisfied },
+                  { id: "step-verify", label: "Verify", done: Boolean(attestation) },
                 ]}
               />
 
@@ -1438,84 +1368,25 @@ export default function StudioPage() {
                       jadi tanpa pembungkus ini setiap potongan teks, <strong>, dan <code>
                       menjadi item flex tersendiri dan tersusun MENYAMPING — kalimatnya
                       terbaca menyilang antar kolom. */}
+                  {/* Kalimat lama: "…not that you are a distinct person. Wallets are free
+                      to create, so Sybil resistance is a separate step below." Dua hal salah
+                      begitu gerbangnya dicabut. Pertama, "distinct person" kini frasa terlarang
+                      di audit_claims. Kedua, dan ini lebih buruk: TIDAK ADA lagi langkah di
+                      bawah, jadi kalimat itu menunjuk panel yang sudah dihapus dan menjanjikan
+                      lapisan yang tidak ada. Penggantinya menyatakan batasnya apa adanya. */}
                   <span>
-                    This proves control of an address, not that you are a distinct person. Wallets are free to create, so
-                    Sybil resistance is a separate step below.
+                    This proves control of an address, nothing more. Addresses cost nothing to create, so this is not a
+                    Sybil barrier — what limits a launch is ticker uniqueness per chain and the gas it costs, not
+                    identity.
                   </span>
                 </p>
               </div>
 
-              {/* World ID — lapisan anti-Sybil yang sebenarnya */}
-              <div className="p-3 rounded-xl bg-white border border-line space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Fingerprint
-                      className={`w-5 h-5 shrink-0 ${worldIdToken ? "text-ok" : worldIdGate?.enabled ? "text-ink-soft" : "text-ink-faint"}`}
-                    />
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-ink flex items-center gap-1.5 flex-wrap">
-                        <span>World ID proof of personhood</span>
-                        {worldIdToken && (
-                          <span className="text-[10px] px-1.5 rounded bg-ok/10 text-ok border border-ok/30">
-                            VERIFIED
-                          </span>
-                        )}
-                        {worldIdGate && !worldIdGate.enabled && (
-                          <span className="text-[10px] px-1.5 rounded bg-warn/10 text-warn border border-warn/30">
-                            NOT CONFIGURED
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-ink-soft">
-                        {worldIdGate === null
-                          ? "Checking whether this deployment enforces World ID…"
-                          : worldIdGate.enabled
-                          ? "Zero-knowledge proof verified server-side, then bound to this wallet"
-                          : "This deployment has no World ID app configured, so the launch gate is the wallet signature alone"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {worldIdGate?.enabled && worldIdGate.appId && worldIdGate.action && !worldIdToken && (
-                    <WorldIdVerifyButton
-                      appId={worldIdGate.appId}
-                      action={worldIdGate.action}
-                      allowLegacyProofs={worldIdGate.allowLegacyProofs}
-                      busy={worldIdBusy}
-                      disabled={!isConnected}
-                      onProof={submitWorldIdProof}
-                    />
-                  )}
-                  {worldIdToken && (
-                    <span className="text-ok text-xs font-bold flex items-center gap-1 shrink-0">
-                      <CheckCircle2 className="w-4 h-4" /> Unique
-                    </span>
-                  )}
-                </div>
-
-                {worldIdError && (
-                  <p className="text-[10px] text-danger flex items-start gap-1.5 pt-1 border-t border-line">
-                    <XCircle className="w-3 h-3 mt-0.5 shrink-0" />
-                    <span>{worldIdError}</span>
-                  </p>
-                )}
-
-                {worldIdGate?.enabled && (
-                  <p className="text-[10px] text-ink-faint flex items-start gap-1.5 pt-1 border-t border-line">
-                    <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                    {/* Aturan satu-peluncuran ditegakkan oleh World sendiri lewat
-                        `max_verifications` pada action, bukan oleh kode kita. Dinyatakan
-                        di sini supaya creator tahu sebelum mencoba, bukan menemukannya
-                        sebagai pesan error setelah bolak-balik ke World App. */}
-                    <span>
-                      The proof is checked by the server, never trusted from the browser, and its nullifier is bound to
-                      this wallet — so one person cannot farm fresh wallets to launch repeatedly. Each verified person
-                      gets one launch, across as many chains as they select.
-                    </span>
-                  </p>
-                )}
-
-              </div>
+              {/* Panel World ID dulu di sini. Dicabut bersama gerbangnya — lihat catatan
+                  di kepala berkas. Tidak diganti dengan panel "identity: none": kotak
+                  yang mengumumkan ketiadaan fitur hanya menambah bising, dan yang
+                  benar-benar mengikat launch — attestation wallet — sudah punya panelnya
+                  sendiri persis di atas. */}
               </div>
               {/* ↑ tutup #step-verify */}
 

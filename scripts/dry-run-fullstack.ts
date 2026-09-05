@@ -87,12 +87,21 @@ async function dryRunFullStack() {
   // 4. Test 0G DA Storage Attestation
   console.log("\n🔹 4. 0G DA Storage Attestation Verification...");
   const { uploadMetadataTo0G } = await import("../src/lib/upload-metadata-0g");
+  /**
+   * Payload ini DITAMBATKAN PERMANEN ke 0G DA, jadi isinya diperlakukan seperti copy
+   * yang dipublikasikan, bukan sekadar data uji.
+   *
+   * Dulu ia memuat `ccip: "Active"` dan `worldId: "Verified"`. Keduanya tidak benar —
+   * CCIP dicabut karena tidak ada jalur keluar nilai dari kurva, dan gerbang World ID
+   * dicabut seluruhnya. Menambatkan klaim palsu ke penyimpanan yang tidak bisa dihapus
+   * adalah bentuk terburuknya: tidak ada cara menariknya kembali.
+   *
+   * Yang ditulis sekarang hanya fakta tentang uji ini sendiri.
+   */
   const testPayload = {
     test: true,
     protocol: "ADEXTO Protocol (adexto.xyz)",
-    ccip: "Active",
-    subgraph: "Active",
-    worldId: "Verified",
+    purpose: "dry-run write probe for 0G DA",
     timestamp: new Date().toISOString(),
   };
   const daResult = await uploadMetadataTo0G(testPayload, "adexto_fullstack_test.json");

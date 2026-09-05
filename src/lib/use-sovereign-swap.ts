@@ -261,7 +261,17 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         const ethereum = getActiveEip1193();
         if (!ethereum) throw new Error("No wallet available. Connect a wallet first.");
         if (mode === "buy") {
-          setStatusLine(`Simulating buy on ${chain.name}…`);
+          /**
+           * Kalimatnya dulu "Simulating buy on 0G Mainnet…", dan itu salah bukan
+           * karena tidak akurat — melainkan karena dibaca sebagai hal lain.
+           *
+           * Yang terjadi memang `staticCall` sebelum menandatangani, supaya trade yang
+           * akan revert tidak membuang gas. Perilakunya benar dan dipertahankan. Tapi
+           * di UI trading mainnet, kata "Simulating" terbaca "ini bukan transaksi
+           * nyata" — pembaca pertama yang melihatnya langsung menyimpulkan pasarnya
+           * palsu. Jadi yang ditulis sekarang TUJUANNYA, bukan nama tekniknya.
+           */
+          setStatusLine(`Checking this trade would succeed on ${chain.name}…`);
           const result = await executeBuy({
             ethereum,
             chain,

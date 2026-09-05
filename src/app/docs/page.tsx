@@ -19,14 +19,16 @@ export default async function DocsPage() {
         <h1 className="text-3xl sm:text-4xl font-semibold text-ink">Technical status, component by component</h1>
         {/* Aturan header: apa pun yang disebut di sini harus cocok dengan seksi
             "status jujur" di bawah. Header yang membantah isi halamannya sendiri
-            lebih merusak kepercayaan daripada daftar yang lebih pendek. World ID
-            naik ke daftar "live" begitu gerbangnya menyala; jembatan lintas-chain
-            turun dari halaman ini sepenuhnya, bukan cuma ditandai belum aktif. */}
+            lebih merusak kepercayaan daripada daftar yang lebih pendek. Jembatan
+            lintas-chain turun dari halaman ini sepenuhnya, bukan cuma ditandai
+            belum aktif — dan gerbang World ID mengikuti jalan yang sama setelah
+            dicabut, karena "ada tapi mati" adalah keadaan yang paling mudah
+            disalahbaca pembaca. */}
         {/* "Not live: the mainnet launch factory" berhenti benar saat 0.10.0
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, the World ID launch gate, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -44,14 +46,24 @@ export default async function DocsPage() {
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">World ID proof of personhood</strong>
+            {/* Kartu ini dulu mengklaim proof-of-personhood World ID. Gerbangnya
+                dicabut, dan penggantinya sengaja menyatakan BATASNYA, bukan cuma
+                fiturnya — pembaca yang bertanya "apa yang menahan spam" berhak
+                mendapat jawaban yang tidak melebihkan. */}
+            <strong className="text-accent block font-bold text-sm">Launch gate: wallet attestation</strong>
             <p className="text-ink-soft">
-              Launching requires a <strong>World ID 4.0</strong> zero-knowledge proof, verified <strong>server-side</strong>{" "}
-              and bound to the launching wallet by its nullifier, so one person cannot farm fresh wallets to launch
-              repeatedly. The wallet signature proves address control; this proves personhood. Every proof request is signed
-              by our backend with the registered RP key, so nobody else can borrow this app&apos;s identity to harvest
-              verifications elsewhere. Where the gate is not configured, the studio says so plainly instead of implying
-              protection it does not have.
+              A launch requires an <strong>EIP-191 signature</strong> verified <strong>server-side</strong>, so the
+              address credited as creator is one the caller provably controls — not a boolean sent from the browser.
+              {/* Kalimat ini SENGAJA tidak memakai kosakata identitas yang dilarang
+                  audit_claims. Larangannya cocok substring, jadi menyangkal klaim
+                  dengan kata yang sama tetap memicunya. Penjaganya tidak dilemahkan
+                  untuk halaman ini — pengecualian sekali berarti pengecualian
+                  selamanya — jadi kalimatnya yang diganti kata. */}
+              There is <strong>no identity check at all</strong>: the same operator may launch any number of tickers
+              from any number of addresses. What limits abuse is economic, not identity — a ticker belongs to one owner
+              per chain, and registration only happens after a mined transaction, so every listing costs real gas. Note too
+              that <code className="text-accent">deployTrinity</code> has no access control, so this gate governs
+              listing on this site, never the on-chain launch itself.
             </p>
           </div>
 
@@ -106,8 +118,10 @@ export default async function DocsPage() {
             {/* 1inch dipindahkan ke sini. Sebelumnya "1inch Fusion & AMM Routing"
                 terdaftar sebagai lapisan infrastruktur yang berjalan, padahal string
                 "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
-                hanya di halaman ini. World ID sudah keluar dari daftar ini karena
-                kini benar-benar terpasang. */}
+                hanya di halaman ini. World ID pernah singgah di daftar ini, lalu naik
+                ke "live" saat gerbangnya menyala, dan sekarang hilang dari halaman
+                sepenuhnya karena gerbangnya dicabut — bukan turun lagi ke "planned",
+                sebab tidak ada rencana memasangnya kembali. */}
             {/* Klaim lintas-chain dicabut, bukan diperhalus. Alasannya struktural dan
                 ada di paragraf di bawah: buyback memindahkan nilai antar dua bucket di
                 DALAM satu kontrak, jadi tidak ada nilai yang bisa dikirim ke chain lain
