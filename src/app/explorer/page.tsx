@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
 import { CHAIN_LIST, explorerAddressUrl, resolveChainOrDefault } from "@/lib/chains";
 import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
 import {
@@ -414,9 +413,17 @@ export default function ExplorerPage() {
         </div>
       )}
 
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8 mt-12">
-        <VerifiedDeploymentCard />
-      </div>
+      {/* `VerifiedDeploymentCard` DICABUT dari halaman ini.
+          Halaman ini adalah indeks pasar. Selama registry kosong, keadaan kosongnya
+          sudah punya satu ajakan — "See which contracts are deployed" yang menuju
+          /docs — lalu kartu registry alamat dipasang persis di bawahnya. Jadi halaman
+          menyuruh pembaca pergi ke /docs untuk melihat kontrak, sambil menampilkan
+          kontraknya di tempat: salah satu dari keduanya pasti mubazir.
+
+          Kartunya tetap hidup di /docs (status teknis komponen demi komponen) dan
+          /pitch (pembaca yang mau memeriksa alamat sendiri). Dengan tabel di README,
+          daftar yang sama tadinya ada di EMPAT tempat, dan tiap salinan adalah satu
+          tempat lagi yang bisa basi sendiri — persis yang terjadi pada captionnya. */}
     </div>
   );
 }

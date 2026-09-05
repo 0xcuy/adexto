@@ -159,11 +159,24 @@ export default function VerifiedDeploymentCard() {
             <h2 className="text-xl sm:text-2xl font-semibold text-ink flex items-center gap-2">
               <span>Deployed contract registry</span>
             </h2>
+            {/* Kalimat ini dulu berbunyi "Addresses below are the v1 generation".
+                Itu SALAH sejak tabelnya sendiri diperbaiki: empat baris teratas adalah
+                AdextoCurveFactory v0.10.0 — justru generasi yang dipakai. Tabelnya
+                dibetulkan (lihat komentar di atas `records`), captionnya tidak, jadi
+                selama itu caption ini mendeskripsikan tabel versi LAMA tepat di atas
+                tabel barunya.
+
+                Sekarang caption tidak lagi mengklaim generasi untuk SELURUH daftar.
+                Generasi adalah urusan kolom "Gen", satu badge per baris, karena di situ
+                ia tidak bisa berbeda dari baris yang dijelaskannya. */}
             <p className="text-xs sm:text-sm text-ink-soft mt-1">
-              Addresses below are the <strong className="text-ink">v1</strong> generation, deployed and verifiable on
-              each chain. The executable <code className="text-accent">AdextoCurveFactory</code> is now live on all
-              four mainnets, so launching is enabled — but {LAUNCH_CLAUSE}, which is why there is still nothing
-              to trade.
+              Every address here is deployed and can be checked on its own chain. The list spans two generations on
+              purpose and each row states which one it is:{" "}
+              <code className="text-accent">AdextoCurveFactory</code> <strong className="text-ink">v0.10.0</strong> is
+              the generation that launches tokens today, and the superseded v1 entries are kept because they remain
+              deployed and permanent — dropping them would hide what earlier versions of this page pointed readers at.
+              Launching is enabled on all four mainnets, but {LAUNCH_CLAUSE}, which is why there is still nothing to
+              trade.
             </p>
           </div>
 

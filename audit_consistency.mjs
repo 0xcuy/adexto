@@ -909,6 +909,98 @@ console.log("\n── AdextoCCIPReceiver: keadaan harus cocok dengan keputusan m
   }
 }
 
+// ── 12. caption registry kontrak vs baris yang benar-benar dirender ─────────
+console.log("\n── VerifiedDeploymentCard: caption vs isi tabelnya sendiri ──");
+{
+  /**
+   * Bug yang memicu bagian ini.
+   *
+   * Kartunya dulu hanya memuat generasi v1. Waktu AdextoCurveFactory 0.10.0 hidup di
+   * empat mainnet, `records` diperbaiki supaya generasi itu masuk — dan captionnya
+   * TIDAK. Jadi selama itu ada kalimat "Addresses below are the v1 generation" yang
+   * berdiri tepat di atas tabel yang empat baris teratasnya v0.10.0. Tabelnya benar,
+   * kalimat di atasnya salah, dan keduanya di satu layar.
+   *
+   * Kenapa tidak ada yang menangkapnya: bagian 7 mencocokkan daftar frasa, bagian 10
+   * menjaga kalimat "belum ada peluncuran", dan audit_claims membaca daftar BANNED.
+   * Tidak satu pun bertugas membandingkan sebuah caption dengan DATA yang dirender
+   * di bawahnya.
+   *
+   * Yang diperiksa di sini adalah invariannya, bukan kata-katanya: kalau komponen
+   * membangun baris untuk lebih dari satu generasi, captionnya tidak boleh
+   * mengklaim satu generasi untuk SELURUH daftar. Generasi per baris sudah punya
+   * kolom "Gen" sendiri, dan di sanalah satu-satunya tempat ia tidak bisa berbeda
+   * dari baris yang dijelaskannya.
+   */
+  const path = "src/components/VerifiedDeploymentCard.tsx";
+  if (!existsSync(path)) {
+    soft("VerifiedDeploymentCard tidak ditemukan", `${path} — dipindah atau dihapus?`);
+  } else {
+    const src = readFileSync(path, "utf8");
+
+    // Generasi yang benar-benar dibangun jadi baris tabel.
+    const buildsCurrent = /curveFactoryAddress/.test(src);
+    const buildsSuperseded = /sovereignHookAddress|factoryAddress/.test(src);
+    const generations = (buildsCurrent ? 1 : 0) + (buildsSuperseded ? 1 : 0);
+
+    // Caption = paragraf pertama sesudah judul kartu.
+    const afterHeading = src.slice(src.indexOf("Deployed contract registry"));
+    const captionMatch = afterHeading.match(/<p\b[^>]*>([\s\S]*?)<\/p>/);
+    const caption = captionMatch ? captionMatch[1].replace(/\{[^}]*\}/g, " ").replace(/<[^>]+>/g, " ") : "";
+
+    if (!captionMatch) {
+      soft("caption kartu tidak bisa dibaca", "struktur JSX berubah, perbarui pemeriksaan ini");
+    } else if (generations < 2) {
+      ok("kartu hanya memuat satu generasi, caption bebas menyebutnya", `${generations} generasi`);
+    } else {
+      /**
+       * Sengaja BUKAN daftar frasa panjang. Pelajaran dari bagian 7 adalah daftar
+       * kata selalu ketinggalan, jadi yang dicari cuma satu bentuk: klaim bahwa
+       * alamat/kontrak DI BAWAH ini adalah generasi tertentu. Kalimat yang
+       * menjelaskan bahwa daftarnya CAMPURAN tidak cocok dengan pola ini, dan itu
+       * memang bentuk yang benar.
+       */
+      const sweeping =
+        /\b(addresses|contracts|alamat|kontrak)\b[^.]{0,40}\b(below|here|di bawah)\b[^.]{0,40}\b(are|is|adalah)\b[^.]{0,30}\bv\s?\d/i;
+      const m = caption.match(sweeping);
+      if (m) {
+        bad(
+          "caption mengklaim satu generasi untuk seluruh daftar",
+          `"${m[0].replace(/\s+/g, " ").trim().slice(0, 70)}" — tabelnya memuat ${generations} generasi; biarkan kolom Gen yang menyatakannya per baris`
+        );
+      } else {
+        ok("caption tidak mengklaim satu generasi untuk seluruh daftar", `tabel memuat ${generations} generasi`);
+      }
+
+      // Dan generasi yang DIPAKAI harus tetap disebut, supaya perbaikannya tidak
+      // berayun ke ekstrem lain: caption yang tidak menyebut apa pun membuat pembaca
+      // harus menebak baris mana yang relevan.
+      check(
+        "caption menyebut generasi yang dipakai",
+        /AdextoCurveFactory/.test(caption),
+        /AdextoCurveFactory/.test(caption) ? "disebut" : "tambahkan nama factory yang aktif"
+      );
+    }
+
+    // Kartunya tidak boleh kembali ke /explorer: halaman itu indeks pasar, dan
+    // keadaan kosongnya sudah menunjuk /docs untuk daftar kontrak.
+    const explorer = "src/app/explorer/page.tsx";
+    if (existsSync(explorer)) {
+      const ex = readFileSync(explorer, "utf8");
+      const rendersCard = /<VerifiedDeploymentCard\s*\/?>/.test(ex);
+      const pointsToDocs = /See which contracts are deployed/.test(ex);
+      if (rendersCard && pointsToDocs) {
+        bad(
+          "/explorer menunjuk /docs untuk daftar kontrak DAN memasang daftarnya sendiri",
+          "salah satu mubazir — cabut kartunya atau cabut ajakan ke /docs"
+        );
+      } else {
+        ok("/explorer tidak menduplikasi daftar kontrak", rendersCard ? "kartu dipasang, tanpa ajakan ganda" : "kartu dicabut");
+      }
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
