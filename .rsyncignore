@@ -21,8 +21,20 @@ public/demo-raw/
 # Artefak toolchain keamanan. Semuanya bisa dibuat ulang di mesin mana pun dengan
 # `node scripts/security-scan.mjs`, dan produksi tidak membutuhkannya: halaman
 # /security membaca src/config/security-report.json, yang ikut ter-commit.
-lib/
-crytic-export/
+# GARIS MIRING DI DEPAN WAJIB, dan ketiadaannya sempat memecahkan produksi.
+#
+# Pola rsync yang TIDAK memuat garis miring di dalamnya dicocokkan hanya ke komponen
+# terakhir nama berkas, di kedalaman mana pun. Jadi `lib/` tanpa awalan juga cocok
+# dengan `src/lib/` — seluruh direktori library aplikasi berhenti tersinkron, dan
+# deploy tetap tampak berhasil karena berkas lama sudah ada di VPS. Yang gagal cuma
+# berkas BARU: build produksi berhenti dengan
+# "Module not found: Can't resolve '@/lib/chat-stream'".
+#
+# Dengan `/lib/`, polanya dicocokkan ke path lengkap relatif akar transfer, jadi ia
+# hanya mengenai lib/ di root. Entri di bawah yang sudah memuat garis miring di dalam
+# (build/security/ dan seterusnya) sudah ter-anchor dengan sendirinya.
+/lib/
+/crytic-export/
 build/security/
 build/forge-out/
 build/forge-cache/
