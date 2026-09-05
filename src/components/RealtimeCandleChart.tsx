@@ -65,6 +65,19 @@ const INTERVALS = [
 ];
 
 /**
+ * Di bawah jumlah bar ini, jendela waktu DIPATOK dan tidak di-fit.
+ *
+ * `fitContent()` meregangkan bar yang ada ke seluruh lebar pane. Itu benar untuk
+ * riwayat yang panjang, tapi dengan satu bar hasilnya satu candle selebar ratusan
+ * piksel — pasar yang baru dua kali diperdagangkan terlihat seperti chart rusak.
+ * 24 slot dipilih supaya satu bar menempati sekitar 1/24 lebar pane, yaitu lebar
+ * candle yang wajar, dengan ruang kosong di kanannya seperti pasangan yang baru
+ * listing di bursa mana pun.
+ */
+const MIN_BARS_TO_FIT = 12;
+const YOUNG_MARKET_SLOTS = 24;
+
+/**
  * Overlay indicators share the price scale; RSI and MACD cannot, since one is
  * bounded 0..100 and the other oscillates around zero. Those get their own pane.
  */
@@ -112,7 +125,17 @@ export default function RealtimeCandleChart({
    */
   const fittedFor = useRef<string>("");
 
-  const [interval, setIntervalSeconds] = useState(300);
+  /**
+   * Default 1m, bukan 5m.
+   *
+   * Di produk ini setiap pasar berumur menit, bukan bulan, jadi default yang lazim
+   * di bursa mapan justru salah di sini. Diukur pada pasar demo dengan 5 fill nyata:
+   * 1m menghasilkan 13 bar, 5m hanya 3, dan 15m cuma 1. Bucket yang terlalu lebar
+   * meruntuhkan seluruh riwayat menjadi satu candle — dan satu candle itulah yang
+   * kemudian diregangkan memenuhi pane. Jadi timeframe default adalah bagian dari
+   * penyebab, bukan cuma korbannya.
+   */
+  const [interval, setIntervalSeconds] = useState(60);
   const [priceNative, setPriceNative] = useState(fallbackPriceNative);
   const [changePct, setChangePct] = useState(0);
   const [source, setSource] = useState<string>("");
@@ -176,6 +199,34 @@ export default function RealtimeCandleChart({
        * capture the RSI pane, where 0..100 values need no such treatment.
        */
       priceFormat: { type: "custom", formatter: (p: number) => formatSmallNumber(p), minMove: 1e-12 },
+      /**
+       * Rentang harga minimum, supaya gerakan mikroskopis tidak dibesarkan sampai
+       * memenuhi pane.
+       *
+       * Autoscale mengepaskan tinggi pane ke high/low yang terlihat. Pada kurva yang
+       * baru dua kali diperdagangkan, high dan low satu bar bisa berbeda hanya
+       * 0,005% — dan autoscale membesarkannya menjadi blok hijau setinggi chart,
+       * sementara header tepat di atasnya menulis +0.00%. Chart membantah headernya
+       * sendiri, dan yang salah chart-nya: pembaca melihat pump besar di tempat yang
+       * sebenarnya nyaris tidak bergerak. Itu kelas kesalahan yang sama dengan
+       * menggambar indikator setengah matang.
+       *
+       * Jadi rentangnya dipaksa minimal ±0,5% dari harga tengah. Ini TIDAK PERNAH
+       * mempersempit: begitu pasarnya benar-benar bergerak lebih dari itu, hasil
+       * autoscale asli dipakai apa adanya.
+       */
+      autoscaleInfoProvider: (original: () => any) => {
+        const res = original();
+        const range = res?.priceRange;
+        if (!range) return res;
+        const mid = (range.minValue + range.maxValue) / 2;
+        if (!Number.isFinite(mid) || mid <= 0) return res;
+        const MIN_RELATIVE_SPAN = 0.01; // ±0,5% di sekitar harga tengah
+        const minSpan = mid * MIN_RELATIVE_SPAN;
+        if (range.maxValue - range.minValue >= minSpan) return res;
+        const half = minSpan / 2;
+        return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+      },
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -367,7 +418,18 @@ export default function RealtimeCandleChart({
 
           const fitKey = `${symbol}:${chainId}:${interval}`;
           if (fittedFor.current !== fitKey) {
-            chartRef.current?.timeScale().fitContent();
+            /**
+             * Dua keluhan berlawanan harus dijawab SEKALIGUS, bukan bergantian.
+             *
+             * Semula tidak ada fit sama sekali dan barnya mengumpul di tepi kanan;
+             * itu diperbaiki dengan fitContent tanpa syarat, yang lalu melahirkan
+             * keluhan kebalikannya — satu bar diregangkan jadi candle raksasa.
+             * Ambangnya membuat keduanya benar: riwayat panjang tetap di-fit, pasar
+             * muda mendapat jendela logis tetap sehingga lebar candle-nya wajar.
+             */
+            const ts = chartRef.current?.timeScale();
+            if (sorted.length >= MIN_BARS_TO_FIT) ts?.fitContent();
+            else ts?.setVisibleLogicalRange({ from: -3, to: YOUNG_MARKET_SLOTS });
             fittedFor.current = fitKey;
           }
         } else {
