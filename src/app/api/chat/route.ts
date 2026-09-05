@@ -74,10 +74,39 @@ Help developers generate smart contracts, configure bonding curve parameters, au
 
     const readableStream = new ReadableStream({
       async start(controller) {
+        /**
+         * Formatnya SSE berframe bertipe, bukan teks mentah lagi.
+         *
+         * Alasannya bukan kerapian. Model GLM di router 0G menghabiskan sebagian
+         * besar waktunya di `reasoning_content`, dan itu SENGAJA tidak ditampilkan
+         * sebagai jawaban (lihat catatan di bawah). Akibatnya, dengan wire format
+         * teks mentah tidak ada kanal untuk mengabarkan "masih berpikir": server
+         * diam total sampai token `content` pertama muncul. Diukur pada satu
+         * permintaan glm-5.3: 910 karakter reasoning berbanding 98 karakter jawaban,
+         * jadi kliennya menampilkan gelembung kosong selama ~90% waktu tunggu — yang
+         * terlihat seperti aplikasi menggantung, bukan model yang bekerja.
+         *
+         * Frame yang dikirim:
+         *   {"type":"open"}                          segera, supaya klien tahu
+         *                                            sambungannya hidup
+         *   {"type":"reasoning","chars":N,"preview"} progres fase berpikir
+         *   {"type":"content","text":"..."}          potongan JAWABAN
+         *   {"type":"done","reasoningChars","contentChars"}
+         *   {"type":"error","message"}
+         *
+         * `preview` boleh ditampilkan, TAPI harus jelas berlabel sebagai proses
+         * berpikir dan hilang begitu jawaban mulai masuk. Yang dulu salah bukan
+         * menampilkan reasoning, melainkan menampilkannya SEBAGAI jawaban.
+         */
+        const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
         if (!res.body) {
+          send({ type: "error", message: "0G router returned an empty body." });
           controller.close();
           return;
         }
+
+        send({ type: "open" });
 
         const reader = res.body.getReader();
         let buffer = "";
@@ -99,11 +128,50 @@ Help developers generate smart contracts, configure bonding curve parameters, au
          */
         let emitted = false;
         let reasoning = "";
+        let contentChars = 0;
         let closed = false;
         const close = () => {
           if (closed) return;
           closed = true;
           controller.close();
+        };
+
+        /**
+         * Frame reasoning di-throttle per 24 karakter.
+         *
+         * Satu frame per delta juga jalan, tapi tiap frame memicu satu setState di
+         * klien; pada 910 karakter itu ratusan render untuk indikator yang cuma perlu
+         * terlihat bergerak. 24 karakter cukup halus untuk mata dan memangkas
+         * rendernya jadi puluhan.
+         */
+        let lastReasoningAt = 0;
+        const flushReasoning = (force = false) => {
+          if (reasoning.length === lastReasoningAt) return;
+          if (!force && reasoning.length - lastReasoningAt < 24) return;
+          lastReasoningAt = reasoning.length;
+          send({
+            type: "reasoning",
+            chars: reasoning.length,
+            // Ekor, bukan kepala: yang informatif adalah apa yang sedang dipikirkan
+            // sekarang. Baris baru dirapikan supaya satu baris indikator tetap satu baris.
+            preview: reasoning.slice(-110).replace(/\s+/g, " ").trim(),
+          });
+        };
+
+        /**
+         * Satu jalan keluar untuk semua akhir yang normal.
+         *
+         * Dulu cadangan "pakai reasoning kalau tidak ada jawaban" ditulis dua kali —
+         * di jalur [DONE] dan sesudah loop — dan dua salinan seperti itulah yang
+         * sebelumnya membuat controller sempat ditutup dua kali.
+         */
+        const finish = () => {
+          if (!emitted && reasoning) {
+            contentChars = reasoning.length;
+            send({ type: "content", text: reasoning });
+          }
+          send({ type: "done", reasoningChars: reasoning.length, contentChars });
+          close();
         };
 
         try {
@@ -120,8 +188,8 @@ Help developers generate smart contracts, configure bonding curve parameters, au
               if (!trimmed || trimmed.startsWith(":")) continue;
 
               if (trimmed === "data: [DONE]") {
-                if (!emitted && reasoning) controller.enqueue(encoder.encode(reasoning));
-                close();
+                flushReasoning(true);
+                finish();
                 return;
               }
 
@@ -129,10 +197,14 @@ Help developers generate smart contracts, configure bonding curve parameters, au
                 try {
                   const parsed = JSON.parse(trimmed.slice(6));
                   const delta = parsed.choices?.[0]?.delta;
-                  if (delta?.reasoning_content) reasoning += delta.reasoning_content;
+                  if (delta?.reasoning_content) {
+                    reasoning += delta.reasoning_content;
+                    flushReasoning();
+                  }
                   if (delta?.content) {
                     emitted = true;
-                    controller.enqueue(encoder.encode(delta.content));
+                    contentChars += String(delta.content).length;
+                    send({ type: "content", text: delta.content });
                   }
                 } catch {
                   // Potongan buffer yang belum lengkap; abaikan.
@@ -140,11 +212,24 @@ Help developers generate smart contracts, configure bonding curve parameters, au
               }
             }
           }
-          if (!emitted && reasoning) controller.enqueue(encoder.encode(reasoning));
+          // Router menutup tanpa [DONE]. Tetap diakhiri rapi, bukan digantung.
+          flushReasoning(true);
+          finish();
         } catch (err: any) {
+          /**
+           * `controller.error()` DIGANTI frame error.
+           *
+           * Dulu galat di tengah aliran memakai controller.error(), yang di sisi
+           * klien muncul sebagai fetch yang putus — tidak bisa dibedakan dari koneksi
+           * mati, jadi panel hanya berhenti tanpa penjelasan. Sekarang alasannya ikut
+           * terkirim, lalu stream ditutup normal.
+           */
           if (!closed) {
-            closed = true;
-            controller.error(err);
+            try {
+              send({ type: "error", message: String(err?.message || err).slice(0, 200) });
+            } catch {
+              // controller sudah tidak menerima; tidak ada yang bisa dilakukan.
+            }
           }
         } finally {
           // Dulu `close()` dipanggil tanpa penjaga, jadi jalur [DONE] dan error
@@ -156,9 +241,19 @@ Help developers generate smart contracts, configure bonding curve parameters, au
 
     return new Response(readableStream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-        "Transfer-Encoding": "chunked",
+        "Content-Type": "text/event-stream; charset=utf-8",
+        // `no-transform` ikut disebut supaya proxy tidak "membantu" dengan
+        // mengompres lalu menyangga aliran ini.
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        /**
+         * Tanpa header ini, seluruh pekerjaan di atas bisa sia-sia di produksi.
+         * Aplikasi berjalan di belakang Caddy; proxy yang menyangga respons akan
+         * menahan frame sampai stream selesai, dan hasilnya persis gejala yang
+         * sedang diperbaiki — diam lama, lalu semuanya muncul sekaligus. Header ini
+         * dipatuhi nginx dan Caddy sebagai penanda "jangan sangga".
+         */
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (error: any) {

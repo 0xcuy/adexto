@@ -20,6 +20,7 @@ import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
 import { claimCreatorFees, describeTxError } from "@/lib/dex";
 import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
+import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
 /**
  * Market terminal.
@@ -163,6 +164,8 @@ export default function TokenTerminal({
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  /** Progres fase berpikir model; lihat catatan di src/lib/chat-stream.ts. */
+  const [thinking, setThinking] = useState<ChatReasoningProgress | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -195,12 +198,14 @@ export default function TokenTerminal({
     setChatMessages(next);
     setChatInput("");
     setChatLoading(true);
+    setThinking(null);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Pembaca aliran dipakai bersama dengan studio co-pilot; alasan formatnya SSE
+      // ada di src/lib/chat-stream.ts.
+      let started = false;
+      await streamChat(
+        {
           messages: next,
           model: "glm-5.3",
           chain: chain.name,
@@ -237,31 +242,51 @@ export default function TokenTerminal({
             `Never show intermediate arithmetic, never restate the question, never write "let me", "wait", or "actually". ` +
             `Never claim a trade settled unless the user reports a transaction hash.`,
           temperature: 0.1,
-        }),
-      });
-      if (!res.ok || !res.body) throw new Error("chat unavailable");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let reply = "";
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        reply += decoder.decode(value, { stream: true });
-        setChatMessages((prev) => {
-          const copy = [...prev];
-          copy[copy.length - 1] = { role: "assistant", content: reply };
-          return copy;
-        });
-      }
-    } catch {
+        },
+        {
+          onReasoning: (progress) => setThinking(progress),
+          onContent: (full) => {
+            // Begitu jawaban masuk, indikator berpikir dilepas: menampilkan keduanya
+            // sekaligus membuat cuplikan reasoning terbaca sebagai bagian jawaban.
+            setThinking(null);
+            /**
+             * `started` dibalik DI LUAR updater, bukan di dalamnya.
+             *
+             * React memanggil updater dua kali pada StrictMode pengembangan, jadi
+             * penanda yang diletakkan di dalam updater akan menambahkan gelembung
+             * asisten dua kali. Di luar, ia hanya berubah sekali per aliran.
+             */
+            if (!started) {
+              started = true;
+              setChatMessages((prev) => [...prev, { role: "assistant", content: full }]);
+            } else {
+              setChatMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { role: "assistant", content: full };
+                return copy;
+              });
+            }
+          },
+        }
+      );
+    } catch (error: any) {
+      /**
+       * Pesan aslinya diteruskan.
+       *
+       * Sebelumnya SEMUA kegagalan berbunyi "router is unreachable", termasuk kasus
+       * OG_ROUTER_API_KEY yang belum diset — yang menjawab 503 dengan penjelasan
+       * jelas. Menyebutnya masalah jangkauan mengirim orang mencari gangguan
+       * jaringan padahal jawabannya ada di env.
+       */
       setChatMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "The 0G Compute router is unreachable right now. Try again shortly." },
+        {
+          role: "assistant",
+          content: `The 0G Compute router could not answer: ${error?.message || "unknown error"}`,
+        },
       ]);
     } finally {
+      setThinking(null);
       setChatLoading(false);
     }
   };
@@ -793,9 +818,22 @@ export default function TokenTerminal({
                   <FormattedMarkdown text={m.content} />
                 </div>
               ))}
+              {/* Indikator berpikir yang BERGERAK. Hitungan karakternya datang dari
+                  kanal reasoning model lewat SSE, jadi angkanya naik selama model
+                  bekerja alih-alih spinner yang diam puluhan detik. Cuplikannya pucat
+                  dan miring, dan labelnya menyebut "reasoning" apa adanya. */}
               {chatLoading && (
-                <div className="flex items-center gap-1.5 rounded-xl bg-cream-2 p-2 text-[11px] text-accent">
-                  <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G…
+                <div className="flex flex-col gap-1 rounded-xl bg-cream-2 p-2 text-[11px]">
+                  <span className="flex items-center gap-1.5 text-accent">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Reasoning on 0G
+                    {thinking && thinking.chars > 0 ? ` · ${thinking.chars} chars` : "…"}
+                  </span>
+                  {thinking?.preview && (
+                    <span className="text-[10px] italic leading-snug text-ink-faint line-clamp-2">
+                      {thinking.preview}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

@@ -16,6 +16,7 @@ import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletCh
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
+import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
 /**
  * `@worldcoin/idkit` menarik Tailwind sebagai dependensi runtime, jadi ia dimuat
@@ -115,6 +116,16 @@ export default function StudioPage() {
   const [tokenTicker, setTokenTicker] = useState("AQUANT");
   const [tokenSupply, setTokenSupply] = useState("1,000,000,000");
   const [generatedLogo, setGeneratedLogo] = useState<string | null>("/logo.svg");
+  /**
+   * Apakah logo yang terpasang benar-benar keluaran model, atau gambar cadangan.
+   *
+   * /api/generate-logo dulu menjawab `success: true` dengan `model:
+   * "z-image-turbo (0G TEE Fallback)"` untuk SVG yang digambar sendiri, sehingga
+   * panel ini tidak punya cara membedakannya — dan menampilkan nama model di atas
+   * gambar yang tidak pernah disentuh model. Sekarang route melaporkan `generated`,
+   * dan panelnya menuruti itu.
+   */
+  const [logoInfo, setLogoInfo] = useState<{ generated: boolean; note?: string } | null>(null);
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
   const [feeTier, setFeeTier] = useState<"low" | "standard" | "meme">("standard");
@@ -473,19 +484,28 @@ export default function StudioPage() {
   const handleGenerateLogo = async () => {
     setIsGeneratingLogo(true);
     try {
+      /**
+       * Prompt TIDAK dikirim dari sini lagi.
+       *
+       * Baris ini dulu memaksa "neon cyan and purple glow on obsidian" — palet tema
+       * gelap yang sudah dicabut dari seluruh aplikasi, jadi setiap logo lahir
+       * bertabrakan dengan halaman cream yang memuatnya. Prompt bawaan sekarang
+       * tinggal satu, di route-nya, sehingga tema dan larangan teks tidak bisa
+       * berbeda antara dua tempat.
+       */
       const res = await fetch("/api/generate-logo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tokenName,
-          tokenSymbol: tokenTicker,
-          prompt: `Minimalist cyberpunk vector emblem for AI agent ${tokenName} ($${tokenTicker}), neon cyan and purple glow on obsidian`,
-        }),
+        body: JSON.stringify({ tokenName, tokenSymbol: tokenTicker }),
       });
       const data = await res.json();
-      if (data.imageUrl) setGeneratedLogo(data.imageUrl);
+      if (data.imageUrl) {
+        setGeneratedLogo(data.imageUrl);
+        setLogoInfo({ generated: Boolean(data.generated), note: data.note });
+      }
     } catch (error) {
       console.warn("[adexto] logo generation failed:", error);
+      setLogoInfo({ generated: false, note: "Request failed before the router answered." });
     } finally {
       setIsGeneratingLogo(false);
     }
@@ -758,6 +778,15 @@ export default function StudioPage() {
   // ── AI co-pilot ──────────────────────────────────────────────────────────
   const [inputMessage, setInputMessage] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  /**
+   * Progres fase berpikir model, atau null kalau tidak sedang berpikir.
+   *
+   * Indikator lama hanya spinner dengan teks tetap "Reasoning on 0G…". Karena model
+   * menghabiskan sebagian besar waktu di kanal reasoning yang tidak ditampilkan,
+   * spinner itu berputar puluhan detik tanpa satu pun perubahan di layar — dan
+   * spinner yang tidak berubah tidak bisa dibedakan dari aplikasi yang menggantung.
+   */
+  const [thinking, setThinking] = useState<ChatReasoningProgress | null>(null);
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -788,30 +817,35 @@ export default function StudioPage() {
     setMessages(next);
     setInputMessage("");
     setChatLoading(true);
+    setThinking(null);
+    // Gelembung asisten dipasang SEBELUM permintaan, supaya jalur galat mengisi
+    // gelembung yang sama alih-alih menambah satu lagi di bawahnya.
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, model: selectedModel }),
-      });
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let reply = "";
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        reply += decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[copy.length - 1] = { role: "assistant", content: reply };
-          return copy;
-        });
-      }
+      await streamChat(
+        { messages: next, model: selectedModel },
+        {
+          onReasoning: (progress) => setThinking(progress),
+          onContent: (full) => {
+            // Begitu jawaban mulai masuk, indikator berpikir harus hilang: menampilkan
+            // keduanya sekaligus membuat pembaca menyangka reasoning bagian dari jawaban.
+            setThinking(null);
+            setMessages((prev) => {
+              const copy = [...prev];
+              copy[copy.length - 1] = { role: "assistant", content: full };
+              return copy;
+            });
+          },
+        }
+      );
     } catch (error: any) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `0G Compute error: ${error.message}` }]);
+      setMessages((prev) => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { role: "assistant", content: `0G Compute error: ${error.message}` };
+        return copy;
+      });
     } finally {
+      setThinking(null);
       setChatLoading(false);
     }
   };
@@ -1093,9 +1127,20 @@ export default function StudioPage() {
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-accent/30 p-1 flex items-center justify-center shrink-0">
                       <img src={generatedLogo ?? "/logo.svg"} alt="Logo" className="w-full h-full object-contain" />
                     </div>
+                    {/* Nama model hanya ditulis kalau model itu memang jalan.
+                        Sebelumnya "0G z-image-turbo" tercetak tetap, termasuk di atas
+                        gambar cadangan yang digambar sendiri oleh server. */}
                     <div>
-                      <div className="text-[11px] font-bold text-ink">0G z-image-turbo</div>
-                      <span className="text-[10px] text-ink-soft">Generate an emblem for the token</span>
+                      <div className="text-[11px] font-bold text-ink">
+                        {logoInfo && !logoInfo.generated ? "Placeholder emblem" : "0G z-image-turbo"}
+                      </div>
+                      <span className="text-[10px] text-ink-soft" title={logoInfo?.note}>
+                        {logoInfo === null
+                          ? "Generate an emblem for the token"
+                          : logoInfo.generated
+                          ? "Rendered on the 0G router · 256×256"
+                          : "Drawn locally — the router did not return an image"}
+                      </span>
                     </div>
                   </div>
                   <button
@@ -1663,8 +1708,23 @@ export default function StudioPage() {
                     {m.content ? (
                       <FormattedMarkdown text={m.content} />
                     ) : chatLoading && idx === messages.length - 1 ? (
-                      <span className="flex items-center gap-1 text-accent text-xs">
-                        <RefreshCw className="w-3 h-3 animate-spin" /> Reasoning on 0G…
+                      /* Indikator berpikir yang BERGERAK.
+                         Hitungan karakter datang dari kanal reasoning model lewat SSE,
+                         jadi angkanya benar-benar naik selama model bekerja. Cuplikannya
+                         ditulis miring dan pucat, dan diberi label "reasoning" secara
+                         eksplisit — yang dulu salah bukan menampilkan reasoning,
+                         melainkan menampilkannya sebagai jawaban. */
+                      <span className="flex flex-col gap-1 text-xs">
+                        <span className="flex items-center gap-1 text-accent">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Reasoning on 0G
+                          {thinking && thinking.chars > 0 ? ` · ${thinking.chars} chars` : "…"}
+                        </span>
+                        {thinking?.preview && (
+                          <span className="text-[10px] italic leading-snug text-ink-faint line-clamp-2">
+                            {thinking.preview}
+                          </span>
+                        )}
                       </span>
                     ) : null}
                   </div>
