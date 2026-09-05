@@ -55,10 +55,32 @@ export default function HomePage() {
           <span className="gradient-text">Gas only.</span>
         </h1>
 
-        <p className="mx-auto mb-9 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
-          100% of supply opens inside a sovereign bonding curve, so there is nothing to seed and no
-          creator allocation to dump. Every swap then pays the creator 0.10% and the buyback vault 0.05%,
-          settled on-chain for as long as the market keeps trading.
+        {/* Ditulis ulang MANFAAT-DULU, dan alasannya bisa diukur, bukan selera.
+            Versi lama: "100% of supply opens inside a sovereign bonding curve, so
+            there is nothing to seed and no creator allocation to dump. Every swap
+            then pays the creator 0.10% and the buyback vault 0.05%, settled
+            on-chain for as long as the market keeps trading."
+
+            Dua kalimat, 46 kata, 23 kata per kalimat — sementara halaman pitch
+            biasanya 12–18. Dan tiga istilah yang butuh penjelasan ("sovereign
+            bonding curve", "seed", "on-chain") datang SEBELUM pembaca tahu ia
+            dapat apa. Pembaca harus mencerna mekanismenya lebih dulu untuk
+            mencapai manfaatnya.
+
+            Versi ini tiga kalimat pendek, nol jargon, dan urutannya dibalik:
+            biaya, penghasilan, lalu alasan pembeli boleh percaya. Tidak ada klaim
+            baru: gas-only, 0.10% ke creator, dan 100% supply masuk kurva ketiganya
+            sudah terverifikasi di kontrak.
+
+            Angka 0.05% buyback dikeluarkan dari kalimat ini supaya ia tidak membawa
+            dua persentase sekaligus. Ia tidak hilang dari halaman — kartu pilar
+            "Sovereign DEX" memuat pembagian fee-nya utuh (0.30% terbagi 0.15%
+            depth / 0.10% creator / 0.05% buyback), dan di sana angka itu punya
+            konteks yang membuatnya berarti. */}
+        <p className="mx-auto mb-9 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
+          Launching costs gas and nothing else. You earn <span data-numeric>0.10%</span> of every trade, for
+          as long as the market lives. And buyers can see there is nothing in your wallet to dump — all supply
+          enters the curve at launch.
         </p>
 
         <div className="flex flex-col items-center justify-center gap-5 sm:flex-row xl:justify-start">
