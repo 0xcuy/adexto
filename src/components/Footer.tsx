@@ -49,11 +49,21 @@ export default function Footer() {
 
           <div>
             <h4 className="font-bold text-ink mb-3 uppercase tracking-wider text-xs">Protocol &amp; Apps</h4>
+            {/* Label diselaraskan dengan header.
+                Navbar sudah membuang "Live", "DEX", "DAO" dan "TEE" dari navigasi
+                karena itu kata sifat pemasaran, bukan tujuan — tapi footer tidak ikut
+                disapu, jadi satu situs memakai dua aturan: header bilang "Swap" dan
+                "Explorer", footer bilang "Sovereign DEX Swap" dan "Live Explorer".
+                Satu tujuan dengan dua nama membuat pembaca ragu keduanya sama.
+
+                "Live Explorer" juga bukan cuma soal gaya: belum ada satu pun pasar,
+                jadi kata "Live" di situ menjanjikan sesuatu yang halaman itu sendiri
+                membantah begitu dibuka. */}
             <ul className="space-y-2 text-ink-soft">
-              <li><Link href="/studio" className="hover:text-accent transition-colors">Launch Studio</Link></li>
-              <li><Link href="/explorer" className="hover:text-accent transition-colors">Live Explorer</Link></li>
-              <li><Link href="/swap" className="hover:text-accent transition-colors">Sovereign DEX Swap</Link></li>
-              <li><Link href="/agent/demo" className="hover:text-accent transition-colors">Cloudflare x402 Demo</Link></li>
+              <li><Link href="/studio" className="hover:text-accent transition-colors">Studio</Link></li>
+              <li><Link href="/explorer" className="hover:text-accent transition-colors">Explorer</Link></li>
+              <li><Link href="/swap" className="hover:text-accent transition-colors">Swap</Link></li>
+              <li><Link href="/agent/demo" className="hover:text-accent transition-colors">Agent demo</Link></li>
             </ul>
           </div>
 

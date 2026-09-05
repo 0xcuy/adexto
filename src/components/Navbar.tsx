@@ -159,8 +159,14 @@ export default function Navbar() {
             </Link>
           </div>
 
+          {/* /swap DIKELUARKAN dari daftar ini, bukan dari navigasinya.
+              Ia sudah jadi tombol besar di grid dua kolom persis di atas, jadi kalau
+              ikut di-map di sini drawer memuat "Swap" dua kali berjarak sekitar 50 px
+              — pembaca berhenti untuk memastikan keduanya menuju tempat yang sama.
+              Desktop tetap memakai `links` utuh, jadi urutan enam tautannya tidak
+              berubah. */}
           <div className="space-y-1 pt-1 font-mono text-xs">
-            {links.map((link) => {
+            {links.filter((link) => link.href !== "/swap").map((link) => {
               const Icon = link.icon;
               const active = pathname === link.href;
               return (
