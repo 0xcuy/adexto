@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-05T10:01:27.860Z",
-  "commit": "6a4c264012b97aef7fe6a9aecdd6f2facb10f9b3",
-  "commitTime": "2026-09-05T16:07:11+07:00",
-  "dirty": true,
+  "generatedAt": "2026-09-05T10:20:19.186Z",
+  "commit": "149671b979024650c8743f7e8647cc9f7da38881",
+  "commitTime": "2026-09-05T17:18:45+07:00",
+  "dirty": false,
   "scope": {
     "launchPath": [
       "contracts/AdextoCurveFactory.sol",
@@ -139,10 +139,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50123,
+        "totalCalls": 50127,
         "uniqueInstructions": 7193
       },
-      "detail": "4/4 properti lolos · 50.123 panggilan",
+      "detail": "4/4 properti lolos · 50.127 panggilan",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",
