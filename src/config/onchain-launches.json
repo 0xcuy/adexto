@@ -1,0 +1,79 @@
+{
+  "note": "Every launch that exists on 0G mainnet, and what each one is. Read from the two factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs checks this file against the chain and fails only when an on-chain launch is NOT accounted for here.",
+  "listedMarkets": 2,
+  "chainId": 16661,
+  "launches": [
+    {
+      "symbol": "NOVA784",
+      "status": "test",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x237221Cfbb1D64179892e375BDB9089f68fd75a6",
+      "curve": "0x76B65BC42c7450488CeA60196e7e0f0B95C74D37",
+      "why": "Throwaway ticker from a demo-video recording rehearsal on mainnet. Never in the production registry."
+    },
+    {
+      "symbol": "NOVA485",
+      "status": "test",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x85697478562a26e226fb7c930C25799faa50d6Ac",
+      "curve": "0x986348cDf980a031e8573E3d74D6E224a5e2BaBa",
+      "why": "Throwaway ticker from a demo-video recording rehearsal on mainnet. Never in the production registry."
+    },
+    {
+      "symbol": "NOVA991",
+      "status": "test",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x636F9abCC92494EBb392Eaf7002360D3288954c6",
+      "curve": "0x4B517408E81A4bF0A799352BAE96D2bdb9498ecd",
+      "why": "Throwaway ticker from a demo-video recording rehearsal on mainnet. Its registry row was removed; the backup on the VPS is projects.json.before-nova991-removal."
+    },
+    {
+      "symbol": "ADX",
+      "status": "test",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x30bcC468C06F4e0ff5f7ad54984464FF1e1d464f",
+      "curve": "0xe59e08E78b98145b8F91286A6a0f5C061FD8Fdfb",
+      "why": "Recording run that used a protocol ticker. Its registry row was removed; the backup on the VPS is projects.json.before-adx-removal. The ticker stays claimed on that factory forever because symbolRegistry has no release function."
+    },
+    {
+      "symbol": "ADEXTO",
+      "status": "superseded",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x0860a80f6fF87423c3cC379199700576857437C6",
+      "curve": "0xA65abca8c128B54F8268A9FBE0e2AC71DBF68841",
+      "why": "The first real $ADEXTO market. Replaced by the 0.11.0 launch so the market charges the protocol fee. Still tradable directly against its curve and still holds its reserves -- nothing can be withdrawn from a curve -- it is only no longer listed. Detail in src/config/superseded-markets.json."
+    },
+    {
+      "symbol": "ADT",
+      "status": "superseded",
+      "factoryVersion": "0.10.0",
+      "factory": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
+      "token": "0x6E967902eDB137cb85ECa871031eCA569dA0357e",
+      "curve": "0x04461d2DC4a92E48A6F9d3329939556E0039D64A",
+      "why": "The first real $ADT market. Replaced by the 0.11.0 launch, same as ADEXTO above."
+    },
+    {
+      "symbol": "ADEXTO",
+      "status": "live",
+      "factoryVersion": "0.11.0",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "token": "0xA1358C17004469C7CA5365AbafD294F9b2c11DF7",
+      "curve": "0xc80e0659D2Fc29e62605C9DF6182a85372652B60",
+      "why": "The live $ADEXTO market. Listed at /token/adexto?chain=16661."
+    },
+    {
+      "symbol": "ADT",
+      "status": "live",
+      "factoryVersion": "0.11.0",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "token": "0x27F3117679680e0a85951BF4a1ca44Bd67D1E5a5",
+      "curve": "0x75148E905a31F7f5dD2f3Fe8fea4588a08ebF966",
+      "why": "The live $ADT market. Listed at /token/adt?chain=16661."
+    }
+  ]
+}

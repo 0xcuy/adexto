@@ -807,7 +807,7 @@ console.log("\n── model agen: daftar di studio vs og-attestation vs router 0
 }
 
 // ── 10. keadaan "belum ada peluncuran": satu kosakata, dan mati sendiri ────
-console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di chain ──");
+console.log("\n── inventaris peluncuran on-chain, dan kalimat keadaan peluncuran ──");
 {
   /**
    * Ini penjaga yang paling sering dibutuhkan dan paling lama tidak ada.
@@ -876,42 +876,94 @@ console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di 
   };
   let totalLaunches = 0n;
   let readable = 0;
-  const perChain = [];
   for (const [id, c] of Object.entries(CHAINS)) {
     const addresses = [env[c.factoryEnv], env[PREV_ENV[id]]].filter(Boolean);
     if (addresses.length === 0) continue;
-    let chainTotal = 0n;
     let anyReadable = false;
     for (const addr of addresses) {
       try {
         const n = await new ethers.Contract(addr, FACTORY_ABI, providerFor(Number(id))).totalProjectsCount();
-        chainTotal += n;
+        totalLaunches += n;
         anyReadable = true;
       } catch (e) {
         soft(`totalProjectsCount ${c.key} ${addr.slice(0, 10)} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
       }
     }
-    if (anyReadable) {
-      totalLaunches += chainTotal;
-      readable++;
-      perChain.push(`${c.key} ${chainTotal} (${addresses.length} generasi)`);
+    if (anyReadable) readable++;
+  }
+
+  /**
+   * YANG DILAPORKAN ADALAH PASAR YANG TERDAFTAR, BUKAN `totalProjectsCount()`.
+   *
+   * Angka mentah factory menghitung setiap peluncuran uji, dan karena `allProjects`
+   * append-only tanpa fungsi hapus, angka itu hanya bisa naik — jadi melaporkannya
+   * sebagai headline membuat audit ini seperti mengumumkan pertumbuhan yang tidak
+   * pernah terjadi, dan memaksa penjelasan yang sama diulang setiap kali dibaca.
+   *
+   * Yang sebenarnya ingin diketahui: berapa pasar yang benar-benar dilayani situs, dan
+   * apakah ada peluncuran on-chain yang TIDAK ada penjelasannya. Keduanya dijawab dari
+   * src/config/onchain-launches.json, yang mencatat kedelapan peluncuran satu kali
+   * beserta statusnya. Jadi penjaganya berbalik arah: diam selama semuanya tercatat,
+   * dan berbunyi hanya ketika muncul peluncuran baru yang belum dijelaskan.
+   */
+  const INVENTORY = "src/config/onchain-launches.json";
+  if (!existsSync(INVENTORY)) {
+    bad(`${INVENTORY} ada`, "inventaris peluncuran tidak tercatat");
+  } else {
+    const inv = JSON.parse(readFileSync(INVENTORY, "utf8"));
+    const byStatus = inv.launches.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] ?? 0) + 1 }), {});
+    const live = inv.launches.filter((l) => l.status === "live").length;
+
+    ok(
+      "pasar yang dilayani situs",
+      `${live} live` +
+        (byStatus.superseded ? ` · ${byStatus.superseded} digantikan` : "") +
+        (byStatus.test ? ` · ${byStatus.test} uji` : "") +
+        ` — semuanya tercatat di ${INVENTORY}`
+    );
+
+    check(
+      "inventaris mencakup setiap peluncuran on-chain",
+      BigInt(inv.launches.length) === totalLaunches,
+      BigInt(inv.launches.length) === totalLaunches
+        ? `${inv.launches.length} tercatat = ${totalLaunches} di chain`
+        : `${inv.launches.length} tercatat vs ${totalLaunches} di chain — ada peluncuran tanpa penjelasan, tambahkan ke ${INVENTORY}`
+    );
+
+    check(
+      "jumlah live cocok dengan registry produksi",
+      live === Number(inv.listedMarkets),
+      `${live} vs listedMarkets ${inv.listedMarkets}`
+    );
+
+    for (const l of inv.launches) {
+      if (!["live", "superseded", "test"].includes(l.status)) {
+        bad(`status "${l.status}" pada ${l.symbol} tidak dikenal`, "pakai live | superseded | test");
+      }
+      if (!l.why || l.why.length < 20) bad(`${l.symbol} ${l.status} tidak menjelaskan kenapa`, "isi field `why`");
     }
   }
-  if (perChain.length > 0) ok("peluncuran per chain, semua generasi dijumlahkan", perChain.join(" · "));
 
   if (readable === 0) {
     soft("jumlah peluncuran tidak bisa dibaca", "semua RPC gagal — klaim tidak diuji");
   } else {
-    ok(`totalProjectsCount() di ${readable} chain`, `${totalLaunches} peluncuran`);
     const src = existsSync(launchStatePath) ? readFileSync(launchStatePath, "utf8") : "";
     const stillClaimsZero = /no token has been launched|nothing has been launched|no launches yet|No markets yet/i.test(src);
     if (totalLaunches === 0n) {
       check("chain berkata nol, jadi kalimatnya boleh berdiri", stillClaimsZero, stillClaimsZero ? "cocok" : "launch-state.ts tidak lagi menyatakannya");
     } else {
-      // Sengaja kegagalan, bukan peringatan: teks yang bertahan di sini adalah
-      // klaim palsu di delapan halaman sekaligus.
+      /**
+       * Angka mentahnya TIDAK dicetak di sini.
+       *
+       * Yang diuji hanya satu hal biner: ada pasar, jadi kalimat "belum ada peluncuran"
+       * adalah klaim palsu di delapan halaman sekaligus dan harus dicabut. Mencetak
+       * `totalProjectsCount()` di sampingnya tidak menambah apa pun pada uji itu, dan
+       * angka yang hanya bisa naik karena `allProjects` append-only justru menarik
+       * perhatian ke pertumbuhan yang tidak pernah terjadi. Rinciannya sudah ada di
+       * inventaris di atas.
+       */
       check(
-        `chain berkata ${totalLaunches} peluncuran — kalimat "belum ada peluncuran" WAJIB dicabut`,
+        'ada pasar hidup, jadi kalimat "belum ada peluncuran" WAJIB dicabut',
         !stillClaimsZero,
         stillClaimsZero ? `${launchStatePath} masih menyatakan nol` : "sudah dicabut"
       );
