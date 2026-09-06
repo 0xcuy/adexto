@@ -426,12 +426,22 @@ for (const name of ALL_CHAINS) {
   // Cukup untuk mata menangkap perpindahan sorot, tidak lebih.
   await page.waitForTimeout(150);
 }
-await beat(page, 1500);
-const allLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
-  .replace(/\s+/g, " ")
-  .trim();
-console.log(`  setelah menelusuri keempat chain -> tombol: ${allLabel || "(belum aktif)"}`);
-await beat(page, 1400);
+/**
+ * TIDAK ADA jeda setelah mendarat di chain target.
+ *
+ * Dulu di sini ada `beat(1500)` + `beat(1400)`, dan satu `beat(2400)` lagi setelah
+ * penjaga di bawah — total 3.286 ms pada PACE bawaan 0,62. Semuanya nongkrong di chain
+ * yang baru saja dipilih tanpa apa pun terjadi di layar.
+ *
+ * Itu salah tempat. Chain target adalah TUJUAN adegan ini, bukan tempat menunggu: begitu
+ * sampai, yang berikutnya harus langsung terjadi — chat dengan co-pilot lalu peluncuran.
+ * Panel "No liquidity deposit" dan alokasi creator nol yang dulu dijadikan alasan menahan
+ * di sini tetap terlihat, karena adegan 1c memang menelusuri form itu satu per satu.
+ *
+ * Pembacaan label dan penjaga di bawah tidak butuh jeda: keduanya membaca DOM, dan React
+ * sudah selesai merender sebelum klik terakhir mengembalikan kendali — klik chain kini
+ * nol jaringan, jadi tidak ada apa pun yang masih dalam perjalanan.
+ */
 
 /**
  * Konfirmasi keras sebelum uang sungguhan bergerak — dan penjaganya DIGANTI, karena
@@ -457,6 +467,9 @@ for (const name of ALL_CHAINS) {
   if ((await btn.count()) === 0) continue;
   if (await isSelected(btn)) selectedChains.push(name);
 }
+// Satu pembacaan label, bukan dua. Sebelumnya ada `allLabel` dan `narrowLabel` yang
+// membaca elemen yang sama; keduanya masuk akal saat dipisahkan oleh dua `beat`, tapi
+// tanpa jeda di antaranya keduanya menghasilkan string identik.
 const narrowLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
@@ -474,9 +487,9 @@ if (IS_MAINNET) {
   console.log(`  MAINNET: transaksi berikutnya PERMANEN. ticker "${TICKER}" akan terklaim selamanya.`);
 }
 
-// Tidak ada field seed untuk diisi. Cukup tahan sebentar supaya penonton melihat
-// panel "No liquidity deposit" dan alokasi token creator yang nol.
-await beat(page, 2400);
+// `beat(2400)` di sini DICABUT bersama dua beat di atas. Alasannya di catatan pada
+// adegan 1a: begitu chain target terpilih, yang berikutnya harus langsung terjadi.
+// Panel "No liquidity deposit" dan alokasi creator nol tetap tampil di adegan 1c.
 
 // Chat dengan 0G TEE co-pilot di studio, sebelum token dibuat.
 scene("1b) Chat dengan 0G TEE co-pilot di studio");

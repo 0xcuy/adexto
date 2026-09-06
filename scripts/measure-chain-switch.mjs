@@ -59,6 +59,21 @@ console.log(`\n  target: ${BASE}`);
 console.log(`  urutan klik: ${ORDER.join(" -> ")}\n`);
 
 const rows = [];
+/**
+ * Jeda ANTAR-klik diukur juga, bukan cuma per klik.
+ *
+ * Keluhan aslinya bukan "tiap klik lambat" melainkan "pas di akhir di monad sebelum
+ * balik ke 0G itu lama" — yaitu jarak antara dua klik TERAKHIR, yang di video terlihat
+ * sebagai layar nongkrong di Monad. Angka itu gabungan dua hal: stall aplikasi DAN jeda
+ * yang ditulis perekam sendiri. Jadi irama perekam direplikasi di sini (hover 110 ms,
+ * klik, tahan 150 ms) supaya hasilnya sebanding dengan videonya, bukan dengan angka
+ * sintetis.
+ */
+const RECORDER_HOVER_MS = 110;
+const RECORDER_HOLD_MS = 150;
+let prevName = null;
+let legStart = null;
+
 for (const name of ORDER) {
   // `button[title*=…]`, sama seperti perekam: label tombolnya bukan nama chain-nya.
   const btn = page.locator(`button[title*="${name}"]`).first();
@@ -67,17 +82,31 @@ for (const name of ORDER) {
     continue;
   }
   deployCalls = [];
+  await btn.hover();
+  await page.waitForTimeout(RECORDER_HOVER_MS);
   await btn.click();
   const ms = await settleMs(name);
-  rows.push({ name, ms, calls: deployCalls.length });
-  console.log(`  ${String(name).padEnd(10)} melamun ${String(ms).padStart(5)} ms · ${deployCalls.length} permintaan /api/deploy`);
-  await page.waitForTimeout(250);
+  const leg = legStart === null ? null : Date.now() - legStart;
+  rows.push({ name, ms, calls: deployCalls.length, from: prevName, leg });
+  const legText = leg === null ? "" : ` · dari ${prevName}: ${leg} ms`;
+  console.log(
+    `  ${String(name).padEnd(10)} melamun ${String(ms).padStart(5)} ms · ${deployCalls.length} permintaan${legText}`
+  );
+  await page.waitForTimeout(RECORDER_HOLD_MS);
+  prevName = name;
+  legStart = Date.now();
 }
 
 const worst = rows.reduce((a, b) => (b.ms > a.ms ? b : a), { ms: -1, name: "-" });
 const totalCalls = rows.reduce((n, r) => n + r.calls, 0);
 console.log(`\n  terburuk: ${worst.name} ${worst.ms} ms`);
 console.log(`  total permintaan availability akibat ${rows.length} klik: ${totalCalls}`);
+
+// Kaki terakhir dilaporkan sendiri: itulah transisi yang dikeluhkan.
+const last = rows[rows.length - 1];
+if (last && last.leg !== null) {
+  console.log(`  KAKI TERAKHIR ${last.from} -> ${last.name}: ${last.leg} ms`);
+}
 console.log(`  chain terakhir: ${ORDER[ORDER.length - 1]}\n`);
 
 await ctx.close();
