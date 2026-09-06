@@ -5,15 +5,20 @@
 
 [![Website](https://img.shields.io/badge/Website-adexto.xyz-7C3AED?style=for-the-badge&logo=google-chrome&logoColor=white)](https://adexto.xyz)
 [![Version](https://img.shields.io/badge/Contracts-v0.11.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
-[![ERC-8004](https://img.shields.io/badge/ERC--8004-identity_only_·_draft-F59E0B?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
+[![ERC-8004](https://img.shields.io/badge/ERC--8004-identity_registry_only-F59E0B?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
 [![Chains](https://img.shields.io/badge/Mainnets-0G_·_Base_·_Arbitrum_·_Monad-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#-mainnet-deployments)
-[![x402](https://img.shields.io/badge/x402_Edge-discovery_only-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
+[![x402](https://img.shields.io/badge/x402_Edge-402_challenge,_no_settlement-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
+
+The two amber badges mark things that are **partly built**, and they name the part that is missing:
+
+- **ERC-8004 — identity registry only.** A launch can bind the token to an agent in the Identity Registry, and the factory verifies on-chain that the caller owns that agent. The standard's other two registries, Reputation and Validation, are not used at all. Separately: [EIP-8004](https://eips.ethereum.org/EIPS/eip-8004) is itself still a Draft, so the thing we integrate against can change.
+- **x402 Edge — the 402 challenge works, paying it does not.** Click the badge: a real Cloudflare Worker answers an unpaid call with a real HTTP 402 and a real price list. Present a signed payment voucher and it returns **501 Not Implemented**. No money has ever moved through it.
 
 ---
 
 ## What this is
 
-A creator launches a token and it opens **inside a bonding curve against a virtual reserve**. There is nothing to seed, so a launch costs gas and nothing else. 100% of supply enters the curve, so the creator holds no allocation to sell. Income arrives instead as a share of every swap, taken from inside the existing fee rather than added on top of it.
+A creator launches a token and it opens **inside a bonding curve against a virtual reserve**. There is nothing to seed, so a launch costs gas and nothing else. 100% of supply enters the curve, so the creator holds no allocation to sell. Income arrives instead as 0.10% of every swap, and that 0.10% comes out of the 0.30% the creator already set — paying the creator does not make the trade more expensive. The protocol's own 0.10% is the one leg that is added on top, which is why a trader pays 0.40%. Full breakdown in [Fee split](#fee-split).
 
 The curve is the permanent venue. There is **no graduation step** and no migration into an external pool, which is where most launchpad exploits have historically happened. There is also no withdrawal function anywhere in the curve, so no one — including us — can drain a market.
 
@@ -167,16 +172,22 @@ The point of this table is that nothing above it should be read as more finished
 | Trading / swap | **Live on 0G** | Real fills exist on the 0G markets. The other three chains have factories but no markets yet. |
 | Own AMM (`AdextoCurve`) | **Deployed per launch** | The curve ships with the factory. `SovereignCurve` is the previous generation's curve and still serves the markets it was deployed for. |
 | Agent compute (0G) | **Live, partially attested** | The 0G router reports Intel TDX attestation via dstack for each model we call. We read that declaration; we do **not** fetch or verify the raw quote. |
-| x402 edge gateway | **Discovery only** | The HTTP 402 challenge, price and settlement vault are live and real. EIP-712 voucher settlement and revenue routing into the vault are **not built** — a signed voucher returns 501. |
+| x402 edge gateway | **Answers the challenge, cannot take payment** | What works: an unpaid call gets a real HTTP 402 with a real price list, from a real Cloudflare Worker you can hit yourself. What does not exist: paying it. Present a signed EIP-712 voucher and the worker returns **501 Not Implemented**. So no money has ever moved through it, and the 10% facilitation fee in the revenue model has nothing to take a share of. |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | The Graph indexing | **Live on Base and Arbitrum, absent on 0G and Monad** | `adexto-base` and `adexto-arbitrum` are live and `SUBGRAPH_URL_*` points at both, `hasIndexingErrors: false` on each. Both chains have factories but no markets, so those subgraphs correctly return nothing. **0G is where the markets actually are and it is not indexed at all** — `SUBGRAPH_URL_0G` is empty, and the app reads 0G trades straight from RPC logs instead. The manifest carries both factory generations as separate data sources, because the `Swap` signatures differ and pointing one data source at the new factory would drop every existing market. Not published to the decentralized network. See below. |
 | Governance | **Deployed, NOT operational** | Stronger than "unexercised": it cannot be exercised. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote would revert. `proposalCount` is 0 on all four. |
 
-### A claim this file used to make
+### A claim this file got wrong
 
-One claim was carried in this README for a long time and was not true when it was written. It is recorded here rather than quietly deleted, because a corrected file that hides its corrections asks to be trusted on nothing but its current wording.
+This README once claimed something that was not true. It is written out here instead of being quietly deleted, because a file that hides its own corrections is asking to be trusted on nothing but its current wording.
 
-- **~~ERC-8004 compliance.~~** This was false and is now partly true; see [ERC-8004 agent identity](#erc-8004-agent-identity) below for exactly how far it goes. Until factory `0.10.0`, `AdextoToken` was `ERC20` and nothing more, carrying one `address immutable agentIdentity` and touching no registry — so the claim was unsupportable and the source called it "ERC-8004 style", an analogy. A launch can now bind a real agent id, verified on-chain. The reputation and validation registries are still not used.
+**The claim: "ERC-8004 compliance".**
+
+**It was false.** `AdextoToken` was an `ERC20` and nothing else. It carried one `address immutable agentIdentity` — a plain address field, set at launch, never checked against anything. The token never called a registry, so there was no standard to comply with. The source code itself said "ERC-8004 style", which is an analogy, while the README said compliance, which is a claim.
+
+**One part of it is true now.** Since factory `0.10.0`, a launch can bind the token to a real agent id in the ERC-8004 Identity Registry, and the factory calls `ownerOf(agentId)` and reverts unless the caller owns that agent. That part is on-chain and anyone can check it.
+
+**"Compliance" is still the wrong word, and we are not going to start using it.** The standard defines three registries. We use one. We do not implement `supportsInterface`, and the Reputation and Validation registries are not touched at all. The accurate description is the badge at the top of this file: identity registry only. Details in [ERC-8004 agent identity](#erc-8004-agent-identity).
 
 ### Why a bonding curve rather than a liquidity pool
 
@@ -202,7 +213,8 @@ Optional, off by default, and real when switched on. A launch may bind the token
 | Identity Registry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` — same address on all four mainnets, verified answering `ownerOf` |
 | Our own agent | **registered on all four mainnets** — Base `84622`, Arbitrum One `1457`, 0G `3545431`, Monad `10247`, all owned by the deployer |
 | Registry on testnets | **absent**, so the agent path can only be exercised on mainnet or a local devchain |
-| Standard status | **Draft**. The registry proxy is upgradeable and controlled by a third party |
+| Status of the standard | EIP-8004 is a **Draft**, so what we integrate against can still change. This is about the EIP, not about our code |
+| Who controls the registry | **not us.** It is an upgradeable proxy owned by a third party, so its behaviour can change without our involvement or consent |
 | Reputation / Validation registries | **not used** |
 | Read on a token | `agentBound()`, then `agentId()` and `agentRegistry()` |
 
