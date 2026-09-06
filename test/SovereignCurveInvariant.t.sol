@@ -36,8 +36,25 @@ contract CurveHandler {
 
     receive() external payable {}
 
+    /**
+     * @dev BATAS BAWAH 0.001 ether, BUKAN 1 wei.
+     *
+     * Versi pertama memakai `_bound(seed, 1, 5_000 ether)`. Karena `_bound` mengambil
+     * `seed % rentang`, seed kecil menghasilkan pembelian beberapa ribu wei terhadap
+     * reserve virtual 1500 ether. Diukur: seed 12345 membeli 12346 wei dan menerima
+     * 8.19e9 unit token dari persediaan 1e27.
+     *
+     * Akibatnya, `sell` di bawah mengkuotasi `1.5e21 * jumlah / 1e27` yang membulat ke
+     * NOL, handler keluar lebih awal, dan `sells` tidak pernah bertambah — sementara
+     * tabel Foundry tetap melaporkan `sell` dipanggil ribuan kali dengan 0 revert.
+     * Suite ini karena itu tidak pernah benar-benar menguji URUTAN yang mengandung
+     * penjualan, yang justru satu-satunya alasan berkas ini ada.
+     *
+     * Tepi rentang 1 wei tidak hilang: SovereignCurveFuzz.t.sol sengaja membatasi dari
+     * 1 wei untuk menguji pembulatan.
+     */
     function buy(uint256 seed) external {
-        uint256 amount = _bound(seed, 1, 5_000 ether);
+        uint256 amount = _bound(seed, 0.001 ether, 5_000 ether);
         if (address(this).balance < amount) return;
         (uint256 quoted,,,) = curve.getBuyQuote(amount);
         if (quoted == 0) return;
@@ -46,10 +63,12 @@ contract CurveHandler {
         curve.buy{value: amount}(0, address(this), block.timestamp + 1);
     }
 
+    /// @dev Persentase kepemilikan, bukan jumlah absolut, dengan alasan yang sama.
     function sell(uint256 seed) external {
         uint256 held = token.balanceOf(address(this));
         if (held == 0) return;
-        uint256 amount = _bound(seed, 1, held);
+        uint256 amount = (held * _bound(seed, 1, 100)) / 100;
+        if (amount == 0) return;
         (uint256 quoted,,,) = curve.getSellQuote(amount);
         if (quoted == 0) return;
         token.approve(address(curve), amount);
@@ -176,5 +195,34 @@ contract SovereignCurveInvariantTest is CurveFixture {
      */
     function invariant_creatorHoldsNoTokens() public view {
         assertEq(token.balanceOf(address(this)), 0, "creator memegang token");
+    }
+
+    /**
+     * Penjaga terhadap suite yang lolos tanpa menguji apa pun.
+     *
+     * `fail_on_revert = false` disengaja, dan handler menolak aksi mustahil dengan
+     * `return`. Gabungan keduanya berarti suite yang setiap aksinya gagal akan
+     * memenuhi seluruh invarian di atas secara HAMPA, dan lolos.
+     *
+     * Itu bukan hipotesis: dengan batas `_bound` yang lama, `sell` dilaporkan
+     * dipanggil ribuan kali dengan 0 revert padahal `sells` tetap nol sepanjang suite.
+     * Tidak ada satu pun invarian yang bisa memberi tahu, karena semuanya benar
+     * tentang state yang tidak pernah berubah.
+     */
+    function test_handlerCanActuallyPerformEveryAction() public {
+        handler.buy(uint256(keccak256("buy")));
+        assertGt(handler.buys(), 0, "handler tidak bisa membeli: suite invariant akan hampa");
+
+        handler.sell(uint256(keccak256("sell")));
+        assertGt(handler.sells(), 0, "handler tidak bisa menjual: suite invariant akan hampa");
+
+        handler.buy(uint256(keccak256("buy2")));
+        handler.buyback(uint256(keccak256("buyback")));
+        assertGt(handler.buybacks(), 0, "handler tidak bisa buyback: jalur itu tidak teruji");
+
+        handler.claim();
+        assertGt(handler.claims(), 0, "handler tidak bisa klaim fee creator: jalur itu tidak teruji");
+
+        _assertSolvent();
     }
 }
