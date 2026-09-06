@@ -145,12 +145,13 @@ export default function TokenTerminal({
   }, [swap.parsedAmount, swap.mode, swap.tokenDecimals, nativeUsd, tokenPriceUsd]);
 
   const feeUsd = useMemo(() => {
-    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0 };
+    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0, protocol: 0 };
     const native = (v: bigint) => Number(ethers.formatEther(v));
     return {
       lp: native(swap.quote.lpFee) * nativeUsd,
       creator: native(swap.quote.creatorFee) * nativeUsd,
       buyback: native(swap.quote.treasuryFee) * nativeUsd,
+      protocol: native(swap.quote.protocolFee) * nativeUsd,
     };
   }, [swap.quote, nativeUsd]);
 
@@ -736,6 +737,7 @@ export default function TokenTerminal({
               lpFeeBps={project.lpFeeBps}
               treasuryBuybackBps={project.treasuryBuybackBps}
               creatorFeeBps={swap.pool?.creatorFeeBps ? Number(swap.pool.creatorFeeBps) : null}
+              protocolFeeBps={swap.pool?.protocolFeeBps ? Number(swap.pool.protocolFeeBps) : null}
               feeUsd={feeUsd}
             />
 

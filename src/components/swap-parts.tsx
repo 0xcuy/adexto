@@ -258,15 +258,39 @@ interface FeeProps {
   treasuryBuybackBps: number;
   /** null kalau state pool belum terbaca; barisnya disembunyikan, tidak ditebak. */
   creatorFeeBps: number | null;
-  feeUsd: { lp: number; creator: number; buyback: number };
+  /**
+   * Kaki protokol, 0 atau null pada setiap pasar sebelum kurva 0.11.0.
+   *
+   * Dibiarkan opsional dengan sengaja: enam pasar 0.10.0 yang sudah hidup memang
+   * TIDAK punya kaki ini dan tarifnya immutable, jadi menampilkan baris bernilai
+   * nol di sana akan mengiklankan biaya yang tidak pernah dipungut.
+   */
+  protocolFeeBps?: number | null;
+  feeUsd: { lp: number; creator: number; buyback: number; protocol?: number };
 }
 
 /**
- * Tiga baris biaya, karena biayanya memang terbagi tiga. Menampilkan hanya depth
- * dan buyback akan menyembunyikan dari mana pendapatan pembuat token datang.
+ * Satu baris per kaki biaya, plus totalnya.
+ *
+ * Barisnya sengaja tidak lagi bertakik "↳" di bawah depth. Takik itu menyiratkan
+ * bagian creator DIPOTONG dari depth, padahal keduanya sejajar — dan begitu baris
+ * total ada di bawahnya, aritmetikanya jadi bisa diperiksa pembaca: keempat baris
+ * harus menjumlah tepat ke total.
+ *
+ * Total ditampilkan karena itulah satu-satunya angka yang benar-benar dibayar
+ * trader. Sebelum ini pembaca harus menjumlahkan sendiri, dan sejak kaki protokol
+ * ditambahkan DI ATAS total yang dikonfigurasi creator, "0.30%" di studio bukan
+ * lagi angka yang sama dengan yang keluar dari dompet.
  */
-export function FeeLines({ lpFeeBps, treasuryBuybackBps, creatorFeeBps, feeUsd }: FeeProps) {
+export function FeeLines({
+  lpFeeBps,
+  treasuryBuybackBps,
+  creatorFeeBps,
+  protocolFeeBps,
+  feeUsd,
+}: FeeProps) {
   const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
+  const totalBps = lpFeeBps + treasuryBuybackBps + (creatorFeeBps ?? 0) + (protocolFeeBps ?? 0);
   return (
     <div className="space-y-2 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-xs">
       <div className="flex items-start justify-between gap-3">
@@ -280,7 +304,7 @@ export function FeeLines({ lpFeeBps, treasuryBuybackBps, creatorFeeBps, feeUsd }
       {creatorFeeBps ? (
         <div className="flex items-start justify-between gap-3 text-ok">
           <span>
-            ↳ Creator <span data-numeric>({pct(creatorFeeBps)})</span>
+            Creator <span data-numeric>({pct(creatorFeeBps)})</span>
           </span>
           <span className="shrink-0 font-medium" data-numeric>
             {formatUsd(feeUsd.creator)}
@@ -294,6 +318,26 @@ export function FeeLines({ lpFeeBps, treasuryBuybackBps, creatorFeeBps, feeUsd }
         </span>
         <span className="shrink-0" data-numeric>
           {formatUsd(feeUsd.buyback)}
+        </span>
+      </div>
+      {protocolFeeBps ? (
+        <div className="flex items-start justify-between gap-3 text-ink-soft">
+          <span>
+            Protocol <span data-numeric>({pct(protocolFeeBps)})</span> — charged on top
+          </span>
+          <span className="shrink-0 font-medium" data-numeric>
+            {formatUsd(feeUsd.protocol ?? 0)}
+          </span>
+        </div>
+      ) : null}
+      <div className="flex items-start justify-between gap-3 border-t border-accent/20 pt-2 font-semibold text-ink">
+        <span>
+          Total you pay <span data-numeric>({pct(totalBps)})</span>
+        </span>
+        <span className="shrink-0" data-numeric>
+          {formatUsd(
+            feeUsd.lp + feeUsd.creator + feeUsd.buyback + (feeUsd.protocol ?? 0)
+          )}
         </span>
       </div>
     </div>

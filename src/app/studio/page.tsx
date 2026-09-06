@@ -118,7 +118,10 @@ const FIELD_CLASS =
  * mengirim, supaya pertanyaannya masih bisa disunting dulu.
  */
 const SUGGESTED_PROMPTS = [
-  "Explain how the 0.30% swap fee splits three ways",
+  // Tanpa angka: tarifnya bisa dipilih creator dan kaki protokol ditambahkan di atasnya
+  // per chain, jadi menuliskan "0.30%" dan "tiga" di teks statis akan salah setiap kali
+  // seseorang memilih tier lain atau chain yang factory-nya sudah naik versi.
+  "Explain how the swap fee splits, and what a trader actually pays",
   "If I hold no tokens, how do I actually get paid?",
   "Which chain should I launch on first, and why?",
   "Write a mandate for a delta-neutral yield agent",
@@ -260,9 +263,8 @@ export default function StudioPage() {
 
   const supplyNumber = Number(tokenSupply.replace(/[^0-9]/g, "")) || 0;
   /**
-   * The fee is split three ways inside the same total, so traders are never
-   * charged extra to pay the creator. Depth is whatever is left after the creator
-   * and buyback shares.
+   * Depth, creator and buyback all come out of the SAME configured total, so paying
+   * the creator never costs the trader extra. Depth is whatever is left over.
    */
   const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut);
 
@@ -300,6 +302,40 @@ export default function StudioPage() {
       })
       .catch(() => {
         // Ilustrasi jatuh ke defaultVirtualNative; calldata tetap menunggu server.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /**
+   * Kaki fee protokol per chain, DIBACA dari factory lewat GET /api/deploy.
+   *
+   * Tidak ditulis sebagai konstanta di sini karena angkanya bukan milik halaman ini:
+   * ia `PROTOCOL_FEE_BPS` di factory, dipungut DI ATAS total yang diatur creator, dan
+   * berbeda antar chain selama rollout-nya bertahap. Menulis "+0.10%" di layar akan
+   * berbohong di chain yang factory-nya masih 0.10.0; menulis "0.30% total" akan
+   * berbohong begitu chain-nya naik. Membaca dari chain menghapus pilihan itu.
+   *
+   * Kosong berarti belum terbaca, dan panelnya menampilkan tiga kaki seperti sebelumnya
+   * — bukan menebak kaki keempat yang mungkin tidak ada.
+   */
+  const [protocolFeeBpsByChain, setProtocolFeeBpsByChain] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/deploy")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !Array.isArray(d?.factories)) return;
+        const map: Record<number, number> = {};
+        for (const f of d.factories) {
+          if (Number.isFinite(Number(f?.chainId))) map[Number(f.chainId)] = Number(f?.protocolFeeBps ?? 0);
+        }
+        setProtocolFeeBpsByChain(map);
+      })
+      .catch(() => {
+        // Tidak terbaca: panel tetap menampilkan kaki yang diketahui pasti.
       });
     return () => {
       alive = false;
@@ -946,6 +982,22 @@ export default function StudioPage() {
     liveChains.length > 0 &&
     launchTargets.length > 0;
 
+  /**
+   * Kaki protokol untuk chain yang BENAR-BENAR dituju, diambil yang tertinggi.
+   *
+   * Yang tertinggi, bukan rata-rata: angka ini dipakai untuk memberi tahu creator
+   * berapa yang dibayar trader, dan meratakan dua chain yang tarifnya berbeda
+   * menghasilkan angka yang tidak berlaku di chain mana pun. Server memakai aturan
+   * yang sama untuk `totalPaidBps`, jadi layar dan calldata tidak berselisih.
+   *
+   * Nol berarti tidak ada chain tujuan yang memungut kaki protokol — keadaan sekarang,
+   * dan panel di bawah lalu menampilkan tiga kaki saja.
+   */
+  const protocolCut =
+    launchTargets.reduce((max, c) => Math.max(max, protocolFeeBpsByChain[c.chainId] ?? 0), 0) / 100;
+  /** Yang benar-benar keluar dari dompet trader: total yang dikonfigurasi + kaki protokol. */
+  const totalPaidPct = totalSwapFee + protocolCut;
+
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
       {/* Top strip */}
@@ -1359,9 +1411,11 @@ export default function StudioPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-xs">
-                  {/* Three-way split: depth · creator · buyback. The creator slice
-                      is what replaces a free token allocation, so there is nothing
-                      for a creator to dump. */}
+                  {/* Split dari total yang DIKONFIGURASI: depth · creator · buyback.
+                      Bagian creator inilah yang menggantikan alokasi token gratis,
+                      jadi tidak ada apa pun yang bisa di-dump creator. Kaki protokol
+                      TIDAK ada di sini karena bukan bagian dari total ini — ia
+                      dipungut di atasnya, dan ditampilkan terpisah di bawah. */}
                   {(Object.entries(FEE_TIERS) as Array<[FeeTier, (typeof FEE_TIERS)[FeeTier]]>).map(
                     ([tier, { fee, creator, cut, label }]) => (
                       <button
@@ -1384,16 +1438,35 @@ export default function StudioPage() {
                 </div>
 
                 <div className="p-2 rounded-xl bg-cream-2 space-y-1">
+                  {/* Lebar tiap segmen diukur terhadap TOTAL YANG DIBAYAR, bukan
+                      terhadap total yang dikonfigurasi. Kalau kaki protokol ada tapi
+                      pembaginya tetap `totalSwapFee`, ketiga segmen pertama akan
+                      menjumlah 100% dan segmen keempat meluber keluar batang — batang
+                      yang menyatakan sesuatu yang aritmetikanya tidak mungkin. */}
                   <div className="flex flex-wrap justify-between gap-x-3 text-[10px]">
                     <span className="text-accent font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
                     <span className="text-ok font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
                     <span className="text-accent font-medium">Buyback: {treasuryCut.toFixed(2)}%</span>
+                    {protocolCut > 0 ? (
+                      <span className="text-ink-soft font-medium">Protocol: {protocolCut.toFixed(2)}%</span>
+                    ) : null}
                   </div>
                   <div className="h-1.5 rounded-full bg-cream-3/[0.05] overflow-hidden flex">
-                    <div className="bg-accent-soft h-full" style={{ width: `${(depthCut / totalSwapFee) * 100}%` }} />
-                    <div className="bg-ok/10 h-full" style={{ width: `${(creatorCut / totalSwapFee) * 100}%` }} />
-                    <div className="bg-accent-soft h-full" style={{ width: `${(treasuryCut / totalSwapFee) * 100}%` }} />
+                    <div className="bg-accent-soft h-full" style={{ width: `${(depthCut / totalPaidPct) * 100}%` }} />
+                    <div className="bg-ok/10 h-full" style={{ width: `${(creatorCut / totalPaidPct) * 100}%` }} />
+                    <div className="bg-accent-soft h-full" style={{ width: `${(treasuryCut / totalPaidPct) * 100}%` }} />
+                    {protocolCut > 0 ? (
+                      <div className="bg-ink-faint/30 h-full" style={{ width: `${(protocolCut / totalPaidPct) * 100}%` }} />
+                    ) : null}
                   </div>
+                  {protocolCut > 0 ? (
+                    <span className="block text-[9px] text-ink-soft">
+                      Traders pay <span data-numeric>{totalPaidPct.toFixed(2)}%</span> in total: your{" "}
+                      <span data-numeric>{totalSwapFee.toFixed(2)}%</span> plus the protocol&apos;s{" "}
+                      <span data-numeric>{protocolCut.toFixed(2)}%</span>, which is charged on top rather than taken out
+                      of your share. It is immutable per market, like every other leg.
+                    </span>
+                  ) : null}
                   <span className="block text-[9px] text-ok/80">
                     You earn {creatorCut.toFixed(2)}% of every swap, streamed to your wallet. You receive no free tokens,
                     so there is nothing you could dump.

@@ -164,7 +164,18 @@ console.log("\n── README: alamat, VERSION dan ukuran bytecode vs chain ─�
 
     // Baris yang ditandai **current** harus sama dengan yang dipakai aplikasi.
     for (const [id, c] of Object.entries(CHAINS)) {
-      const cur = rows.find((r) => r.chainId === Number(id) && r.isCurrent && /CurveFactory/i.test(r.name));
+      /**
+       * Cocokkan `AdextoFactory` MAUPUN `AdextoCurveFactory`.
+       *
+       * Regex sebelumnya `/CurveFactory/i` dan itu bom waktu: factory 0.11.0 bernama
+       * `AdextoFactory`, tanpa kata "Curve" sama sekali, jadi pemeriksaan
+       * "current di README = env" akan berhenti menemukan barisnya dan lolos sebagai
+       * WARN alih-alih benar-benar memeriksa. Penjaga yang diam-diam berhenti menjaga
+       * lebih buruk daripada tidak ada penjaga.
+       */
+      const cur = rows.find(
+        (r) => r.chainId === Number(id) && r.isCurrent && /^Adexto(Curve)?Factory\b/i.test(r.name)
+      );
       const fromEnv = env[c.factoryEnv];
       if (!cur) {
         soft(`${c.key}: README tidak menandai factory mana yang current`);
@@ -181,6 +192,99 @@ console.log("\n── README: alamat, VERSION dan ukuran bytecode vs chain ─�
       );
     }
   }
+}
+
+// ── 1b. label generasi factory di situs harus cocok dengan VERSION di chain ──
+/**
+ * `/security` dan VerifiedDeploymentCard dulu menuliskan "AdextoCurveFactory 0.10.0"
+ * sebagai teks mati. Menukar `NEXT_PUBLIC_CURVE_FACTORY_*` ke factory baru tanpa
+ * menyunting kedua string itu membuat situs mengiklankan versi yang SALAH untuk
+ * kontrak yang BENAR — dan tidak ada yang error, jadi tidak ada yang tahu.
+ *
+ * Sekarang keduanya membaca satu konstanta di src/config/contracts.ts, dan konstanta
+ * itu diperiksa di sini terhadap `VERSION()` yang benar-benar dijawab chain. Kalau
+ * berpisah, audit gagal.
+ */
+console.log("\n── label generasi factory (src/config/contracts.ts) vs VERSION di chain ──");
+{
+  const cfg = readFileSync("src/config/contracts.ts", "utf8");
+  const grab = (constName) => {
+    const block = cfg.match(new RegExp(`export const ${constName} = \\{([\\s\\S]*?)\\} as const;`));
+    if (!block) return null;
+    return {
+      contract: (block[1].match(/contract:\s*"([^"]+)"/) || [])[1] ?? null,
+      version: (block[1].match(/version:\s*"([^"]+)"/) || [])[1] ?? null,
+    };
+  };
+
+  const current = grab("CURVE_FACTORY_GENERATION");
+  const superseded = grab("SUPERSEDED_CURVE_FACTORY_GENERATION");
+
+  if (!current?.version) {
+    bad("CURVE_FACTORY_GENERATION terbaca", "konstanta tidak ditemukan — format berubah?");
+  } else {
+    ok("label yang dipublikasikan", `${current.contract} ${current.version}`);
+    let compared = 0;
+    for (const [id, c] of Object.entries(CHAINS)) {
+      const addr = env[c.factoryEnv];
+      if (!addr) continue;
+      let version = null;
+      try {
+        version = await new ethers.Contract(
+          addr,
+          ["function VERSION() view returns (string)"],
+          providerFor(Number(id))
+        ).VERSION();
+      } catch (e) {
+        soft(`${c.key}: VERSION() tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+        continue;
+      }
+      compared++;
+      check(
+        `${c.key}: VERSION di chain = label situs`,
+        version === current.version,
+        version === current.version ? version : `chain ${version} vs situs ${current.version}`
+      );
+    }
+    if (compared === 0) soft("tidak ada alamat factory di env untuk dibandingkan");
+  }
+
+  /**
+   * Slot factory yang digantikan. Kosong sebelum ada penerusnya, dan itu BUKAN
+   * kegagalan — tapi begitu terisi, alamatnya harus benar-benar menjawab versi yang
+   * diklaim, sebab situs menampilkannya sebagai bukti pasar lama.
+   */
+  const PREV_ENV = {
+    16661: "NEXT_PUBLIC_CURVE_FACTORY_PREV_0G",
+    8453: "NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE",
+    42161: "NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM",
+    143: "NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD",
+  };
+  let prevSet = 0;
+  for (const [id, key] of Object.entries(PREV_ENV)) {
+    const addr = env[key];
+    if (!addr) continue;
+    prevSet++;
+    if (addr.toLowerCase() === (env[CHAINS[id].factoryEnv] || "").toLowerCase()) {
+      bad(`${CHAINS[id].key}: ${key} sama dengan factory current`, addr);
+      continue;
+    }
+    try {
+      const version = await new ethers.Contract(
+        addr,
+        ["function VERSION() view returns (string)"],
+        providerFor(Number(id))
+      ).VERSION();
+      check(
+        `${CHAINS[id].key}: factory digantikan menjawab v${superseded?.version}`,
+        version === superseded?.version,
+        version === superseded?.version ? `${addr} ${version}` : `chain ${version} vs label ${superseded?.version}`
+      );
+    } catch (e) {
+      soft(`${CHAINS[id].key}: ${key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+    }
+  }
+  if (prevSet === 0) ok("belum ada factory yang digantikan", "NEXT_PUBLIC_CURVE_FACTORY_PREV_* kosong, sesuai keadaan");
 }
 
 // ── 2. agent ERC-8004 yang diklaim README harus benar-benar milik kita ──────

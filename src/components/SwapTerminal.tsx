@@ -200,12 +200,13 @@ export default function SwapTerminal() {
   }, [swap.parsedAmount, swap.mode, swap.tokenDecimals, nativeUsd, tokenPriceUsd]);
 
   const feeUsd = useMemo(() => {
-    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0 };
+    if (!swap.quote) return { lp: 0, creator: 0, buyback: 0, protocol: 0 };
     const native = (v: bigint) => Number(ethers.formatEther(v));
     return {
       lp: native(swap.quote.lpFee) * nativeUsd,
       creator: native(swap.quote.creatorFee) * nativeUsd,
       buyback: native(swap.quote.treasuryFee) * nativeUsd,
+      protocol: native(swap.quote.protocolFee) * nativeUsd,
     };
   }, [swap.quote, nativeUsd]);
 
@@ -222,8 +223,9 @@ export default function SwapTerminal() {
         <p className="kicker mb-3">Sovereign bonding curve · virtual reserve</p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Swap</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee three ways
-          on-chain: depth that stays in the curve, the creator&apos;s share, and the agent buyback vault.
+          Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee on-chain —
+          curve depth, the creator&apos;s share, the agent buyback vault, and on 0.11.0 markets a protocol share charged
+          on top. The exact legs for the market you pick are listed before you confirm.
         </p>
         {!loading && (
           <p className="mt-3 text-xs text-ink-faint">
@@ -429,6 +431,7 @@ export default function SwapTerminal() {
                 lpFeeBps={selected.lpFeeBps}
                 treasuryBuybackBps={selected.treasuryBuybackBps}
                 creatorFeeBps={swap.pool?.creatorFeeBps ? Number(swap.pool.creatorFeeBps) : null}
+                protocolFeeBps={swap.pool?.protocolFeeBps ? Number(swap.pool.protocolFeeBps) : null}
                 feeUsd={feeUsd}
               />
             </div>

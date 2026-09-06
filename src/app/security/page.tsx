@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit, FileSearch } from "lucide-react";
 import report from "@/config/security-report.json";
-import { ADEXTO_CONTRACTS } from "@/config/contracts";
+import {
+  ADEXTO_CONTRACTS,
+  CURVE_FACTORY_GENERATION,
+  SUPERSEDED_CURVE_FACTORY_GENERATION,
+} from "@/config/contracts";
 
 
 export const metadata = {
@@ -535,7 +539,9 @@ forge test`}
         <div className="overflow-hidden rounded-xl border border-line">
           <div className="hidden sm:grid grid-cols-[auto_minmax(0,1fr)] gap-3 border-b border-line bg-cream-3/[0.04] px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">
             <span>Chain</span>
-            <span>AdextoCurveFactory 0.10.0 — the contract a launch runs</span>
+            <span>
+              {CURVE_FACTORY_GENERATION.contract} {CURVE_FACTORY_GENERATION.version} — the contract a launch runs
+            </span>
           </div>
           <div className="divide-y divide-line/[0.08]">
             {CHAINS.map((c) => {

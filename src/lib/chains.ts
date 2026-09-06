@@ -50,6 +50,22 @@ export interface ChainInfo {
    */
   curveFactoryAddress: string | null;
   /**
+   * Factory generasi sebelumnya di chain ini — UNTUK VERIFIKASI SAJA.
+   *
+   * Bytecode factory tidak bisa diubah, jadi pasar yang sudah dibuatnya tetap hidup
+   * dan tetap berasal dari alamat itu selamanya. Alamatnya disimpan supaya halaman
+   * verifikasi dan /security tetap bisa menunjuk kontrak yang benar-benar melahirkan
+   * pasar-pasar itu; membuangnya akan menghapus jejak yang justru paling ingin
+   * diperiksa orang.
+   *
+   * TIDAK IKUT menentukan `dexLive`, `launchGeneration`, atau filter `deployable` di
+   * /api/deploy. Itu bukan kehati-hatian berlebihan, itu pelajaran dari
+   * `factoryV2Address`: field factory kedua yang ikut dihitung sebagai "bisa
+   * meluncurkan" membuat chain diiklankan siap sementara transaksi launch hanya
+   * pernah dibangun dari `curveFactoryAddress`.
+   */
+  supersededCurveFactoryAddress: string | null;
+  /**
    * Sifat peluncuran di chain ini. Dulu bernilai "v3"/"v2"; nomor generasi tidak
    * memberi tahu pembaca apa pun tentang perilakunya.
    *
@@ -100,6 +116,7 @@ interface ChainSource {
   readonly blockExplorer: string;
   readonly factoryAddress: string;
   readonly curveFactoryAddress?: string | null;
+  readonly supersededCurveFactoryAddress?: string | null;
   readonly sovereignHookAddress: string;
   readonly governorAddress: string;
 }
@@ -118,7 +135,13 @@ interface ChainSource {
 type ChainOverride = Partial<
   Pick<
     ChainInfo,
-    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "curveFactoryAddress"
+    | "chainId"
+    | "name"
+    | "rpcUrl"
+    | "blockExplorer"
+    | "nativeSymbol"
+    | "curveFactoryAddress"
+    | "supersededCurveFactoryAddress"
   >
 >;
 
@@ -141,6 +164,13 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
   const chainId = o.chainId ?? source.chainId;
   const name = o.name ?? source.chainName;
   const curveFactoryAddress = o.curveFactoryAddress ?? source.curveFactoryAddress ?? null;
+  /**
+   * Sengaja TIDAK ikut ke `launchGeneration` maupun `dexLive` di bawah. Kalau alamat
+   * ini pernah dipakai untuk menyimpulkan sebuah chain bisa meluncurkan, chain yang
+   * factory barunya belum di-broadcast akan tampak siap dan gagal di studio.
+   */
+  const supersededCurveFactoryAddress =
+    o.supersededCurveFactoryAddress ?? source.supersededCurveFactoryAddress ?? null;
   const launchGeneration: "curve" | null = curveFactoryAddress ? "curve" : null;
   // Targets roughly $3k of opening market cap on each chain, in line with how
   // comparable launchpads open. Native prices differ by orders of magnitude, so a
@@ -174,6 +204,7 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     nativeCurrencyName: nativeName,
     factoryAddress: source.factoryAddress,
     curveFactoryAddress,
+    supersededCurveFactoryAddress,
     launchGeneration,
     defaultVirtualNative: DEFAULT_VIRTUAL_NATIVE[key],
     legacyHookAddress: source.sovereignHookAddress,
@@ -230,6 +261,9 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     // field factory v1 diisi alamat generasi berseed. Tidak ada factory v1 di devchain.
     factoryAddress: "",
     curveFactoryAddress: DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY ? DEVCHAIN_CURVE_FACTORY : null,
+    // Devchain dibuang dan dibuat ulang setiap kali dipakai, jadi tidak ada generasi
+    // sebelumnya yang bermakna untuk diverifikasi.
+    supersededCurveFactoryAddress: null,
     launchGeneration: DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY ? "curve" : null,
     defaultVirtualNative: 1,
     legacyHookAddress: "",

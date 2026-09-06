@@ -10,7 +10,7 @@
  */
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
-import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
+import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ADEXTO_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
 import type { TradeEvent } from "@/lib/telemetry";
 
 const LOOKBACK_BLOCKS = 45_000;
@@ -31,18 +31,29 @@ function cache(): Map<string, CacheEntry> {
 }
 
 /**
- * Dua generasi pool memancarkan event bernama sama tapi bertanda tangan BEDA:
- * SovereignHook punya `lpFee, treasuryFee` sedangkan SovereignCurve memecahnya
- * menjadi `depthFee, creatorFee, treasuryFee`. Satu parameter tambahan berarti
- * topic0 yang sama sekali lain, jadi memfilter dengan ABI hook saja membuat pool
- * kurva tampak tidak pernah diperdagangkan: chart jadi garis datar dan feed
- * kosong, padahal swap benar-benar terjadi.
+ * TIGA generasi pool memancarkan event bernama sama tapi bertanda tangan BEDA:
+ * SovereignHook punya `lpFee, treasuryFee`; SovereignCurve memecahnya menjadi
+ * `depthFee, creatorFee, treasuryFee`; AdextoCurve 0.11.0 menambah `protocolFee`
+ * lagi. Satu parameter tambahan berarti topic0 yang sama sekali lain, jadi
+ * memfilter dengan ABI generasi lama saja membuat pool generasi baru tampak tidak
+ * pernah diperdagangkan: chart jadi garis datar dan feed kosong, padahal swap
+ * benar-benar terjadi.
+ *
+ * Itu bug yang sudah pernah terjadi waktu kurva menggantikan hook. Karena itu
+ * daftar ini DITAMBAH, bukan diganti: enam pasar 0.10.0 dan pasar hook lama tetap
+ * harus bisa didekode selamanya, sebab bytecode-nya sudah di chain dan tidak bisa
+ * diubah.
  *
  * Empat field yang dipakai di bawah (trader, isBuy, amountIn, amountOut) ada di
- * kedua tanda tangan pada posisi yang sama, jadi cukup memilih interface yang
- * cocok dengan topic0 tiap log.
+ * ketiga tanda tangan pada posisi yang sama. Yang BERGESER posisinya adalah kedua
+ * reserve — indeks 7 di hook, 8 di kurva 0.10.0, 9 di 0.11.0 — jadi pembacaannya
+ * di bawah lewat nama field, bukan indeks.
  */
-const SWAP_IFACES = [new ethers.Interface(SOVEREIGN_CURVE_ABI), new ethers.Interface(SOVEREIGN_HOOK_ABI)];
+const SWAP_IFACES = [
+  new ethers.Interface(ADEXTO_CURVE_ABI),
+  new ethers.Interface(SOVEREIGN_CURVE_ABI),
+  new ethers.Interface(SOVEREIGN_HOOK_ABI),
+];
 const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
 const ifaceForTopic = (topic0: string) => SWAP_IFACES[SWAP_TOPICS.indexOf(topic0)];
 
@@ -139,9 +150,12 @@ export async function readOnChainSwaps(
        * that includes fees asymmetrically, so plotting it makes a buy-only curve
        * look like it moves when the market price only ever rose.
        *
-       * The two pool generations name these fields differently AND place them at
+       * The pool generations name these fields differently AND place them at
        * different positions — the hook emits `reserveNativeAfter` at index 7, the
-       * curve emits `nativeReserveAfter` at index 8 — so both names are read.
+       * 0.10.0 curve emits `nativeReserveAfter` at index 8, and 0.11.0 pushes the
+       * same pair to index 9 to make room for `protocolFee`. Reading by NAME rather
+       * than by index is what keeps this working across all three; a positional read
+       * would silently start plotting a fee as a reserve.
        */
       const nativeAfterRaw = parsed.args.nativeReserveAfter ?? parsed.args.reserveNativeAfter;
       const tokenAfterRaw = parsed.args.tokenReserveAfter ?? parsed.args.reserveTokenAfter;

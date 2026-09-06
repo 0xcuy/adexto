@@ -85,6 +85,18 @@ export async function GET(req: Request) {
       spotPriceNative: state.spotPriceNative,
       lpFeeBps: Number(state.lpFeeBps),
       treasuryBuybackBps: Number(state.treasuryBuybackBps),
+      /**
+       * Keempat kaki, plus totalnya, dibaca dari kurva itu sendiri.
+       *
+       * Sebelumnya hanya dua yang dikirim, dan order book menghitung harga kliringnya
+       * dari dua itu saja — jadi tangganya selalu lebih bagus daripada kenyataan
+       * sebesar kaki creator. Kaki protokol memperlebar selisih itu, jadi totalnya
+       * dikirim eksplisit supaya pemakainya tidak perlu menjumlah sendiri dan tidak
+       * bisa lupa satu kaki lagi nanti.
+       */
+      creatorFeeBps: Number(state.creatorFeeBps),
+      protocolFeeBps: Number(state.protocolFeeBps),
+      totalFeeBps: Number(state.totalFeeBps),
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

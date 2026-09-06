@@ -31,6 +31,10 @@ interface PoolInfo {
   spotPriceNative?: number;
   lpFeeBps?: number;
   treasuryBuybackBps?: number;
+  creatorFeeBps?: number;
+  protocolFeeBps?: number;
+  /** Semua kaki fee dijumlahkan oleh kurva sendiri. Dipakai untuk harga kliring. */
+  totalFeeBps?: number;
 }
 
 interface Level {
@@ -68,7 +72,27 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   const { asks, bids, spreadPct, spot } = useMemo(() => {
     const reserveNative = Number(pool?.reserveNative ?? 0);
     const reserveToken = Number(pool?.reserveToken ?? 0);
-    const feeBps = Number(pool?.lpFeeBps ?? 20) + Number(pool?.treasuryBuybackBps ?? 10);
+    /**
+     * Harga kliring harus memakai TOTAL fee, bukan sebagiannya.
+     *
+     * Dulu di sini hanya `lpFeeBps + treasuryBuybackBps`, sehingga setiap level
+     * tampak lebih murah daripada eksekusi sebenarnya sebesar kaki creator — dan
+     * sejak 0.11.0 juga sebesar kaki protokol. Order book yang mengiklankan harga
+     * yang tidak bisa didapat siapa pun adalah bentuk kebohongan yang paling halus:
+     * tidak ada yang error, angkanya cuma selalu sedikit terlalu bagus.
+     *
+     * `totalFeeBps` datang dari kurva itu sendiri lewat /api/pool. Fallback-nya
+     * menjumlah kaki yang ada supaya respons lama tetap tertangani, bukan diam-diam
+     * kembali ke dua kaki.
+     */
+    const feeBps =
+      Number(
+        pool?.totalFeeBps ??
+          Number(pool?.lpFeeBps ?? 20) +
+            Number(pool?.treasuryBuybackBps ?? 10) +
+            Number(pool?.creatorFeeBps ?? 0) +
+            Number(pool?.protocolFeeBps ?? 0)
+      );
 
     if (!pool?.tradable || reserveNative <= 0 || reserveToken <= 0) {
       return { asks: [] as Level[], bids: [] as Level[], spreadPct: 0, spot: 0 };

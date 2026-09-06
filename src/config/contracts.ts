@@ -50,6 +50,61 @@ const CURVE_FACTORY = {
   monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_MONAD),
 } as const;
 
+/**
+ * FACTORY YANG DIGANTIKAN — hanya untuk verifikasi, TIDAK untuk meluncurkan.
+ *
+ * Sampai 0.11.0 setiap chain hanya punya satu factory, jadi satu variabel per chain
+ * cukup. Sekarang tidak: bytecode factory tidak bisa diubah, jadi pasar yang sudah
+ * dibuat factory sebelumnya tetap hidup dan tetap dibuat oleh alamat itu selamanya.
+ * Kalau alamat lamanya hilang dari konfigurasi, halaman verifikasi berhenti menyebut
+ * kontrak yang benar-benar melahirkan pasar-pasar itu — situsnya jadi kurang jujur
+ * justru karena ada versi baru.
+ *
+ * DIPISAHKAN DENGAN SENGAJA dari `CURVE_FACTORY`. `dexLive`, filter `deployable` di
+ * /api/deploy, dan tombol launch di studio HANYA boleh melihat `CURVE_FACTORY`. Itu
+ * persis pelajaran dari `factoryV2Address` yang baru dibuang: field kedua yang ikut
+ * dihitung sebagai "bisa meluncurkan" membuat chain diiklankan siap padahal transaksi
+ * launch tidak pernah dibangun darinya.
+ */
+const PREV_CURVE_FACTORY = {
+  og: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_PREV_0G),
+  arbitrum: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM),
+  base: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE),
+  monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD),
+} as const;
+
+/**
+ * Nama kontrak dan VERSION dari generasi factory yang sedang dipakai meluncurkan.
+ *
+ * Ada di sini karena sebelumnya dua halaman menuliskannya sebagai teks mati —
+ * `/security` berkata "AdextoCurveFactory 0.10.0" di kepala tabel dan
+ * VerifiedDeploymentCard berkata "launches tokens · v0.10.0" di lencana. Keduanya
+ * hanya benar selama env-nya menunjuk factory itu, dan tidak ada apa pun yang
+ * memaksa keduanya ikut berubah saat alamatnya ditukar. Menukar alamat tanpa
+ * menyunting dua string itu membuat situs mengiklankan versi yang salah untuk
+ * kontrak yang benar — jenis kesalahan yang paling sulit dilihat, karena semuanya
+ * tetap berfungsi.
+ *
+ * `audit_consistency.mjs` membaca `VERSION()` dari setiap alamat factory di chain
+ * dan membandingkannya dengan nilai di sini, jadi kalau keduanya berpisah auditnya
+ * gagal alih-alih halamannya diam-diam salah.
+ */
+export const CURVE_FACTORY_GENERATION = {
+  contract: "AdextoCurveFactory",
+  version: "0.10.0",
+} as const;
+
+/**
+ * Generasi yang digantikan. Labelnya baru terpakai begitu
+ * `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` terisi, yaitu setelah factory penerusnya
+ * di-broadcast — dan nilainya sudah benar sejak sekarang supaya penukarannya tidak
+ * perlu mengubah dua tempat sekaligus.
+ */
+export const SUPERSEDED_CURVE_FACTORY_GENERATION = {
+  contract: "AdextoCurveFactory",
+  version: "0.10.0",
+} as const;
+
 
 export const ADEXTO_CONTRACTS = {
   og: {
@@ -60,6 +115,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://chainscan.0g.ai",
     factoryAddress: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0",
     curveFactoryAddress: CURVE_FACTORY.og,
+    supersededCurveFactoryAddress: PREV_CURVE_FACTORY.og,
     sovereignHookAddress: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
     governorAddress: "0x5045b117dDF788078c535f37837fDB6384da034d",
     ccipReceiverAddress: "0xaD0C7BFF5aDfeb01C3DaF2bF8C85414FE4D47Ab4",
@@ -73,6 +129,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://arbiscan.io",
     factoryAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
     curveFactoryAddress: CURVE_FACTORY.arbitrum,
+    supersededCurveFactoryAddress: PREV_CURVE_FACTORY.arbitrum,
     sovereignHookAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     governorAddress: "0x33811F9c53da5071A130F18D844f64999dBD43bA",
     ccipReceiverAddress: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
@@ -86,6 +143,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://basescan.org",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     curveFactoryAddress: CURVE_FACTORY.base,
+    supersededCurveFactoryAddress: PREV_CURVE_FACTORY.base,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
@@ -99,6 +157,7 @@ export const ADEXTO_CONTRACTS = {
     blockExplorer: "https://monadvision.com",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     curveFactoryAddress: CURVE_FACTORY.monad,
+    supersededCurveFactoryAddress: PREV_CURVE_FACTORY.monad,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",

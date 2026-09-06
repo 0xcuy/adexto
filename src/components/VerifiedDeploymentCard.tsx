@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ADEXTO_CONTRACTS } from "@/config/contracts";
+import {
+  ADEXTO_CONTRACTS,
+  CURVE_FACTORY_GENERATION,
+  SUPERSEDED_CURVE_FACTORY_GENERATION,
+} from "@/config/contracts";
 import { PUBLISHED_SUBGRAPH } from "@/config/subgraph";
 import { 
   CheckCircle2, ExternalLink, ShieldCheck, Database, Copy, Check, 
@@ -50,11 +54,34 @@ export default function VerifiedDeploymentCard() {
       if (!chain.curveFactoryAddress) return [];
       return [
         {
-          label: `AdextoCurveFactory (${c.label})`,
+          label: `${CURVE_FACTORY_GENERATION.contract} (${c.label})`,
           address: chain.curveFactoryAddress,
           explorerUrl: `${chain.blockExplorer}/address/${chain.curveFactoryAddress}`,
-          badge: "launches tokens · v0.10.0",
+          badge: `launches tokens · v${CURVE_FACTORY_GENERATION.version}`,
           color: "border-ok/30 bg-ok/10 text-ok",
+        },
+      ];
+    }),
+    /**
+     * Factory kurva yang digantikan, kalau ada.
+     *
+     * Muncul hanya ketika `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` terisi, jadi sebelum ada
+     * penerusnya baris ini tidak ada sama sekali — bukan baris kosong yang menyiratkan
+     * ada generasi lain. Setelah ada, alamatnya WAJIB tetap tampil: pasar yang sudah
+     * hidup lahir dari kontrak itu dan bytecode-nya tidak bisa diubah, jadi
+     * menghilangkannya berarti menyembunyikan justru kontrak yang paling ingin
+     * diperiksa orang.
+     */
+    ...CHAINS.flatMap((c) => {
+      const chain = chainOf(c.key);
+      if (!chain.supersededCurveFactoryAddress) return [];
+      return [
+        {
+          label: `${SUPERSEDED_CURVE_FACTORY_GENERATION.contract} (${c.label})`,
+          address: chain.supersededCurveFactoryAddress,
+          explorerUrl: `${chain.blockExplorer}/address/${chain.supersededCurveFactoryAddress}`,
+          badge: `superseded · v${SUPERSEDED_CURVE_FACTORY_GENERATION.version} · markets still tradable`,
+          color: "border-line bg-cream-3 text-ink-soft",
         },
       ];
     }),

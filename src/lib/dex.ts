@@ -90,6 +90,69 @@ export const SOVEREIGN_CURVE_ABI = [
 ];
 
 /**
+ * AdextoCurve, VERSION 0.11.0. A fourth fee leg, `protocolFeeBps`, charged ON TOP
+ * of the creator's configured total.
+ *
+ * This is a separate constant rather than an extension of `SOVEREIGN_CURVE_ABI`
+ * because two members genuinely changed shape and cannot coexist in one
+ * `ethers.Interface`:
+ *
+ *   - `getBuyQuote` / `getSellQuote` keep the same selector but return a FIFTH
+ *     word, `protocolFee`. Identical signature, different outputs, so the two
+ *     fragments collide.
+ *   - `Swap` gains `protocolFee`, making it an eleven-field event whose topic0
+ *     differs from the ten-field one. Filtering by the old topic alone would make
+ *     a 0.11.0 market look like it had never traded.
+ *
+ * The 0.10.0 constant above therefore stays byte-for-byte as it is: six markets
+ * are already live against that bytecode and have to keep decoding.
+ */
+export const ADEXTO_CURVE_ABI = [
+  "function VERSION() view returns (string)",
+  "function initialized() view returns (bool)",
+  "function targetToken() view returns (address)",
+  "function getReserves() view returns (uint256 reserveNative, uint256 reserveToken)",
+  "function lpFeeBps() view returns (uint256)",
+  "function depthFeeBps() view returns (uint256)",
+  "function creatorFeeBps() view returns (uint256)",
+  "function treasuryBuybackBps() view returns (uint256)",
+  "function protocolFeeBps() view returns (uint256)",
+  // Semua kaki fee dalam satu panggilan, supaya pemanggil tidak pernah menjumlah
+  // sendiri lalu berselisih dengan kontrak soal biaya sebenarnya sebuah trade.
+  "function totalFeeBps() view returns (uint256)",
+  "function virtualNative() view returns (uint256)",
+  "function realNative() view returns (uint256)",
+  "function tokensSold() view returns (uint256)",
+  "function curveTokens() view returns (uint256)",
+  "function creator() view returns (address)",
+  "function creatorOwed() view returns (uint256)",
+  "function totalCreatorFeesPaid() view returns (uint256)",
+  "function protocolTreasury() view returns (address)",
+  "function protocolOwed() view returns (uint256)",
+  "function totalProtocolFeesPaid() view returns (uint256)",
+  "function treasuryNative() view returns (uint256)",
+  "function totalTokensBurned() view returns (uint256)",
+  "function totalVolumeNative() view returns (uint256)",
+  "function swapCount() view returns (uint256)",
+  "function spotPriceNativePerToken() view returns (uint256)",
+  "function floorPriceNativePerToken() view returns (uint256)",
+  "function getBuyQuote(uint256 nativeIn) view returns (uint256 tokensOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee)",
+  "function getSellQuote(uint256 tokenIn) view returns (uint256 nativeOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee)",
+  "function buy(uint256 minTokensOut, address to, uint256 deadline) payable returns (uint256)",
+  "function sell(uint256 tokenAmountIn, uint256 minNativeOut, address to, uint256 deadline) returns (uint256)",
+  "function claimCreatorFees() returns (uint256)",
+  // Tanpa izin, dan itu aman justru karena tujuannya immutable: pemanggil tidak
+  // bisa mengarahkan dananya ke tempat lain, jadi tidak ada kunci yang perlu
+  // dipegang siapa pun untuk menarik fee protokol.
+  "function claimProtocolFees() returns (uint256)",
+  "function executeBuyback(uint256 nativeAmount, uint256 minTokensBurned) returns (uint256)",
+  "event Swap(address indexed trader, address indexed recipient, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee, uint256 nativeReserveAfter, uint256 tokenReserveAfter)",
+  "event AutoBuybackExecuted(uint256 amountIn, uint256 tokensBurned, uint256 depthFee, uint256 nativeReserveAfter, uint256 tokenReserveAfter)",
+  "event CreatorFeesClaimed(address indexed to, uint256 amount)",
+  "event ProtocolFeesClaimed(address indexed to, uint256 amount)",
+];
+
+/**
  * AdextoCurveFactory. Not payable: requiring native to launch is exactly the barrier this
  * generation removes. `virtualNative` equals the opening market cap in native
  * terms because 100% of supply enters the curve.
@@ -109,6 +172,17 @@ export const CURVE_FACTORY_ABI = [
   "function isSymbolAvailable(string symbol) view returns (bool)",
   "function totalProjectsCount() view returns (uint256)",
   "function curveOf(address token) view returns (address)",
+  /**
+   * These three describe the fee legs and the generation. One ABI still serves both
+   * factory generations because `deployTrinity` and `TrinityProjectDeployed` were
+   * kept selector- and signature-identical on purpose; only these reads are new, and
+   * on a 0.10.0 factory `PROTOCOL_FEE_BPS` / `protocolTreasury` simply revert, which
+   * is how the caller learns there is no protocol leg rather than being told a zero
+   * it cannot distinguish from a real one.
+   */
+  "function VERSION() view returns (string)",
+  "function PROTOCOL_FEE_BPS() view returns (uint256)",
+  "function protocolTreasury() view returns (address)",
   "event TrinityProjectDeployed(address indexed token, address indexed curve, address indexed creator, string name, string symbol, uint256 initialSupply, uint256 curveTokens, uint256 virtualNative, uint256 depthFeeBps, uint256 creatorFeeBps, uint256 treasuryBuybackBps, bytes32 teeAttestationRoot)",
 ];
 
@@ -210,6 +284,23 @@ export interface PoolState {
   creator: string | null;
   /** Lowest price the curve can return to; rises as depth fees settle. */
   floorPriceNative: number;
+
+  // ── Protocol leg. Zero on every pre-0.11.0 venue, which had no such leg. ──
+  /**
+   * Protocol share, charged ON TOP of the creator's configured total rather than
+   * carved out of it. Zero for a 0.10.0 curve, so every expression below stays
+   * correct on both generations without asking which one it is looking at.
+   */
+  protocolFeeBps: bigint;
+  /** Native accrued to the protocol treasury, claimable by anyone. */
+  protocolOwed: bigint;
+  /** Immutable protocol fee destination, or null on a venue that has no leg. */
+  protocolTreasury: string | null;
+  /**
+   * What a trader actually pays, all legs summed. Read from the contract when it
+   * offers `totalFeeBps` so the UI cannot disagree with the curve about the total.
+   */
+  totalFeeBps: bigint;
 }
 
 export interface Quote {
@@ -219,6 +310,8 @@ export interface Quote {
   /** Streamed to the creator. */
   creatorFee: bigint;
   treasuryFee: bigint;
+  /** Protocol portion. Always 0n on a pre-0.11.0 venue. */
+  protocolFee: bigint;
   priceImpactBps: number;
 }
 
@@ -274,6 +367,32 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
       isCurve = false;
     }
 
+    /**
+     * Protocol leg, probed separately.
+     *
+     * Read through `ADEXTO_CURVE_ABI` rather than by bolting these getters onto
+     * `SOVEREIGN_CURVE_ABI`, because a 0.10.0 curve genuinely does not have them
+     * and an ABI should not claim otherwise. On that generation the calls revert
+     * and the leg stays zero, which is the truth: those markets charge no protocol
+     * fee and never will, since the rate is immutable per curve.
+     */
+    let protocolFeeBps = 0n;
+    let protocolOwed = 0n;
+    let protocolTreasury: string | null = null;
+    try {
+      const v11 = new ethers.Contract(poolAddress, ADEXTO_CURVE_ABI, provider);
+      const [pf, owed, dest] = await Promise.all([
+        v11.protocolFeeBps(),
+        v11.protocolOwed(),
+        v11.protocolTreasury(),
+      ]);
+      protocolFeeBps = BigInt(pf);
+      protocolOwed = BigInt(owed);
+      protocolTreasury = dest;
+    } catch {
+      // Pre-0.11.0 venue: no protocol leg exists.
+    }
+
     let tokenDecimals = 18;
     try {
       tokenDecimals = Number(await new ethers.Contract(tokenAddress, ERC20_ABI, provider).decimals());
@@ -303,6 +422,10 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
       creatorOwed,
       creator,
       floorPriceNative: Number(ethers.formatEther(floorPriceRaw)),
+      protocolFeeBps,
+      protocolOwed,
+      protocolTreasury,
+      totalFeeBps: BigInt(lpFeeBps) + creatorFeeBps + BigInt(treasuryBuybackBps) + protocolFeeBps,
     };
   } catch {
     return null;
@@ -312,44 +435,96 @@ export async function readPoolState(chain: ChainInfo, poolAddress: string): Prom
 /**
  * Mirrors `getBuyQuote` exactly so the UI can quote without an RPC hop.
  *
- * The creator share is part of the same total, so it must be deducted from the
- * amount that moves along the curve. Leaving it out would over-quote every trade
- * by the creator fee and the on-chain result would not match what the user saw.
+ * EVERY fee leg has to be deducted here, because this expression is not a display
+ * nicety — `amountOut` is what the trading hook turns into `minTokensOut`. Miss a
+ * leg and the quote is larger than what the curve will actually pay, so the
+ * on-chain slippage check rejects the trade the user just confirmed. The failure
+ * looks like a broken market, not like a mis-stated fee.
+ *
+ * The creator leg was the first one to teach us this. `protocolFeeBps` is the
+ * fourth, and it is 0n on every pre-0.11.0 curve, so one expression serves both
+ * generations rather than branching on a version the caller would have to know.
  */
 export function quoteBuyLocal(state: PoolState, nativeIn: bigint): Quote {
   if (!state.initialized || nativeIn <= 0n) {
-    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
+    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, protocolFee: 0n, priceImpactBps: 0 };
   }
   const lpFee = (nativeIn * state.lpFeeBps) / BPS;
   const creatorFee = (nativeIn * state.creatorFeeBps) / BPS;
   const treasuryFee = (nativeIn * state.treasuryBuybackBps) / BPS;
-  const inAfterFee = nativeIn - lpFee - creatorFee - treasuryFee;
+  const protocolFee = (nativeIn * state.protocolFeeBps) / BPS;
+  const inAfterFee = nativeIn - lpFee - creatorFee - treasuryFee - protocolFee;
   const amountOut = (state.reserveToken * inAfterFee) / (state.reserveNative + inAfterFee);
   return {
     amountOut,
     lpFee,
     creatorFee,
     treasuryFee,
+    protocolFee,
     priceImpactBps: impactBps(inAfterFee, state.reserveNative),
   };
 }
 
-/** Mirrors `getSellQuote` exactly: fees come off the output. */
+/** Mirrors `getSellQuote` exactly: fees come off the output, protocol leg included. */
 export function quoteSellLocal(state: PoolState, tokenIn: bigint): Quote {
   if (!state.initialized || tokenIn <= 0n) {
-    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, priceImpactBps: 0 };
+    return { amountOut: 0n, lpFee: 0n, creatorFee: 0n, treasuryFee: 0n, protocolFee: 0n, priceImpactBps: 0 };
   }
   const grossOut = (state.reserveNative * tokenIn) / (state.reserveToken + tokenIn);
   const lpFee = (grossOut * state.lpFeeBps) / BPS;
   const creatorFee = (grossOut * state.creatorFeeBps) / BPS;
   const treasuryFee = (grossOut * state.treasuryBuybackBps) / BPS;
+  const protocolFee = (grossOut * state.protocolFeeBps) / BPS;
   return {
-    amountOut: grossOut - lpFee - creatorFee - treasuryFee,
+    amountOut: grossOut - lpFee - creatorFee - treasuryFee - protocolFee,
     lpFee,
     creatorFee,
     treasuryFee,
+    protocolFee,
     priceImpactBps: impactBps(tokenIn, state.reserveToken),
   };
+}
+
+/**
+ * What generation a chain's launch factory actually is, read from the chain.
+ *
+ * The point is that nothing in the app has to be told. The studio needs to state
+ * what a trader will pay, and after 0.11.0 that is no longer the number the creator
+ * configures: the protocol leg is charged ON TOP. Hardcoding "+0.10%" would be a
+ * lie on every chain still running 0.10.0, and hardcoding "0.30% total" becomes a
+ * lie the moment a chain is upgraded. Asking the factory removes the choice.
+ *
+ * `protocolFeeBps` is 0 when the factory has no such constant, which is the honest
+ * answer for a 0.10.0 factory: markets it creates never pay a protocol fee, and the
+ * rate is immutable per curve so they never will.
+ */
+export interface FactoryGeneration {
+  version: string | null;
+  protocolFeeBps: number;
+  protocolTreasury: string | null;
+}
+
+export async function readFactoryGeneration(chain: ChainInfo): Promise<FactoryGeneration> {
+  const empty: FactoryGeneration = { version: null, protocolFeeBps: 0, protocolTreasury: null };
+  if (!chain.curveFactoryAddress) return empty;
+  try {
+    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+    const factory = new ethers.Contract(chain.curveFactoryAddress, CURVE_FACTORY_ABI, provider);
+    const version = await factory.VERSION().catch(() => null);
+    // Dipisah dari VERSION dengan sengaja: factory 0.10.0 menjawab VERSION tetapi
+    // me-revert dua yang di bawah, dan itu bukan kegagalan — itu jawabannya.
+    const [feeBps, treasury] = await Promise.all([
+      factory.PROTOCOL_FEE_BPS().catch(() => null),
+      factory.protocolTreasury().catch(() => null),
+    ]);
+    return {
+      version: version ? String(version) : null,
+      protocolFeeBps: feeBps === null ? 0 : Number(feeBps),
+      protocolTreasury: treasury ?? null,
+    };
+  } catch {
+    return empty;
+  }
 }
 
 /** Claim accrued creator fees. Funds can only go to the curve's immutable creator. */

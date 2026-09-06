@@ -13,7 +13,7 @@ import {
   listProjects,
   RegistryLimitError,
 } from "@/lib/registry";
-import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
+import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI, readFactoryGeneration } from "@/lib/dex";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
 /**
@@ -44,14 +44,36 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const symbol = searchParams.get("symbol");
   if (!symbol) {
+    /**
+     * The factory's own VERSION and protocol fee are READ FROM CHAIN, not asserted.
+     *
+     * The studio has to tell a creator what a trader will actually pay, and since
+     * 0.11.0 that is no longer the total the creator configures — the protocol leg is
+     * charged on top of it. Reading the constant means the studio needs no edit when a
+     * chain is upgraded, and cannot advertise a leg on a chain that does not charge one.
+     */
+    const generations = await Promise.all(
+      CHAIN_LIST.map(async (c) => [c.chainId, await readFactoryGeneration(c)] as const)
+    );
+    const genOf = new Map(generations);
     return NextResponse.json({
-      factories: CHAIN_LIST.map((c) => ({
-        chainKey: c.key,
-        chainId: c.chainId,
-        chainName: c.name,
-        curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
-        dexLive: c.dexLive,
-      })),
+      factories: CHAIN_LIST.map((c) => {
+        const gen = genOf.get(c.chainId)!;
+        return {
+          chainKey: c.key,
+          chainId: c.chainId,
+          chainName: c.name,
+          curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
+          dexLive: c.dexLive,
+          factoryVersion: gen.version,
+          protocolFeeBps: gen.protocolFeeBps,
+          protocolTreasury: gen.protocolTreasury,
+          // Factory generasi sebelumnya di chain ini, kalau ada. Hanya untuk
+          // verifikasi — pasar lamanya tetap bisa diperdagangkan dan tetap memakai
+          // kaki fee aslinya, yang tidak memuat fee protokol.
+          supersededCurveFactory: c.supersededCurveFactoryAddress,
+        };
+      }),
       registered: listProjects().map((p) => p.symbol),
     });
   }
@@ -281,6 +303,51 @@ async function handlePrepare(body: any) {
 
   const lpFeeBps = Math.round((swapFeeRaw - creatorCut - treasuryCut) * 100);
   const treasuryBuybackBps = Math.round(treasuryCut * 100);
+  const creatorFeeBps = Math.round(creatorCut * 100);
+
+  /**
+   * Kaki protokol dibaca dari factory tiap chain yang benar-benar dituju.
+   *
+   * `swapFeeBps` yang dikirim creator BUKAN lagi yang dibayar trader: sejak factory
+   * 0.11.0 `PROTOCOL_FEE_BPS` dipungut DI ATAS total itu, jadi konfigurasi 0.30%
+   * menghasilkan 0.40% yang benar-benar keluar dari dompet. Angka itu harus dilaporkan,
+   * bukan dibiarkan tersirat — kalau tidak, satu-satunya tempat kaki keempat muncul
+   * adalah di dalam kontrak, dan creator baru mengetahuinya setelah pasarnya permanen.
+   *
+   * Dibaca PER CHAIN karena rollout-nya bisa bertahap: satu chain sudah 0.11.0
+   * sementara yang lain masih 0.10.0, dan satu angka gabungan akan salah di salah satu
+   * sisi. Nol berarti factory chain itu memang tidak punya kaki protokol.
+   */
+  const protocolLegs = await Promise.all(
+    deployable.map(async (c) => [c.chainId, await readFactoryGeneration(c)] as const)
+  );
+  const legOf = new Map(protocolLegs);
+  const protocolFeeBpsByChain = Object.fromEntries(
+    protocolLegs.map(([chainId, gen]) => [String(chainId), gen.protocolFeeBps])
+  );
+  const maxProtocolFeeBps = protocolLegs.reduce((m, [, gen]) => Math.max(m, gen.protocolFeeBps), 0);
+
+  /**
+   * Cap 5% diperiksa di sini juga, terhadap total yang SUDAH termasuk kaki protokol.
+   *
+   * Factory sendiri sudah menuntut `swapFeeBps + PROTOCOL_FEE_BPS <= 500`, tapi kalau
+   * pemeriksaannya hanya di sana, permintaan yang melewati batas baru gagal di tengah
+   * transaksi launch — setelah metadata di-anchor ke 0G DA dan setelah pengguna
+   * menandatangani. Menolaknya lebih awal membuat kegagalannya bisa dijelaskan.
+   */
+  const totalPaidBps = Math.round(swapFeeRaw * 100) + maxProtocolFeeBps;
+  if (totalPaidBps > 500) {
+    return NextResponse.json(
+      {
+        error:
+          `Total fee a trader would pay is ${(totalPaidBps / 100).toFixed(2)}%, above the 5% cap the ` +
+          `curve enforces. swapFee is ${swapFeeRaw}% and the protocol leg on the target chains adds ` +
+          `${(maxProtocolFeeBps / 100).toFixed(2)}%.`,
+        code: "FEE_OUT_OF_RANGE",
+      },
+      { status: 400 }
+    );
+  }
 
   const opening = await resolveOpenings(deployable);
   if (!opening.ok) {
@@ -301,15 +368,42 @@ async function handlePrepare(body: any) {
   //     dstack; kami MEMBACA deklarasi itu, tidak memverifikasi raw quote-nya,
   //     dan hardware-nya bukan SEV-SNP. Membiarkannya di metadata berarti setiap
   //     launch meninggalkan jejak attestation palsu yang permanen.
+  /**
+   * `version` DIBACA dari factory, per chain, bukan dituliskan sebagai teks.
+   *
+   * Ini dokumen yang di-anchor permanen ke 0G DA dan di-hash menjadi `metadataRoot`.
+   * Angka yang salah di sini tidak bisa dikoreksi nanti — hanya bisa dibantah oleh
+   * dokumen lain, yang justru memperburuk. Nilai tetap "0.10.0" akan berbohong pada
+   * setiap launch begitu ada satu chain yang naik ke 0.11.0, dan tidak ada apa pun
+   * yang memaksa string itu ikut berubah.
+   *
+   * Dicatat per chain karena rollout-nya bisa bertahap: satu ticker yang diluncurkan
+   * ke empat chain bisa lahir dari dua generasi factory sekaligus, dan satu angka
+   * gabungan akan salah di sebagian chain. `null` berarti factory-nya tidak menjawab
+   * `VERSION()`, dan itu dicatat apa adanya alih-alih ditebak.
+   */
+  const factoryVersionByChain = Object.fromEntries(
+    deployable.map((c) => [String(c.chainId), legOf.get(c.chainId)?.version ?? null])
+  );
+
   const metadata = {
     protocol: "ADEXTO Protocol (adexto.xyz)",
-    version: "0.10.0",
+    factoryVersionByChain,
     ecosystem: {
       token: { name, symbol, supply, standard: "ERC-20", curve: "Bonding curve over a virtual reserve" },
       dex: {
         type: "Sovereign bonding curve",
         lpFeeBps,
+        creatorFeeBps,
         treasuryBuybackBps,
+        /**
+         * Kaki protokol dicatat per chain, dan `totalPaidBps` adalah yang benar-benar
+         * dibayar trader. Tanpa keduanya, dokumen permanen ini hanya memuat total yang
+         * dikonfigurasi creator — angka yang, sejak 0.11.0, bukan lagi biaya sebenarnya.
+         */
+        protocolFeeBpsByChain,
+        totalConfiguredBps: lpFeeBps + creatorFeeBps + treasuryBuybackBps,
+        totalPaidBps,
         subdomain: `https://${symbol.toLowerCase()}.adexto.xyz`,
       },
       agent: {
@@ -346,7 +440,10 @@ async function handlePrepare(body: any) {
                 ])
               ),
               identityRegistry: ADEXTO_CONTRACTS.agentRegistry,
-              note: "Ownership verified on-chain by AdextoCurveFactory at launch, per chain.",
+              // Nama kontrak dibuang dari kalimat ini. Ia permanen di 0G DA, dan
+              // factory 0.11.0 bernama `AdextoFactory` — menyebut nama lama akan
+              // membekukan nama yang salah ke dalam dokumen yang tidak bisa dikoreksi.
+              note: "Ownership verified on-chain by the launch factory at launch, per chain.",
             }
           : { bound: false, note: "No ERC-8004 agent identity was supplied for this launch." },
       },
@@ -387,6 +484,19 @@ async function handlePrepare(body: any) {
     daStorageOk: storage.ok,
     lpFeeBps,
     treasuryBuybackBps,
+    creatorFeeBps,
+    /**
+     * Kaki protokol dan total yang benar-benar dibayar trader.
+     *
+     * `lpFeeBps + creatorFeeBps + treasuryBuybackBps` menjumlah ke total yang
+     * DIKONFIGURASI creator. `totalPaidBps` menambahkan kaki protokol di atasnya, dan
+     * itulah angka yang keluar dari dompet trader. Keduanya dikirim supaya klien tidak
+     * perlu memilih salah satu lalu keliru.
+     */
+    protocolFeeBps: maxProtocolFeeBps,
+    protocolFeeBpsByChain,
+    totalConfiguredBps: lpFeeBps + creatorFeeBps + treasuryBuybackBps,
+    totalPaidBps,
     supply,
     // Market cap buka DITETAPKAN SERVER, bukan diambil dari angka paku di config.
     // `virtualNative` per chain sudah dihitung dari harga live, sehingga satu
@@ -397,6 +507,8 @@ async function handlePrepare(body: any) {
       chainId: c.chainId,
       chainName: c.name,
       curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
+      factoryVersion: legOf.get(c.chainId)?.version ?? null,
+      protocolFeeBps: legOf.get(c.chainId)?.protocolFeeBps ?? 0,
       nativeSymbol: c.nativeSymbol,
       virtualNative: String(openings[c.chainId].virtualNative),
       nativePriceUsd: openings[c.chainId].priceUsd,
