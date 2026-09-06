@@ -201,16 +201,34 @@ export const CURATED_PROJECTS: ProjectRecord[] = [];
  * to whoever asked first. They are listed literally instead, which also means the
  * reservation no longer depends on a showcase entry existing.
  */
-export const RESERVED_SYMBOLS = new Set([
-  // Protocol tickers, held for ADEXTO's own launches.
-  "ADEXTO",
-  "ADX",
-  "AEGIS",
-  "QNOVA",
-  "CSENT",
-  "MQUANT",
-  // Native and blue-chip assets: a curve token called USDC or ETH would be read
-  // as the real asset by anyone skimming a market list.
+/**
+ * Ticker milik protokol. Boleh diklaim oleh `ADEXTO_OFFICIAL_DEPLOYER`.
+ *
+ * Ini yang dijaga supaya penyerobot tidak mengambil nama kita SEBELUM kita meluncurkannya
+ * sendiri. Jadi pengecualian untuk deployer resmi memang tepat di sini: tanpa itu, kami
+ * terkunci dari token kami sendiri.
+ */
+export const PROTOCOL_SYMBOLS = new Set(["ADEXTO", "ADX", "AEGIS", "QNOVA", "CSENT", "MQUANT"]);
+
+/**
+ * Nama aset besar. TIDAK BOLEH diklaim siapa pun — termasuk kami.
+ *
+ * Dipisah dari PROTOCOL_SYMBOLS, dan pemisahan ini penting. Dulu keduanya satu set dengan
+ * satu pengecualian menyeluruh untuk deployer resmi, jadi begitu
+ * `ADEXTO_OFFICIAL_DEPLOYER` diisi, alamat itu langsung bisa mengklaim "USDC", "ETH", dan
+ * "BTC" di 0G mainnet. Diverifikasi lewat /api/deploy: ketiganya menjawab
+ * `available:true` untuk deployer resmi.
+ *
+ * Itu bukan pintu yang kami inginkan. Alasan dua daftar ini terpesan sama sekali berbeda:
+ * nama protokol dijaga agar tidak diserobot orang lain, sedangkan nama aset besar dijaga
+ * agar tidak ada yang salah membaca token kurva sebagai aset sungguhan. Alasan kedua
+ * berlaku sama kuat untuk token yang KAMI luncurkan — bahkan lebih, karena token dari
+ * deployer resmi justru tampak paling sah.
+ *
+ * Dan klaim ticker on-chain bersifat permanen: `symbolRegistry` tidak punya fungsi untuk
+ * melepas. Satu salah ketik di studio akan menempel selamanya.
+ */
+export const BLUE_CHIP_SYMBOLS = new Set([
   "ETH",
   "WETH",
   "USDC",
@@ -222,6 +240,9 @@ export const RESERVED_SYMBOLS = new Set([
   "MON",
   "ARB",
 ]);
+
+/** Gabungan keduanya. Dipertahankan karena dirujuk audit_preflight_immutable.mjs. */
+export const RESERVED_SYMBOLS = new Set([...PROTOCOL_SYMBOLS, ...BLUE_CHIP_SYMBOLS]);
 
 /**
  * Addresses permitted to launch a RESERVED ticker.
@@ -375,7 +396,16 @@ export function checkSymbolAvailable(symbol: string, chainId?: number | null, cr
   // The official deployer is exempt: the protocol has to be able to launch its
   // own reserved tickers. Everyone else is refused, including when
   // ADEXTO_OFFICIAL_DEPLOYER is unset.
-  if (RESERVED_SYMBOLS.has(upper) && !isOfficialDeployer(creator)) {
+  // Nama aset besar diperiksa LEBIH DULU dan tanpa pengecualian, jadi deployer resmi pun
+  // tidak bisa melewatinya. Urutannya bukan gaya: kalau blok ini di bawah, pengecualian
+  // deployer akan sudah mengembalikan `available` sebelum sampai ke sini.
+  if (BLUE_CHIP_SYMBOLS.has(upper)) {
+    return {
+      available: false,
+      reason: `Ticker ${upper} is the name of a major asset and can never be launched here.`,
+    };
+  }
+  if (PROTOCOL_SYMBOLS.has(upper) && !isOfficialDeployer(creator)) {
     return { available: false, reason: `Ticker ${upper} is reserved and cannot be launched.` };
   }
 

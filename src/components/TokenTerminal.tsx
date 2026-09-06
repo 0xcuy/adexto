@@ -572,6 +572,8 @@ export default function TokenTerminal({
               nativeSymbol={chain.nativeSymbol}
               nativeUsd={nativeUsd}
               poolLive={swap.tradable}
+              // Dipakai toggle MCAP untuk mengubah sumbu menjadi harga x suplai.
+              supply={project.supply}
               /**
                * `swap.txHash` berubah tepat sekali per trade yang berhasil, dan
                * `useSovereignSwap` menetapkannya SETELAH receipt diparse — jadi ini sinyal

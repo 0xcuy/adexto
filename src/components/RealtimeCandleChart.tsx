@@ -8,6 +8,7 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  PriceScaleMode,
   IChartApi,
 } from "lightweight-charts";
 import { formatSmallNumber } from "@/lib/pricing";
@@ -68,6 +69,14 @@ interface Props {
    * swap-nya sudah ada di blok ketika pengambilan ulang berjalan.
    */
   refreshKey?: string | null;
+  /**
+   * Suplai token utuh, dipakai toggle MCAP untuk mengubah sumbu harga menjadi kapitalisasi.
+   *
+   * Di produk ini kapitalisasi = harga x suplai TANPA catatan kaki: 100% suplai masuk ke
+   * kurva sejak peluncuran, tidak ada porsi terkunci dan tidak ada alokasi creator. Jadi
+   * MCAP dan FDV bernilai sama, dan menyebutnya "market cap" tidak melebihkan apa pun.
+   */
+  supply: number;
 }
 
 /**
@@ -116,6 +125,10 @@ const YOUNG_MARKET_SLOTS = 24;
  */
 const PRICE_AXIS_WIDTH = 96;
 
+/** Notasi ringkas untuk sumbu kapitalisasi: 20509 -> "20.51K". */
+const compactNumber = (v: number) =>
+  new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(v);
+
 /**
  * Overlay indicators share the price scale; RSI and MACD cannot, since one is
  * bounded 0..100 and the other oscillates around zero. Those get their own pane.
@@ -145,6 +158,7 @@ export default function RealtimeCandleChart({
   nativeUsd,
   poolLive,
   refreshKey,
+  supply,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   /**
@@ -202,6 +216,24 @@ export default function RealtimeCandleChart({
    * penyebab, bukan cuma korbannya.
    */
   const [interval, setIntervalSeconds] = useState(60);
+
+  /**
+   * Skala logaritmik, autoscale, dan sumbu harga-vs-kapitalisasi.
+   *
+   * `log` menjawab keterbatasan yang sudah dinyatakan di autoscaleInfoProvider: pada skala
+   * linear yang autoscale, gerakan 0,0002% dan 2% tergambar mirip, jadi chart tidak
+   * menyampaikan besaran. Pada skala logaritmik jarak vertikal menjadi perubahan
+   * PERSENTASE, sehingga dua gerakan yang berbeda besaran akhirnya terlihat berbeda. Itu
+   * bukan sekadar preferensi tampilan, itu yang membuat sumbunya berarti.
+   *
+   * `auto` dimatikan berarti rentang berhenti mengikuti data, sehingga pengguna bisa
+   * menggeser dan zoom sumbu harga tanpa chart menariknya kembali setiap kali data masuk.
+   */
+  const [logScale, setLogScale] = useState(false);
+  const [autoScale, setAutoScale] = useState(true);
+  const [showMcap, setShowMcap] = useState(false);
+  /** Pengali sumbu: 1 untuk harga, suplai untuk kapitalisasi. */
+  const priceMultiplier = showMcap && supply > 0 ? supply : 1;
 
   /**
    * Timeframe dibaca dari `?tf=` dan ditulis kembali ke URL saat diganti.
@@ -762,7 +794,24 @@ export default function RealtimeCandleChart({
         setCandleCount(candles.length);
 
         if (candles.length > 0 && candleSeriesRef.current) {
-          const sorted = [...candles].sort((a, b) => a.time - b.time);
+          /**
+           * Nilai diskalakan SEKALI di sini, lalu yang terskala itulah yang disimpan.
+           *
+           * `candlesRef` dibaca oleh autoscaleInfoProvider (untuk membatasi porsi badan
+           * candle), oleh drawIndicators, dan oleh legenda OHLC. Kalau yang disimpan nilai
+           * mentah sementara sumbu memakai kapitalisasi, ketiganya bekerja pada satuan yang
+           * berbeda dari yang tergambar: batas porsi badan membandingkan angka mentah
+           * dengan rentang terskala, dan overlay EMA digambar di satuan yang salah. Jadi
+           * satu titik konversi, bukan tiga.
+           */
+          const mul = priceMultiplier;
+          const sorted = [...candles]
+            .sort((a, b) => a.time - b.time)
+            .map((c) =>
+              mul === 1
+                ? c
+                : { ...c, open: c.open * mul, high: c.high * mul, low: c.low * mul, close: c.close * mul }
+            );
           candlesRef.current = sorted;
 
           /**
@@ -779,11 +828,17 @@ export default function RealtimeCandleChart({
           const relSpan = hi > 0 ? (hi - lo) / hi : 0;
           sigDigitsRef.current =
             relSpan > 0 ? Math.min(12, Math.max(4, Math.ceil(-Math.log10(relSpan)) + 2)) : 4;
+          /**
+           * Format sumbu ikut mode. Kapitalisasi berada di orde puluhan ribu native,
+           * jadi notasi subscript untuk angka sangat kecil justru tidak terbaca di sana —
+           * dipakai notasi ringkas (20,5K) seperti terminal lain menampilkan mcap.
+           */
           candleSeriesRef.current.applyOptions({
             priceFormat: {
               type: "custom",
-              formatter: (p: number) => formatSmallNumber(p, sigDigitsRef.current),
-              minMove: 1e-12,
+              formatter: (p: number) =>
+                showMcap ? compactNumber(p) : formatSmallNumber(p, sigDigitsRef.current),
+              minMove: showMcap ? 0.01 : 1e-12,
             },
           });
           candleSeriesRef.current.setData(
@@ -872,7 +927,11 @@ export default function RealtimeCandleChart({
       if (confirmTimer) clearTimeout(confirmTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, chainId, interval, refreshKey]);
+    // `showMcap` ikut di sini karena mengubahnya mengubah SATUAN data, jadi seri harus
+    // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
+    // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
+    // yang salah.
+  }, [symbol, chainId, interval, refreshKey, showMcap]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -957,7 +1016,30 @@ export default function RealtimeCandleChart({
           )}
         </div>
 
-        <div className="flex items-center gap-1 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1 text-[11px]">
+          {/* Sumbu: harga per token, atau kapitalisasi. */}
+          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+            {[
+              { label: "Price", on: !showMcap, set: false },
+              { label: "MCAP", on: showMcap, set: true },
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onClick={() => setShowMcap(o.set)}
+                title={
+                  o.set
+                    ? "Chart the market cap: price x supply. 100% of supply is in the curve, so this equals FDV."
+                    : "Chart the price of one token"
+                }
+                className={`px-2 py-0.5 font-bold transition-colors ${
+                  o.on ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
           {INTERVALS.map((i) => (
             <button
               key={i.label}
@@ -1082,6 +1164,31 @@ export default function RealtimeCandleChart({
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-1.5 text-[11px] text-ink-faint">
         <span>
+          {/* log / auto di kanan bawah, posisi yang sama dengan terminal rujukan. */}
+          <span className="mr-2 inline-flex items-center gap-1 align-middle">
+            <button
+              type="button"
+              onClick={() => setLogScale((v) => !v)}
+              aria-pressed={logScale}
+              title="Logarithmic price axis: equal vertical distance means equal PERCENTAGE change, so a 0.0002% move and a 2% move finally look different"
+              className={`rounded border px-1.5 py-0.5 font-bold transition-colors ${
+                logScale ? "border-accent/30 bg-accent-soft text-accent" : "border-line bg-cream-3 text-ink-soft hover:text-ink"
+              }`}
+            >
+              log
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoScale((v) => !v)}
+              aria-pressed={autoScale}
+              title="Auto-fit the price axis to the data. Turn it off to pan and zoom the axis yourself without it snapping back."
+              className={`rounded border px-1.5 py-0.5 font-bold transition-colors ${
+                autoScale ? "border-accent/30 bg-accent-soft text-accent" : "border-line bg-cream-3 text-ink-soft hover:text-ink"
+              }`}
+            >
+              auto
+            </button>
+          </span>
           Source: <span className={source === "onchain" ? "text-ok" : "text-warn"}>{sourceLabel}</span>
           {tradeCount > 0 ? ` · ${tradeCount} fills · ${candleCount} bars` : ""}
         </span>
