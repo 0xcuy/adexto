@@ -162,8 +162,34 @@ const CONTRADICTIONS = [
  * "(planned)", "(not built)", atau kalimat yang menyatakannya. Tanpa itu, angka
  * bersatuan dolar terbaca sebagai penerimaan.
  */
+/**
+ * Daftar penanda ini BERTAMBAH ketika kaki fee protokol benar-benar di-broadcast, dan
+ * alasannya perlu ditulis supaya tidak dikira pelemahan penjaga.
+ *
+ * Semula setiap aliran pendapatan berstatus sama: belum dibangun. Sekarang salah
+ * satunya berbeda — tarifnya HIDUP di keempat mainnet dan sudah memungut, tetapi
+ * pendapatannya masih nol karena pendapatan butuh volume. "planned" dan "not built"
+ * dua-duanya salah untuk keadaan itu: yang pertama mengingkari kontrak yang sudah ada
+ * di chain, yang kedua bohong.
+ *
+ * Jadi yang ditambahkan adalah frasa yang mengakui NOL secara eksplisit, bukan frasa
+ * yang mengaburkan status. Penjaganya tetap menuntut hal yang sama: angka berdolar
+ * tidak boleh berdiri sendirian.
+ */
 const MUST_BE_QUALIFIED = [
-  ["Target: $", ["planned", "not built", "not yet", "no billing", "does not exist", "none of these"]],
+  [
+    "Target: $",
+    [
+      "planned",
+      "not built",
+      "not yet",
+      "no billing",
+      "does not exist",
+      "none of these",
+      "revenue so far is zero",
+      "earning nothing",
+    ],
+  ],
 ];
 
 /**
