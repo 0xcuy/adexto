@@ -295,9 +295,47 @@ await ctx.addInitScript(SHIM);
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(e.message));
 
+// ── 0. LANDING: mulai dari tempat pengunjung sungguhan mulai ────────────────
+/**
+ * Perekaman dulu langsung `goto("/studio")`, dan itu melewatkan hal yang justru paling
+ * dibutuhkan penonton: konteks. Pembuka yang bagus menjawab "ini apa" sebelum
+ * memperlihatkan "ini caranya".
+ *
+ * Masuk ke studio lewat MENGKLIK CTA-nya, bukan lewat `goto`, dengan sengaja: itu
+ * sekalian membuktikan tautannya benar-benar bekerja. Navigasi yang dipalsukan dengan
+ * goto akan tetap terlihat mulus di video walau tombolnya rusak.
+ */
+scene("0) LANDING — apa itu ADEXTO, sebelum masuk studio");
+await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+await beat(page, 2600);
+
+// Digulir perlahan melewati hero, deret stack, lalu pilar — cukup untuk menangkap
+// klaim utamanya, tanpa menggulir sampai footer.
+for (const y of [0, 420, 900, 1500]) {
+  await page.evaluate((top) => window.scrollTo({ top, behavior: "smooth" }), y);
+  await beat(page, 1300);
+}
+await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+await beat(page, 1200);
+
+const openStudio = page.locator('a:has-text("Open Studio")').first();
+if ((await openStudio.count()) > 0) {
+  await openStudio.hover();
+  await beat(page, 600);
+  await openStudio.click();
+  await page.waitForURL(/\/studio/, { timeout: 30000 }).catch(() => {});
+  await beat(page, 1600);
+} else {
+  console.log("  CTA 'Open Studio' tidak ditemukan — masuk studio lewat URL");
+  await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
+  await beat(page, 1600);
+}
+
 // ── 1. STUDIO: wallet tersambung dulu, baru buat token ──────────────────────
 scene("1) STUDIO — sambungkan wallet lalu buat token");
-await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
+if (!/\/studio/.test(page.url())) {
+  await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
+}
 await beat(page, 1800);
 
 const connect = page.locator('button:has-text("Connect wallet")').first();
@@ -336,9 +374,21 @@ await beat(page, 1500);
  * memang tersedia sebagai target, lalu berhenti di chain yang akan dipakai. Bukan
  * "satu klik ke empat chain".
  */
-const ALL_CHAINS = IS_MAINNET
-  ? ["0G Mainnet", "Arbitrum One", "Base Mainnet", "Monad Mainnet"]
-  : ["0G Testnet", "Arbitrum Sepolia", "Base Sepolia", "Monad Testnet"];
+/**
+ * Chain target diletakkan TERAKHIR, bukan pertama.
+ *
+ * Urutannya menentukan apa yang penonton ingat: yang terakhir disorot adalah yang
+ * dipakai untuk meluncurkan. Karena studio single-select, klik terakhir sekaligus yang
+ * menentukan target — jadi urutan ini bukan hiasan, ia juga yang membuat adegan
+ * berakhir tepat di chain yang benar tanpa perlu loop pembetulan.
+ */
+const ALL_CHAINS = (
+  IS_MAINNET
+    ? ["Arbitrum One", "Base Mainnet", "Monad Mainnet", "0G Mainnet"]
+    : ["Arbitrum Sepolia", "Base Sepolia", "Monad Testnet", "0G Testnet"]
+)
+  .filter((n) => n !== CHAIN.name)
+  .concat(CHAIN.name);
 
 // Deteksi state terpilih dari class tombolnya SENDIRI.
 //
@@ -351,40 +401,36 @@ const ALL_CHAINS = IS_MAINNET
 // sinyal terpilih yang andal.
 const isSelected = async (btn) => ((await btn.getAttribute("class")) ?? "").includes("text-accent");
 
-scene("1a) Perlihatkan keempat chain tersedia, lalu berhenti di chain target");
+/**
+ * Menelusuri keempat chain, berakhir di chain target.
+ *
+ * Loop "persempit ke satu" yang dulu ada di bawah sini DIHAPUS. Ia mencoba men-deselect
+ * chain dengan mengkliknya, padahal `selectChain` MENGGANTI isi daftar — jadi mengklik
+ * chain yang sedang terpilih tetap membuatnya terpilih. Loop itu hanya berpindah-pindah
+ * lalu dibetulkan oleh satu klik terakhir; ia bekerja secara kebetulan, bukan karena
+ * benar. Dengan target diletakkan terakhir di ALL_CHAINS, hasilnya sama tanpa loop itu.
+ *
+ * Jeda per klik disengaja SINGKAT. Klik chain sekarang tidak menyentuh jaringan sama
+ * sekali — ketersediaan ticker keempat chain sudah diambil sekali di muka, dan cek agent
+ * dijawab dari cache — jadi diukur 0 ms dari 812 ms sebelumnya. Menahan 320 ms di sini
+ * hanya akan menciptakan kembali lambat yang baru saja dihapus.
+ */
+scene("1a) Telusuri keempat chain dengan cepat, berhenti di chain target");
 for (const name of ALL_CHAINS) {
   const btn = page.locator(`button[title*="${name}"]`).first();
   if ((await btn.count()) === 0) continue;
   if (await btn.isDisabled().catch(() => false)) continue;
-  if (!(await isSelected(btn))) {
-    await btn.hover();
-    await page.waitForTimeout(180);
-    await btn.click();
-    await page.waitForTimeout(320);
-  }
+  await btn.hover();
+  await page.waitForTimeout(110);
+  await btn.click();
+  // Cukup untuk mata menangkap perpindahan sorot, tidak lebih.
+  await page.waitForTimeout(150);
 }
-await beat(page, 1600);
+await beat(page, 1500);
 const allLabel = ((await launchButton(page).first().textContent().catch(() => "")) ?? "")
   .replace(/\s+/g, " ")
   .trim();
 console.log(`  setelah menelusuri keempat chain -> tombol: ${allLabel || "(belum aktif)"}`);
-await beat(page, 1400);
-
-// Persempit ke satu chain: deselect semua kecuali CHAIN.name.
-for (const name of ALL_CHAINS.filter((n) => n !== CHAIN.name)) {
-  const btn = page.locator(`button[title*="${name}"]`).first();
-  if ((await btn.count()) === 0) continue;
-  if (await btn.isDisabled().catch(() => false)) continue;
-  if (await isSelected(btn)) {
-    await btn.click();
-    await page.waitForTimeout(280);
-  }
-}
-const chainBtn = page.locator(`button[title*="${CHAIN.name}"]`).first();
-if (!(await isSelected(chainBtn))) {
-  await chainBtn.click();
-  await page.waitForTimeout(280);
-}
 await beat(page, 1400);
 
 /**

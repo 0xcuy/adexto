@@ -70,11 +70,22 @@ interface TickerChainState {
   reason: string | null;
 }
 
+/**
+ * Hasil pemeriksaan ticker, disimpan UNTUK SEMUA chain sekaligus.
+ *
+ * `available` dan `reason` global sengaja DIBUANG dari state ini. Keduanya bergantung
+ * pada chain mana yang sedang dipilih, dan menyimpannya berarti setiap klik chain
+ * memaksa pengambilan ulang ke server hanya untuk mengubah satu boolean. Sekarang
+ * keduanya diturunkan dari `perChain` di dalam komponen — nol jaringan saat berganti
+ * chain.
+ *
+ * `error` hanya untuk kegagalan jaringan, bukan untuk ticker yang tidak tersedia:
+ * alasan per-chain sudah memuat penolakan format maupun ticker terpesan.
+ */
 interface TickerState {
   checking: boolean;
-  available: boolean | null;
-  reason: string | null;
   perChain: TickerChainState[];
+  error: string | null;
 }
 
 const MODELS = [
@@ -178,6 +189,15 @@ export default function StudioPage() {
     detail?: string;
   };
   const [agentChecks, setAgentChecks] = useState<Record<number, AgentCheck>>({});
+  /**
+   * Cache kepemilikan agent, dikunci `chainId:agentId:wallet`.
+   *
+   * `useRef` dan bukan state: isinya tidak boleh memicu render, dan ia hanya perlu
+   * hidup selama halaman terbuka. Ketiga bagian kuncinya wajib ada — mengganti wallet
+   * atau agentId mengubah jawabannya, jadi kunci yang lebih pendek akan menampilkan
+   * jawaban milik orang lain.
+   */
+  const agentCacheRef = useRef<Map<string, AgentCheck>>(new Map());
 
   const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
   const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
@@ -205,7 +225,7 @@ export default function StudioPage() {
   );
 
   // ── gating + results ─────────────────────────────────────────────────────
-  const [ticker, setTicker] = useState<TickerState>({ checking: false, available: null, reason: null, perChain: [] });
+  const [ticker, setTicker] = useState<TickerState>({ checking: false, perChain: [], error: null });
   const [attestation, setAttestation] = useState<{ signature: string; message: string; signer: string } | null>(null);
   const [attesting, setAttesting] = useState(false);
   const [deploying, setDeploying] = useState(false);
@@ -260,36 +280,63 @@ export default function StudioPage() {
     };
   }, []);
 
-  // ── ticker availability, evaluated per selected chain ────────────────────
-  // A multi-chain launch needs per-chain availability: the same creator extending
-  // their own ticker onto another chain is allowed, so a single global "taken"
-  // answer would block the very flow this page exists for.
+  /**
+   * Ketersediaan ticker, diambil untuk SELURUH chain hidup sekaligus.
+   *
+   * `targetChainIds` sengaja TIDAK ada di daftar dependensi, dan itu inti perbaikannya.
+   * Dulu ia ada di sana, jadi setiap klik chain menjatuhkan panel ke status "checking"
+   * lalu menunggu debounce 450 ms ditambah satu perjalanan jaringan — sekitar 0,7 detik
+   * diam per klik, yang terbaca sebagai UI melamun padahal tidak ada yang dikerjakan.
+   * Debounce itu memang perlu, tapi untuk KETIKAN, bukan untuk klik. Mengetik
+   * menghasilkan satu event per huruf; memilih chain adalah satu tindakan diskret yang
+   * jawabannya sudah kita punya.
+   *
+   * Mengambil keempat chain sekaligus tidak lebih mahal: GET /api/deploy menjawab dari
+   * registry di memori tanpa satu pun panggilan RPC, dan diukur di produksi 4 chain
+   * sama cepatnya dengan 1. Jadi berganti chain sekarang nol jaringan.
+   *
+   * Bonusnya memperbaiki bug diam: tombol chain menandai chain yang tickernya sudah
+   * terpakai lewat `blockedChainIds`, tapi dulu hanya chain TERPILIH yang pernah
+   * diambil — jadi chain lain tidak pernah bisa tampil tertanda sebelum diklik.
+   */
+  const liveChainIdsKey = liveChains.map((c) => c.chainId).join(",");
   useEffect(() => {
     const symbol = tokenTicker.trim().toUpperCase();
     if (!symbol) {
-      setTicker({ checking: false, available: null, reason: null, perChain: [] });
+      setTicker({ checking: false, perChain: [], error: null });
       return;
     }
     setTicker((prev) => ({ ...prev, checking: true }));
     const handle = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ symbol });
-        if (targetChainIds.length > 0) params.set("chainIds", targetChainIds.join(","));
+        const params = new URLSearchParams({ symbol, chainIds: liveChainIdsKey });
         if (address) params.set("creator", address);
         const res = await fetch(`/api/deploy?${params.toString()}`);
         const data = await res.json();
         setTicker({
           checking: false,
-          available: Boolean(data.available),
-          reason: data.reason ?? null,
           perChain: Array.isArray(data.perChain) ? data.perChain : [],
+          error: null,
         });
       } catch {
-        setTicker({ checking: false, available: null, reason: "Could not check ticker availability.", perChain: [] });
+        setTicker({ checking: false, perChain: [], error: "Could not check ticker availability." });
       }
     }, 450);
     return () => clearTimeout(handle);
-  }, [tokenTicker, targetChainIds, address]);
+  }, [tokenTicker, address, liveChainIdsKey]);
+
+  /**
+   * Jawaban untuk chain yang SEDANG dipilih, dibaca dari peta yang sudah ada di memori.
+   *
+   * Diturunkan, bukan disimpan, supaya berganti chain hanya menghitung ulang — tidak
+   * mengambil ulang. Ditempatkan di sini, sebelum `deploy` dan sebelum JSX, supaya satu
+   * definisi ini melayani semua pemakainya.
+   */
+  const selectedTickerCheck = ticker.perChain.find((p) => targetChainIds.includes(p.chainId)) ?? null;
+  const tickerAvailable: boolean | null =
+    ticker.perChain.length === 0 ? null : selectedTickerCheck ? selectedTickerCheck.available : null;
+  const tickerReason: string | null =
+    selectedTickerCheck && !selectedTickerCheck.available ? selectedTickerCheck.reason : ticker.error;
 
   /**
    * Check agent ownership on-chain while the field is being typed.
@@ -311,18 +358,40 @@ export default function StudioPage() {
     // chains were still guaranteed to revert.
     const targets = liveChains.filter((c) => targetChainIds.includes(c.chainId));
     const pending: Record<number, AgentCheck> = {};
+    /**
+     * Chain yang benar-benar perlu ditembak RPC. Sisanya dijawab dari cache.
+     *
+     * Kepemilikan agent tidak berubah selama (chain, agentId, wallet) sama, jadi
+     * kembali ke chain yang sudah diperiksa tidak boleh menampilkan "checking" lagi —
+     * itu setengah detik diam plus satu perjalanan RPC untuk jawaban yang sudah ada.
+     * Bersama pengambilan ticker di atas, inilah yang membuat klik chain jadi instan.
+     */
+    const needsFetch: typeof targets = [];
     for (const chain of targets) {
       const raw = (agentBinding.agentIds[chain.chainId] ?? "").trim();
-      if (!/^\d+$/.test(raw)) pending[chain.chainId] = { state: "idle" };
-      else if (!address) pending[chain.chainId] = { state: "error", detail: "Connect a wallet to check ownership." };
-      else pending[chain.chainId] = { state: "checking" };
+      if (!/^\d+$/.test(raw)) {
+        pending[chain.chainId] = { state: "idle" };
+        continue;
+      }
+      if (!address) {
+        pending[chain.chainId] = { state: "error", detail: "Connect a wallet to check ownership." };
+        continue;
+      }
+      const cached = agentCacheRef.current.get(`${chain.chainId}:${raw}:${address.toLowerCase()}`);
+      if (cached) {
+        pending[chain.chainId] = cached;
+        continue;
+      }
+      pending[chain.chainId] = { state: "checking" };
+      needsFetch.push(chain);
     }
     setAgentChecks(pending);
-    if (!address) return;
+    // Tanpa yang perlu diambil, tidak ada timer yang dipasang: klik chain berakhir di sini.
+    if (!address || needsFetch.length === 0) return;
 
     const handle = setTimeout(async () => {
       const settled = await Promise.all(
-        targets.map(async (chain) => {
+        needsFetch.map(async (chain) => {
           const raw = (agentBinding.agentIds[chain.chainId] ?? "").trim();
           if (!/^\d+$/.test(raw)) return [chain.chainId, { state: "idle" } as AgentCheck] as const;
           const result = await checkAgentOwnership(chain.rpcUrl, BigInt(raw), address);
@@ -339,10 +408,18 @@ export default function StudioPage() {
           } else {
             check = { state: "error", detail: result.detail };
           }
+          // Hasil "error" TIDAK di-cache: itu biasanya RPC yang sedang terganggu, dan
+          // menyimpannya berarti kegagalan sementara jadi permanen sampai halaman dimuat
+          // ulang. Sisanya adalah fakta on-chain yang stabil untuk kunci ini.
+          if (check.state !== "error") {
+            agentCacheRef.current.set(`${chain.chainId}:${raw}:${address.toLowerCase()}`, check);
+          }
           return [chain.chainId, check] as const;
         })
       );
-      setAgentChecks(Object.fromEntries(settled));
+      // Digabung, bukan menimpa: `settled` hanya memuat chain yang baru ditembak, jadi
+      // menimpa akan menghapus jawaban chain lain yang sudah terpasang dari cache.
+      setAgentChecks((prev) => ({ ...prev, ...Object.fromEntries(settled) }));
     }, 500);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -481,7 +558,7 @@ export default function StudioPage() {
     const skipped = selected.filter((c) => blockedIds.has(c.chainId));
 
     if (chains.length === 0) {
-      setGlobalError(ticker.reason ?? `Ticker ${tokenTicker.toUpperCase()} is not available on any selected chain.`);
+      setGlobalError(tickerReason ?? `Ticker ${tokenTicker.toUpperCase()} is not available on any selected chain.`);
       return;
     }
     if (skipped.length > 0) {
@@ -905,7 +982,7 @@ export default function StudioPage() {
                   {
                     id: "step-token",
                     label: "Token",
-                    done: Boolean(tokenName.trim()) && Boolean(tokenTicker.trim()) && supplyNumber > 0 && ticker.available !== false,
+                    done: Boolean(tokenName.trim()) && Boolean(tokenTicker.trim()) && supplyNumber > 0 && tickerAvailable !== false,
                   },
                   { id: "step-curve", label: "Curve", done: totalSwapFee > 0 },
                   { id: "step-agent", label: "Agent", done: Boolean(agentPersona.trim()) },
@@ -1019,16 +1096,16 @@ export default function StudioPage() {
                     hint={
                       ticker.checking
                         ? "checking…"
-                        : ticker.available === true
+                        : tickerAvailable === true
                         ? `available on ${launchTargets.length || targetChainIds.length} chain(s)`
                         : launchTargets.length > 0
                         ? `available on ${launchTargets.map((c) => c.key).join(", ")}`
-                        : ticker.available === false
-                        ? ticker.reason ?? "unavailable"
+                        : tickerAvailable === false
+                        ? tickerReason ?? "unavailable"
                         : undefined
                     }
                     hintTone={
-                      launchTargets.length > 0 ? "ok" : ticker.available === false ? "error" : "muted"
+                      launchTargets.length > 0 ? "ok" : tickerAvailable === false ? "error" : "muted"
                     }
                   >
                     <input
@@ -1039,7 +1116,7 @@ export default function StudioPage() {
                         setCustomSubdomain(value.toLowerCase());
                       }}
                       className={`${FIELD_CLASS} font-mono font-bold text-accent ${
-                        ticker.available === false ? "border-danger" : ""
+                        tickerAvailable === false ? "border-danger" : ""
                       }`}
                     />
                   </Field>
