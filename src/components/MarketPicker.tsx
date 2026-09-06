@@ -5,7 +5,7 @@ import { ChevronDown, Search, X } from "lucide-react";
 
 import { CHAIN_LIST } from "@/lib/chains";
 import { formatSmallNumber } from "@/lib/pricing";
-import { EMPTY_BODY, EMPTY_TITLE, LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
 
 /**
  * Pemilih market untuk permukaan trading.
@@ -176,7 +176,11 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
               {loading ? "Loading markets…" : markets.length === 0 ? EMPTY_TITLE : "Select a market"}
             </span>
             <span className="block text-xs text-ink-soft">
-              {markets.length === 0 ? LAUNCH_CLAUSE : `${markets.length} available`}
+              {/* EMPTY_BODY, bukan LAUNCH_CLAUSE. Klausa itu sekarang menyatakan $ADEXTO
+                  HIDUP, dan mencetaknya di bawah judul "Nothing listed here yet" akan
+                  membuat satu baris membantah baris di atasnya. Yang dijelaskan di sini
+                  adalah kenapa DAFTAR INI kosong, dan itu memang tugas EMPTY_BODY. */}
+              {markets.length === 0 ? EMPTY_BODY : `${markets.length} available`}
             </span>
           </span>
         )}

@@ -175,8 +175,10 @@ export default function VerifiedDeploymentCard() {
               <code className="text-accent">AdextoCurveFactory</code> <strong className="text-ink">v0.10.0</strong> is
               the generation that launches tokens today, and the superseded v1 entries are kept because they remain
               deployed and permanent — dropping them would hide what earlier versions of this page pointed readers at.
-              Launching is enabled on all four mainnets, but {LAUNCH_CLAUSE}, which is why there is still nothing to
-              trade.
+              {/* Kalimat ini dulu berbunyi "…but {LAUNCH_CLAUSE}, which is why there is still
+                  nothing to trade." Dua-duanya berhenti benar begitu $ADEXTO diluncurkan:
+                  klausanya berubah makna, dan ada pasar yang bisa diperdagangkan. */}
+              Launching is enabled on all four mainnets, and {LAUNCH_CLAUSE}.
             </p>
           </div>
 

@@ -268,6 +268,14 @@ export default function RealtimeCandleChart({
   const [changePct, setChangePct] = useState(0);
   const [source, setSource] = useState<string>("");
   const [tradeCount, setTradeCount] = useState(0);
+  /**
+   * Cermin `tradeCount` di ref, dipakai pengejar pasca-trade sebagai garis dasar.
+   *
+   * Ref dan bukan state karena pengejarnya hidup di dalam efek muat data: kalau
+   * `tradeCount` dimasukkan ke daftar dependensi efek itu, setiap pengambilan yang menaikkan
+   * hitungan akan membangun ulang efeknya, dan pengejarnya memulai diri sendiri tanpa henti.
+   */
+  const tradeCountRef = useRef(0);
   const [candleCount, setCandleCount] = useState(0);
   const [showIndicatorMenu, setShowIndicatorMenu] = useState(false);
   const [enabled, setEnabled] = useState<Record<IndicatorKey, boolean>>({
@@ -779,18 +787,26 @@ export default function RealtimeCandleChart({
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    /**
+     * Mengembalikan jumlah trade yang dilaporkan server, atau null kalau pengambilannya
+     * gagal. Pengejar pasca-trade memakai nilai itu sebagai syarat berhenti — tanpa nilai
+     * balik, satu-satunya cara berhenti adalah menebak dengan jeda tetap, dan menebak
+     * itulah yang membuat pembelian pertama tidak pernah tampil.
+     */
+    async function load(): Promise<number | null> {
       try {
         const res = await fetch(
           `/api/agent/telemetry?symbol=${encodeURIComponent(symbol)}&chainId=${chainId}&bucket=${interval}`
         );
-        if (!res.ok) return;
+        if (!res.ok) return null;
         const data = await res.json();
-        if (cancelled) return;
+        if (cancelled) return null;
 
         const candles: Candle[] = Array.isArray(data.candles) ? data.candles : [];
+        const totalTrades = Number(data.totalTrades || 0);
         setSource(String(data.source || ""));
-        setTradeCount(Number(data.totalTrades || 0));
+        setTradeCount(totalTrades);
+        tradeCountRef.current = totalTrades;
         setCandleCount(candles.length);
 
         if (candles.length > 0 && candleSeriesRef.current) {
@@ -899,8 +915,10 @@ export default function RealtimeCandleChart({
           setPriceNative(data.priceNative);
           setChangePct(Number(data.changePct) || 0);
         }
+        return totalTrades;
       } catch {
         // leave the last rendered state in place
+        return null;
       }
     }
 
@@ -908,23 +926,43 @@ export default function RealtimeCandleChart({
     const timer = setInterval(load, 15000);
 
     /**
-     * Satu pengambilan ulang penegas 2,5 detik sesudahnya, HANYA ketika pemicunya sebuah
-     * trade baru.
+     * Setelah trade terkonfirmasi, chart MENGEJAR sampai fill barunya benar-benar terlihat.
      *
-     * Alasannya bukan kehati-hatian berlebih. `txHash` ditetapkan setelah receipt diparse,
-     * jadi blok-nya memang sudah ada — tapi endpoint ini membaca log lewat node RPC yang
-     * bisa berada beberapa saat di belakang blok terbaru, terutama di belakang
-     * load-balancer yang mengarahkan dua permintaan ke dua node berbeda. Kalau
-     * pengambilan pertama mengenai node yang belum menyusul, chart akan diam sampai
-     * polling 15 detik berikutnya, yaitu bug yang sedang diperbaiki. Satu percobaan
-     * kedua menutup celah itu tanpa mengubah irama polling untuk semua orang.
+     * Versi sebelumnya hanya satu percobaan ulang di 2,5 detik, dan itu tidak cukup. `txHash`
+     * ditetapkan setelah receipt diparse, jadi bloknya memang sudah ada — tetapi endpoint
+     * ini membaca log lewat node RPC yang bisa tertinggal beberapa detik dari blok terbaru,
+     * terutama di belakang load-balancer yang mengarahkan dua permintaan ke dua node
+     * berbeda. Kalau percobaan pertama DAN percobaan 2,5 detik itu sama-sama mengenai node
+     * yang belum menyusul, chart diam sampai polling 15 detik berikutnya.
+     *
+     * Itu bukan cacat teoretis: pada rekaman ADX, pembelian sudah selesai dan panel swap
+     * sudah menulis "Received 195.2634 ADX" sementara chart masih menyatakan "no trade
+     * history" dengan nol bar. Yang terekam justru terminal kosong tepat setelah pembelian.
+     *
+     * Jadi yang dipakai bukan jeda tetap melainkan SYARAT SELESAI: ulangi tiap 1,2 detik
+     * sampai jumlah trade yang dilaporkan server melewati jumlah sebelum trade ini, maksimum
+     * 10 percobaan (~12 detik) supaya tidak ada loop tak berujung kalau node benar-benar
+     * bermasalah. Begitu fill-nya terlihat, pengejaran berhenti — jadi pada keadaan normal
+     * hanya satu atau dua permintaan tambahan yang terjadi.
      */
-    const confirmTimer = refreshKey ? setTimeout(load, 2500) : null;
+    let chase: ReturnType<typeof setInterval> | null = null;
+    if (refreshKey) {
+      const baseline = tradeCountRef.current;
+      let tries = 0;
+      chase = setInterval(async () => {
+        tries += 1;
+        const seen = await load();
+        if (cancelled || (seen ?? 0) > baseline || tries >= 10) {
+          if (chase) clearInterval(chase);
+          chase = null;
+        }
+      }, 1200);
+    }
 
     return () => {
       cancelled = true;
       clearInterval(timer);
-      if (confirmTimer) clearTimeout(confirmTimer);
+      if (chase) clearInterval(chase);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // `showMcap` ikut di sini karena mengubahnya mengubah SATUAN data, jadi seri harus

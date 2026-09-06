@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit, FileSearch } from "lucide-react";
 import report from "@/config/security-report.json";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
-import { LAUNCH_CLAUSE } from "@/lib/launch-state";
+
 
 export const metadata = {
   title: "Security · ADEXTO",
@@ -450,8 +450,14 @@ export default function SecurityPage() {
             never migrate the market, and nobody can withdraw the curve&apos;s reserves.
           </li>
           <li>
-            <strong className="text-ink">Nothing has traded on mainnet yet.</strong> {LAUNCH_CLAUSE}, so none of these
-            guarantees has been exercised by real volume.
+            {/* Kalimat ini dulu berbunyi "Nothing has traded on mainnet yet." Itu sudah
+                salah SEBELUM $ADEXTO diluncurkan: kurva ticker buangan dari uji perekaman
+                mencatat 5 swap dan volume 0,0217 0G di 0G mainnet. Diperiksa on-chain lewat
+                `swapCount()`. Yang benar bukan "belum ada", melainkan "sangat sedikit, dan
+                bukan dari orang luar" — dan itu justru pernyataan yang lebih berguna. */}
+            <strong className="text-ink">Nothing has traded through these guarantees yet.</strong> $ADEXTO&apos;s curve
+            has taken no swaps at all, and the only mainnet volume so far came from our own recorded test runs — a few
+            hundredths of a 0G. So none of these guarantees has been exercised by outside volume.
           </li>
         </ul>
       </section>

@@ -98,11 +98,24 @@ const NAME = process.env.DEMO_NAME || "Nova Sentinel AI";
  * namanya selamanya — kesalahan yang tidak bisa diperbaiki dengan cara apa pun. Jadi
  * dilarang di sini, bukan cuma dihindari lewat kebiasaan.
  */
+/**
+ * Ticker protokol tetap DIBLOKIR secara bawaan, dan hanya bisa dibuka dengan menyebut
+ * tickernya sendiri di `DEMO_ALLOW_PROTOCOL_TICKER`.
+ *
+ * Blok ini ada karena klaim ticker bersifat PERMANEN: `symbolRegistry` tidak punya fungsi
+ * untuk melepas. Dan itu bukan kekhawatiran teoretis — ADEXTO sudah terklaim selamanya di
+ * 0G mainnet, sehingga peluncurannya tidak akan pernah bisa direkam lagi di chain itu.
+ *
+ * Karena itu pintunya tidak dibuka dengan flag umum seperti `=1`, yang mudah tertinggal di
+ * shell lalu berlaku untuk ticker apa pun. Nilainya harus SAMA dengan ticker yang dituju,
+ * jadi membuka ADX tidak sekaligus membuka ADEXTO.
+ */
 const PROTOCOL_TICKERS = new Set(["ADEXTO", "ADX"]);
-if (PROTOCOL_TICKERS.has(TICKER.toUpperCase())) {
+const ALLOWED_PROTOCOL_TICKER = (process.env.DEMO_ALLOW_PROTOCOL_TICKER || "").trim().toUpperCase();
+if (PROTOCOL_TICKERS.has(TICKER.toUpperCase()) && ALLOWED_PROTOCOL_TICKER !== TICKER.toUpperCase()) {
   console.error(
-    `DEMO_TICKER "${TICKER}" adalah ticker protokol. Perekaman demonstrasi tidak boleh ` +
-      `mengklaimnya: klaim ticker bersifat permanen dan tidak bisa dicabut.`
+    `DEMO_TICKER "${TICKER}" adalah ticker protokol dan klaimnya PERMANEN.\n` +
+      `Untuk sengaja meluncurkannya, jalankan dengan DEMO_ALLOW_PROTOCOL_TICKER=${TICKER.toUpperCase()}`
   );
   process.exit(1);
 }
@@ -411,6 +424,71 @@ const ALL_CHAINS = (
 const isSelected = async (btn) => ((await btn.getAttribute("class")) ?? "").includes("text-accent");
 
 /**
+ * Menunggu chart benar-benar MENAMPILKAN fill, bukan menebak dengan jeda tetap.
+ *
+ * Kenapa ini ada, dan kenapa hanya pembelian PERTAMA yang dulu bermasalah: telemetri
+ * membaca event Swap lewat node RPC yang tertinggal dari blok terbaru. Lag-nya diukur
+ * langsung di 0G mainnet dan hasilnya 5.430 ms. Perekam lama melanjutkan sekitar 2,8 detik
+ * setelah tombol Buy — jadi kamera sudah pindah sebelum candle-nya ada.
+ *
+ * Pada pembelian kedua dan seterusnya chart sudah punya candle, sehingga lag yang sama
+ * tidak terlihat sebagai apa pun. Pada pembelian pertama ia terlihat sebagai terminal
+ * KOSONG tepat sesudah pembelian berhasil — dan itulah yang terekam di video ADX.
+ *
+ * Baris sumber chart mencetak "N fills", jadi yang ditunggu adalah angka itu mencapai
+ * jumlah yang diharapkan. Batas 25 detik: lebih dari itu berarti ada yang salah pada
+ * node-nya, dan lebih baik dicatat lalu lanjut daripada menggantung perekaman.
+ */
+async function awaitChartFill(page, minFills, label) {
+  const t0 = Date.now();
+  try {
+    await page.waitForFunction(
+      (n) => {
+        const m = document.body.innerText.match(/(\d+)\s+fills?\s+·/);
+        return m ? Number(m[1]) >= n : false;
+      },
+      minFills,
+      { timeout: 25000 }
+    );
+    console.log(`  chart menampilkan ${minFills} fill (${label}) setelah ${Date.now() - t0} ms`);
+  } catch {
+    const txt = await page.locator("text=/fills? ·/").first().textContent().catch(() => "");
+    console.log(`  chart BELUM menampilkan ${minFills} fill (${label}) dalam 25 s — "${(txt ?? "").trim()}"`);
+  }
+  await beat(page, 1600);
+}
+
+/**
+ * Emblem token dihasilkan DENGAN DIKLIK di UI, bukan dilewati.
+ *
+ * Adegan ini memperlihatkan satu-satunya bagian demo yang memanggil model gambar 0G
+ * (z-image-turbo lewat /api/generate-logo). Yang penting untuk kejujuran video: route itu
+ * bisa jatuh ke emblem SVG yang digambar lokal ketika router tidak mengembalikan gambar,
+ * dan UI menyatakan bedanya — "0G z-image-turbo" versus "Placeholder emblem". Perekam
+ * membaca label itu dan mencetaknya, jadi kalau yang tampil di video ternyata emblem
+ * cadangan, hal itu tercatat di log alih-alih diklaim sebagai keluaran model.
+ */
+async function generateEmblem(page) {
+  scene("1e) Emblem token dari model gambar 0G (z-image-turbo)");
+  await safely("generate emblem", async () => {
+    const btn = page.locator('button:has-text("Generate")').first();
+    await btn.scrollIntoViewIfNeeded();
+    await beat(page, 900);
+    await btn.hover();
+    await beat(page, 500);
+    await btn.click();
+    // Tombolnya berubah menjadi "Rendering…" selama permintaan berjalan.
+    await page.waitForSelector('button:has-text("Rendering")', { timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('button:has-text("Generate")', { timeout: 180000 });
+    await beat(page, 2200);
+    const label = ((await page.locator("text=/0G z-image-turbo|Placeholder emblem/").first().textContent()) ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    console.log(`  sumber emblem: ${label || "(label tidak terbaca)"}`);
+  });
+}
+
+/**
  * Timeframe chart untuk SELURUH rekaman, diteruskan lewat `?tf=` di tiap URL token.
  *
  * Bukan diklik sekali di adegan terminal, dan itu perbedaan yang penting: `interval` di
@@ -561,6 +639,8 @@ await safely("dropdown model 0G", async () => {
     `  model dipakai   : ${after}${after === before ? " (tidak berubah, sesuai maksud)" : " — BERUBAH, seharusnya tidak"}`
   );
 });
+
+await generateEmblem(page);
 
 // Chat dengan 0G TEE co-pilot di studio, sebelum token dibuat.
 scene("1b) Chat dengan 0G TEE co-pilot di studio");
@@ -787,6 +867,9 @@ await safely("beli di terminal", async () => {
 const balAfterBuy = await erc20.balanceOf(ACCOUNT);
 console.log(`  saldo token: +${fmt(balAfterBuy - balBefore)} ${TICKER}`);
 
+// Candle pembelian pertama HARUS masuk kamera sebelum adegan pindah.
+await awaitChartFill(page, 1, "pembelian pertama");
+
 // Chart setelah ada fill.
 await glide(page, 400);
 await beat(page, 3000);
@@ -835,6 +918,11 @@ await safely("jual di terminal", async () => {
 });
 const balAfterSell = await erc20.balanceOf(ACCOUNT);
 console.log(`  saldo token setelah jual: ${fmt(balAfterSell)} ${TICKER}`);
+
+// Candle MERAH penjualan punya masalah waktu yang sama dengan pembelian pertama, dan ia
+// justru adegan yang paling ingin diperlihatkan. Sampai di sini sudah ada 3 fill: dua
+// pembelian lalu satu penjualan.
+await awaitChartFill(page, 3, "penjualan");
 
 /**
  * Menahan sebentar supaya candle merah penjualannya benar-benar masuk kamera.
