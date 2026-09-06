@@ -17,7 +17,72 @@ import { CHAINS, DEFAULT_CHAIN, resolveChainOrDefault, type ChainKey } from "@/l
 import { readJson, writeJson } from "@/lib/server-store";
 
 const STORE_FILE = "projects.json";
+
+/**
+ * Batas keras jumlah entri registry.
+ *
+ * Angkanya tidak berubah; PERILAKU di batas itulah yang berubah, dan perubahannya
+ * memperbaiki bug yang serius.
+ *
+ * Dulu `registerProject` menulis `persist([record, ...custom].slice(0, MAX))`. Entri
+ * baru masuk paling depan lalu daftarnya dipotong ke 500 — jadi begitu penuh, yang
+ * hilang adalah entri TERTUA, tanpa suara. Artinya siapa pun yang mau membayar gas
+ * untuk 500 peluncuran bisa mendorong setiap proyek nyata keluar dari /explorer,
+ * /swap, /api/graphql, dan halaman /token-nya. Peluncuran on-chain-nya tetap ada dan
+ * kurvanya tetap bisa ditradingkan, tapi pemilik market kehilangan seluruh
+ * permukaannya di situs ini dan tidak pernah diberi tahu.
+ *
+ * Sekarang batasnya MENOLAK entri baru. Konsekuensinya dipilih dengan sadar: pada
+ * keadaan penuh, pendaftaran baru gagal, dan itu jauh lebih baik daripada diam-diam
+ * menghapus milik orang lain. Kegagalan yang terlihat bisa ditangani; penghapusan
+ * senyap tidak.
+ */
 const MAX_CUSTOM_PROJECTS = 500;
+
+/**
+ * Batas jumlah TICKER BERBEDA per alamat kreator.
+ *
+ * Kenapa dihitung per ticker dan bukan per entri: satu peluncuran lintas-chain
+ * menghasilkan satu token dan satu pool PER chain, jadi satu proyek di empat mainnet
+ * adalah empat entri dengan kreator dan ticker yang sama. Menghitung entri akan
+ * menghukum alur yang justru kami dukung — memperluas ticker sendiri ke chain lain
+ * tidak menambah hitungan.
+ *
+ * BATAS KEJUJURAN, dan ini harus dinyatakan supaya tidak ada yang menganggapnya lebih
+ * kuat daripada kenyataannya: alamat tidak berbiaya. Penyerang yang gigih bisa memutar
+ * alamat baru dan melewati batas ini. Yang benar-benar dijamin oleh pasangan batas ini
+ * hanyalah bahwa entri yang SUDAH ADA tidak bisa digusur. Sisanya soal menaikkan usaha,
+ * bukan menutup jalan — dan biaya nyatanya tetap gas, bukan identitas.
+ *
+ * Gerbang identitas TIDAK dipakai untuk ini dengan sengaja: World ID sudah dicoba dan
+ * dicabut karena menuntut verifikasi Orb, dan `deployTrinity` tanpa access control
+ * membuat gerbang aplikasi apa pun hanya menjaga listing, bukan chain.
+ */
+const DEFAULT_MAX_TICKERS_PER_CREATOR = 10;
+
+function maxTickersPerCreator(): number {
+  const raw = Number(process.env.ADEXTO_MAX_TICKERS_PER_CREATOR);
+  // Nol atau negatif TIDAK diartikan "tanpa batas": salah tulis di env tidak boleh
+  // membuka pintu yang justru sedang ditutup.
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : DEFAULT_MAX_TICKERS_PER_CREATOR;
+}
+
+/**
+ * Galat batas registry, dibedakan dari galat validasi biasa lewat `code`.
+ *
+ * Perlu kelas sendiri supaya /api/deploy bisa menjawab 409 alih-alih 500. Tanpa ini,
+ * penolakan yang normal dan bisa dijelaskan akan terbaca sebagai kerusakan server —
+ * dan pemanggil yang melihat 500 wajar menyimpulkan peluncurannya gagal, padahal
+ * transaksinya SUDAH mined dan uangnya sudah keluar.
+ */
+export class RegistryLimitError extends Error {
+  code: "REGISTRY_FULL" | "CREATOR_TICKER_LIMIT";
+  constructor(code: "REGISTRY_FULL" | "CREATOR_TICKER_LIMIT", message: string) {
+    super(message);
+    this.name = "RegistryLimitError";
+    this.code = code;
+  }
+}
 
 export interface ProjectRecord {
   id: string;
@@ -236,6 +301,30 @@ export function listProjects(): ProjectRecord[] {
   return out;
 }
 
+/**
+ * Ticker berbeda yang sudah didaftarkan sebuah alamat.
+ *
+ * Membaca `loadCustom()` dan bukan `listProjects()` dengan sengaja: yang dibatasi
+ * adalah entri yang bisa ditulis lewat API, sementara `CURATED_PROJECTS` tidak berasal
+ * dari peluncuran siapa pun dan tidak boleh membebani kuota orang.
+ */
+export function creatorTickers(creator?: string | null): Set<string> {
+  const owner = (creator || "").trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(owner)) return new Set();
+  const out = new Set<string>();
+  for (const record of loadCustom()) {
+    if ((record.creator || "").toLowerCase() === owner) out.add(record.symbol.toUpperCase());
+  }
+  return out;
+}
+
+/** Sisa kuota ticker sebuah alamat, dipakai UI untuk memberi tahu SEBELUM bayar gas. */
+export function creatorQuota(creator?: string | null): { used: number; max: number; remaining: number } {
+  const max = maxTickersPerCreator();
+  const used = creatorTickers(creator).size;
+  return { used, max, remaining: Math.max(0, max - used) };
+}
+
 /** Every chain a symbol is deployed on, ordered by deployment time. */
 export function findProjectGroup(symbol: string): ProjectRecord[] {
   if (!symbol) return [];
@@ -357,6 +446,29 @@ export function registerProject(input: RegisterInput): ProjectRecord {
     throw new Error("This token address is already registered.");
   }
 
+  // Kedua batas ditegakkan SEBELUM apa pun ditulis, dan keduanya melempar
+  // RegistryLimitError supaya route bisa menjawab 409, bukan 500.
+  if (custom.length >= MAX_CUSTOM_PROJECTS) {
+    throw new RegistryLimitError(
+      "REGISTRY_FULL",
+      `The registry is at its ${MAX_CUSTOM_PROJECTS}-market limit, so no new market can be listed right now. ` +
+        `Your launch transaction is already on-chain and your curve is tradable; only the listing on this site is affected.`
+    );
+  }
+
+  // Ticker yang sudah dimiliki kreator ini tidak menambah hitungan: itu perluasan
+  // lintas-chain dari proyek yang sama, bukan proyek baru.
+  const upperSymbol = input.symbol.trim().toUpperCase();
+  const owned = creatorTickers(input.creator);
+  const max = maxTickersPerCreator();
+  if (!owned.has(upperSymbol) && owned.size >= max) {
+    throw new RegistryLimitError(
+      "CREATOR_TICKER_LIMIT",
+      `This address has already listed ${owned.size} tickers, which is the limit of ${max} per address. ` +
+        `Your launch transaction is already on-chain and your curve is tradable; only the listing on this site is affected.`
+    );
+  }
+
   const chain = resolveChainOrDefault(input.chainId);
   const record = baseRecord({
     tokenAddress: input.tokenAddress,
@@ -385,7 +497,10 @@ export function registerProject(input: RegisterInput): ProjectRecord {
     poolLive: input.poolLive,
   });
 
-  persist([record, ...custom].slice(0, MAX_CUSTOM_PROJECTS));
+  // TANPA `.slice()`. Pemotongan di sinilah yang dulu menggusur entri tertua secara
+  // senyap; batasnya sekarang ditegakkan di atas dengan menolak, bukan dengan membuang
+  // milik orang lain.
+  persist([record, ...custom]);
   return record;
 }
 

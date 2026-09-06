@@ -59,9 +59,11 @@ export default async function DocsPage() {
                   dengan kata yang sama tetap memicunya. Penjaganya tidak dilemahkan
                   untuk halaman ini — pengecualian sekali berarti pengecualian
                   selamanya — jadi kalimatnya yang diganti kata. */}
-              There is <strong>no identity check at all</strong>: the same operator may launch any number of tickers
-              from any number of addresses. What limits abuse is economic, not identity — a ticker belongs to one owner
-              per chain, and registration only happens after a mined transaction, so every listing costs real gas. Note too
+              There is <strong>no identity check at all</strong>. What limits abuse is economic, not identity — a ticker
+              belongs to one owner per chain, listing only happens after a mined transaction so every entry costs real
+              gas, one address may list at most <strong>10 tickers</strong>, and at the 500-market limit new listings are
+              refused rather than pushing older ones out. Rotating addresses can still get past the per-address cap, so
+              the guarantee is narrow and worth stating plainly: existing markets cannot be evicted. Note too
               that <code className="text-accent">deployTrinity</code> has no access control, so this gate governs
               listing on this site, never the on-chain launch itself.
             </p>

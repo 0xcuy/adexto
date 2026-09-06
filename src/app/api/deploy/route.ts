@@ -4,7 +4,15 @@ import { keccak256, toHex } from "viem";
 import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
-import { checkSymbolAvailable, findProjectGroup, registerProject, listProjects } from "@/lib/registry";
+import {
+  checkSymbolAvailable,
+  creatorQuota,
+  creatorTickers,
+  findProjectGroup,
+  registerProject,
+  listProjects,
+  RegistryLimitError,
+} from "@/lib/registry";
 import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI } from "@/lib/dex";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
@@ -154,6 +162,30 @@ async function handlePrepare(body: any) {
           chainKey: b.chain.key,
           reason: b.check.reason,
         })),
+      },
+      { status: 409 }
+    );
+  }
+
+  /**
+   * Kuota diperiksa DI SINI, sebelum apa pun ditandatangani.
+   *
+   * Tahap confirm juga menegakkannya, dan harus — ia bisa dipanggil langsung tanpa
+   * pernah melewati prepare. Tapi menegakkannya HANYA di sana berarti penolakan datang
+   * setelah transaksi mined dan gas terbayar, yaitu saat paling tidak berguna bagi
+   * pemanggil. Jadi ini bukan duplikasi yang bisa dihapus: yang di bawah untuk keamanan,
+   * yang di sini supaya orang tidak membakar gas untuk listing yang sudah pasti ditolak.
+   */
+  const quota = creatorQuota(body.deployer);
+  const alreadyOwned = creatorTickers(body.deployer).has(symbol.toUpperCase());
+  if (!alreadyOwned && quota.remaining === 0) {
+    return NextResponse.json(
+      {
+        error:
+          `This address has listed ${quota.used} tickers, which is the limit of ${quota.max} per address. ` +
+          `Extending a ticker you already own onto more chains is still allowed.`,
+        code: "CREATOR_TICKER_LIMIT",
+        quota,
       },
       { status: 409 }
     );
@@ -376,7 +408,12 @@ type AttestationResult = { ok: true; signer: string } | { ok: false; error: stri
  *     bisa merebut nama yang sudah dipakai.
  *   - biaya gas nyata — stage confirm menuntut receipt tx yang SUDAH mined beserta
  *     event factory-nya, jadi setiap entri registry berharga gas di mainnet.
+ *   - batas 10 ticker per alamat (`ADEXTO_MAX_TICKERS_PER_CREATOR`), dan batas 500
+ *     market yang MENOLAK entri baru alih-alih menggusur yang tertua.
  * Batas itu ekonomis, bukan identitas, dan itu memang klaim yang bisa kami dukung.
+ * Yang TIDAK boleh diklaim: bahwa ini menutup Sybil. Alamat tidak berbiaya, jadi batas
+ * per-alamat bisa dilewati dengan memutar alamat. Yang dijamin hanya bahwa entri yang
+ * sudah ada tidak bisa dihapus oleh peluncuran orang lain.
  */
 function verifyLaunchAttestation(body: any): AttestationResult {
   const signature = String(body.attestationSignature || "");
@@ -519,7 +556,18 @@ async function handleConfirm(body: any) {
   // chain from that string.
   const chainLabel = chain.label;
 
-  const record = registerProject({
+  /**
+   * Batas registry dijawab 409, bukan 500.
+   *
+   * Pada titik ini transaksinya SUDAH mined dan gasnya sudah terbayar. Kalau penolakan
+   * yang normal dan bisa dijelaskan keluar sebagai 500, pemanggil wajar menyimpulkan
+   * peluncurannya gagal seluruhnya — padahal tokennya ada, kurvanya jalan, dan yang
+   * gagal hanya pencatatannya di situs ini. Pesan galatnya menyatakan itu, dan
+   * `tokenAddress` ikut dikembalikan supaya tidak ada yang hilang jejak.
+   */
+  let record;
+  try {
+    record = registerProject({
     tokenAddress,
     poolAddress,
     creator: /^0x[a-fA-F0-9]{40}$/.test(String(body.creator || "")) ? String(body.creator) : receipt.from,
@@ -541,7 +589,25 @@ async function handleConfirm(body: any) {
     teeRoot: /^0x[a-fA-F0-9]{64}$/.test(String(body.attestationRoot || "")) ? String(body.attestationRoot) : null,
     daStorageTx: body.daStorageTx || null,
     poolLive,
-  });
+    });
+  } catch (error) {
+    if (error instanceof RegistryLimitError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          // Dikembalikan supaya pemilik market tetap punya alamat tokennya walau
+          // listing-nya ditolak — tanpa ini transaksinya jadi tidak terlacak dari UI.
+          tokenAddress,
+          poolAddress,
+          txHash,
+          chainId: chain.chainId,
+        },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   const siblings = findProjectGroup(symbol).filter((p) => p.chainId !== chain.chainId);
 
