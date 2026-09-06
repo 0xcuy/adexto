@@ -232,12 +232,16 @@ Deployed for two chains, and **not yet read by this site**. The manifest and per
 
 | Subgraph | Version | Endpoint |
 |---|---|---|
-| `adexto-base` | `v0.10.2` | `https://api.studio.thegraph.com/query/1757874/adexto-base/v0.10.2` |
-| `adexto-arbitrum` | `v0.10.2` | `https://api.studio.thegraph.com/query/1757874/adexto-arbitrum/v0.10.2` |
+| `adexto-base` | `v0.11.0` | `https://api.studio.thegraph.com/query/1757874/adexto-base/v0.11.0` |
+| `adexto-arbitrum` | `v0.11.0` | `https://api.studio.thegraph.com/query/1757874/adexto-arbitrum/v0.11.0` |
 
 `v0.10.1` fixed a unit mismatch where `openingPriceNative` was a 1e18-scaled `BigInt` beside a decimal `spotPriceNative`. `v0.10.2` corrects the manifest description, which claimed "agent buyback burns" — `executeBuyback` has no caller gate at all, so anyone may trigger it and attributing it to an agent overstated what the contract enforces. The same version also stopped omitting the ERC-8004 `AgentBound` binding, which the subgraph indexes and the description had never mentioned.
 
-Both index factory `0.10.0` including the `AgentBound` event, and both were verified rather than assumed: `hasIndexingErrors: false`, and each has indexed **past its factory's start block** — 142,769 blocks on Base and 1,134,799 on Arbitrum. That last check is the one that matters. A subgraph aimed at the *wrong* factory also reports healthy and also returns nothing, and looks identical to a correct one; only having passed the right start block makes an empty result mean "nothing has launched" rather than "watching the wrong address".
+`v0.11.0` indexes **both curve generations side by side**, and the reason it has to is worth stating: the two `Swap` events are not the same event. `0.11.0` inserts `protocolFee` before both reserves, making it eleven fields with a different `topic0`, so one data source physically cannot match both. Repointing the existing data source at the new factory would therefore have dropped every market the old factory created — a subgraph that answers with fewer markets than the chain holds, while reporting itself healthy. There are now two data sources and two templates, with the mapping logic held once in `src/shared.ts` and four thin adapters over it.
+
+The schema gained `Curve.curveVersion` for the same reason. Without it, `protocolFeeBps: 0` on an old curve is indistinguishable from a new curve that happens to charge nothing, and a reader would reasonably conclude the rate can change. It cannot: it is `immutable` per curve.
+
+**A limitation to be plain about: the markets are on 0G, and 0G is not indexed at all.** Base and Arbitrum have factories but no markets, so those two subgraphs correctly return nothing — they are exercised, not useful. `SUBGRAPH_URL_0G` is empty because The Graph does not serve 0G and the self-hosted node for it is not running; the app reads 0G trades directly from RPC logs instead. So the subgraph is real infrastructure pointed at the chains that have the least to say.
 
 `SUBGRAPH_URL_*` **is now set** for both. It was held back on the reasoning that pointing the app at an endpoint which had never indexed a launch would replace direct chain reads with an indexer that has nothing to say. That reasoning was wrong about this codebase: `src/app/api/graphql/route.ts` treats the registry as the primary source and the indexer as additive, so an empty or unreachable indexer only leaves `live` null. Wiring it early also means the indexer path is exercised before a demo instead of during one.
 

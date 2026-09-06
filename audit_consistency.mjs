@@ -356,7 +356,20 @@ console.log("\n── versi subgraph: package.json vs env vs dokumen ──");
 console.log("\n── deskripsi subgraph vs event yang benar-benar diindeks ──");
 {
   const events = [...manifest.matchAll(/- event:\s*(\w+)\(/g)].map((m) => m[1]);
-  const description = (manifest.match(/^description: >\n([\s\S]*?)\nrepository:/m) || ["", ""])[1];
+  /**
+   * Spasi dinormalkan SEBELUM dicocokkan, dan itu bukan kerapian.
+   *
+   * `description: >` adalah blok folded YAML, dan graph-cli menulis ulang manifest ini
+   * setiap kali build — termasuk membungkus ulang paragrafnya pada lebar yang ia pilih
+   * sendiri. Jadi frasa dua kata bisa terbelah baris kapan saja: "creator fee" menjadi
+   * "creator\n  fee" hanya karena satu kata ditambahkan di kalimat sebelumnya.
+   *
+   * Persis itu yang terjadi dan membuat penjaga ini gagal padahal deskripsinya benar.
+   * Penjaga yang hasilnya bergantung pada titik pembungkusan baris tidak sedang menguji
+   * apa pun yang berarti.
+   */
+  const descriptionRaw = (manifest.match(/^description: >\n([\s\S]*?)\nrepository:/m) || ["", ""])[1];
+  const description = descriptionRaw.replace(/\s+/g, " ");
   const rule = {
     TrinityProjectDeployed: /launch/i,
     AgentBound: /agent identit|ERC-8004|binding/i,

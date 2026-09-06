@@ -310,8 +310,41 @@ const writeRegistry = (rows) =>
   execFileSync('ssh', ['-o', 'BatchMode=yes', '-i', SSH_KEY, SSH_HOST, `cat > ${REGISTRY_PATH}`], {
     input: JSON.stringify(rows, null, 2) + '\n',
   });
-writeRegistry(pruned);
-console.log(`  entri ${SYMBOL} dicabut; registry sekarang ${pruned.length} entri`);
+
+/**
+ * Menulis berkasnya TIDAK CUKUP — cache-nya harus dibatalkan juga.
+ *
+ * `loadCustom()` di registry.ts menyimpan hasil bacaan di
+ * `globalThis.__ADEXTO_PROJECT_CACHE__` dan mengembalikannya tanpa menyentuh disk
+ * lagi. Jadi mengedit `projects.json` di volume tidak berpengaruh apa pun pada proses
+ * yang sedang jalan: percobaan pertama skrip ini mencabut entrinya, lalu `prepare`
+ * tetap menjawab 409 "already has a market on 0G" karena entri itu masih ada di
+ * memori. Rollback-nya bekerja dan tidak ada yang rusak, tetapi kegagalannya
+ * memperlihatkan bahwa langkah ini butuh dua bagian, bukan satu.
+ *
+ * Restart container adalah pembatalan yang paling jujur di sini: satu-satunya cara
+ * lain adalah menambah endpoint yang membuang cache, yaitu menambahkan permukaan
+ * tulis ke server demi keperluan operasional sesekali.
+ */
+const CONTAINER = process.env.RELAUNCH_CONTAINER || 'adexto-production';
+const bounceServer = async () => {
+  console.log(`  restart ${CONTAINER} untuk membatalkan cache registry di memori`);
+  ssh(`docker restart ${CONTAINER}`);
+  for (let attempt = 1; attempt <= 40; attempt++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const res = await fetch(`${BASE}/api/deploy`, { signal: AbortSignal.timeout(15_000) });
+      if (res.ok) {
+        const j = await res.json();
+        console.log(`  situs hidup lagi setelah ${attempt * 3}s; terdaftar: ${JSON.stringify(j.registered)}`);
+        return j;
+      }
+    } catch {
+      // masih naik
+    }
+  }
+  throw new Error(`${BASE} tidak kembali hidup setelah 120s`);
+};
 
 let newToken = null;
 let newCurve = null;
@@ -319,9 +352,15 @@ const restore = (why, exitCode = 1) => {
   console.error(`\nMEMULIHKAN registry dari backup — ${why}`);
   try {
     ssh(`cat ${backupPath} > ${REGISTRY_PATH}`);
-    console.error(`Registry dipulihkan dari ${backupPath}.`);
+    // Restart-nya sama wajibnya seperti saat mencabut: tanpa itu proses yang jalan
+    // tetap menyajikan daftar tanpa entri lama, jadi "dipulihkan" hanya benar di disk.
+    ssh(`docker restart ${CONTAINER}`);
+    console.error(`Registry dipulihkan dari ${backupPath} dan ${CONTAINER} di-restart.`);
   } catch (e) {
-    console.error(`GAGAL memulihkan: ${e.message}\nPulihkan manual: cat ${backupPath} > ${REGISTRY_PATH}`);
+    console.error(
+      `GAGAL memulihkan: ${e.message}\n` +
+        `Pulihkan manual: cat ${backupPath} > ${REGISTRY_PATH} && docker restart ${CONTAINER}`,
+    );
   }
   if (newToken) {
     console.error(
@@ -335,6 +374,15 @@ const restore = (why, exitCode = 1) => {
   }
   process.exit(exitCode);
 };
+
+writeRegistry(pruned);
+console.log(`  entri ${SYMBOL} dicabut; registry sekarang ${pruned.length} entri`);
+const afterBounce = await bounceServer();
+if ((afterBounce.registered ?? []).map((s) => String(s).toUpperCase()).includes(SYMBOL)) {
+  restore(
+    `setelah restart, ${BASE} MASIH mendaftarkan ${SYMBOL} — ada sumber lain yang belum diketahui`,
+  );
+}
 
 // ══ 4. PREPARE ══════════════════════════════════════════════════════════════
 step('4) PREPARE — anchor metadata lewat situs produksi');

@@ -102,13 +102,13 @@ const STATUS: Record<string, { label: string; className: string; Icon: typeof Ch
 const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   {
     title: "No owner, no admin",
-    where: "AdextoToken.sol · SovereignCurve.sol",
+    where: "AdextoToken.sol · AdextoCurve.sol · SovereignCurve.sol",
     how:
-      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. SovereignCurve has a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native.",
+      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. Both curve generations have a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native. The 0.11.0 curve adds a protocol fee leg and no setter for it, so it stays ownerless.",
   },
   {
     title: "No upgradeability",
-    where: "AdextoCurveFactory.sol",
+    where: "AdextoFactory.sol · AdextoCurveFactory.sol",
     how:
       "The token and the curve are created with a plain `new` (CREATE) — no proxy, no CREATE2. There is no implementation slot and no delegatecall anywhere in the three launch-path contracts. What is deployed is what runs, permanently.",
   },
@@ -120,13 +120,13 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   },
   {
     title: "No arbitrary withdrawal",
-    where: "SovereignCurve.sol",
+    where: "AdextoCurve.sol · SovereignCurve.sol",
     how:
-      "Exactly two functions send native out: `sell` pays the seller, and `claimCreatorFees` pays the immutable creator address. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback. Anyone may trigger the fee claim, but the money can only ever land on the creator.",
+      "On the 0.11.0 curve exactly three functions send native out: `sell` pays the seller, `claimCreatorFees` pays the immutable creator, and `claimProtocolFees` pays the immutable protocol treasury. The 0.10.0 curve has the first two. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback in either. Anyone may trigger either claim, and that is safe precisely because both destinations are immutable — a caller cannot redirect the money, only push it where it was always going.",
   },
   {
     title: "100% of supply enters the curve",
-    where: "AdextoCurveFactory.sol",
+    where: "AdextoFactory.sol · AdextoCurveFactory.sol",
     how:
       "The whole supply is minted to the factory, moved into the curve in the same transaction, and then the factory requires its own balance to be zero before the launch is allowed to succeed. The creator receives no tokens at all — their income is a slice of each swap fee.",
   },
@@ -138,13 +138,13 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   },
   {
     title: "Permanent market",
-    where: "SovereignCurve.sol",
+    where: "AdextoCurve.sol · SovereignCurve.sol",
     how:
       "There is no graduation step and no migration to another venue. The curve is the market, permanently. The usual launchpad pattern moves a curve into an external pool, and that step is where much of the historical exploit surface lives.",
   },
   {
     title: "Bounded, permissionless buyback",
-    where: "SovereignCurve.sol",
+    where: "AdextoCurve.sol · SovereignCurve.sol",
     how:
       "`executeBuyback` deliberately has no caller gate — what restrains it is size: at most 1% of the native reserve per call. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned.",
   },
@@ -162,37 +162,46 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
   {
     finding: "divide-before-multiply",
     engine: "Slither · Medium",
-    where: "SovereignCurve.getSellQuote",
+    /**
+     * KEDUA generasi disebut, karena Slither memang melaporkan keduanya.
+     *
+     * Diperiksa di build/security/slither.json, bukan diasumsikan: 9 instance di
+     * SovereignCurve.sol dan 12 di AdextoCurve.sol. Menyebut hanya yang lama akan
+     * membuat tabel ini terlihat tidak mencakup kontrak yang justru sedang hidup —
+     * bentuk penyembunyian yang paling tidak disengaja dan paling mudah terjadi
+     * setiap kali ada generasi baru.
+     */
+    where: "AdextoCurve.getSellQuote · SovereignCurve.getSellQuote",
     why:
       "Fees are computed from `grossOut`, which is itself the result of a division, so a little precision is genuinely lost. The direction is what settles it: the division floors, so the remainder always stays with the curve rather than the trader. The economic consequence is tested directly — the fuzz properties `roundTripNeverProfitable` and `buyRoundsInFavourOfCurve` fail if that direction ever inverts.",
   },
   {
     finding: "incorrect-equality",
     engine: "Slither · Medium/High",
-    where: "AdextoCurveFactory.deployTrinity",
+    where: "AdextoFactory.deployTrinity · AdextoCurveFactory.deployTrinity",
     why:
-      "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory.",
+      "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory. Reported twice per factory generation, identically.",
   },
   {
     finding: "reentrancy-no-eth",
-    engine: "Slither · Medium (7 instances)",
-    where: "SovereignCurve.sell, initializeCurve, receive · AdextoCurveFactory.deployTrinity",
+    engine: "Slither · Medium (32 instances across both generations)",
+    where: "AdextoCurve and SovereignCurve — sell, initializeCurve, receive · both factories — deployTrinity",
     why:
-      "All three curve functions carry the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. The solvency invariant was driven against random action sequences by two different fuzzing engines and never broke.",
+      "Every one of those curve functions carries the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. `claimProtocolFees` on the 0.11.0 curve is flagged for the same reason and is guarded the same way, with the added property that its destination is immutable. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines and never broke.",
   },
   {
     finding: "nonReentrant is not the first modifier",
     engine: "Aderyn · Low",
-    where: "SovereignCurve.initializeCurve",
+    where: "AdextoCurve.initializeCurve · SovereignCurve.initializeCurve",
     why:
       "The order is `onlyFactory nonReentrant`. That is safe here because `onlyFactory` only compares `msg.sender` and makes no external call, so nothing can re-enter before the guard takes effect.",
   },
   {
     finding: "ETH transferred without address checks",
     engine: "Aderyn · High",
-    where: "SovereignCurve.claimCreatorFees",
+    where: "AdextoCurve.claimCreatorFees and claimProtocolFees · SovereignCurve.claimCreatorFees",
     why:
-      "The destination is the `immutable` `creator`, set from the `msg.sender` that called `deployTrinity`. The zero address cannot send a transaction, so it can never hold that value. The function also takes no destination parameter at all.",
+      "Each destination is `immutable`. `creator` comes from the `msg.sender` that called `deployTrinity`, and the zero address cannot send a transaction, so it can never hold that value. `protocolTreasury` is a constructor argument that both the factory and the curve reject when it is zero. Neither function takes a destination parameter at all, which is why both can safely be permissionless.",
   },
   {
     finding: "Contract locks Ether without a withdraw function",
@@ -568,7 +577,9 @@ forge test`}
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-          The runtime bytecode of this factory is byte-identical on all four chains. Full address tables, including the
+          The runtime bytecode of this factory is byte-identical on all four chains, which holds only because the same
+          protocol treasury was used on every one of them — <code className="text-accent">protocolTreasury</code> is
+          immutable, and Solidity stores immutables inside the runtime bytecode. Full address tables, including the
           superseded generation, are on{" "}
           <Link href="/docs" className="font-semibold text-accent hover:underline">
             the technical status page

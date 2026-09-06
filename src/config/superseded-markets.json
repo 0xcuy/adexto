@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": "ADEXTO",
+    "chainId": 16661,
+    "chainKey": "0g",
+    "reason": "relaunched on AdextoFactory 0.11.0 to gain the protocol fee leg",
+    "supersededAt": "2026-09-06T22:45:55.127Z",
+    "old": {
+      "tokenAddress": "0x0860a80f6fF87423c3cC379199700576857437C6",
+      "curveAddress": "0xA65abca8c128B54F8268A9FBE0e2AC71DBF68841",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "curveVersion": "0.10.0",
+      "txHash": "0x1884fb19cc37b96802779c2253f52cd5b364f029ce2e768be83732821b7d2aa7",
+      "blockNumber": 43651628,
+      "note": "Still tradable directly against the curve. Nothing can be withdrawn from a curve, so its reserves stay whole; it is simply no longer listed."
+    },
+    "new": {
+      "tokenAddress": "0xA1358C17004469C7CA5365AbafD294F9b2c11DF7",
+      "curveAddress": "0xc80e0659D2Fc29e62605C9DF6182a85372652B60",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "curveVersion": "0.11.0",
+      "txHash": "0xce701d9d33daa3cf1918b2f428166d9da690110a7144e13b125e788008bdc182",
+      "blockNumber": 43706550
+    }
+  },
+  {
+    "symbol": "ADT",
+    "chainId": 16661,
+    "chainKey": "0g",
+    "reason": "relaunched on AdextoFactory 0.11.0 to gain the protocol fee leg",
+    "supersededAt": "2026-09-06T22:46:31.629Z",
+    "old": {
+      "tokenAddress": "0x6E967902eDB137cb85ECa871031eCA569dA0357e",
+      "curveAddress": "0x04461d2DC4a92E48A6F9d3329939556E0039D64A",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "curveVersion": "0.10.0",
+      "txHash": "0xbca45daf34c633acd2482086ac6582c3534a0779b5c74de2970949ed0dc57096",
+      "blockNumber": 43654847,
+      "note": "Still tradable directly against the curve. Nothing can be withdrawn from a curve, so its reserves stay whole; it is simply no longer listed."
+    },
+    "new": {
+      "tokenAddress": "0x27F3117679680e0a85951BF4a1ca44Bd67D1E5a5",
+      "curveAddress": "0x75148E905a31F7f5dD2f3Fe8fea4588a08ebF966",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "curveVersion": "0.11.0",
+      "txHash": "0xef61b803298ffb2d9e267ab7441c0084db69db55ea0f090d40de4da86bfd1200",
+      "blockNumber": 43706589
+    }
+  }
+]

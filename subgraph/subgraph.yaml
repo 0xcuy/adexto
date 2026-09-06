@@ -1,12 +1,12 @@
 specVersion: 1.0.0
 description: >
-  ADEXTO curve factories and per-token sovereign bonding curves. Indexes launches
-  and their optional ERC-8004 agent identity binding, swaps, creator fee claims,
-  protocol fee claims, and treasury-funded buyback burns. Both curve generations
-  are indexed side by side: 0.10.0 markets charge three fee legs and 0.11.0
-  markets add a fourth protocol leg on top, so their Swap signatures differ and
-  each needs its own data source. Reserves and prices come entirely from event
-  data, so the subgraph needs no eth_call and no archive node.
+  ADEXTO curve factories and per-token sovereign bonding curves. Indexes
+  launches and their optional ERC-8004 agent identity binding, swaps, creator
+  fee claims, protocol fee claims, and treasury-funded buyback burns. Both curve
+  generations are indexed side by side: 0.10.0 markets charge three fee legs and
+  0.11.0 markets add a fourth protocol leg on top, so their Swap signatures
+  differ and each needs its own data source. Reserves and prices come entirely
+  from event data, so the subgraph needs no eth_call and no archive node.
 repository: https://github.com/0xcuy/adexto
 indexerHints:
   prune: auto
