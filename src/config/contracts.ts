@@ -90,8 +90,8 @@ const PREV_CURVE_FACTORY = {
  * gagal alih-alih halamannya diam-diam salah.
  */
 export const CURVE_FACTORY_GENERATION = {
-  contract: "AdextoCurveFactory",
-  version: "0.10.0",
+  contract: "AdextoFactory",
+  version: "0.11.0",
 } as const;
 
 /**

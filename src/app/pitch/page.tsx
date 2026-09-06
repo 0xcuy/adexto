@@ -60,7 +60,8 @@ export default function PitchDeckPage() {
               <span className="text-ink font-semibold text-sm block">1. The creator gets no allocation</span>
               <p className="text-ink-soft leading-relaxed">
                 100% of supply enters the curve, so there is no position to sell and nothing to vest. Income is
-                0.10% of every swap, taken from inside the existing 0.30% fee rather than added on top of it.
+                0.10% of every swap, taken from inside the 0.30% the creator configures rather than added on
+                top of it.
                 <strong className="text-ink block mt-1">
                   Cost to us: a creator who wanted a fast exit has no reason to pick this.
                 </strong>
@@ -116,7 +117,11 @@ export default function PitchDeckPage() {
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
-              <span className="text-ink">A per-token bonding curve over a virtual reserve: 0.15% depth stays in the curve, 0.10% pays the creator, 0.05% funds agent buybacks.</span>
+              <span className="text-ink">
+                A per-token bonding curve over a virtual reserve. On the default tier a trader pays 0.40%:
+                0.15% depth stays in the curve, 0.10% pays the creator, 0.05% funds agent buybacks, and 0.10%
+                goes to the protocol on top of the other three.
+              </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
@@ -160,21 +165,22 @@ export default function PitchDeckPage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (written, not deployed)</strong>
-              {/* Angka lama di sini 0.05% dan kalimatnya "not yet enabled in the
-                  contracts". Keduanya sudah tidak akurat setelah v0.11.0 ditulis:
-                  tarifnya diputuskan 0.10% dan kaki fee-nya sekarang ADA di kontrak,
-                  lengkap dengan tes — yang belum terjadi adalah broadcast-nya.
+              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (deployed, earning nothing yet)</strong>
+              {/* Riwayat baris ini layak disimpan, karena ia sudah dua kali salah ke
+                  arah yang berlawanan.
 
-                  Kalimat "belum diaktifkan di kontrak" karena itu harus diganti, bukan
-                  dibiarkan: ia meremehkan apa yang sudah ada sekaligus menyiratkan
-                  bahwa mengaktifkannya nanti cukup dengan menyetel sesuatu. Tidak
-                  bisa. Setiap tarif fee di v0.10.0 `immutable`, jadi lima pasar yang
-                  hidup di 0G TIDAK AKAN PERNAH membayar irisan protokol. Itu permanen,
-                  bukan migrasi yang tertunda, dan pembaca berhak tahu bahwa pendapatan
-                  ini hanya bisa datang dari pasar yang diluncurkan SETELAH factory
-                  baru di-broadcast. */}
-              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume across thousands of sovereign curves on Base, 0G, Arbitrum &amp; Monad. The fee leg exists in the v0.11.0 curve and is covered by tests, but that curve is not deployed, so no market pays it today. The markets already live can never pay it: every fee rate in them is immutable, so this revenue can only come from launches made after the new factory is broadcast.</p>
+                  Mula-mula "0.05%" dan "not yet enabled in the contracts" — angkanya
+                  keliru dan kalimatnya meremehkan apa yang sudah ditulis. Lalu "written,
+                  not deployed", yang benar sampai factory 0.11.0 di-broadcast ke keempat
+                  mainnet.
+
+                  Sekarang kaki itu HIDUP: `PROTOCOL_FEE_BPS` = 10 di keempat factory dan
+                  `protocolTreasury` immutable di setiap kurva yang mereka buat. Tapi
+                  "hidup" bukan "menghasilkan": pendapatannya nol sampai ada volume, dan
+                  pasar yang lahir dari factory 0.10.0 TIDAK AKAN PERNAH membayarnya
+                  karena setiap tarif fee di sana immutable. Itu permanen, bukan migrasi
+                  yang tertunda. */}
+              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. Revenue so far is zero, because revenue needs volume. Markets created by the previous factory can never pay it — their fee rates are immutable too.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
             </div>
 

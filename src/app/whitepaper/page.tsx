@@ -72,7 +72,11 @@ export default function WhitepaperPage() {
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
-              <span className="text-ink">A per-token bonding curve over a virtual reserve, splitting each swap fee three ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback).</span>
+              <span className="text-ink">
+                A per-token bonding curve over a virtual reserve. The creator&apos;s configured fee splits three
+                ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback) and the protocol&apos;s 0.10% is charged
+                on top, so a trader on that tier pays 0.40% in total.
+              </span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
@@ -98,9 +102,11 @@ export default function WhitepaperPage() {
           </p>
           <div className="p-4 rounded-xl bg-white border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
             <span className="text-ok font-bold block mb-2">// Revenue Flow Equation</span>
-            R_total = SwapFees(SovereignCurve) + x402_Micropayments(EVIDIQ)<br />
+            R_total = SwapFees(AdextoCurve) + x402_Micropayments(EVIDIQ)<br />
+            Trader_Pays = swapFeeBps + PROTOCOL_FEE_BPS &nbsp;// the protocol leg is additive<br />
             Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
-            Buyback_Execution = SovereignCurve.executeBuyback(treasuryNative) &rarr; burn
+            Protocol_Share = PROTOCOL_FEE_BPS * Volume &nbsp;// to an immutable treasury, claimable by anyone<br />
+            Buyback_Execution = AdextoCurve.executeBuyback(treasuryNative) &rarr; burn
           </div>
         </section>
 

@@ -3,17 +3,29 @@
     "AdextoCurveFactory": {
       "address": "0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e",
       "startBlock": 43173642
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 43173642
     }
   },
   "0g-testnet": {
     "AdextoCurveFactory": {
-      "address": "0x99CBfE5d33542b3611639C4fDC664d99F541D96D",
-      "startBlock": 52316951
+      "address": "0xA8Cf9AB8b8247eA96c88b7593C4199eA433a6918",
+      "startBlock": 53201874
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 53201874
     }
   },
   "monad": {
     "AdextoCurveFactory": {
       "address": "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
+      "startBlock": 100872196
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 100872196
     }
   },
@@ -21,11 +33,19 @@
     "AdextoCurveFactory": {
       "address": "0x213494Bff0962AbFCcD73364de7616f5a5517E47",
       "startBlock": 58419649
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 58419649
     }
   },
   "base": {
     "AdextoCurveFactory": {
       "address": "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
+      "startBlock": 50712524
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 50712524
     }
   },
@@ -33,11 +53,19 @@
     "AdextoCurveFactory": {
       "address": "0xe21e5b875B9F6B99a8151166EF079C1F9E1c092e",
       "startBlock": 46193936
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 46193936
     }
   },
   "arbitrum-one": {
     "AdextoCurveFactory": {
       "address": "0x8F3948902c48489fc9E7287590E7eb8A8E915A64",
+      "startBlock": 500429767
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 500429767
     }
   },
@@ -45,11 +73,19 @@
     "AdextoCurveFactory": {
       "address": "0x4c337FD1a65fEAaC248b138E47C0C40B84CF3f1f",
       "startBlock": 303848988
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 303848988
     }
   },
   "devchain": {
     "AdextoCurveFactory": {
       "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "startBlock": 1
+    },
+    "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 1
     }
   }

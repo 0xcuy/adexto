@@ -72,11 +72,15 @@ export default function HomePage() {
             baru: gas-only, 0.10% ke creator, dan 100% supply masuk kurva ketiganya
             sudah terverifikasi di kontrak.
 
-            Angka 0.05% buyback dikeluarkan dari kalimat ini supaya ia tidak membawa
-            dua persentase sekaligus. Ia tidak hilang dari halaman — kartu pilar
-            "Sovereign DEX" memuat pembagian fee-nya utuh (0.30% terbagi 0.15%
-            depth / 0.10% creator / 0.05% buyback), dan di sana angka itu punya
-            konteks yang membuatnya berarti. */}
+            Angka kaki fee lain dikeluarkan dari kalimat ini supaya ia tidak membawa
+            beberapa persentase sekaligus. Semuanya tidak hilang dari halaman — kartu
+            pilar "Sovereign DEX" memuat pembagiannya utuh (trader membayar 0.40%:
+            0.15% depth / 0.10% creator / 0.05% buyback / 0.10% protokol), dan di sana
+            angka itu punya konteks yang membuatnya berarti.
+
+            Yang di kalimat ini TETAP 0.10%, dan itu bukan kelalaian: kaki protokol
+            ditambahkan DI ATAS total yang dikonfigurasi creator, bukan dipotong dari
+            bagiannya. Jadi penghasilan creator tidak berubah sedikit pun. */}
         <p className="mx-auto mb-9 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
           Launching costs gas and nothing else. You earn <span data-numeric>0.10%</span> of every trade, for
           as long as the market lives. And buyers can see there is nothing in your wallet to dump — all supply
@@ -247,8 +251,9 @@ export default function HomePage() {
                 <span className="text-ok font-bold">✓</span>
                 <span>
                   <strong>The creator holds nothing.</strong> 100% of supply enters the curve, so there is no
-                  allocation to sell. Income arrives as 0.10% of each swap, taken from inside the existing
-                  0.30% fee, not added to it.
+                  allocation to sell. Income arrives as 0.10% of each swap, taken from inside the 0.30% the
+                  creator configures rather than added to it. The protocol&apos;s own 0.10% is the leg that is
+                  added on top, which is why a trader pays 0.40% and the creator still keeps 0.10%.
                 </span>
               </li>
               <li className="flex items-start gap-2">

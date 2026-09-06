@@ -71,7 +71,11 @@ export default async function DocsPage() {
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Sovereign Bonding Curve</strong>
-            <p className="text-ink-soft">A standalone <code className="text-accent">SovereignCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. Each swap splits the fee three ways on-chain: depth stays in the curve, the creator is paid directly, and the rest funds buyback-and-burn that anyone can trigger.</p>
+            {/* Nama kontraknya `AdextoCurve` sejak 0.11.0. `SovereignCurve` masih hidup
+                di chain dan masih melayani pasar yang lahir dari factory sebelumnya,
+                jadi keduanya disebut — mengganti nama lama akan membuat pembaca yang
+                memeriksa pasar lama tidak menemukan kontrak yang mereka lihat. */}
+            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The creator&apos;s configured fee splits three ways on-chain — depth stays in the curve, the creator is paid directly, and the rest funds buyback-and-burn that anyone can trigger — and a 0.10% protocol leg is charged on top of those three. Markets created before 0.11.0 run <code className="text-accent">SovereignCurve</code> and pay only the first three; their rates are immutable, so that will never change.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -184,10 +188,12 @@ export default async function DocsPage() {
                   dompet creator yang di seluruh testnet memanggilnya nol kali. */}
               <span className="text-accent font-bold block text-sm">3. Permissionless buyback &amp; burn</span>
               <p className="text-ink-soft font-sans text-xs">
-                On the default 0.30% tier, 0.05% of every swap accrues to the token&apos;s buyback vault, and
-                anyone can spend it buying tokens on the curve and burning them — capped at 1% of the reserve
-                per call. A separate 0.10% goes to the creator, and 0.15% of depth stays in the curve — that
-                retained depth is what lifts the price floor as volume accumulates.
+                On the default tier the creator configures 0.30%: 0.05% of every swap accrues to the
+                token&apos;s buyback vault, and anyone can spend it buying tokens on the curve and burning them
+                — capped at 1% of the reserve per call. A separate 0.10% goes to the creator, and 0.15% of
+                depth stays in the curve — that retained depth is what lifts the price floor as volume
+                accumulates. The protocol&apos;s 0.10% is charged on top, so a trader pays 0.40%; it leaves the
+                curve, which is why it does not lift the floor.
               </p>
             </div>
           </div>

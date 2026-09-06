@@ -143,10 +143,29 @@ type Curve @entity(immutable: false) {
   "reserveNative / reserveToken. Inilah harga spot yang dipakai UI."
   spotPriceNative: BigDecimal!
 
+  """
+  VERSION kontrak kurva ini: "0.10.0" atau "0.11.0".
+
+  Disimpan karena kedua generasi hidup berdampingan dan hanya yang kedua memungut
+  fee protokol. Tanpa field ini, `protocolFeeBps: 0` pada kurva lama tidak bisa
+  dibedakan dari kurva baru yang kebetulan bertarif nol — dan pembaca akan
+  menyimpulkan tarifnya bisa berubah, padahal ia immutable per kurva.
+
+  Diisi oleh mapping yang terikat ke satu alamat factory tertentu, jadi nilainya
+  fakta tentang data source-nya, bukan tebakan.
+  """
+  curveVersion: String!
+
   # ── Pembagian fee, tetap sejak deployment ────────────────────────────────
   depthFeeBps: BigInt!
   creatorFeeBps: BigInt!
   treasuryBuybackBps: BigInt!
+  """
+  Kaki protokol, dipungut DI ATAS total yang dikonfigurasi creator — bukan diambil
+  dari dalamnya. Nol untuk setiap kurva 0.10.0, dan itu permanen karena tarifnya
+  immutable.
+  """
+  protocolFeeBps: BigInt!
 
   # ── Akumulasi ────────────────────────────────────────────────────────────
   "Fee depth yang mengendap di kurva. Inilah yang mengangkat lantai harga."
@@ -154,6 +173,16 @@ type Curve @entity(immutable: false) {
   totalCreatorFees: BigInt!
   totalTreasuryFees: BigInt!
   totalCreatorFeesClaimed: BigInt!
+  """
+  Fee protokol yang pernah dipungut kurva ini.
+
+  TIDAK ikut mengangkat lantai harga, dan itu pembeda yang paling mudah salah:
+  irisan depth mengendap di kurva sehingga lantainya naik, sedangkan irisan
+  protokol MENINGGALKAN kurva. Kalau keduanya dijumlahkan ke `totalDepthFees`,
+  lantai yang ditampilkan akan lebih tinggi daripada yang bisa dibayar kurva.
+  """
+  totalProtocolFees: BigInt!
+  totalProtocolFeesClaimed: BigInt!
   volumeNative: BigInt!
   swapCount: BigInt!
   buyCount: BigInt!
@@ -174,6 +203,7 @@ type Curve @entity(immutable: false) {
   swaps: [Swap!]! @derivedFrom(field: "curve")
   buybacks: [BuybackBurn!]! @derivedFrom(field: "curve")
   dayData: [CurveDayData!]! @derivedFrom(field: "curve")
+  protocolFeeClaims: [ProtocolFeeClaim!]! @derivedFrom(field: "curve")
 }
 
 type Swap @entity(immutable: true) {
@@ -190,6 +220,11 @@ type Swap @entity(immutable: true) {
   depthFee: BigInt!
   creatorFee: BigInt!
   treasuryFee: BigInt!
+  """
+  Kaki protokol untuk fill ini. Nol pada setiap swap kurva 0.10.0, yang event-nya
+  tidak punya field ini sama sekali.
+  """
+  protocolFee: BigInt!
   "Reserve sesudah perdagangan, langsung dari event. Tanpa eth_call."
   reserveNativeAfter: BigInt!
   reserveTokenAfter: BigInt!
@@ -224,6 +259,27 @@ type CreatorFeeClaim @entity(immutable: true) {
 }
 
 """
+Penarikan fee protokol dari sebuah kurva 0.11.0.
+
+`to` dicatat meski tujuannya immutable, dan itu bukan kelebihan: justru karena
+`claimProtocolFees()` tanpa izin, siapa pun boleh memicunya — jadi `caller` dan
+`to` bisa berbeda, dan satu-satunya cara membuktikan tujuannya tidak bisa
+dibajak adalah menyimpan keduanya.
+"""
+type ProtocolFeeClaim @entity(immutable: true) {
+  id: ID!
+  curve: Curve!
+  "Tujuan immutable yang tertulis di kontrak."
+  to: Bytes!
+  "Siapa yang memicu penarikan. Boleh siapa saja."
+  caller: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
 Agregat harian per kurva.
 
 Ada supaya explorer bisa menampilkan volume 24 jam dan rentang harga tanpa
@@ -245,6 +301,7 @@ type CurveDayData @entity(immutable: false) {
   depthFees: BigInt!
   creatorFees: BigInt!
   treasuryFees: BigInt!
+  protocolFees: BigInt!
 }
 
 type GlobalStats @entity(immutable: false) {
@@ -257,6 +314,7 @@ type GlobalStats @entity(immutable: false) {
   totalDepthFees: BigInt!
   totalCreatorFees: BigInt!
   totalTreasuryFees: BigInt!
+  totalProtocolFees: BigInt!
   totalTokensBurned: BigInt!
   lastUpdatedTimestamp: BigInt!
 }

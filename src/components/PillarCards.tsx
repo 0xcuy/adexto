@@ -100,20 +100,25 @@ const PILLARS: Pillar[] = [
     subtitle: "Sovereign Bonding Curve",
     body: (
       <>
-        A curve that opens against a virtual reserve, so a launch needs no liquidity deposit. The 0.30% swap
-        fee splits three ways on-chain: 0.15% depth stays in the curve, 0.10% to the creator, 0.05% to the
-        buyback vault.
+        A curve that opens against a virtual reserve, so a launch needs no liquidity deposit. On the default
+        tier a trader pays 0.40%: 0.15% depth stays in the curve, 0.10% to the creator, 0.05% to the buyback
+        vault, and 0.10% to the protocol, charged on top of the creator&apos;s 0.30% rather than taken out of
+        it.
       </>
     ),
     // Bukan "100% Fee Retained": creator menerima 0.10% dari total fee, bukan seluruh
-    // fee. Sisanya 0.15% mengendap di kurva sebagai depth dan 0.05% ke buyback token
-    // itu sendiri.
+    // fee. Sisanya mengendap di kurva sebagai depth, ke buyback token itu sendiri, dan
+    // ke protokol.
+    //
+    // Angka di atas berubah dari tiga kaki menjadi empat ketika AdextoFactory 0.11.0
+    // di-broadcast ke keempat mainnet. `PROTOCOL_FEE_BPS` adalah konstanta di factory
+    // dan immutable di tiap kurva, jadi 0.40% itu tetap — dan pasar yang lahir dari
+    // factory 0.10.0 tetap memungut tiga kaki saja, selamanya, karena tarifnya juga
+    // immutable. Kedua pernyataan itu benar sekaligus; yang salah adalah menuliskan
+    // salah satunya sebagai satu-satunya.
     //
     // Komentar ini sebelumnya menulis "Protokol mengambil 0.05% (lihat /pitch)", dan
-    // itu keliru dua kali: 0.05% adalah buyback token, bukan irisan protokol, dan
-    // protokol tidak mengambil apa pun dari kurva mana pun yang hidup hari ini. Kaki
-    // protokol 0.10% ada di v0.11.0 dan belum di-deploy; teks kartu ini menjelaskan
-    // pasar v0.10.0 yang sedang berjalan, jadi angkanya tetap tiga arah.
+    // itu keliru: 0.05% adalah buyback token, bukan irisan protokol.
     footer: { label: "Creator paid every swap", Icon: TrendingUp },
   },
   {

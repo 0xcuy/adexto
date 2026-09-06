@@ -34,7 +34,28 @@ CHAINS = os.path.join(ROOT, "subgraph", "chains.json")
 NETWORKS_OUT = os.path.join(ROOT, "subgraph", "networks.json")
 TOML_OUT = os.path.join(ROOT, "subgraph", "graph-node.toml")
 
-DATA_SOURCE = "AdextoCurveFactory"
+"""
+TWO DATA SOURCES PER NETWORK, NOT ONE
+
+The manifest carries both factory generations, so networks.json has to answer for
+both. `AdextoFactory` is the current one; `AdextoCurveFactory` is whatever it
+superseded.
+
+This is not symmetry for its own sake. Factory bytecode cannot be changed, so a
+market created by the older factory was created by that address forever and has to
+stay indexed. Pointing one data source at the new address would silently drop every
+market that predates it -- and a subgraph that answers with fewer markets than the
+chain has is worse than one that fails, because nothing looks broken.
+
+A network that only ever had one factory emits only the section it has. graph-cli
+requires every data source named in the manifest to be present in networks.json for
+the network being built, so `SUPERSEDED_PLACEHOLDER` fills the gap with the zero
+address and startBlock at the chain head equivalent, which matches nothing and
+indexes nothing.
+"""
+DATA_SOURCE_CURRENT = "AdextoFactory"
+DATA_SOURCE_SUPERSEDED = "AdextoCurveFactory"
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 NODE_ID = "adexto_index_0"
 
 TOML_HEADER = '''# GENERATED FILE -- DO NOT EDIT BY HAND
@@ -138,10 +159,47 @@ def main():
             continue
 
         start_block = entry.get("startBlock", entry.get("blockNumber", 0))
-        networks[name] = {
-            DATA_SOURCE: {"address": address, "startBlock": start_block}
-        }
-        row = (name, meta, address, start_block)
+        contract = entry.get("contract", DATA_SOURCE_SUPERSEDED)
+
+        section = {}
+        superseded = entry.get("supersededCurveFactories") or []
+
+        if contract == DATA_SOURCE_CURRENT:
+            section[DATA_SOURCE_CURRENT] = {
+                "address": address,
+                "startBlock": start_block,
+            }
+            # The most recent superseded entry is the 0.10.0 factory whose markets
+            # still trade. Older ones predate the curve generation entirely.
+            prev = None
+            for cand in reversed(superseded):
+                if cand.get("contract") == DATA_SOURCE_SUPERSEDED and cand.get("curveFactory"):
+                    prev = cand
+                    break
+            if prev:
+                section[DATA_SOURCE_SUPERSEDED] = {
+                    "address": prev["curveFactory"],
+                    "startBlock": prev.get("startBlock", prev.get("blockNumber", 0)),
+                }
+            else:
+                section[DATA_SOURCE_SUPERSEDED] = {
+                    "address": ZERO_ADDRESS,
+                    "startBlock": start_block,
+                }
+        else:
+            # Still on the previous generation: the deployed factory IS the
+            # superseded data source's contract, and there is no current one yet.
+            section[DATA_SOURCE_SUPERSEDED] = {
+                "address": address,
+                "startBlock": start_block,
+            }
+            section[DATA_SOURCE_CURRENT] = {
+                "address": ZERO_ADDRESS,
+                "startBlock": start_block,
+            }
+
+        networks[name] = section
+        row = (name, meta, address, start_block, contract)
         (self_hosted if meta["target"] == "self-hosted" else studio).append(row)
 
     if not networks:
@@ -154,7 +212,7 @@ def main():
         fh.write(json.dumps(networks, indent=2) + "\n")
 
     sections = [TOML_HEADER]
-    for name, meta, _addr, _sb in self_hosted:
+    for name, meta, _addr, _sb, _contract in self_hosted:
         sections.append(toml_chain(name, meta))
     sections.append(TOML_FOOTER)
     with io.open(TOML_OUT, "w", encoding="utf-8") as fh:
@@ -164,16 +222,19 @@ def main():
     print("subgraph/graph-node.toml  %d self-hosted chain(s)" % len(self_hosted))
     print()
     print("Subgraph Studio (The Graph runs the infrastructure):")
-    for name, meta, addr, sb in studio:
-        print("  %-18s %s  startBlock=%-10s -> %s" % (name, addr, sb, meta["studioSlug"]))
+    for name, meta, addr, sb, contract in studio:
+        print(
+            "  %-18s %s  startBlock=%-10s %-18s -> %s"
+            % (name, addr, sb, contract, meta["studioSlug"])
+        )
     if not studio:
         print("  (none)")
     print()
     print("Self-hosted Graph Node (The Graph does not serve these chains):")
-    for name, meta, addr, sb in self_hosted:
+    for name, meta, addr, sb, contract in self_hosted:
         print(
-            "  %-18s %s  startBlock=%-10s getLogs<=%d"
-            % (name, addr, sb, meta["maxBlockRange"])
+            "  %-18s %s  startBlock=%-10s %-18s getLogs<=%d"
+            % (name, addr, sb, contract, meta["maxBlockRange"])
         )
     if not self_hosted:
         print("  (none)")

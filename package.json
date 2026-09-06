@@ -1,6 +1,6 @@
 {
   "name": "adexto-protocol",
-  "version": "0.9.0",
+  "version": "0.11.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",

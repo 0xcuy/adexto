@@ -364,6 +364,7 @@ console.log("\n── deskripsi subgraph vs event yang benar-benar diindeks ─�
     Swap: /swap/i,
     AutoBuybackExecuted: /buyback/i,
     CreatorFeesClaimed: /creator fee/i,
+    ProtocolFeesClaimed: /protocol fee/i,
   };
   const missing = [];
   for (const ev of new Set(events)) {
@@ -838,21 +839,52 @@ console.log("\n── kalimat 'belum ada peluncuran' vs totalProjectsCount() di 
   }
   if (hardcoded === 0) ok("tidak ada .tsx yang mengarang varian sendiri", "semua lewat launch-state.ts");
 
-  // B. bandingkan dengan chain.
+  /**
+   * B. bandingkan dengan chain — DARI SEMUA GENERASI FACTORY, bukan hanya yang aktif.
+   *
+   * Ini pernah salah tepat pada saat generasi kedua di-broadcast. Pemeriksaannya dulu
+   * hanya membaca `NEXT_PUBLIC_CURVE_FACTORY_*`, jadi begitu env ditukar ke factory
+   * baru, jumlahnya kembali nol — dan audit ini MENUNTUT kalimat "belum ada
+   * peluncuran" dipasang kembali, padahal enam pasar nyata masih diperdagangkan di
+   * factory sebelumnya.
+   *
+   * Pertanyaan yang ingin dijawab bukan "berapa peluncuran di factory yang sekarang"
+   * melainkan "apakah pernah ada peluncuran sama sekali". `allProjects` append-only
+   * dan tidak punya fungsi hapus, jadi begitu sebuah generasi mencatat satu
+   * peluncuran, jawabannya tidak akan pernah kembali ke nol — di generasi mana pun
+   * env sedang menunjuk.
+   */
   const FACTORY_ABI = ["function totalProjectsCount() view returns (uint256)"];
+  const PREV_ENV = {
+    16661: "NEXT_PUBLIC_CURVE_FACTORY_PREV_0G",
+    8453: "NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE",
+    42161: "NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM",
+    143: "NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD",
+  };
   let totalLaunches = 0n;
   let readable = 0;
+  const perChain = [];
   for (const [id, c] of Object.entries(CHAINS)) {
-    const addr = env[c.factoryEnv];
-    if (!addr) continue;
-    try {
-      const n = await new ethers.Contract(addr, FACTORY_ABI, providerFor(Number(id))).totalProjectsCount();
-      totalLaunches += n;
+    const addresses = [env[c.factoryEnv], env[PREV_ENV[id]]].filter(Boolean);
+    if (addresses.length === 0) continue;
+    let chainTotal = 0n;
+    let anyReadable = false;
+    for (const addr of addresses) {
+      try {
+        const n = await new ethers.Contract(addr, FACTORY_ABI, providerFor(Number(id))).totalProjectsCount();
+        chainTotal += n;
+        anyReadable = true;
+      } catch (e) {
+        soft(`totalProjectsCount ${c.key} ${addr.slice(0, 10)} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+      }
+    }
+    if (anyReadable) {
+      totalLaunches += chainTotal;
       readable++;
-    } catch (e) {
-      soft(`totalProjectsCount ${c.key} tidak bisa dibaca`, String(e.shortMessage ?? e.message).slice(0, 40));
+      perChain.push(`${c.key} ${chainTotal} (${addresses.length} generasi)`);
     }
   }
+  if (perChain.length > 0) ok("peluncuran per chain, semua generasi dijumlahkan", perChain.join(" · "));
 
   if (readable === 0) {
     soft("jumlah peluncuran tidak bisa dibaca", "semua RPC gagal — klaim tidak diuji");
