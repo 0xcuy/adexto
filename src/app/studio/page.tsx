@@ -199,6 +199,10 @@ export default function StudioPage() {
    */
   const agentCacheRef = useRef<Map<string, AgentCheck>>(new Map());
 
+  /** Dropdown model: terbuka/tertutup, plus ref untuk mendeteksi klik di luarnya. */
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
+
   const liveChains = CHAIN_LIST.filter((c) => c.dexLive);
   const offlineChains = CHAIN_LIST.filter((c) => !c.dexLive);
 
@@ -299,6 +303,32 @@ export default function StudioPage() {
    * terpakai lewat `blockedChainIds`, tapi dulu hanya chain TERPILIH yang pernah
    * diambil — jadi chain lain tidak pernah bisa tampil tertanda sebelum diklik.
    */
+  /**
+   * Menutup dropdown model lewat klik di luar dan Escape.
+   *
+   * `<select>` native memberi keduanya gratis; penggantinya harus memasangnya sendiri,
+   * dan tanpa ini menu akan menggantung terbuka sampai ada yang memilih sesuatu.
+   * Escape dipasang di window, bukan hanya di listbox, supaya tetap bekerja walau fokus
+   * sudah pindah ke tempat lain.
+   */
+  useEffect(() => {
+    if (!modelOpen) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!modelMenuRef.current?.contains(e.target as Node)) setModelOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModelOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("touchstart", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [modelOpen]);
+
   const liveChainIdsKey = liveChains.map((c) => c.chainId).join(",");
   useEffect(() => {
     const symbol = tokenTicker.trim().toUpperCase();
@@ -944,20 +974,99 @@ export default function StudioPage() {
             ))}
           </div>
 
-          <div className="relative flex items-center bg-white rounded-lg px-2.5 py-1">
-            <Cpu className="w-3.5 h-3.5 text-accent mr-1.5 shrink-0" />
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-transparent text-accent font-bold text-xs focus:outline-none cursor-pointer pr-4 appearance-none max-w-[150px] truncate"
+          {/**
+           * Dropdown model: dulu `<select>` native, sekarang dirender DI DALAM halaman.
+           *
+           * Alasannya bukan estetika. Popup `<select>` native digambar oleh browser/OS di
+           * luar permukaan halaman, dan itu terukur: mengkliknya menambah 0 node DOM
+           * (494 -> 494), dan ketiga `<option>`-nya berkotak 0x0 bahkan saat terbuka.
+           * Akibatnya ia tidak pernah ikut terekam screencast Playwright — jadi tidak
+           * mungkin memperlihatkan pilihan model 0G di video demo, dan Playwright pun
+           * tidak bisa diandalkan untuk membukanya (jalur resminya `selectOption`, yang
+           * mengganti nilai tanpa pernah menampilkan popup).
+           *
+           * Versi ini pakai button + listbox, jadi ia hidup di DOM: bisa difilmkan, bisa
+           * dites, dan tetap bisa dipakai keyboard. Aksesibilitasnya ditulis eksplisit
+           * karena `<select>` native memberi semua itu gratis dan penggantinya harus
+           * membayarnya sendiri: aria-haspopup/expanded, role listbox/option,
+           * aria-selected, panah atas-bawah, Enter/Space, Escape, dan klik di luar.
+           */}
+          <div ref={modelMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setModelOpen((v) => !v)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setModelOpen(true);
+                }
+              }}
+              aria-haspopup="listbox"
+              aria-expanded={modelOpen}
+              /**
+               * `aria-label` WAJIB di sini, bukan hiasan.
+               *
+               * ChainSwitcher di navbar sudah memakai `aria-haspopup="listbox"` dengan
+               * anak-anak `role="option"`. Tanpa label pembeda, selector seperti
+               * `button[aria-haspopup="listbox"]` mengenai tombol navbar itu lebih dulu —
+               * dan itu benar-benar terjadi: probe pertama membuka pemilih jaringan lalu
+               * melaporkan empat "option" berisi nama chain, bukan tiga model. Label ini
+               * yang dipakai perekam dan probe untuk menunjuk kontrol yang benar.
+               */
+              aria-label="0G model"
+              title="Pick the 0G model this token's agent runs on"
+              className="flex items-center gap-1.5 bg-white rounded-lg px-2.5 py-1.5 text-accent font-bold text-xs hover:bg-cream-3 transition-colors"
             >
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-white text-accent">
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-accent/60 absolute right-2 pointer-events-none" />
+              <Cpu className="w-3.5 h-3.5 shrink-0" />
+              <span className="max-w-[150px] truncate">
+                {MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-accent/60 transition-transform ${modelOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {modelOpen && (
+              <ul
+                role="listbox"
+                aria-label="0G model"
+                tabIndex={-1}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setModelOpen(false);
+                    return;
+                  }
+                  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                  e.preventDefault();
+                  const at = MODELS.findIndex((m) => m.id === selectedModel);
+                  const next = e.key === "ArrowDown" ? at + 1 : at - 1;
+                  const wrapped = (next + MODELS.length) % MODELS.length;
+                  setSelectedModel(MODELS[wrapped].id);
+                }}
+                className="absolute right-0 top-full mt-1 z-30 min-w-[210px] rounded-xl border border-line bg-white p-1 shadow-lg"
+              >
+                {MODELS.map((m) => {
+                  const active = m.id === selectedModel;
+                  return (
+                    <li key={m.id} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(m.id);
+                          setModelOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors ${
+                          active ? "bg-accent-soft text-accent" : "text-ink-soft hover:bg-cream-3 hover:text-ink"
+                        }`}
+                      >
+                        <Cpu className={`w-3.5 h-3.5 shrink-0 ${active ? "text-accent" : "text-ink-faint"}`} />
+                        <span className="truncate">{m.label}</span>
+                        {active && <CheckCircle2 className="ml-auto w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>

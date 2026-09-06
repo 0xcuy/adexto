@@ -491,6 +491,52 @@ if (IS_MAINNET) {
 // adegan 1a: begitu chain target terpilih, yang berikutnya harus langsung terjadi.
 // Panel "No liquidity deposit" dan alokasi creator nol tetap tampil di adegan 1c.
 
+/**
+ * Memperlihatkan pilihan model 0G: buka, lihat, tutup. Tidak memilih apa pun.
+ *
+ * KENAPA ADEGAN INI DULU MUSTAHIL
+ *
+ * Kontrolnya `<select>` native, dan popup select native digambar browser/OS DI LUAR
+ * permukaan halaman. Terukur: mengkliknya menambah 0 node DOM (494 -> 494) dan ketiga
+ * `<option>`-nya berkotak 0x0 bahkan saat terbuka. Jadi apa pun yang diskrip di sini
+ * akan menghasilkan video yang tidak memperlihatkan apa-apa — dan Playwright pun tidak
+ * bisa diandalkan membuka popup itu; jalur resminya `selectOption`, yang mengganti nilai
+ * tanpa pernah menampilkannya.
+ *
+ * Karena itu kontrolnya diganti button + listbox yang hidup di DOM (lihat catatan di
+ * src/app/studio/page.tsx). Sekarang menunya benar-benar terekam.
+ *
+ * Ditutup dengan Escape, bukan klik kedua: itu sekalian membuktikan jalur keyboardnya
+ * bekerja, yang pada `<select>` native didapat gratis dan pada penggantinya harus
+ * dipasang sendiri. Tidak ada model yang dipilih — token tetap memakai bawaan.
+ */
+scene("1a-2) Pilihan model 0G — dibuka lalu ditutup lagi");
+await safely("dropdown model 0G", async () => {
+  const modelBtn = page.locator('button[aria-label="0G model"]').first();
+  await modelBtn.waitFor({ state: "visible", timeout: 15000 });
+  const before = ((await modelBtn.textContent()) ?? "").replace(/\s+/g, " ").trim();
+
+  await modelBtn.hover();
+  await page.waitForTimeout(180);
+  await modelBtn.click();
+
+  const list = page.locator('[role="listbox"][aria-label="0G model"]').first();
+  await list.waitFor({ state: "visible", timeout: 8000 });
+  const options = await list.locator('[role="option"]').allTextContents();
+  console.log(`  model terpampang: ${options.map((o) => o.replace(/\s+/g, " ").trim()).join(" · ")}`);
+
+  // Cukup untuk dibaca di video, tidak lebih.
+  await beat(page, 1100);
+
+  await page.keyboard.press("Escape");
+  await list.waitFor({ state: "hidden", timeout: 8000 });
+
+  const after = ((await modelBtn.textContent()) ?? "").replace(/\s+/g, " ").trim();
+  console.log(
+    `  model dipakai   : ${after}${after === before ? " (tidak berubah, sesuai maksud)" : " — BERUBAH, seharusnya tidak"}`
+  );
+});
+
 // Chat dengan 0G TEE co-pilot di studio, sebelum token dibuat.
 scene("1b) Chat dengan 0G TEE co-pilot di studio");
 await safely("chat co-pilot studio", async () => {
