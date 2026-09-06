@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         chainKey: c.key,
         chainId: c.chainId,
         chainName: c.name,
-        factoryV2: c.factoryV2Address, curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
+        curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
         dexLive: c.dexLive,
       })),
       registered: listProjects().map((p) => p.symbol),
@@ -192,10 +192,10 @@ async function handlePrepare(body: any) {
   }
 
   const allowed = chains.filter((c) => !blocked.some((b) => b.chain.chainId === c.chainId));
-  const deployable = allowed.filter((c) => c.dexLive && (c.curveFactoryAddress || c.factoryV2Address));
+  const deployable = allowed.filter((c) => c.dexLive && c.curveFactoryAddress);
   const unavailable = [
     ...allowed
-      .filter((c) => !c.dexLive || !(c.curveFactoryAddress || c.factoryV2Address))
+      .filter((c) => !c.dexLive || !c.curveFactoryAddress)
       .map((c) => ({
         chainKey: c.key,
         chainId: c.chainId,
@@ -396,7 +396,7 @@ async function handlePrepare(body: any) {
       chainKey: c.key,
       chainId: c.chainId,
       chainName: c.name,
-      factoryV2: c.factoryV2Address, curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
+      curveFactory: c.curveFactoryAddress, launchGeneration: c.launchGeneration,
       nativeSymbol: c.nativeSymbol,
       virtualNative: String(openings[c.chainId].virtualNative),
       nativePriceUsd: openings[c.chainId].priceUsd,

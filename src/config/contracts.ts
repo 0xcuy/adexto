@@ -1,14 +1,10 @@
 /**
  * Canonical on-chain addresses for the ADEXTO Protocol.
  *
- * Dua generasi factory dibaca dari environment, supaya sebuah broadcast tidak
- * menuntut perubahan kode:
+ * Alamat factory dibaca dari environment, supaya sebuah broadcast tidak menuntut
+ * perubahan kode:
  *
  *   NEXT_PUBLIC_CURVE_FACTORY_0G / _ARBITRUM / _BASE / _MONAD   AdextoCurveFactory
- *   NEXT_PUBLIC_FACTORY_V2_0G   / _ARBITRUM / _BASE / _MONAD    AdextoTrinityFactoryV2
- *
- * `chains.ts` memilih curve factory bila keduanya ada, karena itulah generasi
- * tanpa setoran.
  *
  * BUG YANG DITUTUP DI SINI
  *
@@ -54,12 +50,6 @@ const CURVE_FACTORY = {
   monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_MONAD),
 } as const;
 
-const FACTORY_V2 = {
-  og: clean(process.env.NEXT_PUBLIC_FACTORY_V2_0G),
-  arbitrum: clean(process.env.NEXT_PUBLIC_FACTORY_V2_ARBITRUM),
-  base: clean(process.env.NEXT_PUBLIC_FACTORY_V2_BASE),
-  monad: clean(process.env.NEXT_PUBLIC_FACTORY_V2_MONAD),
-} as const;
 
 export const ADEXTO_CONTRACTS = {
   og: {
@@ -69,7 +59,6 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://evmrpc.0g.ai",
     blockExplorer: "https://chainscan.0g.ai",
     factoryAddress: "0xe8E9Cf43f88D065892c35c4aDa002C7B8b11F3e0",
-    factoryV2Address: FACTORY_V2.og,
     curveFactoryAddress: CURVE_FACTORY.og,
     sovereignHookAddress: "0x592c697aD1Fa712c6701C90991B96264aB2E98d8",
     governorAddress: "0x5045b117dDF788078c535f37837fDB6384da034d",
@@ -83,7 +72,6 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     blockExplorer: "https://arbiscan.io",
     factoryAddress: "0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56",
-    factoryV2Address: FACTORY_V2.arbitrum,
     curveFactoryAddress: CURVE_FACTORY.arbitrum,
     sovereignHookAddress: "0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39",
     governorAddress: "0x33811F9c53da5071A130F18D844f64999dBD43bA",
@@ -97,7 +85,6 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://mainnet.base.org",
     blockExplorer: "https://basescan.org",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
-    factoryV2Address: FACTORY_V2.base,
     curveFactoryAddress: CURVE_FACTORY.base,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
@@ -111,7 +98,6 @@ export const ADEXTO_CONTRACTS = {
     rpcUrl: "https://rpc.monad.xyz",
     blockExplorer: "https://monadvision.com",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
-    factoryV2Address: FACTORY_V2.monad,
     curveFactoryAddress: CURVE_FACTORY.monad,
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",

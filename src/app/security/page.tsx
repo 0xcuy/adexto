@@ -21,10 +21,14 @@ export const metadata = {
  * tetap hijau setelah kontraknya berubah.
  *
  * Konsekuensinya harus diterima apa adanya: mesin yang menemukan sesuatu ditampilkan
- * MENEMUKAN sesuatu. Slither melaporkan 45 temuan dan halaman ini mengatakannya,
+ * MENEMUKAN sesuatu. Slither melaporkan puluhan temuan dan halaman ini mengatakannya,
  * lalu memisahkan mana yang berada di jalur yang benar-benar dipakai sebuah launch.
  * Angka yang dipisah begitu lebih berguna bagi pembaca daripada centang, dan lebih
  * sulit dibantah.
+ *
+ * Angkanya sengaja TIDAK ditulis di komentar ini lagi. Sebelumnya di sini tertulis
+ * "45 temuan", dan angka itu ikut basi bersama laporannya tanpa ada yang tahu — lihat
+ * catatan tentang berkas hasil Slither di daftar batasan di bawah.
  */
 
 type Engine = {
@@ -204,13 +208,26 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
     why:
       "True, and admitted elsewhere on this site: native sent to those superseded bridge receivers is locked forever, because the contracts have no withdraw, sweep or transfer. That is one of the reasons the cross-chain path was dropped rather than repaired — repairing it would mean adding the withdrawal path this protocol promises does not exist. All four sit outside the launch path; a launch never touches them. The exact filenames and line numbers are in build/security/aderyn.json.",
   },
-  {
-    finding: "reentrancy-eth",
-    engine: "Slither · High",
-    where: "AdextoTrinityFactoryV2.deployTrinityProject",
-    why:
-      "Slither's only High finding, and it sits in the superseded v1 generation. `AdextoCurveFactory` never calls it and the studio has never deployed through it. The contract stays on chain because a deployed address is permanent; leaving it undocumented would be worse than naming it here.",
-  },
+  /**
+   * ENTRI `reentrancy-eth` DICABUT KARENA KONTRAKNYA DIHAPUS, BUKAN KARENA DIPERBAIKI.
+   *
+   * Isinya dulu: "Slither's only High finding, and it sits in the superseded v1
+   * generation ... The contract stays on chain because a deployed address is permanent."
+   *
+   * Dua-duanya salah, dan baru ketahuan saat dicek. Berkasnya bernama
+   * `AdextoTrinityFactoryV2`, jadi ia bukan generasi v1 — v1 adalah
+   * `AdextoTrinityFactory`, berkas yang berbeda. Dan ia TIDAK ada di chain: keempat
+   * `NEXT_PUBLIC_FACTORY_V2_*` kosong, tidak ada alamatnya di registry, dan
+   * perbandingan bytecode memutuskannya — kode di keempat alamat `factoryAddress`
+   * berukuran 7216 byte dengan hash identik, sedangkan artefak
+   * `AdextoTrinityFactoryV2` 17672 byte.
+   *
+   * Karena tidak pernah di-broadcast, tidak ada apa pun on-chain yang temuan itu
+   * berlaku padanya, jadi berkasnya dihapus. Konsekuensinya harus dinyatakan terang:
+   * hitungan Slither High turun dari 1 ke 0 karena KODENYA HILANG, bukan karena ada
+   * yang dibetulkan. Itu dicatat di daftar "what this page does not claim" di bawah
+   * supaya penurunan angkanya tidak terbaca sebagai perbaikan keamanan.
+   */
 ];
 
 const CHAINS = [
@@ -426,6 +443,28 @@ export default function SecurityPage() {
             names the contract and the mechanism precisely so it can be checked against the source — but if you do not
             check it, you are trusting our reasoning. Nobody outside the project has reviewed these judgements.
           </li>
+          {/* Dua angka bergerak sekaligus, dan keduanya akan disalahbaca kalau tidak
+              dijelaskan: High turun ke nol, dan totalnya justru NAIK. */}
+          <li>
+            <strong className="text-ink">Slither&apos;s High count reached zero by deletion, not by a fix.</strong> The
+            single High sat in <code className="text-accent">AdextoTrinityFactoryV2</code>, a factory never broadcast to
+            any chain. Checking rather than assuming settled that: all four{" "}
+            <code className="text-accent">NEXT_PUBLIC_FACTORY_V2_*</code> are empty, no address for it appears in the
+            registry, and the deployed code at every <code className="text-accent">factoryAddress</code> is 7216 bytes
+            with one identical hash while that artifact is 17672 bytes. Nothing on chain ran it, so the file was deleted.
+            No reentrancy was repaired.
+          </li>
+          <li>
+            <strong className="text-ink">
+              The Slither total went up because the scan was broken, not because the code got worse.
+            </strong>{" "}
+            Slither refuses to overwrite an existing <code className="text-accent">--json</code> output file, and the
+            scanner treated that failure as success whenever a file from an earlier run was still on disk — so it parsed
+            the old results and still recorded the engine as having run. The count sat at 45 while two contracts were
+            added and one removed, and its only High still pointed at a file that no longer existed. With the output
+            deleted before each run, the real figure on current code is 77. Every number on this page from before that
+            fix should be treated as belonging to an unknown earlier revision.
+          </li>
           <li>
             <strong className="text-ink">No formal verification.</strong> The invariants below are tested against random
             action sequences, not proven for all inputs. A property that holds across {(engines.find((e) => e.id === "echidna")?.counts?.totalCalls ?? 0).toLocaleString("en-US")} Echidna calls and 512 Foundry sequences is
@@ -433,10 +472,12 @@ export default function SecurityPage() {
           </li>
           <li>
             <strong className="text-ink">Coverage is the curve, not everything on chain.</strong> The fuzz and invariant
-            suites target <code className="text-accent">SovereignCurve</code>,{" "}
-            <code className="text-accent">AdextoToken</code> and <code className="text-accent">AdextoCurveFactory</code>.
-            The superseded v1 contracts and the inert cross-chain receivers are analysed statically but not fuzzed, because
-            nothing routes through them.
+            suites target <code className="text-accent">SovereignCurve</code> and{" "}
+            <code className="text-accent">AdextoCurveFactory</code>, which run every live market, plus{" "}
+            <code className="text-accent">AdextoCurve</code> and <code className="text-accent">AdextoFactory</code>, which
+            are written and tested but not deployed, and <code className="text-accent">AdextoToken</code>. The superseded
+            v1 contracts and the inert cross-chain receivers are analysed statically but not fuzzed, because nothing
+            routes through them.
           </li>
           <li>
             <strong className="text-ink">Semgrep runs a general ruleset.</strong> The registry has no Solidity pack —{" "}

@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-06T19:45:44.778Z",
-  "commit": "6c54ed17ddfe3e08a1e3cc8c797092a693f7b670",
-  "commitTime": "2026-09-07T02:24:52+07:00",
+  "generatedAt": "2026-09-06T20:03:17.300Z",
+  "commit": "98ffb1c900f4c9e14d035e279ef095e25ac8e4ba",
+  "commitTime": "2026-09-07T02:47:57+07:00",
   "dirty": true,
   "scope": {
     "launchPath": [
@@ -25,7 +25,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "47 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "45 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -84,19 +84,18 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 45,
-        "High": 1,
-        "Medium": 15,
-        "Low": 23,
-        "Informational": 5,
-        "Optimization": 1
+        "total": 77,
+        "Medium": 36,
+        "Low": 28,
+        "Informational": 8,
+        "Optimization": 5
       },
       "launchPathCounts": {
-        "Medium": 8,
-        "Low": 8,
-        "Informational": 3
+        "Medium": 17,
+        "Low": 15,
+        "Informational": 6
       },
-      "detail": "45 findings across 102 detectors · 0 High on the launch path"
+      "detail": "77 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -107,12 +106,12 @@
       "ran": true,
       "counts": {
         "highKinds": 4,
-        "highInstances": 47,
+        "highInstances": 39,
         "lowKinds": 13,
-        "lowInstances": 93
+        "lowInstances": 87
       },
       "launchPathCounts": {
-        "HighInstances": 28
+        "HighInstances": 27
       },
       "detail": "4 High kinds / 13 Low kinds · 88 detectors"
     },
@@ -125,9 +124,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 977
+        "warnings": 909
       },
-      "detail": "0 errors, 977 warnings (style & gas rules)"
+      "detail": "0 errors, 909 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -138,10 +137,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 13,
+        "filesScanned": 12,
         "configErrors": 0
       },
-      "detail": "0 findings across 13 files · general p/security-audit ruleset"
+      "detail": "0 findings across 12 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -153,10 +152,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50157,
+        "totalCalls": 50072,
         "uniqueInstructions": 7252
       },
-      "detail": "4/4 properties passed · 50,157 calls",
+      "detail": "4/4 properties passed · 50,072 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

@@ -20,7 +20,7 @@
  * Pakai: node scripts/security-scan.mjs
  */
 import { execFileSync, execSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -217,6 +217,25 @@ if (!has(BIN.slither)) {
   add({ id: "slither", name: "Slither", tool: "slither", status: "not-installed", ran: false });
 } else {
   const jsonPath = path.join(OUT_DIR, "slither.json");
+  /**
+   * BERKAS HASIL DIHAPUS DULU, DAN INI MEMPERBAIKI HASIL BASI YANG DILAPORKAN SEGAR.
+   *
+   * Slither MENOLAK menimpa berkas `--json` yang sudah ada; ia keluar dengan galat.
+   * Blok `catch` di bawah lalu memeriksa `existsSync(jsonPath)` dan menemukan berkas
+   * dari run SEBELUMNYA, sehingga `ok` tetap true dan skrip mem-parse hasil lama —
+   * lengkap dengan `ran: true`.
+   *
+   * Akibatnya: sejak berkas itu pertama kali ditulis, /security memasang angka Slither
+   * milik kode yang berbeda. Terdeteksi karena totalnya bertahan di 45 saat dua kontrak
+   * DITAMBAH lalu satu DIHAPUS, dan karena satu-satunya temuan High-nya masih menunjuk
+   * `contracts/AdextoTrinityFactoryV2.sol` setelah berkas itu tidak ada lagi.
+   *
+   * Dengan berkasnya dihapus lebih dulu, `existsSync` setelah kegagalan nyata bernilai
+   * false dan mesinnya dilaporkan `error` — bukan diam-diam memakai hasil lama.
+   * Keluar non-nol karena MENEMUKAN sesuatu tetap tertangani: pada kasus itu slither
+   * sudah menulis JSON-nya.
+   */
+  if (existsSync(jsonPath)) rmSync(jsonPath);
   let ok = true, errMsg = null;
   try {
     sh(BIN.slither, [".", "--filter-paths", "lib/|node_modules/|test/", "--json", jsonPath, "--disable-color"], {
@@ -224,7 +243,6 @@ if (!has(BIN.slither)) {
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (e) {
-    // Slither keluar non-nol kalau menemukan sesuatu; JSON tetap ditulis.
     if (!existsSync(jsonPath)) { ok = false; errMsg = String(e.message).slice(0, 200); }
   }
   if (!ok) {

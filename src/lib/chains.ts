@@ -26,7 +26,6 @@ export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Devchain";
  * every list in production builds, where none of these variables are set.
  */
 const DEVCHAIN_RPC = process.env.NEXT_PUBLIC_DEVCHAIN_RPC || "";
-const DEVCHAIN_FACTORY = process.env.NEXT_PUBLIC_FACTORY_V2_DEVCHAIN || "";
 const DEVCHAIN_CURVE_FACTORY = process.env.NEXT_PUBLIC_CURVE_FACTORY_DEVCHAIN || "";
 export const DEVCHAIN_ENABLED = Boolean(DEVCHAIN_RPC);
 export const DEVCHAIN_ID = Number(process.env.NEXT_PUBLIC_DEVCHAIN_CHAIN_ID || 31337);
@@ -45,20 +44,25 @@ export interface ChainInfo {
   nativeCurrencyName: string;
   /** Legacy v1 factory — deploys a token but no tradable pool. */
   factoryAddress: string;
-  /** v2 factory — deploys token + executable SovereignHook AMM atomically. */
-  factoryV2Address: string | null;
   /**
-   * AdextoCurveFactory — deploys token + SovereignCurve. No native seed
-   * required and 100% of supply enters the curve. Takes precedence over the
-   * seeded generation when both are configured.
+   * AdextoCurveFactory — deploys token + SovereignCurve. No native seed required
+   * and 100% of supply enters the curve.
    */
   curveFactoryAddress: string | null;
   /**
-   * Sifat peluncuran di chain ini: `curve` = bonding curve tanpa setoran,
-   * `seeded` = pool v2 yang mewajibkan seed native. Dulu bernilai "v3"/"v2";
-   * nomor generasi tidak memberi tahu pembaca apa pun tentang perilakunya.
+   * Sifat peluncuran di chain ini. Dulu bernilai "v3"/"v2"; nomor generasi tidak
+   * memberi tahu pembaca apa pun tentang perilakunya.
+   *
+   * Nilai `"seeded"` DICABUT. Ia menandai generasi pool yang mewajibkan seed native,
+   * yang factory-nya (`AdextoTrinityFactoryV2`) tidak pernah di-broadcast — keempat
+   * `NEXT_PUBLIC_FACTORY_V2_*` kosong dan bytecode di keempat alamat `factoryAddress`
+   * tidak cocok dengan artefaknya. Yang lebih berbahaya: `dexLive` dan filter
+   * `deployable` di /api/deploy dulu menerima `factoryV2Address` sebagai bukti chain
+   * bisa meluncurkan, padahal tx launch HANYA pernah dibangun dari
+   * `curveFactoryAddress`. Mengisi env itu akan membuat chain diiklankan bisa launch
+   * lalu gagal di studio dengan alamat undefined.
    */
-  launchGeneration: "curve" | "seeded" | null;
+  launchGeneration: "curve" | null;
   /**
    * Virtual native reserve for a new curve, in whole native units.
    *
@@ -95,7 +99,6 @@ interface ChainSource {
   readonly rpcUrl: string;
   readonly blockExplorer: string;
   readonly factoryAddress: string;
-  readonly factoryV2Address: string | null;
   readonly curveFactoryAddress?: string | null;
   readonly sovereignHookAddress: string;
   readonly governorAddress: string;
@@ -108,14 +111,14 @@ interface ChainSource {
  *
  *   NEXT_PUBLIC_CHAIN_OVERRIDES='{"0G":{"chainId":16602,"rpcUrl":"https://evmrpc-testnet.0g.ai",
  *     "name":"0G Testnet","blockExplorer":"https://chainscan-newton.0g.ai",
- *     "factoryV2Address":"0x…"}}'
+ *     "curveFactoryAddress":"0x…"}}'
  *
  * Unset in production, where it has no effect whatsoever.
  */
 type ChainOverride = Partial<
   Pick<
     ChainInfo,
-    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "factoryV2Address" | "curveFactoryAddress"
+    "chainId" | "name" | "rpcUrl" | "blockExplorer" | "nativeSymbol" | "curveFactoryAddress"
   >
 >;
 
@@ -137,15 +140,8 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
   const o = CHAIN_OVERRIDES[key] ?? {};
   const chainId = o.chainId ?? source.chainId;
   const name = o.name ?? source.chainName;
-  const factoryV2Address = o.factoryV2Address ?? source.factoryV2Address ?? null;
   const curveFactoryAddress = o.curveFactoryAddress ?? source.curveFactoryAddress ?? null;
-  // v3 wins when both exist: it is the zero-deposit generation, and offering a
-  // seeded launch beside a free one would only confuse the creator.
-  const launchGeneration: "curve" | "seeded" | null = curveFactoryAddress
-    ? "curve"
-    : factoryV2Address
-    ? "seeded"
-    : null;
+  const launchGeneration: "curve" | null = curveFactoryAddress ? "curve" : null;
   // Targets roughly $3k of opening market cap on each chain, in line with how
   // comparable launchpads open. Native prices differ by orders of magnitude, so a
   // single shared number would value a 0G launch at a few dollars and a Base
@@ -177,13 +173,12 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     nativeSymbol: o.nativeSymbol ?? source.nativeSymbol,
     nativeCurrencyName: nativeName,
     factoryAddress: source.factoryAddress,
-    factoryV2Address,
     curveFactoryAddress,
     launchGeneration,
     defaultVirtualNative: DEFAULT_VIRTUAL_NATIVE[key],
     legacyHookAddress: source.sovereignHookAddress,
     governorAddress: source.governorAddress,
-    dexLive: Boolean(curveFactoryAddress || factoryV2Address),
+    dexLive: Boolean(curveFactoryAddress),
     brandLogo: BRAND_LOGO[key],
   };
 }
@@ -230,19 +225,16 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     blockExplorer: DEVCHAIN_EXPLORER,
     nativeSymbol: DEVCHAIN_SYMBOL,
     nativeCurrencyName: DEVCHAIN_SYMBOL,
-    factoryAddress: DEVCHAIN_FACTORY,
-    factoryV2Address: DEVCHAIN_ENABLED && DEVCHAIN_FACTORY ? DEVCHAIN_FACTORY : null,
+    // Kosong, seperti `legacyHookAddress` di bawah. Baris ini dulu berisi
+    // `DEVCHAIN_FACTORY`, yang dibaca dari `NEXT_PUBLIC_FACTORY_V2_DEVCHAIN` — jadi
+    // field factory v1 diisi alamat generasi berseed. Tidak ada factory v1 di devchain.
+    factoryAddress: "",
     curveFactoryAddress: DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY ? DEVCHAIN_CURVE_FACTORY : null,
-    launchGeneration:
-      DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY
-        ? "curve"
-        : DEVCHAIN_ENABLED && DEVCHAIN_FACTORY
-        ? "seeded"
-        : null,
+    launchGeneration: DEVCHAIN_ENABLED && DEVCHAIN_CURVE_FACTORY ? "curve" : null,
     defaultVirtualNative: 1,
     legacyHookAddress: "",
     governorAddress: "",
-    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_CURVE_FACTORY || DEVCHAIN_FACTORY),
+    dexLive: DEVCHAIN_ENABLED && Boolean(DEVCHAIN_CURVE_FACTORY),
     brandLogo: null,
   },
 };

@@ -166,13 +166,19 @@ export async function checkAgentOwnership(
   }
 }
 
-export const FACTORY_V2_ABI = [
-  "function deployTrinityProject(string name, string symbol, uint256 initialSupply, address agentIdentity, uint256 swapFeeBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot, uint256 poolTokenBps) payable returns (address token, address pool)",
-  "function isSymbolAvailable(string symbol) view returns (bool)",
-  "function totalProjectsCount() view returns (uint256)",
-  "event TrinityProjectDeployed(address indexed token, address indexed pool, address indexed creator, string name, string symbol, uint256 initialSupply, uint256 poolTokenAmount, uint256 poolNativeAmount, uint256 swapFeeBps, uint256 treasuryShareBps, bytes32 teeAttestationRoot)",
-];
-
+/**
+ * `FACTORY_V2_ABI` DICABUT.
+ *
+ * Ia menggambarkan `AdextoTrinityFactoryV2.deployTrinityProject`, factory yang tidak
+ * pernah di-broadcast ke chain mana pun: keempat `NEXT_PUBLIC_FACTORY_V2_*` kosong, dan
+ * bytecode di keempat alamat `factoryAddress` berukuran 7216 byte sementara artefaknya
+ * 17672 byte. Tidak ada berkas yang mengimpor konstanta ini.
+ *
+ * Membiarkannya bukan sekadar kode mati. ABI yang diekspor terbaca sebagai jalur yang
+ * didukung, dan tanda tangan ini `payable` dengan `poolTokenBps` — model berseed yang
+ * justru dibuang proyek ini. Siapa pun yang mengintegrasikannya akan membangun
+ * transaksi untuk kontrak yang tidak ada.
+ */
 export const BPS = 10_000n;
 export const DEFAULT_SLIPPAGE_BPS = 100; // 1%
 export const DEFAULT_DEADLINE_SECONDS = 600;

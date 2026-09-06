@@ -55,7 +55,7 @@ console.log("1) OPCODE DALAM BYTECODE v2 YANG SUDAH DIKOMPILASI\n");
 let needsShanghai = false;
 let needsCancun = false;
 
-for (const name of ["SovereignHook", "AdextoTrinityFactoryV2", "AdextoToken"]) {
+for (const name of ["SovereignHook", "AdextoToken"]) {
   let a;
   try {
     a = artifact(name);

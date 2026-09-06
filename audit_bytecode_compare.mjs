@@ -97,7 +97,7 @@ for (const t of TARGETS) {
 }
 
 console.log("BYTECODE v2 YANG SUDAH DIKOMPILASI DI REPO\n");
-for (const name of ["SovereignHook", "AdextoTrinityFactoryV2"]) {
+for (const name of ["SovereignHook"]) {
   try {
     const a = artifact(name);
     const deployed = a.deployedBytecode ?? "0x";

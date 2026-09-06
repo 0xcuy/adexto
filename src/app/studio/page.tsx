@@ -1176,9 +1176,11 @@ export default function StudioPage() {
                             ? `No launch factory is deployed on ${chain.name} yet`
                             : blockedChainIds.has(chain.chainId)
                             ? `${chain.name} · this ticker already has a market here, it will be skipped`
-                            : // Tampilkan factory yang BENAR-BENAR dipakai chain ini. Menampilkan
-                              // factoryV2Address secara kaku memperlihatkan "null" di chain kurva.
-                              `${chain.name} · factory ${chain.curveFactoryAddress ?? chain.factoryV2Address}`
+                            : // Tampilkan factory yang BENAR-BENAR dipakai chain ini. Fallback ke
+                              // `factoryV2Address` sudah dicabut: generasi berseed tidak pernah
+                              // punya factory yang di-broadcast, dan tx launch di baris ~749 hanya
+                              // pernah dibangun dari `curveFactoryAddress`.
+                              `${chain.name} · factory ${chain.curveFactoryAddress}`
                         }
                         className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                           !selectable
