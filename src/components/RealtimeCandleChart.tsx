@@ -202,6 +202,36 @@ export default function RealtimeCandleChart({
    * penyebab, bukan cuma korbannya.
    */
   const [interval, setIntervalSeconds] = useState(60);
+
+  /**
+   * Timeframe dibaca dari `?tf=` dan ditulis kembali ke URL saat diganti.
+   *
+   * Ini menutup bug yang tidak terlihat sampai perekaman dijalankan: `interval` hanyalah
+   * state komponen, jadi setiap navigasi me-remount-nya dan mengembalikannya ke 60 detik.
+   * Perekam menavigasi ke halaman token LIMA kali — adegan terminal, adegan jual, dua
+   * adegan fill tambahan, dan chart penutup — sehingga memilih 15 detik sekali di adegan
+   * awal tidak berpengaruh apa pun pada adegan jual, yaitu justru adegan yang candle
+   * merahnya ingin diperlihatkan.
+   *
+   * Dibaca lewat useEffect dan bukan sebagai nilai awal useState supaya tidak ada
+   * ketidakcocokan hidrasi: `window` tidak ada saat render server.
+   *
+   * `replaceState` dan bukan push: mengganti timeframe bukan navigasi, dan tidak boleh
+   * menumpuk riwayat sehingga tombol Kembali harus ditekan berkali-kali.
+   */
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("tf");
+    if (!raw) return;
+    const wanted = Number(raw);
+    if (INTERVALS.some((i) => i.seconds === wanted)) setIntervalSeconds(wanted);
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tf") === String(interval)) return;
+    url.searchParams.set("tf", String(interval));
+    window.history.replaceState(null, "", url.toString());
+  }, [interval]);
   const [priceNative, setPriceNative] = useState(fallbackPriceNative);
   const [changePct, setChangePct] = useState(0);
   const [source, setSource] = useState<string>("");
@@ -295,11 +325,28 @@ export default function RealtimeCandleChart({
        */
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.1)",
-        scaleMargins: { top: 0.1, bottom: 0.28 },
+        /**
+         * `bottom` dipangkas dari 0,28 ke 0,12.
+         *
+         * Margin bawah ini menyisakan ruang supaya candle tidak menabrak histogram volume.
+         * 0,28 jauh lebih besar dari yang dibutuhkan: bersama margin atas 0,1, area candle
+         * hanya kebagian 62% tinggi pane. Setelah strip volume dikecilkan ke 8% (lihat
+         * priceScale("volume") di bawah), 0,12 sudah cukup memisahkan keduanya, dan area
+         * candle naik ke 78% tinggi pane.
+         */
+        scaleMargins: { top: 0.1, bottom: 0.12 },
         minimumWidth: PRICE_AXIS_WIDTH,
       },
       width: containerRef.current.clientWidth,
-      height: 340,
+      /**
+       * Tinggi MENGIKUTI kontainer, tidak dipatok 340 px.
+       *
+       * Angka tetap membuat chart mengabaikan ruang yang tersedia: memperbesar kartunya
+       * tidak memperbesar chart-nya, dan di layar lebar area candle tetap sempit. Dengan
+       * membaca `clientHeight` lalu menjaganya lewat ResizeObserver, tinggi chart didorong
+       * oleh CSS — jadi memperbesar terminal cukup dengan mengubah satu kelas tinggi.
+       */
+      height: containerRef.current.clientHeight || 420,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -408,7 +455,11 @@ export default function RealtimeCandleChart({
           const body = Math.abs(c.close - c.open);
           if (body > maxBody) maxBody = body;
         }
-        const MAX_BODY_SHARE = 0.35;
+        // 0,22 dan bukan 0,35: area candle bertambah dari 62% ke 78% tinggi pane dan
+        // pane-nya sendiri ikut lebih tinggi, jadi porsi yang sama menghasilkan badan yang
+        // jauh lebih besar dalam piksel. 0,22 menjaga badan terbesar tetap sekitar 80 px,
+        // proporsi yang sama dengan terminal rujukan.
+        const MAX_BODY_SHARE = 0.22;
         if (maxBody > 0 && maxBody > span * MAX_BODY_SHARE) {
           const half = maxBody / MAX_BODY_SHARE / 2;
           return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
@@ -422,7 +473,14 @@ export default function RealtimeCandleChart({
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
     });
-    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    /**
+     * Volume jadi strip TIPIS di dasar: 8% tinggi pane, dari sebelumnya 18%.
+     *
+     * 18% berarti hampir seperlima terminal dipakai batang volume, dan pada pasar muda
+     * yang volumenya beberapa ribu 0G, batang itu tidak menyampaikan apa pun yang sepadan
+     * dengan ruang sebesar itu. Yang orang datang untuk lihat adalah candle-nya.
+     */
+    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.92, bottom: 0 } });
 
     // The legend follows the crosshair, and falls back to the newest bar when the
     // pointer leaves the chart so the row is never blank.
@@ -440,13 +498,29 @@ export default function RealtimeCandleChart({
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    const handleResize = () => {
-      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+    /**
+     * ResizeObserver, bukan hanya event `resize` window.
+     *
+     * Kontainernya berubah ukuran karena hal-hal yang tidak menimbulkan event window:
+     * kotak osilator muncul atau hilang, panel di sebelahnya melipat, kolom grid berubah
+     * di breakpoint. Mendengarkan window saja membuat chart memakai tinggi lama sampai ada
+     * yang mengubah ukuran jendela — dan itu terlihat sebagai canvas yang terpotong.
+     */
+    const syncSize = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
     };
+    const ro = new ResizeObserver(syncSize);
+    ro.observe(containerRef.current);
+    const handleResize = syncSize;
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -977,7 +1051,9 @@ export default function RealtimeCandleChart({
         </div>
       )}
 
-      <div ref={containerRef} className="w-full flex-1 min-h-[300px] overflow-hidden rounded-xl" />
+      {/* min-h dinaikkan dari 300 ke 460: tinggi chart sekarang dibaca dari kontainer ini,
+          jadi kelas inilah yang menentukan seberapa besar terminalnya. */}
+      <div ref={containerRef} className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl" />
 
       {/**
        * Kotak osilator: TERPISAH dari chart harga, bukan pane di dalamnya.

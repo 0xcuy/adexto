@@ -411,6 +411,22 @@ const ALL_CHAINS = (
 const isSelected = async (btn) => ((await btn.getAttribute("class")) ?? "").includes("text-accent");
 
 /**
+ * Timeframe chart untuk SELURUH rekaman, diteruskan lewat `?tf=` di tiap URL token.
+ *
+ * Bukan diklik sekali di adegan terminal, dan itu perbedaan yang penting: `interval` di
+ * RealtimeCandleChart hanyalah state komponen, jadi setiap `page.goto` me-remount-nya dan
+ * mengembalikannya ke 60 detik. Berkas ini menavigasi ke halaman token LIMA kali, jadi satu
+ * klik di adegan awal tidak berpengaruh pada adegan jual — justru adegan yang candle
+ * merahnya paling ingin diperlihatkan.
+ *
+ * 15 detik dipilih dari data rekaman pertama. Jarak perdagangannya 0s, 24s, 50s, 76s, 91s;
+ * pada 1s/5s/15s ketiganya sama-sama memberi tiap perdagangan bucket sendiri, tetapi bar
+ * kosong di antaranya 87 / 14 / 2. Pada 60 detik tiga perdagangan menyatu dan penjualannya
+ * tertelan sama sekali.
+ */
+const DEMO_TF = process.env.DEMO_TF || "15";
+
+/**
  * Menelusuri keempat chain, berakhir di chain target.
  *
  * Loop "persempit ke satu" yang dulu ada di bawah sini DIHAPUS. Ia mencoba men-deselect
@@ -688,7 +704,7 @@ await beat(page, 1800);
 
 // ── 4. TERMINAL TOKEN: chart + order book ───────────────────────────────────
 scene("4) TERMINAL — chart & order book dari reserve on-chain");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3200);
 
 /**
@@ -705,14 +721,22 @@ await beat(page, 3200);
  * detik, 14 pada 5 detik, hanya 2 pada 15 detik. Pada 1 detik kelima candle nyata jadi
  * sekitar 5% lebar chart, yaitu masalah "terhimpit" yang justru sedang dihindari.
  */
-await safely("pindah interval chart ke 15s", async () => {
-  const btn15 = page.locator('button:has-text("15s")').first();
-  await btn15.waitFor({ state: "visible", timeout: 15000 });
-  await btn15.hover();
-  await beat(page, 400);
-  await btn15.click();
-  await beat(page, 1400);
-  console.log("  interval chart: 15s");
+/**
+ * Intervalnya sudah datang dari `?tf=` pada URL, jadi tidak perlu diklik. Yang dilakukan di
+ * sini hanya MEMASTIKAN tombolnya benar-benar tersorot — kalau tidak, berarti param-nya
+ * tidak terbaca dan seluruh adegan perdagangan akan direkam pada timeframe yang salah.
+ */
+await safely(`pastikan interval chart ${DEMO_TF}s`, async () => {
+  const label = `${DEMO_TF}s`;
+  const btn = page.locator(`button:has-text("${label}")`).first();
+  await btn.waitFor({ state: "visible", timeout: 15000 });
+  const cls = (await btn.getAttribute("class")) ?? "";
+  const aktif = cls.includes("text-accent");
+  console.log(`  interval chart: ${label} ${aktif ? "AKTIF" : "TIDAK aktif — ?tf= tidak terbaca"}`);
+  if (!aktif) {
+    await btn.click();
+    await beat(page, 1200);
+  }
 });
 await glide(page, 420);
 await beat(page, 2600);
@@ -792,7 +816,7 @@ console.log(`  saldo token: ${fmt(balAfterSwap)} ${TICKER}`);
 
 // ── 8. JUAL dari terminal ───────────────────────────────────────────────────
 scene("8) JUAL dari terminal (approve + sell)");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, { waitUntil: "domcontentloaded" });
 await beat(page, 2800);
 await page.locator('button:has-text("SELL")').first().click();
 await beat(page, 1400);
@@ -855,7 +879,7 @@ await safely("klaim penghasilan creator", async () => {
 scene("8b) Beberapa fill tambahan agar chart terisi");
 for (const [i, amt] of ["0.004", "0.007"].entries()) {
   await safely(`fill tambahan ${i + 1}`, async () => {
-    await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, { waitUntil: "domcontentloaded" });
     await beat(page, 1800);
     const input = page.locator('input[type="number"]').first();
     await input.click();
@@ -875,7 +899,7 @@ for (const [i, amt] of ["0.004", "0.007"].entries()) {
 // halaman, sehingga jawaban agent terhapus dan hanya tampil sekejap. Sekarang satu
 // kali muat dipakai untuk chart, lalu turun ke panel chat dan berhenti di jawaban.
 scene("9) Chart penutup dengan fill nyata");
-await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
+await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3000);
 await page.evaluate(() => {
   const feed = [...document.querySelectorAll("*")].find(

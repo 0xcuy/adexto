@@ -564,7 +564,7 @@ export default function TokenTerminal({
            * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
            * akan meluber keluar kartu dan terpotong.
            */}
-          <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[470px] shadow-2xl bg-white flex flex-col justify-between">
+          <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[620px] shadow-2xl bg-white flex flex-col justify-between">
             <RealtimeCandleChart
               symbol={project.symbol}
               chainId={project.chainId}
