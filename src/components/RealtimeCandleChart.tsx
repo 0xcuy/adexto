@@ -54,9 +54,39 @@ interface Props {
   /** USD value of one native unit, for the header readout. */
   nativeUsd: number;
   poolLive: boolean;
+  /**
+   * Berubah setiap kali sebuah trade TERKONFIRMASI, dan itu memicu pengambilan ulang
+   * segera alih-alih menunggu polling berikutnya.
+   *
+   * Kenapa perlu: polling di bawah berjalan tiap 15 detik. Tanpa pemicu ini, orang yang
+   * baru saja menjual melihat chart TANPA fill-nya sampai 15 detik — dan itu tertangkap
+   * di rekaman demo, di mana adegan jual tidak memperlihatkan candle baru sama sekali
+   * karena adegannya berpindah lebih dulu.
+   *
+   * Nilainya txHash, bukan boolean atau pencacah waktu: ia berubah tepat sekali per
+   * trade, dan `useSovereignSwap` menetapkannya SETELAH receipt diparse — jadi log
+   * swap-nya sudah ada di blok ketika pengambilan ulang berjalan.
+   */
+  refreshKey?: string | null;
 }
 
+/**
+ * Interval sub-menit ada karena kurva yang baru lahir diperdagangkan per detik, bukan
+ * per menit.
+ *
+ * Pada bucket 1 menit, sebuah pembelian, penjualan, lalu pembelian lagi yang terjadi
+ * dalam rentang satu menit menyatu menjadi SATU candle — dan `close`-nya diambil dari
+ * fill terakhir, sehingga arah tiap perdagangan di dalamnya hilang. Itu terjadi sungguhan
+ * pada $NOVA991: 4 pembelian dan 1 penjualan menghasilkan nol candle merah.
+ *
+ * Pada 1 detik, tiap perdagangan hampir selalu mendapat bucket sendiri, jadi naik-turunnya
+ * terlihat sebagaimana adanya. Endpoint telemetry melebarkan jumlah bucketnya untuk
+ * interval sekecil ini supaya jangkauannya tetap setengah jam.
+ */
 const INTERVALS = [
+  { label: "1s", seconds: 1 },
+  { label: "5s", seconds: 5 },
+  { label: "15s", seconds: 15 },
   { label: "1m", seconds: 60 },
   { label: "5m", seconds: 300 },
   { label: "15m", seconds: 900 },
@@ -76,6 +106,15 @@ const INTERVALS = [
  */
 const MIN_BARS_TO_FIT = 12;
 const YOUNG_MARKET_SLOTS = 24;
+
+/**
+ * Lebar sumbu harga, dipatok sama untuk chart harga DAN kotak osilator.
+ *
+ * Satu konstanta dan bukan dua angka terpisah, karena begitu keduanya berbeda sumbu waktu
+ * kedua kotak langsung tidak sejajar dan tidak ada yang akan menyadarinya sampai ada yang
+ * mengukur lebar canvas-nya.
+ */
+const PRICE_AXIS_WIDTH = 96;
 
 /**
  * Overlay indicators share the price scale; RSI and MACD cannot, since one is
@@ -105,11 +144,38 @@ export default function RealtimeCandleChart({
   nativeSymbol,
   nativeUsd,
   poolLive,
+  refreshKey,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  /**
+   * Kontainer dan chart TERPISAH untuk osilator (RSI, MACD).
+   *
+   * Sebelumnya keduanya dipasang sebagai pane tambahan di DALAM chart harga lewat
+   * `chart.addPane()`. Akibatnya dua hal yang keduanya salah:
+   *   - tiap pane memakan 90 px dari tinggi chart yang tetap 340 px, jadi menyalakan RSI
+   *     dan MACD sekaligus memangkas area candle sampai lebih dari separuh — candle-nya
+   *     terhimpit persis di saat pengguna ingin melihatnya lebih jelas;
+   *   - garis RSI berskala 0..100 tergambar di kotak yang sama dengan harga, dan itu
+   *     terbaca seolah harga yang bergerak. Kebingungan ini nyata, bukan hipotetis.
+   *
+   * Sekarang osilator hidup di kotaknya sendiri di bawah chart harga. Chart harga
+   * mempertahankan seluruh tingginya untuk candle, dan tidak ada lagi garis berskala lain
+   * yang menumpang di sana.
+   */
+  const oscContainerRef = useRef<HTMLDivElement>(null);
+  const oscChartRef = useRef<IChartApi | null>(null);
+  /** Penjaga agar sinkronisasi dua arah sumbu waktu tidak saling memantul tanpa henti. */
+  const syncingRef = useRef(false);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
+  /**
+   * Digit signifikan untuk sumbu harga, diturunkan dari rentang data.
+   *
+   * Ref dan bukan state: dibaca dari dalam formatter yang dipasang sekali saat seri
+   * dibuat, jadi ia harus bisa berubah tanpa membuat seri dibangun ulang.
+   */
+  const sigDigitsRef = useRef(4);
   /** Indicator series are created and destroyed as they are toggled. */
   const overlayRefs = useRef<Partial<Record<string, any>>>({});
   const paneRefs = useRef<Partial<Record<string, any>>>({});
@@ -155,6 +221,12 @@ export default function RealtimeCandleChart({
   const [legend, setLegend] = useState<Candle | null>(null);
 
   const enabledKey = JSON.stringify(enabled);
+  /**
+   * Osilator mana yang menyala. Menentukan apakah kotak bawah dirender sama sekali —
+   * kotak kosong yang menganggur hanya memakan ruang dan menyisakan sumbu tanpa isi.
+   */
+  const oscillators = PANES.filter((p) => enabled[p.key]);
+  const hasOscillator = oscillators.length > 0;
 
   // Chart instance is created once per container, not per data refresh.
   useEffect(() => {
@@ -176,8 +248,42 @@ export default function RealtimeCandleChart({
         vertLine: { color: "#00F5FF", width: 1, style: 3 },
         horzLine: { color: "#00F5FF", width: 1, style: 3 },
       },
-      timeScale: { borderColor: "rgba(255,255,255,0.1)", timeVisible: true, secondsVisible: false },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)", scaleMargins: { top: 0.1, bottom: 0.28 } },
+      /**
+       * `fixLeftEdge` MENGUNCI tepi kiri di bar pertama.
+       *
+       * Tanpa ini chart bisa digeser ke kiri melewati candle pertama, ke wilayah yang
+       * tidak punya data — dan untuk token yang baru diluncurkan wilayah itu bukan
+       * "data yang belum dimuat", melainkan waktu ketika tokennya belum ada. Membiarkan
+       * orang menggeser ke sana menyiratkan ada riwayat yang sedang disembunyikan.
+       *
+       * `rightOffset: 0` melengkapinya: bar terbaru menempel di tepi kanan alih-alih
+       * menyisakan bantalan kosong.
+       */
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.1)",
+        timeVisible: true,
+        secondsVisible: false,
+        fixLeftEdge: true,
+        rightOffset: 0,
+      },
+      /**
+       * `minimumWidth` DIPATOK, dan angkanya harus sama dengan chart osilator.
+       *
+       * Lebar sumbu harga menyesuaikan diri dengan label terpanjangnya. Chart harga
+       * memakai notasi subscript seperti "0.0₄20509595" sementara kotak osilator hanya
+       * "86.9", jadi sumbunya melebar berbeda — dan karena sumbu memakan lebar dari area
+       * gambar, area gambar kedua kotak jadi tidak sama lebar. Terukur bedanya 30 px, dan
+       * akibatnya bar RSI tidak lurus di bawah candle-nya: crosshair di satu kotak
+       * menunjuk bar yang berbeda di kotak lain, yang membuat osilatornya lebih
+       * menyesatkan daripada berguna.
+       *
+       * 96 px cukup untuk label subscript terpanjang pada presisi 12 digit.
+       */
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.1)",
+        scaleMargins: { top: 0.1, bottom: 0.28 },
+        minimumWidth: PRICE_AXIS_WIDTH,
+      },
       width: containerRef.current.clientWidth,
       height: 340,
     });
@@ -198,22 +304,53 @@ export default function RealtimeCandleChart({
        * Per-series on purpose: a chart-wide `localization.priceFormatter` would also
        * capture the RSI pane, where 0..100 values need no such treatment.
        */
-      priceFormat: { type: "custom", formatter: (p: number) => formatSmallNumber(p), minMove: 1e-12 },
       /**
-       * Rentang harga minimum, supaya gerakan mikroskopis tidak dibesarkan sampai
-       * memenuhi pane.
+       * Digit signifikannya MENGIKUTI rentang yang sedang tergambar, bukan tetap 4.
        *
-       * Autoscale mengepaskan tinggi pane ke high/low yang terlihat. Pada kurva yang
-       * baru dua kali diperdagangkan, high dan low satu bar bisa berbeda hanya
-       * 0,005% — dan autoscale membesarkannya menjadi blok hijau setinggi chart,
-       * sementara header tepat di atasnya menulis +0.00%. Chart membantah headernya
-       * sendiri, dan yang salah chart-nya: pembaca melihat pump besar di tempat yang
-       * sebenarnya nyaris tidak bergerak. Itu kelas kesalahan yang sama dengan
-       * menggambar indikator setengah matang.
+       * `formatSmallNumber` bawaannya 4 digit signifikan. Untuk kurva muda itu membuat
+       * seluruh sumbu terbaca angka yang sama: 2,05095600e-5 dan 2,05095926e-5 sama-sama
+       * dibulatkan menjadi "0.0₄2051". Jadi begitu lantai autoscale dicabut dan candle-nya
+       * mulai bergerak, sumbunya justru yang membuat chart tampak rusak — semua garis
+       * berlabel identik sementara harga jelas berpindah.
        *
-       * Jadi rentangnya dipaksa minimal ±0,5% dari harga tengah. Ini TIDAK PERNAH
-       * mempersempit: begitu pasarnya benar-benar bergerak lebih dari itu, hasil
-       * autoscale asli dipakai apa adanya.
+       * Presisinya dihitung dari lebar rentang relatif saat data dimuat, lalu dibatasi
+       * 4..12 supaya harga normal tidak ikut berubah panjang labelnya.
+       */
+      priceFormat: {
+        type: "custom",
+        formatter: (p: number) => formatSmallNumber(p, sigDigitsRef.current),
+        minMove: 1e-12,
+      },
+      /**
+       * Autoscale mengikuti data. TIDAK ADA lantai rentang.
+       *
+       * Sebelumnya di sini ada lantai ±0,5%: rentang pane dipaksa minimal 1% lebar
+       * kalau data lebih sempit dari itu. Maksudnya baik — mencegah gerakan mikroskopis
+       * dibesarkan jadi blok hijau setinggi chart sementara header menulis +0.00% —
+       * tapi obatnya salah sasaran dan menghasilkan kegagalan yang lebih buruk:
+       * SETIAP pembelian menjadi garis datar.
+       *
+       * Terukur pada $NOVA991 di 0G mainnet: harga naik monoton di keempat pembelian,
+       * dari 2,05095600e-5 ke 2,05095926e-5, dan chart menggambarnya sebagai satu garis
+       * lurus. Grafik candle yang tidak naik ketika ada yang membeli bukan grafik candle.
+       *
+       * Kenapa tanpa lantai memang benar DI SINI, bukan cuma "lebih enak dilihat":
+       * harga pada bonding curve adalah fungsi deterministik dari reserve. Tidak ada
+       * noise mikro untuk diperbesar secara menyesatkan — setiap kenaikan ADALAH sebuah
+       * pembelian dan setiap penurunan ADALAH sebuah penjualan. Memperbesar rentang
+       * nyata di sini menampilkan informasi, bukan mengarang volatilitas.
+       *
+       * Dua hal lain harus benar bersama ini, kalau tidak perbaikannya setengah, dan
+       * keduanya dibetulkan di commit yang sama:
+       *   - presisi sumbu harga (lihat `sigDigitsRef`), kalau tidak semua label terbaca
+       *     angka yang sama walau candle-nya bergerak;
+       *   - persentase di header (lihat `formatPct`), kalau tidak header menulis +0.00%
+       *     dan justru header itulah yang membantah chart.
+       *
+       * Yang tersisa hanya penjaga kasus degenerat: rentang nol lebar, yaitu ketika
+       * seluruh seri satu harga — pasar yang belum pernah diperdagangkan, atau deretan
+       * bucket kosong. Di situ pane diberi bantalan tipis supaya pustaka chart tidak
+       * membagi dengan nol, dan garis datarnya memang jujur karena tidak ada yang trading.
        */
       autoscaleInfoProvider: (original: () => any) => {
         const res = original();
@@ -221,11 +358,48 @@ export default function RealtimeCandleChart({
         if (!range) return res;
         const mid = (range.minValue + range.maxValue) / 2;
         if (!Number.isFinite(mid) || mid <= 0) return res;
-        const MIN_RELATIVE_SPAN = 0.01; // ±0,5% di sekitar harga tengah
-        const minSpan = mid * MIN_RELATIVE_SPAN;
-        if (range.maxValue - range.minValue >= minSpan) return res;
-        const half = minSpan / 2;
-        return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+        const span = range.maxValue - range.minValue;
+
+        // Kasus degenerat: seluruh seri satu harga, jadi rentangnya nol lebar. Diberi
+        // bantalan tipis supaya pustaka chart tidak membagi dengan nol. Garis datarnya
+        // memang jujur — tidak ada yang trading.
+        if (span <= 0) {
+          const half = mid * 0.0005;
+          return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+        }
+
+        /**
+         * Badan candle TERBESAR dibatasi porsinya terhadap rentang yang tergambar.
+         *
+         * Ini menjawab dua keluhan berlawanan dengan SATU aturan, setelah dua percobaan
+         * sebelumnya masing-masing hanya menjawab satu dan memecahkan yang lain:
+         *   - lantai +-0,5% membuat kenaikan 0,00016% jadi garis datar sama sekali;
+         *   - autoscale murni membuat SATU candle 4 jam mengisi seluruh terminal, karena
+         *     badannya memang sama dengan seluruh rentang data.
+         *
+         * Aturannya relatif terhadap data, jadi ia tidak pernah menyembunyikan gerakan —
+         * hanya menahan zoom agar satu badan tidak menghabiskan pane. Pada satu candle,
+         * rentang dilebarkan ~2,9x sehingga badannya jadi 35% rentang, yang setelah
+         * scaleMargins menjadi sekitar 22% tinggi pane: ukuran candle yang wajar. Pada
+         * riwayat panjang, badan terbesar biasanya sudah di bawah ambang dan hasil
+         * autoscale asli dipakai apa adanya.
+         *
+         * Konsekuensi yang disengaja: skalanya tetap TIDAK menyampaikan besaran absolut —
+         * gerakan 0,00016% dan 2,5% terlihat mirip. Itu sifat semua chart yang autoscale,
+         * dan yang menyampaikan besaran adalah persentase di header serta label sumbu,
+         * yang keduanya kini punya presisi cukup untuk dibaca.
+         */
+        let maxBody = 0;
+        for (const c of candlesRef.current) {
+          const body = Math.abs(c.close - c.open);
+          if (body > maxBody) maxBody = body;
+        }
+        const MAX_BODY_SHARE = 0.35;
+        if (maxBody > 0 && maxBody > span * MAX_BODY_SHARE) {
+          const half = maxBody / MAX_BODY_SHARE / 2;
+          return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+        }
+        return res;
       },
     });
 
@@ -269,6 +443,86 @@ export default function RealtimeCandleChart({
   }, []);
 
   /**
+   * Chart osilator: instance sendiri, di kotak sendiri, dibuat hanya saat dibutuhkan.
+   *
+   * Tingginya mengikuti jumlah osilator yang menyala, jadi menyalakan RSI saja tidak
+   * menyisakan strip kosong untuk MACD.
+   *
+   * Sumbu waktunya DISINKRONKAN dua arah dengan chart harga. Tanpa itu kedua kotak akan
+   * menggambar rentang waktu berbeda, dan membaca RSI di bawah candle yang tidak sejajar
+   * lebih buruk daripada tidak punya RSI: crosshair di satu kotak akan menunjuk bar yang
+   * berbeda di kotak lainnya. `syncingRef` mencegah dua langganan itu saling memantul.
+   */
+  useEffect(() => {
+    if (!hasOscillator || !oscContainerRef.current) return;
+
+    const osc = createChart(oscContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "#030610" },
+        textColor: "#94a3b8",
+        fontSize: 11,
+        fontFamily: "monospace",
+        panes: { separatorColor: "rgba(255,255,255,0.12)", separatorHoverColor: "rgba(0,245,255,0.25)" },
+      },
+      grid: {
+        vertLines: { color: "rgba(255, 255, 255, 0.04)" },
+        horzLines: { color: "rgba(255, 255, 255, 0.04)" },
+      },
+      crosshair: {
+        vertLine: { color: "#00F5FF", width: 1, style: 3 },
+        horzLine: { color: "#00F5FF", width: 1, style: 3 },
+      },
+      // Sumbu waktu disembunyikan: label jamnya sudah ada di chart harga tepat di atas,
+      // dan mengulanginya dua kali hanya menambah bising pada kotak setinggi 120 px.
+      timeScale: { borderColor: "rgba(255,255,255,0.1)", timeVisible: true, secondsVisible: false, visible: false },
+      // Lebar sumbu SAMA dengan chart harga, kalau tidak area gambarnya beda lebar dan
+      // bar osilator tidak lurus di bawah candle-nya.
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.1)",
+        scaleMargins: { top: 0.12, bottom: 0.12 },
+        minimumWidth: PRICE_AXIS_WIDTH,
+      },
+      width: oscContainerRef.current.clientWidth,
+      height: oscillators.length * 120,
+    });
+    oscChartRef.current = osc;
+
+    const price = chartRef.current;
+    const linkFrom = (a: IChartApi, b: IChartApi) =>
+      a.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (!range || syncingRef.current) return;
+        syncingRef.current = true;
+        try {
+          b.timeScale().setVisibleLogicalRange(range);
+        } finally {
+          syncingRef.current = false;
+        }
+      });
+    if (price) {
+      linkFrom(price, osc);
+      linkFrom(osc, price);
+      const current = price.timeScale().getVisibleLogicalRange();
+      if (current) osc.timeScale().setVisibleLogicalRange(current);
+    }
+
+    const handleResize = () => {
+      if (oscContainerRef.current) osc.applyOptions({ width: oscContainerRef.current.clientWidth });
+    };
+    window.addEventListener("resize", handleResize);
+
+    // Digambar ulang segera supaya kotaknya tidak muncul kosong sampai polling berikutnya.
+    if (candlesRef.current.length > 0) drawIndicators(candlesRef.current);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      osc.remove();
+      oscChartRef.current = null;
+      paneRefs.current = {};
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasOscillator, oscillators.length]);
+
+  /**
    * Draw the indicators. Runs whenever the data or the toggles change.
    *
    * Series are torn down and rebuilt rather than hidden, so a disabled indicator
@@ -279,13 +533,22 @@ export default function RealtimeCandleChart({
     const chart = chartRef.current;
     if (!chart) return;
 
+    const osc = oscChartRef.current;
+
     for (const s of Object.values(overlayRefs.current)) if (s) chart.removeSeries(s);
-    for (const s of Object.values(paneRefs.current)) if (s) chart.removeSeries(s);
+    // Seri osilator hidup di chart LAIN, jadi dilepas dari chart itu — bukan dari chart
+    // harga. Memanggil `chart.removeSeries` untuk seri milik chart lain akan melempar.
+    if (osc) for (const s of Object.values(paneRefs.current)) if (s) osc.removeSeries(s);
     overlayRefs.current = {};
     paneRefs.current = {};
 
-    // Extra panes are removed when their indicator is off, otherwise an empty strip
-    // stays behind and eats vertical space.
+    /**
+     * Chart harga sekarang HANYA punya satu pane, selamanya.
+     *
+     * Pane tambahan dulu dibuat di sini untuk RSI dan MACD. Keduanya sudah pindah ke chart
+     * osilator sendiri, jadi pembersihan ini tinggal sebagai penjaga: kalau ada pane yang
+     * entah bagaimana tertinggal, ia akan memakan tinggi yang seharusnya milik candle.
+     */
     while (chart.panes().length > 1) {
       const extra = chart.panes()[chart.panes().length - 1];
       try {
@@ -323,13 +586,25 @@ export default function RealtimeCandleChart({
       overlayRefs.current.bbL = addOverlay("rgba(148,163,184,0.9)", toLineData(ohlc, ind.bollinger.lower));
     }
 
-    if (enabled.rsi14) {
+    /**
+     * RSI dan MACD digambar ke `osc`, bukan ke `chart`.
+     *
+     * Masing-masing tetap mendapat pane sendiri DI DALAM kotak osilator, karena skalanya
+     * memang tidak bisa disatukan: RSI terbatas 0..100 sementara MACD berayun di sekitar
+     * nol. Yang berubah hanyalah keduanya tidak lagi menumpang di kotak harga.
+     */
+    const oscPaneIndex = (n: number) => {
+      if (!osc) return 0;
+      while (osc.panes().length <= n) osc.addPane();
+      return osc.panes()[n].paneIndex();
+    };
+    let nextPane = 0;
+
+    if (enabled.rsi14 && osc) {
       const data = toLineData(ohlc, ind.rsi14);
       if (data.length > 0) {
-        const pane = chart.addPane();
-        pane.setHeight(90);
-        const idx = pane.paneIndex();
-        const s = chart.addSeries(
+        const idx = oscPaneIndex(nextPane++);
+        const s = osc.addSeries(
           LineSeries,
           { color: "#22d3ee", lineWidth: 1, priceLineVisible: false, priceFormat: { type: "price", precision: 1, minMove: 0.1 } },
           idx
@@ -343,13 +618,11 @@ export default function RealtimeCandleChart({
       }
     }
 
-    if (enabled.macd) {
+    if (enabled.macd && osc) {
       const histData = toLineData(ohlc, ind.macd.histogram);
       if (histData.length > 0) {
-        const pane = chart.addPane();
-        pane.setHeight(90);
-        const idx = pane.paneIndex();
-        const hist = chart.addSeries(
+        const idx = oscPaneIndex(nextPane++);
+        const hist = osc.addSeries(
           HistogramSeries,
           // MACD of a 1e-9 price is itself around 1e-11, so the same reasoning as the
           // candle series applies to this axis.
@@ -363,13 +636,13 @@ export default function RealtimeCandleChart({
             color: d.value >= 0 ? "rgba(16,185,129,0.55)" : "rgba(244,63,94,0.55)",
           })) as any
         );
-        const macdLine = chart.addSeries(
+        const macdLine = osc.addSeries(
           LineSeries,
           { color: "#38bdf8", lineWidth: 1, priceLineVisible: false, lastValueVisible: false },
           idx
         );
         macdLine.setData(toLineData(ohlc, ind.macd.macd) as any);
-        const signalLine = chart.addSeries(
+        const signalLine = osc.addSeries(
           LineSeries,
           { color: "#fbbf24", lineWidth: 1, priceLineVisible: false, lastValueVisible: false },
           idx
@@ -403,6 +676,28 @@ export default function RealtimeCandleChart({
         if (candles.length > 0 && candleSeriesRef.current) {
           const sorted = [...candles].sort((a, b) => a.time - b.time);
           candlesRef.current = sorted;
+
+          /**
+           * Presisi sumbu dihitung dari rentang nyata seri ini.
+           *
+           * Dibutuhkan digit yang cukup untuk MEMBEDAKAN high dari low; kalau tidak,
+           * setiap label sumbu mencetak angka yang sama dan chart tampak macet padahal
+           * candle-nya bergerak. Ditambah dua digit sebagai kelonggaran, lalu dibatasi
+           * 4..12: di bawah 4 tidak informatif, di atas 12 sudah melewati presisi ganda
+           * dan hanya memanjangkan label.
+           */
+          const lo = Math.min(...sorted.map((c) => c.low));
+          const hi = Math.max(...sorted.map((c) => c.high));
+          const relSpan = hi > 0 ? (hi - lo) / hi : 0;
+          sigDigitsRef.current =
+            relSpan > 0 ? Math.min(12, Math.max(4, Math.ceil(-Math.log10(relSpan)) + 2)) : 4;
+          candleSeriesRef.current.applyOptions({
+            priceFormat: {
+              type: "custom",
+              formatter: (p: number) => formatSmallNumber(p, sigDigitsRef.current),
+              minMove: 1e-12,
+            },
+          });
           candleSeriesRef.current.setData(
             sorted.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close }))
           );
@@ -427,9 +722,17 @@ export default function RealtimeCandleChart({
              * Ambangnya membuat keduanya benar: riwayat panjang tetap di-fit, pasar
              * muda mendapat jendela logis tetap sehingga lebar candle-nya wajar.
              */
+            /**
+             * `from: 0`, BUKAN `from: -3`.
+             *
+             * Nilai negatif menyisakan slot kosong sebelum bar pertama, dan untuk token yang
+             * baru lahir itu salah secara faktual: tidak ada riwayat sebelum peluncuran, jadi
+             * ruang kosong di kiri menyiratkan ada harga yang tidak pernah ada. Bar pertama
+             * harus menempel di tepi kiri.
+             */
             const ts = chartRef.current?.timeScale();
             if (sorted.length >= MIN_BARS_TO_FIT) ts?.fitContent();
-            else ts?.setVisibleLogicalRange({ from: -3, to: YOUNG_MARKET_SLOTS });
+            else ts?.setVisibleLogicalRange({ from: 0, to: YOUNG_MARKET_SLOTS });
             fittedFor.current = fitKey;
           }
         } else {
@@ -460,12 +763,28 @@ export default function RealtimeCandleChart({
 
     load();
     const timer = setInterval(load, 15000);
+
+    /**
+     * Satu pengambilan ulang penegas 2,5 detik sesudahnya, HANYA ketika pemicunya sebuah
+     * trade baru.
+     *
+     * Alasannya bukan kehati-hatian berlebih. `txHash` ditetapkan setelah receipt diparse,
+     * jadi blok-nya memang sudah ada — tapi endpoint ini membaca log lewat node RPC yang
+     * bisa berada beberapa saat di belakang blok terbaru, terutama di belakang
+     * load-balancer yang mengarahkan dua permintaan ke dua node berbeda. Kalau
+     * pengambilan pertama mengenai node yang belum menyusul, chart akan diam sampai
+     * polling 15 detik berikutnya, yaitu bug yang sedang diperbaiki. Satu percobaan
+     * kedua menutup celah itu tanpa mengubah irama polling untuk semua orang.
+     */
+    const confirmTimer = refreshKey ? setTimeout(load, 2500) : null;
+
     return () => {
       cancelled = true;
       clearInterval(timer);
+      if (confirmTimer) clearTimeout(confirmTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, chainId, interval]);
+  }, [symbol, chainId, interval, refreshKey]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -475,6 +794,25 @@ export default function RealtimeCandleChart({
 
   const priceUsd = priceNative * (nativeUsd || 0);
   const changeIsUp = changePct >= 0;
+
+  /**
+   * Persentase yang tidak pernah membulatkan perubahan nyata menjadi nol.
+   *
+   * `changePct.toFixed(2)` menulis "+0.00%" untuk kenaikan +0,00016% — dan justru
+   * ANGKA ITU yang dulu dipakai sebagai alasan membutakan chart: "chart menampilkan
+   * gerakan sementara header menulis +0.00%, jadi chart-nya salah". Ternyata yang salah
+   * headernya. Sekarang keduanya membaca data yang sama, jadi tidak ada lagi yang
+   * membantah siapa.
+   *
+   * Di atas 0,01% dua desimal sudah cukup dan tetap dipakai supaya tampilan normal tidak
+   * berubah. Di bawah itu, dipakai dua digit signifikan supaya angkanya tetap terbaca
+   * alih-alih hilang jadi nol.
+   */
+  const formatPct = (p: number) => {
+    if (!Number.isFinite(p) || p === 0) return "0.00";
+    if (Math.abs(p) >= 0.01) return p.toFixed(2);
+    return Number(p.toPrecision(2)).toString();
+  };
 
   /**
    * Which enabled indicators cannot draw yet, and how many bars they still need.
@@ -518,7 +856,7 @@ export default function RealtimeCandleChart({
               }`}
             >
               {changeIsUp ? "+" : ""}
-              {changePct.toFixed(2)}%
+              {formatPct(changePct)}%
             </span>
           </div>
           <span className="text-xs font-semibold text-accent sm:text-sm" data-numeric>
@@ -626,6 +964,27 @@ export default function RealtimeCandleChart({
       )}
 
       <div ref={containerRef} className="w-full flex-1 min-h-[300px] overflow-hidden rounded-xl" />
+
+      {/**
+       * Kotak osilator: TERPISAH dari chart harga, bukan pane di dalamnya.
+       *
+       * Diberi border dan judul sendiri supaya jelas bahwa angka di dalamnya BUKAN harga.
+       * Sumbu waktunya disinkronkan dengan chart di atas, jadi kolom yang sama di kedua
+       * kotak selalu bar yang sama.
+       *
+       * Kotaknya sengaja TANPA padding horizontal: kontainer chart di dalamnya harus
+       * selebar chart harga di atas, kalau tidak sumbu waktunya bergeser walau lebar sumbu
+       * harganya sudah dipatok sama. Labelnya yang diberi padding sendiri.
+       */}
+      {hasOscillator && (
+        <div className="mt-2 shrink-0 rounded-xl border border-line bg-white py-2">
+          <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
+            <span>{oscillators.map((o) => o.label).join(" · ")}</span>
+            <span className="normal-case tracking-normal text-ink-faint">skala sendiri, bukan harga</span>
+          </div>
+          <div ref={oscContainerRef} className="w-full overflow-hidden" />
+        </div>
+      )}
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-1.5 text-[11px] text-ink-faint">
         <span>

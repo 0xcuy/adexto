@@ -263,7 +263,30 @@ export function buildCandles(
   const wallBucket = Math.floor(Date.now() / 1000 / bucketSeconds) * bucketSeconds;
   const newestSeconds = ordered.length > 0 ? ordered[ordered.length - 1].seconds : 0;
   const newestBucket = Math.floor(newestSeconds / bucketSeconds) * bucketSeconds;
-  const nowBucket = Math.max(wallBucket, newestBucket);
+  /**
+   * Jendela TIDAK BOLEH menghanyutkan seluruh datanya.
+   *
+   * `nowBucket` mengambil yang lebih baru antara jam dinding dan perdagangan terakhir,
+   * lalu jendelanya dihitung `bucketCount` bucket ke belakang. Pada bucket besar itu
+   * tidak pernah jadi masalah, tapi pada bucket sub-menit jendelanya menjadi pendek
+   * dalam satuan WAKTU: 1.800 bucket × 1 detik hanya menjangkau 30 menit.
+   *
+   * Terbukti di produksi, bukan di teori: pasar $NOVA991 yang berdagang ~30 menit lalu
+   * mengembalikan 14 bar pada 15 detik tetapi NOL bar pada 5 dan 1 detik. Semua
+   * perdagangannya jatuh sedikit di luar tepi jendela, dan chart-nya kosong tanpa satu
+   * pun pesan yang menjelaskan.
+   *
+   * Jadi kalau jendela berbasis jam dinding tidak memuat satu perdagangan pun, ujungnya
+   * dipindah ke perdagangan TERAKHIR. Chart lalu memperlihatkan riwayat terakhir yang
+   * memang ada alih-alih kosong. Ini tidak membohongi sumbu waktu: labelnya tetap waktu
+   * asli tiap bar, yang berubah hanya bagian mana dari riwayat yang ditampilkan.
+   */
+  const wallStart = wallBucket - (bucketCount - 1) * bucketSeconds;
+  const adaDiJendelaJam = ordered.some(({ seconds }) => {
+    const b = Math.floor(seconds / bucketSeconds) * bucketSeconds;
+    return b >= wallStart && b <= wallBucket;
+  });
+  const nowBucket = adaDiJendelaJam ? Math.max(wallBucket, newestBucket) : newestBucket;
   const startBucket = nowBucket - (bucketCount - 1) * bucketSeconds;
 
   const byBucket = new Map<number, Array<{ price: number; volume: number }>>();
@@ -286,7 +309,33 @@ export function buildCandles(
   // first move.
   let last = opts.fallbackPrice > 0 ? opts.fallbackPrice : 0;
 
-  for (let bucket = filledBuckets[0]; bucket <= nowBucket; bucket += bucketSeconds) {
+  /**
+   * Ekor bucket kosong DIBATASI, supaya bar datar tidak menenggelamkan datanya.
+   *
+   * Bucket kosong sesudah perdagangan terakhir diisi datar sampai `nowBucket`, dan
+   * `nowBucket` mengikuti jam yang terus berjalan — jadi ekornya bertambah selamanya
+   * selama tidak ada yang trading. Terukur pada $NOVA991: 13 candle menjadi 29 dalam 40
+   * menit tanpa satu pun perdagangan baru, dan ketiga candle nyata terhimpit menjadi
+   * sesobek di tepi kiri. Dari layar itu terlihat seperti chart bergerak sendiri,
+   * padahal harga tiap fill sama sekali tidak berubah.
+   *
+   * Pada bucket sub-menit efeknya jauh lebih parah: satu bucket per detik berarti 87 bar
+   * kosong untuk 5 bar berisi.
+   *
+   * Ekornya karena itu dibatasi selebar rentang yang benar-benar diperdagangkan — jadi
+   * paling banyak separuh chart berisi "belum ada aktivitas lagi", dan sisanya data.
+   * Minimum 2 bar supaya bar terkini tetap ada dan jeda terbaru tetap terlihat.
+   *
+   * Yang TIDAK dibatasi: bucket kosong DI ANTARA dua perdagangan. Jeda di tengah adalah
+   * fakta tentang waktu, dan memangkasnya akan memampatkan sumbu waktu sehingga jarak
+   * antar-fill jadi bohong.
+   */
+  const lastFilled = filledBuckets[filledBuckets.length - 1];
+  const tradedBars = (lastFilled - filledBuckets[0]) / bucketSeconds + 1;
+  const maxTrailing = Math.max(2, Math.ceil(tradedBars));
+  const endBucket = Math.min(nowBucket, lastFilled + maxTrailing * bucketSeconds);
+
+  for (let bucket = filledBuckets[0]; bucket <= endBucket; bucket += bucketSeconds) {
     const fills = byBucket.get(bucket);
     if (!fills || fills.length === 0) {
       // A gap after trading has begun is genuine: the price did not move because

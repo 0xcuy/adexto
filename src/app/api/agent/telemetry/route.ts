@@ -20,7 +20,26 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const symbol = (searchParams.get("symbol") || "AEGIS").toUpperCase();
-    const bucketSeconds = Math.max(60, Number(searchParams.get("bucket") || 300));
+    /**
+     * Bucket sekecil 1 detik diizinkan. Lantainya dulu 60 detik, dan itu menelan
+     * penjualan.
+     *
+     * Terukur pada $NOVA991 di 0G mainnet: buy, sell, lalu buy lagi jatuh di SATU bucket
+     * 60 detik. `close` bucket itu diambil dari fill terakhir — sebuah buy — dan harga
+     * sell-nya masih di atas `open`, jadi penjualannya bahkan tidak tercatat sebagai
+     * `low`. Hasilnya satu candle hijau: 4 BUY + 1 SELL menghasilkan NOL candle merah.
+     *
+     * Pada kurva yang baru lahir, perdagangan datang beberapa detik sekali, bukan
+     * beberapa menit sekali. Memaksa bucket 60 detik berarti seluruh riwayat awal sebuah
+     * pasar diringkas jadi dua atau tiga bar — dan arah tiap perdagangan hilang di
+     * dalamnya. Lantai itu membuang informasi yang justru paling ingin dilihat orang.
+     *
+     * Batas atas 4 jam mengikuti pilihan interval terlebar di UI. Nilai bukan-angka atau
+     * nol jatuh ke 300, bukan ke NaN — `Math.max` dengan NaN mengembalikan NaN dan itu
+     * akan merusak seluruh perhitungan bucket di bawahnya tanpa suara.
+     */
+    const bucketRaw = Number(searchParams.get("bucket"));
+    const bucketSeconds = Number.isFinite(bucketRaw) && bucketRaw >= 1 ? Math.min(14400, Math.floor(bucketRaw)) : 300;
 
     // Each chain's deployment has its own pool and therefore its own price
     // history, so the chart must be able to pin a chain.
@@ -53,8 +72,16 @@ export async function GET(req: Request) {
      * longer indicators unable to ever produce a value. Empty buckets before the
      * first trade are not emitted, so a wider window costs nothing on a young
      * market — it only extends how far back a busy one can be read.
+     *
+     * Jumlahnya NAIK untuk bucket sub-menit, kalau tidak intervalnya jadi jebakan:
+     * 240 bucket × 1 detik hanya menjangkau 4 menit ke belakang, jadi perdagangan yang
+     * berumur lebih dari itu keluar dari jendela dan chart 1 detik mendadak kosong tanpa
+     * penjelasan. Lantai 1.800 detik menjaga jangkauan minimal setengah jam berapa pun
+     * ukuran bucketnya. Untuk 60 detik ke atas hasilnya tetap 240, jadi tidak ada
+     * perilaku lama yang berubah.
      */
-    const candles = buildCandles(trades, { bucketSeconds, buckets: 240, fallbackPrice });
+    const buckets = Math.max(240, Math.ceil(1800 / bucketSeconds));
+    const candles = buildCandles(trades, { bucketSeconds, buckets, fallbackPrice });
 
     /**
      * Latest price is found by TIMESTAMP, not by taking `trades[0]`.

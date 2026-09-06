@@ -559,7 +559,12 @@ export default function TokenTerminal({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: chart + depth */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="glass-panel p-4 rounded-3xl border-2 border-line h-[470px] shadow-2xl bg-white flex flex-col justify-between">
+          {/**
+           * `min-h` dan bukan `h`: kotak osilator (RSI/MACD) dirender di dalam komponen
+           * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
+           * akan meluber keluar kartu dan terpotong.
+           */}
+          <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[470px] shadow-2xl bg-white flex flex-col justify-between">
             <RealtimeCandleChart
               symbol={project.symbol}
               chainId={project.chainId}
@@ -567,6 +572,13 @@ export default function TokenTerminal({
               nativeSymbol={chain.nativeSymbol}
               nativeUsd={nativeUsd}
               poolLive={swap.tradable}
+              /**
+               * `swap.txHash` berubah tepat sekali per trade yang berhasil, dan
+               * `useSovereignSwap` menetapkannya SETELAH receipt diparse — jadi ini sinyal
+               * pasca-konfirmasi, bukan pasca-pengiriman. Chart memakainya untuk mengambil
+               * data ulang saat itu juga alih-alih menunggu polling 15 detiknya.
+               */
+              refreshKey={swap.txHash}
             />
             <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-white p-2.5 text-[11px] text-ink-soft">
               <span className="flex items-center gap-1.5 text-ink">

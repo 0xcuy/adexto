@@ -154,6 +154,15 @@ const PACE = Number(process.env.DEMO_PACE || 0.62);
 const beat = (page, ms = 900) => page.waitForTimeout(Math.max(180, Math.round(ms * PACE)));
 const fmt = (v) => Number(ethers.formatUnits(v, 18)).toLocaleString("id-ID", { maximumFractionDigits: 2 });
 
+/*
+ * Dulu di sini ada `awaitChainBucketBoundary`, yang menunggu waktu rantai menyeberang
+ * batas bucket 60 detik supaya penjualan tidak menyatu dengan pembelian di sekitarnya.
+ * DICABUT: pendekatannya benar tapi mahal — dua penantian menambah sampai dua menit video
+ * mati. Penyebabnya diselesaikan di sumbernya dengan memindahkan chart ke interval 15
+ * detik (adegan 4), yang membuat perdagangan berjarak 24-26 detik otomatis mendarat di
+ * bucket masing-masing.
+ */
+
 /**
  * Tombol launch, dicocokkan dari AWAL teksnya.
  *
@@ -681,6 +690,30 @@ await beat(page, 1800);
 scene("4) TERMINAL — chart & order book dari reserve on-chain");
 await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}`, { waitUntil: "domcontentloaded" });
 await beat(page, 3200);
+
+/**
+ * Interval chart dipindah ke 15 detik untuk seluruh adegan perdagangan.
+ *
+ * Pada 1 menit — bawaannya — perdagangan yang berjarak beberapa puluh detik menyatu jadi
+ * satu candle, dan `close` bucket itu diambil dari fill TERAKHIR. Rekaman pertama
+ * membuktikannya: buy, sell, lalu buy lagi masuk satu bucket, sehingga 4 pembelian dan 1
+ * penjualan menghasilkan NOL candle merah — penjualannya lenyap dari chart.
+ *
+ * Kenapa 15 detik dan bukan 1 detik: dihitung dari jarak perdagangan rekaman pertama
+ * (0s, 24s, 50s, 76s, 91s), ketiga kandidat 1s/5s/15s sama-sama memberi tiap perdagangan
+ * bucket sendiri. Yang membedakan adalah bar kosong di antaranya — 87 bar kosong pada 1
+ * detik, 14 pada 5 detik, hanya 2 pada 15 detik. Pada 1 detik kelima candle nyata jadi
+ * sekitar 5% lebar chart, yaitu masalah "terhimpit" yang justru sedang dihindari.
+ */
+await safely("pindah interval chart ke 15s", async () => {
+  const btn15 = page.locator('button:has-text("15s")').first();
+  await btn15.waitFor({ state: "visible", timeout: 15000 });
+  await btn15.hover();
+  await beat(page, 400);
+  await btn15.click();
+  await beat(page, 1400);
+  console.log("  interval chart: 15s");
+});
 await glide(page, 420);
 await beat(page, 2600);
 await glide(page, 380);
@@ -778,6 +811,20 @@ await safely("jual di terminal", async () => {
 });
 const balAfterSell = await erc20.balanceOf(ACCOUNT);
 console.log(`  saldo token setelah jual: ${fmt(balAfterSell)} ${TICKER}`);
+
+/**
+ * Menahan sebentar supaya candle merah penjualannya benar-benar masuk kamera.
+ *
+ * Tidak perlu menunggu batas bucket. Pada interval 15 detik yang dipilih di adegan 4,
+ * perdagangan yang berjarak 24-26 detik — jarak alami antar-adegan di sini — sudah
+ * mendarat di bucket masing-masing. Diverifikasi dari data rekaman pertama: pada 15s
+ * kelima perdagangan mendapat bucket sendiri, sementara pada 60s tiga di antaranya
+ * menyatu dan penjualannya tertelan.
+ *
+ * Chart mengambil data ulang seketika begitu trade terkonfirmasi (prop `refreshKey` di
+ * RealtimeCandleChart), jadi bar barunya muncul tanpa menunggu polling 15 detik.
+ */
+await beat(page, 3200);
 
 // ── 8a. Penghasilan creator ────────────────────────────────────────────────
 // Inti model v3: creator tidak menerima satu token pun, penghasilannya datang
