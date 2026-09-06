@@ -1,7 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-interface IERC20Minimal {
+/**
+ * @dev Suffix `V2` pada kedua interface di berkas ini BUKAN kosmetik.
+ *
+ * Keduanya semula bernama `IERC20Minimal` dan `IAdextoToken`, sama dengan yang
+ * dideklarasikan `SovereignCurve.sol`. Aderyn menandainya sebagai "Contract Name
+ * Reused in Different Files", dan itu benar: dua deklarasi bernama sama membuat
+ * pencarian artifact berdasarkan NAMA jadi ambigu, sehingga skrip deploy yang meminta
+ * `IERC20Minimal` bisa mengambil salah satu tanpa memberi tahu.
+ *
+ * Menariknya ke satu berkas bersama akan lebih rapi, tetapi itu berarti menyunting
+ * `SovereignCurve.sol` — yang sengaja dibekukan supaya source di HEAD tetap cocok
+ * dengan bytecode lima pasar yang hidup di 0G. Jadi yang dinamai ulang adalah berkas
+ * yang belum di-deploy.
+ */
+interface IERC20MinimalV2 {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
@@ -9,7 +23,7 @@ interface IERC20Minimal {
     function totalSupply() external view returns (uint256);
 }
 
-interface IAdextoToken {
+interface IAdextoTokenV2 {
     function executeTreasuryBuyback(uint256 amountToBurn) external;
 }
 
@@ -326,7 +340,7 @@ contract SovereignCurveV2 {
         require(tokenAmount > 0, "SovereignCurve: token seed required");
 
         require(
-            IERC20Minimal(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
+            IERC20MinimalV2(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
             "SovereignCurve: token transfer failed"
         );
 
@@ -464,7 +478,7 @@ contract SovereignCurveV2 {
         swapCount += 1;
 
         require(
-            IERC20Minimal(targetToken).transfer(recipient, tokensOut),
+            IERC20MinimalV2(targetToken).transfer(recipient, tokensOut),
             "SovereignCurve: token transfer failed"
         );
 
@@ -507,11 +521,11 @@ contract SovereignCurveV2 {
 
         // Actionable errors instead of an opaque ERC-20 revert bubbling up.
         require(
-            IERC20Minimal(targetToken).balanceOf(msg.sender) >= tokenAmountIn,
+            IERC20MinimalV2(targetToken).balanceOf(msg.sender) >= tokenAmountIn,
             "SovereignCurve: insufficient token balance"
         );
         require(
-            IERC20Minimal(targetToken).allowance(msg.sender, address(this)) >= tokenAmountIn,
+            IERC20MinimalV2(targetToken).allowance(msg.sender, address(this)) >= tokenAmountIn,
             "SovereignCurve: approve the curve before selling"
         );
 
@@ -520,7 +534,7 @@ contract SovereignCurveV2 {
         require(leaving <= _curveNative, "SovereignCurve: curve solvency");
 
         require(
-            IERC20Minimal(targetToken).transferFrom(msg.sender, address(this), tokenAmountIn),
+            IERC20MinimalV2(targetToken).transferFrom(msg.sender, address(this), tokenAmountIn),
             "SovereignCurve: transferFrom failed"
         );
 
@@ -692,7 +706,7 @@ contract SovereignCurveV2 {
         swapCount += 1;
 
         // Tokens bought are burned by the token contract, permanently reducing supply.
-        IAdextoToken(targetToken).executeTreasuryBuyback(tokensOut);
+        IAdextoTokenV2(targetToken).executeTreasuryBuyback(tokensOut);
         totalTokensBurned += tokensOut;
 
         _assertSolvent();

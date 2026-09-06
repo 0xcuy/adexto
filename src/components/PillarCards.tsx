@@ -106,7 +106,14 @@ const PILLARS: Pillar[] = [
       </>
     ),
     // Bukan "100% Fee Retained": creator menerima 0.10% dari total fee, bukan seluruh
-    // fee. Protokol mengambil 0.05% (lihat /pitch), sisanya mengendap di kurva.
+    // fee. Sisanya 0.15% mengendap di kurva sebagai depth dan 0.05% ke buyback token
+    // itu sendiri.
+    //
+    // Komentar ini sebelumnya menulis "Protokol mengambil 0.05% (lihat /pitch)", dan
+    // itu keliru dua kali: 0.05% adalah buyback token, bukan irisan protokol, dan
+    // protokol tidak mengambil apa pun dari kurva mana pun yang hidup hari ini. Kaki
+    // protokol 0.10% ada di v0.11.0 dan belum di-deploy; teks kartu ini menjelaskan
+    // pasar v0.10.0 yang sedang berjalan, jadi angkanya tetap tiga arah.
     footer: { label: "Creator paid every swap", Icon: TrendingUp },
   },
   {

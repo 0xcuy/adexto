@@ -111,15 +111,21 @@ export default function WhitepaperPage() {
           </h2>
           <p className="text-ink">
             {/* Cakupan dikoreksi ke empat chain (sebelumnya hanya menyebut 0G dan
-                Arbitrum, padahal seluruh materi lain menyebut empat), dan porsi
-                protokol dinyatakan sebagai RENCANA. Kontrak kurva hari ini membagi
-                fee menjadi depth, creator, dan buyback — tidak ada irisan protokol
-                di dalamnya, jadi menuliskannya sebagai penerimaan yang sudah
-                berjalan tidak akan tahan diperiksa. */}
+                Arbitrum, padahal seluruh materi lain menyebut empat).
+
+                Status porsi protokol dipertajam dari "planned but not yet
+                implemented". Kalimat itu benar saat ditulis dan sekarang menyesatkan
+                di dua arah sekaligus: kaki fee-nya SUDAH ditulis dan teruji di
+                v0.11.0, tapi ia juga TIDAK BISA pernah berlaku untuk kurva yang sudah
+                ada, karena setiap tarif di v0.10.0 `immutable`. "Belum
+                diimplementasikan" mengaburkan keduanya dan membuatnya terdengar
+                seperti sakelar yang tinggal dinyalakan. */}
             The protocol native token ($ADEXTO) governs global factory parameters and subsidizes 0G TEE compute enclaves.
-            A protocol fee share across all four networks is <strong>planned but not yet implemented</strong>: today every
-            curve splits its swap fee between retained depth, the creator, and that token&apos;s own buyback vault, with no
-            protocol cut in the path.
+            A 0.10% protocol fee share across all four networks is <strong>written and tested in the v0.11.0 curve, but
+            not deployed</strong>. Every curve now live splits its swap fee between retained depth, the creator, and that
+            token&apos;s own buyback vault, with no protocol cut in the path — and because those rates are immutable, no
+            live curve can ever be changed to include one. The share can only apply to markets launched after the new
+            factory is broadcast.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-white border border-line">

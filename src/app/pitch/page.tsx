@@ -160,12 +160,21 @@ export default function PitchDeckPage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (planned)</strong>
-              {/* Ditandai "planned": pembagian fee di SovereignCurve hari ini hanya
-                  depth + creator + buyback token itu sendiri. Tidak ada irisan
-                  protokol di kontrak, jadi ini proyeksi monetisasi, bukan penerimaan
-                  yang sudah berjalan. */}
-              <p className="text-ink-soft">A 0.05% protocol take-rate on swap volume across thousands of sovereign curves on Base, 0G, Arbitrum &amp; Monad. Not yet enabled in the contracts — today the full fee goes to depth, the creator, and the token&apos;s own buyback vault.</p>
+              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (written, not deployed)</strong>
+              {/* Angka lama di sini 0.05% dan kalimatnya "not yet enabled in the
+                  contracts". Keduanya sudah tidak akurat setelah v0.11.0 ditulis:
+                  tarifnya diputuskan 0.10% dan kaki fee-nya sekarang ADA di kontrak,
+                  lengkap dengan tes — yang belum terjadi adalah broadcast-nya.
+
+                  Kalimat "belum diaktifkan di kontrak" karena itu harus diganti, bukan
+                  dibiarkan: ia meremehkan apa yang sudah ada sekaligus menyiratkan
+                  bahwa mengaktifkannya nanti cukup dengan menyetel sesuatu. Tidak
+                  bisa. Setiap tarif fee di v0.10.0 `immutable`, jadi lima pasar yang
+                  hidup di 0G TIDAK AKAN PERNAH membayar irisan protokol. Itu permanen,
+                  bukan migrasi yang tertunda, dan pembaca berhak tahu bahwa pendapatan
+                  ini hanya bisa datang dari pasar yang diluncurkan SETELAH factory
+                  baru di-broadcast. */}
+              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume across thousands of sovereign curves on Base, 0G, Arbitrum &amp; Monad. The fee leg exists in the v0.11.0 curve and is covered by tests, but that curve is not deployed, so no market pays it today. The markets already live can never pay it: every fee rate in them is immutable, so this revenue can only come from launches made after the new factory is broadcast.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
             </div>
 

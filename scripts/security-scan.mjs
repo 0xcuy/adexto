@@ -20,7 +20,7 @@
  * Pakai: node scripts/security-scan.mjs
  */
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -51,6 +51,19 @@ const BIN = {
 const LAUNCH_PATH = [
   "contracts/AdextoCurveFactory.sol",
   "contracts/SovereignCurve.sol",
+  // Generasi v0.11.0. DIMASUKKAN MESKIPUN BELUM DI-BROADCAST.
+  //
+  // Menunggu sampai ter-deploy adalah pilihan yang salah arah: selama jeda itu, dua
+  // kontrak yang seluruh gunanya menjalankan peluncuran akan berada di repo tanpa
+  // tercakup klaim "0 High di jalur peluncuran" — dan tidak ada di halaman yang
+  // memberi tahu pembaca soal lubang itu. Memasukkannya sekarang membuat klaimnya
+  // harus berlaku untuk DUA generasi, yang hanya bisa memperketat, bukan melonggarkan.
+  //
+  // Status deploy-nya urusan terpisah dan dinyatakan di tempat lain (/pitch dan
+  // /whitepaper menyebut v0.11.0 ditulis tapi belum di-deploy). Berkas ini soal kode
+  // mana yang dipindai, bukan kode mana yang sudah hidup.
+  "contracts/AdextoCurveFactoryV2.sol",
+  "contracts/SovereignCurveV2.sol",
   "contracts/AdextoToken.sol",
   "contracts/IIdentityRegistry.sol",
 ];
@@ -131,13 +144,15 @@ if (!has(BIN.forge)) {
   const parse = (raw) => {
     // Baris JSON terakhir yang valid adalah ringkasannya.
     let passed = 0, failed = 0, skipped = 0, cases = [];
+    const suites = new Set();
     for (const line of raw.split("\n")) {
       const t = line.trim();
       if (!t.startsWith("{")) continue;
       let j;
       try { j = JSON.parse(t); } catch { continue; }
-      for (const suite of Object.values(j)) {
+      for (const [suiteName, suite] of Object.entries(j)) {
         const tests = suite?.test_results ?? {};
+        if (Object.keys(tests).length > 0) suites.add(suiteName);
         for (const [name, r] of Object.entries(tests)) {
           const st = String(r.status || "").toLowerCase();
           if (st === "success") passed++;
@@ -147,10 +162,22 @@ if (!has(BIN.forge)) {
         }
       }
     }
-    return { passed, failed, skipped, cases };
+    return { passed, failed, skipped, cases, suites: suites.size };
   };
 
-  const fuzz = runForge("test/SovereignCurveFuzz.t.sol", {});
+  /**
+   * Glob, BUKAN satu berkas.
+   *
+   * Kedua path ini dulu ditulis tetap: `test/SovereignCurveFuzz.t.sol` dan
+   * `test/SovereignCurveInvariant.t.sol`. Begitu suite v0.11.0 ditambahkan, halaman
+   * /security melaporkan 9 properti fuzz padahal ada 21 yang lulus — dan yang tidak
+   * terlaporkan justru yang menguji kaki fee yang BARU.
+   *
+   * Kegagalannya juga tidak berbunyi: laporannya tetap "clean", hanya cakupannya yang
+   * mengecil secara diam-diam. Glob membuat setiap suite baru ikut terhitung tanpa
+   * seseorang harus ingat menambahkannya ke sini.
+   */
+  const fuzz = runForge("test/*Fuzz.t.sol", {});
   writeFileSync(path.join(OUT_DIR, "forge-fuzz.json"), fuzz.out);
   const f = parse(fuzz.out);
   add({
@@ -161,12 +188,12 @@ if (!has(BIN.forge)) {
     status: f.failed === 0 && f.passed > 0 ? "clean" : "findings",
     ran: true,
     counts: { passed: f.passed, failed: f.failed },
-    detail: `${f.passed} properties passed, ${f.failed} failed · 4096 runs each`,
+    detail: `${f.passed} properties passed, ${f.failed} failed · ${f.suites} suites · 4096 runs each`,
     cases: f.cases.map((c) => c.name),
   });
 
   log("→ forge test (invariant)");
-  const inv = runForge("test/SovereignCurveInvariant.t.sol", {});
+  const inv = runForge("test/*Invariant.t.sol", {});
   writeFileSync(path.join(OUT_DIR, "forge-invariant.json"), inv.out);
   const i = parse(inv.out);
   add({
@@ -177,7 +204,10 @@ if (!has(BIN.forge)) {
     status: i.failed === 0 && i.passed > 0 ? "clean" : "findings",
     ran: true,
     counts: { passed: i.passed, failed: i.failed },
-    detail: `${i.passed} invariant suite passed · 512 runs x 64 random actions`,
+    // Sebelumnya "N invariant suite passed", padahal N menghitung FUNGSI tes, bukan
+    // suite. Dengan satu berkas dan satu fungsi angkanya kebetulan sama; begitu ada
+    // suite kedua dan tes penjaga tambahan, "2 invariant suite" jadi salah.
+    detail: `${i.passed} tests passed across ${i.suites} suites · 512 runs x 64 random actions`,
   });
 }
 
@@ -262,13 +292,38 @@ if (!has(BIN.solhint)) {
   add({ id: "solhint", name: "Solhint", tool: "solhint", status: "not-installed", ran: false });
 } else {
   try {
-    let raw = "";
+    /**
+     * Stdout diarahkan LANGSUNG ke berkas, bukan ditangkap lewat pipe.
+     *
+     * Versi sebelumnya membaca `e.stdout` saat solhint keluar dengan kode != 0. Itu
+     * berjalan sampai keluarannya melewati ~143 KiB, lalu JSON-nya terpotong di tengah
+     * string dan `JSON.parse` melempar "Unterminated string in JSON at position
+     * 146176". Diukur: berkasnya persis 146176 byte, berakhir di tengah sebuah objek.
+     *
+     * Penyebabnya bukan `maxBuffer` — itu sudah 64 MiB. solhint memanggil
+     * `process.exit` saat menemukan error, dan tulisan ke stdout PIPE di Node bersifat
+     * asinkron, jadi sisa buffer hilang sebelum ter-flush. Tulisan ke deskriptor
+     * BERKAS bersifat sinkron dan tidak bisa terpotong seperti itu.
+     *
+     * Ini penting bukan karena solhint-nya penting, melainkan karena kegagalannya
+     * muncul sebagai `status: "error"` di halaman /security: satu mesin berhenti
+     * dilaporkan hanya karena kontrak yang diperiksa bertambah banyak.
+     */
+    const solhintOut = path.join(OUT_DIR, "solhint.json");
+    const fd = openSync(solhintOut, "w");
     try {
-      raw = sh(BIN.solhint, ["-f", "json", "contracts/*.sol"]);
-    } catch (e) {
-      raw = String(e.stdout || "");
+      try {
+        execFileSync(BIN.solhint, ["-f", "json", "contracts/*.sol"], {
+          cwd: ROOT,
+          stdio: ["ignore", fd, "pipe"],
+        });
+      } catch {
+        /* keluar != 0 saat ada temuan; laporannya sudah tertulis ke fd */
+      }
+    } finally {
+      closeSync(fd);
     }
-    writeFileSync(path.join(OUT_DIR, "solhint.json"), raw);
+    const raw = readFileSync(solhintOut, "utf8");
     const arr = JSON.parse(raw || "[]");
     let errors = 0, warnings = 0;
     for (const m of arr) (String(m.severity).toLowerCase() === "error" ? errors++ : warnings++);
