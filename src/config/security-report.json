@@ -1,12 +1,14 @@
 {
-  "generatedAt": "2026-09-05T11:02:19.125Z",
-  "commit": "7b055144c225f96f2f5b238406d53a59a9c792c0",
-  "commitTime": "2026-09-05T17:37:04+07:00",
+  "generatedAt": "2026-09-06T19:23:13.021Z",
+  "commit": "1aa9c4dc5a2830e8ce554ac92ed5979523024435",
+  "commitTime": "2026-09-07T02:21:38+07:00",
   "dirty": true,
   "scope": {
     "launchPath": [
       "contracts/AdextoCurveFactory.sol",
       "contracts/SovereignCurve.sol",
+      "contracts/AdextoCurveFactoryV2.sol",
+      "contracts/SovereignCurveV2.sol",
       "contracts/AdextoToken.sol",
       "contracts/IIdentityRegistry.sol"
     ]
@@ -23,7 +25,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "42 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "47 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -33,10 +35,10 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "passed": 9,
+        "passed": 21,
         "failed": 0
       },
-      "detail": "9 properties passed, 0 failed · 4096 runs each",
+      "detail": "21 properties passed, 0 failed · 2 suites · 4096 runs each",
       "cases": [
         "testFuzz_buyQuoteMatchesExecution(uint256)",
         "testFuzz_buyRoundsInFavourOfCurve(uint256)",
@@ -46,7 +48,19 @@
         "testFuzz_feesNeverExceedInput(uint256)",
         "testFuzz_roundTripNeverProfitable(uint256)",
         "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
-        "testFuzz_supplyNeverGrows(uint256)"
+        "testFuzz_supplyNeverGrows(uint256)",
+        "testFuzz_buyQuoteMatchesExecution(uint256)",
+        "testFuzz_buybackChargesNoProtocolFee(uint256)",
+        "testFuzz_creatorAndProtocolClaimsAreIndependent(uint256)",
+        "testFuzz_fourLegsNeverExceedInput(uint256)",
+        "testFuzz_protocolFeeIsAdditiveNotCarvedOut(uint256)",
+        "testFuzz_protocolFeeIsExactBpsOfInput(uint256)",
+        "testFuzz_protocolFeesOnlyReachTreasury(uint256,address)",
+        "testFuzz_roundTripNeverProfitable(uint256)",
+        "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
+        "test_capCountsProtocolLeg()",
+        "test_feeLegsMatchPublishedNumbers()",
+        "test_zeroProtocolTreasuryRejected()"
       ]
     },
     {
@@ -57,10 +71,10 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "passed": 1,
+        "passed": 4,
         "failed": 0
       },
-      "detail": "1 invariant suite passed · 512 runs x 64 random actions"
+      "detail": "4 tests passed across 2 suites · 512 runs x 64 random actions"
     },
     {
       "id": "slither",
@@ -93,12 +107,12 @@
       "ran": true,
       "counts": {
         "highKinds": 4,
-        "highInstances": 34,
+        "highInstances": 47,
         "lowKinds": 13,
-        "lowInstances": 76
+        "lowInstances": 93
       },
       "launchPathCounts": {
-        "HighInstances": 15
+        "HighInstances": 28
       },
       "detail": "4 High kinds / 13 Low kinds · 88 detectors"
     },
@@ -111,9 +125,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 693
+        "warnings": 997
       },
-      "detail": "0 errors, 693 warnings (style & gas rules)"
+      "detail": "0 errors, 997 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -124,10 +138,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 11,
+        "filesScanned": 13,
         "configErrors": 0
       },
-      "detail": "0 findings across 11 files · general p/security-audit ruleset"
+      "detail": "0 findings across 13 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -139,10 +153,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50110,
-        "uniqueInstructions": 7193
+        "totalCalls": 50134,
+        "uniqueInstructions": 7252
       },
-      "detail": "4/4 properties passed · 50,110 calls",
+      "detail": "4/4 properties passed · 50,134 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",
