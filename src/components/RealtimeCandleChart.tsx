@@ -222,10 +222,24 @@ export default function RealtimeCandleChart({
 
   const enabledKey = JSON.stringify(enabled);
   /**
-   * Osilator mana yang menyala. Menentukan apakah kotak bawah dirender sama sekali —
-   * kotak kosong yang menganggur hanya memakan ruang dan menyisakan sumbu tanpa isi.
+   * Osilator yang menyala DAN benar-benar bisa digambar.
+   *
+   * Syarat kedua itu yang penting, dan tanpanya ada bug: menyalakan RSI membuat kotak
+   * bawah muncul di SEMUA timeframe, termasuk yang barnya tidak cukup. Yang terlihat
+   * adalah kotak berbingkai lengkap dengan sumbu tapi tanpa satu garis pun — persis
+   * "strip kosong yang memakan ruang" yang seharusnya dihindari.
+   *
+   * Kenapa barnya bisa tidak cukup: RSI 14 menuntut 15 bar dan MACD 34, sementara jumlah
+   * bar yang bisa ada dibatasi UMUR PASAR. Pasar berumur 91 detik hanya menghasilkan 7
+   * bucket pada 15 detik dan 1 bucket pada 4 jam. Ini aritmetika, bukan kerusakan.
+   *
+   * Yang TIDAK dilakukan: memadatkan jumlah bar dengan bar kosong supaya ambangnya
+   * terlampaui. RSI di atas bantalan datar adalah angka yang terlihat seperti analisis
+   * tetapi tidak mengukur apa pun — kelas kesalahan yang sama dengan mengarang riwayat
+   * sebelum perdagangan pertama, yang sudah dilarang di `buildCandles`. Pesan
+   * "warming up" di bawah chart menyatakan kekurangannya apa adanya.
    */
-  const oscillators = PANES.filter((p) => enabled[p.key]);
+  const oscillators = PANES.filter((p) => enabled[p.key] && candleCount >= (WARMUP[p.warmupKey] ?? 1));
   const hasOscillator = oscillators.length > 0;
 
   // Chart instance is created once per container, not per data refresh.
@@ -980,7 +994,11 @@ export default function RealtimeCandleChart({
         <div className="mt-2 shrink-0 rounded-xl border border-line bg-white py-2">
           <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
             <span>{oscillators.map((o) => o.label).join(" · ")}</span>
-            <span className="normal-case tracking-normal text-ink-faint">skala sendiri, bukan harga</span>
+            {/* Teks TERENDER wajib bahasa Inggris. Versi pertama baris ini berbunyi
+                "skala sendiri, bukan harga" — dan `bukan` memang sudah ada di ID_WORDS
+                audit_claims, jadi penjaganya akan menangkapnya. Yang gagal prosesnya:
+                penjaga itu tidak dijalankan lagi setelah kotak ini ditambahkan. */}
+            <span className="normal-case tracking-normal text-ink-faint">own scale, not price</span>
           </div>
           <div ref={oscContainerRef} className="w-full overflow-hidden" />
         </div>

@@ -192,6 +192,42 @@ const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } }
 const page = await ctx.newPage();
 let fail = 0;
 
+/**
+ * Halaman terminal token IKUT DIPERIKSA, ditemukan sendiri dari registry.
+ *
+ * Sebelumnya ROUTES hanya memuat sepuluh rute statis, dan `/token/<slug>` tidak ada di
+ * antaranya. Itu lubang besar: terminal adalah permukaan dengan paling banyak teks
+ * terender di situs ini — header harga, panel kedalaman, trade feed, panel swap, kotak
+ * indikator — dan tidak satu pun pernah diperiksa. Kata Indonesia "skala sendiri, bukan
+ * harga" sempat hidup di sana meskipun `bukan` memang sudah terdaftar di ID_WORDS;
+ * penjaganya tidak pernah melihat halamannya.
+ *
+ * Slug-nya tidak di-hardcode. Pasar demo datang dan pergi, jadi rute yang dipatok akan
+ * berubah jadi 404 dan pemeriksaannya lolos secara palsu. Yang dilakukan: tanya registry,
+ * ambil pasar pertama. Kalau registry kosong, dicatat sebagai DILEWATI — bukan LULUS,
+ * supaya tidak ada yang menyimpulkan halaman itu sudah bersih padahal tidak diperiksa.
+ */
+let tokenRoute = null;
+try {
+  const res = await fetch(`${BASE}/api/graphql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: "{ projects { slug chainId } }" }),
+  });
+  const data = await res.json();
+  const first = data?.data?.projects?.[0];
+  if (first?.slug) {
+    tokenRoute = `/token/${first.slug}${first.chainId ? `?chain=${first.chainId}` : ""}`;
+    ROUTES.push(tokenRoute);
+    console.log(`terminal token ditemukan dari registry: ${tokenRoute}`);
+  }
+} catch {
+  // Dibiarkan null; dilaporkan di bawah.
+}
+if (!tokenRoute) {
+  console.log("DILEWATI  /token/<slug> — registry kosong, jadi tidak ada terminal untuk diperiksa");
+}
+
 for (const route of ROUTES) {
   await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 60000 });
   await page.waitForTimeout(2200);
