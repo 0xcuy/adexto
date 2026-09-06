@@ -124,6 +124,28 @@ const SUGGESTED_PROMPTS = [
   "Write a mandate for a delta-neutral yield agent",
 ];
 
+/**
+ * The three fee tiers, as one source of truth.
+ *
+ * These numbers used to live inline in the tier buttons while `applyPreset` set the
+ * total and the buyback share but NOT the creator share. Picking the "defi" preset
+ * therefore selected the 0.10% tier while leaving the creator cut at whatever it was,
+ * usually the 0.10% default — so the parts (0.10 + 0.02) exceeded the whole (0.10).
+ * The UI hid it because the depth readout is `Math.max(0, ...)`, and the server turned
+ * it into a NEGATIVE depth of −2 bps on the way to the factory.
+ *
+ * Keeping the split in one table means a preset cannot select a tier and then disagree
+ * with it. Each row must satisfy creator + cut <= fee, which the deploy route now
+ * enforces server-side as well.
+ */
+const FEE_TIERS = {
+  low: { fee: 0.1, creator: 0.04, cut: 0.02, label: "0.10% Low" },
+  standard: { fee: 0.3, creator: 0.1, cut: 0.05, label: "0.30% Standard" },
+  meme: { fee: 0.5, creator: 0.2, cut: 0.1, label: "0.50% Meme" },
+} as const;
+
+type FeeTier = keyof typeof FEE_TIERS;
+
 export default function StudioPage() {
   const { address, isConnected, isConnecting, connectWallet, switchToChain } = useWallet();
 
@@ -144,7 +166,7 @@ export default function StudioPage() {
   const [logoInfo, setLogoInfo] = useState<{ generated: boolean; note?: string } | null>(null);
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
-  const [feeTier, setFeeTier] = useState<"low" | "standard" | "meme">("standard");
+  const [feeTier, setFeeTier] = useState<FeeTier>("standard");
   const [totalSwapFee, setTotalSwapFee] = useState(0.3);
   /** Streamed to the creator on every swap — the reason no free token allocation is needed. */
   const [creatorCut, setCreatorCut] = useState(0.1);
@@ -464,33 +486,36 @@ export default function StudioPage() {
    */
   const selectChain = (chainId: number) => setTargetChainIds([chainId]);
 
+  /** Selecting a tier must move all three numbers together, or the split desyncs. */
+  const applyFeeTier = (tier: FeeTier) => {
+    const { fee, creator, cut } = FEE_TIERS[tier];
+    setFeeTier(tier);
+    setTotalSwapFee(fee);
+    setCreatorCut(creator);
+    setTreasuryCut(cut);
+  };
+
   const applyPreset = (type: "quant" | "meme" | "defi") => {
     if (type === "meme") {
       setTokenName("Cyber Doge AI");
       setTokenTicker("CDOGE");
       setCustomSubdomain("cdoge");
       setTokenSupply("1,000,000,000");
-      setFeeTier("meme");
-      setTotalSwapFee(0.5);
-      setTreasuryCut(0.2);
+      applyFeeTier("meme");
       setAgentPersona("Viral meme quant bot with aggressive auto-buyback");
     } else if (type === "quant") {
       setTokenName("Aegis Quant AI");
       setTokenTicker("AQUANT");
       setCustomSubdomain("aquant");
       setTokenSupply("1,000,000,000");
-      setFeeTier("standard");
-      setTotalSwapFee(0.3);
-      setTreasuryCut(0.1);
+      applyFeeTier("standard");
       setAgentPersona("24/7 quant market maker and liquidity rebalancer");
     } else {
       setTokenName("Nova Yield Protocol");
       setTokenTicker("NYIELD");
       setCustomSubdomain("novayield");
       setTokenSupply("500,000,000");
-      setFeeTier("low");
-      setTotalSwapFee(0.1);
-      setTreasuryCut(0.02);
+      applyFeeTier("low");
       setAgentPersona("Delta-neutral yield hedging and institutional LP routing");
     }
   };
@@ -1335,33 +1360,25 @@ export default function StudioPage() {
                   {/* Three-way split: depth · creator · buyback. The creator slice
                       is what replaces a free token allocation, so there is nothing
                       for a creator to dump. */}
-                  {(
-                    [
-                      ["low", 0.1, 0.04, 0.02, "0.10% Low"],
-                      ["standard", 0.3, 0.1, 0.05, "0.30% Standard"],
-                      ["meme", 0.5, 0.2, 0.1, "0.50% Meme"],
-                    ] as const
-                  ).map(([tier, fee, creator, cut, label]) => (
-                    <button
-                      key={tier}
-                      onClick={() => {
-                        setFeeTier(tier);
-                        setTotalSwapFee(fee);
-                        setCreatorCut(creator);
-                        setTreasuryCut(cut);
-                      }}
-                      className={`p-2 rounded-xl text-left transition-all border ${
-                        feeTier === tier
-                          ? "bg-accent-soft text-ink border-accent/30"
-                          : "bg-cream-2 text-ink-soft border-transparent hover:text-ink"
-                      }`}
-                    >
-                      <span className="font-bold block text-[11px] text-accent">{label}</span>
-                      <span className="text-[9px] text-ink-soft">
-                        {(fee - creator - cut).toFixed(2)}% depth · {creator.toFixed(2)}% you · {cut.toFixed(2)}% buyback
-                      </span>
-                    </button>
-                  ))}
+                  {(Object.entries(FEE_TIERS) as Array<[FeeTier, (typeof FEE_TIERS)[FeeTier]]>).map(
+                    ([tier, { fee, creator, cut, label }]) => (
+                      <button
+                        key={tier}
+                        onClick={() => applyFeeTier(tier)}
+                        className={`p-2 rounded-xl text-left transition-all border ${
+                          feeTier === tier
+                            ? "bg-accent-soft text-ink border-accent/30"
+                            : "bg-cream-2 text-ink-soft border-transparent hover:text-ink"
+                        }`}
+                      >
+                        <span className="font-bold block text-[11px] text-accent">{label}</span>
+                        <span className="text-[9px] text-ink-soft">
+                          {(fee - creator - cut).toFixed(2)}% depth · {creator.toFixed(2)}% you ·{" "}
+                          {cut.toFixed(2)}% buyback
+                        </span>
+                      </button>
+                    )
+                  )}
                 </div>
 
                 <div className="p-2 rounded-xl bg-cream-2 space-y-1">

@@ -218,9 +218,68 @@ async function handlePrepare(body: any) {
   // depth-nya 0.15%. Angka itu lalu ditimpa balik ke studio dan disimpan di
   // registry, sehingga terminal menampilkan "Curve depth (0.25%)" bersebelahan
   // dengan nilai dolar yang justru dihitung dari 0.15% — kontradiksi di satu layar.
+  /**
+   * Fee parameters are VALIDATED, not merely defaulted.
+   *
+   * These three numbers came straight from the request body with nothing but `??`
+   * defaults. The only ceiling anywhere was `MAX_TOTAL_FEE_BPS = 500` inside the curve,
+   * so a caller could POST `creatorCut: 4.9` and deploy a market that skims 4.9% of every
+   * swap into their own pocket. The studio never sends that, but the studio is not the
+   * only thing that can POST here.
+   *
+   * That mattered more than a normal input bug because the split is `immutable` in
+   * `SovereignCurve`: there is no setter and no admin, so a market launched with a hostile
+   * split stays hostile for as long as the chain exists. It would also have been listed on
+   * this site, under our own explorer, with our own "gas only" framing around it.
+   *
+   * Values are REJECTED rather than silently clamped. Quietly rewriting someone's fee
+   * split and then permanently deploying it is worse than refusing: the caller would have
+   * no idea the market they own does not match what they asked for.
+   */
+  const FEE_BOUNDS = {
+    // Floor keeps a market from launching with no depth accrual at all; ceiling stays
+    // under the 1% that pump.fun charges, which is the comparison this product invites.
+    swapFee: { min: 0.05, max: 1.0 },
+    creatorCut: { min: 0, max: 0.5 },
+    treasuryCut: { min: 0, max: 0.5 },
+  } as const;
+
+  const swapFeeRaw = Number(body.swapFee ?? 0.3);
   const creatorCut = Number(body.creatorCut ?? 0.1);
   const treasuryCut = Number(body.treasuryCut ?? 0.05);
-  const lpFeeBps = Math.round((Number(body.swapFee ?? 0.3) - creatorCut - treasuryCut) * 100);
+
+  for (const [name, value] of [
+    ["swapFee", swapFeeRaw],
+    ["creatorCut", creatorCut],
+    ["treasuryCut", treasuryCut],
+  ] as const) {
+    const { min, max } = FEE_BOUNDS[name];
+    if (!Number.isFinite(value) || value < min || value > max) {
+      return NextResponse.json(
+        {
+          error: `${name} must be a number between ${min}% and ${max}%. Received: ${body[name]}`,
+          code: "FEE_OUT_OF_RANGE",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Depth is what remains, so the parts may never exceed the whole. Without this the
+  // subtraction below goes negative and `Math.round` hands the factory a nonsense depth.
+  if (creatorCut + treasuryCut > swapFeeRaw) {
+    return NextResponse.json(
+      {
+        error:
+          `creatorCut (${creatorCut}%) + treasuryCut (${treasuryCut}%) cannot exceed the ` +
+          `total swapFee (${swapFeeRaw}%). Depth fee is whatever is left over.`,
+        code: "FEE_SPLIT_INVALID",
+      },
+      { status: 400 }
+    );
+  }
+
+  const lpFeeBps = Math.round((swapFeeRaw - creatorCut - treasuryCut) * 100);
   const treasuryBuybackBps = Math.round(treasuryCut * 100);
 
   const opening = await resolveOpenings(deployable);
