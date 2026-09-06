@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {CurveFixtureV2} from "./CurveFixtureV2.sol";
+import {AdextoCurveFixture} from "./AdextoCurveFixture.sol";
 import {AdextoCurveFactory} from "../contracts/AdextoCurveFactory.sol";
-import {AdextoCurveFactoryV2} from "../contracts/AdextoCurveFactoryV2.sol";
+import {AdextoFactory} from "../contracts/AdextoFactory.sol";
 import {SovereignCurve} from "../contracts/SovereignCurve.sol";
-import {SovereignCurveV2} from "../contracts/SovereignCurveV2.sol";
+import {AdextoCurve} from "../contracts/AdextoCurve.sol";
 import {AdextoToken} from "../contracts/AdextoToken.sol";
 
 /**
@@ -18,9 +18,9 @@ import {AdextoToken} from "../contracts/AdextoToken.sol";
  * treasury yang immutable, dan apakah solvensi masih berlaku setelah ada kantong
  * keempat.
  */
-contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
+contract AdextoCurveFuzzTest is AdextoCurveFixture {
     function setUp() public {
-        _launchV2();
+        _launchCurve();
     }
 
     function _boundBuy(uint256 raw) internal pure returns (uint256) {
@@ -56,7 +56,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
 
         assertEq(received, quoted, "nilai kembalian buy != kuotasi");
         assertEq(curve.protocolOwed() - owedBefore, protocolFee, "fee protokol yang mengendap != kuotasi");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     function testFuzz_sellQuoteMatchesExecution(uint256 rawIn, uint256 sellPct) public {
@@ -78,7 +78,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
 
         assertEq(out, quotedOut, "nilai kembalian sell != kuotasi");
         assertEq(curve.protocolOwed() - owedBefore, protocolFee, "fee protokol pada jual != kuotasi");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     // ── 3. Fee protokol persis mengikuti aritmetika bps ───────────────────────
@@ -166,7 +166,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
         assertEq(address(this).balance, creatorBefore, "creator menerima fee protokol");
         assertEq(curve.protocolOwed(), 0, "utang protokol tidak dinolkan");
         assertEq(curve.totalProtocolFeesPaid(), owed, "total terbayar tidak tercatat");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     // ── 7. Klaim creator dan klaim protokol tidak saling mencuri ──────────────
@@ -191,7 +191,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
         curve.claimProtocolFees();
         assertEq(PROTOCOL_TREASURY.balance - treasuryBefore, protocolOwed, "treasury menerima jumlah yang salah");
         assertEq(curve.creatorOwed(), 0, "utang creator berubah setelah klaim protokol");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     // ── 8. Buyback TIDAK menagih fee protokol ─────────────────────────────────
@@ -219,7 +219,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
         curve.executeBuyback(spend, 0);
 
         assertEq(curve.protocolOwed(), protocolBefore, "buyback menagih fee protokol: fee di atas fee");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     // ── 9. Bolak-balik tetap tidak menguntungkan, sekarang dengan 40 bps ──────
@@ -237,7 +237,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
         uint256 out = curve.sell(bought, 0, address(this), block.timestamp + 1);
 
         assertLt(out, nativeIn, "bolak-balik menghasilkan untung: kurva bisa dikuras");
-        _assertSolventV2();
+        _assertSolvent();
     }
 
     // ── 10. Treasury protokol nol harus ditolak saat deployment ───────────────
@@ -246,7 +246,7 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
     // siapa pun, dan karena tidak ada yang mutable, uang itu terkunci selamanya.
     function test_zeroProtocolTreasuryRejected() public {
         vm.expectRevert(bytes("Factory: zero protocol treasury"));
-        new AdextoCurveFactoryV2(address(0));
+        new AdextoFactory(address(0));
     }
 
     // ── 11. Batas 5% dihitung atas apa yang BENAR-BENAR dibayar pedagang ──────
@@ -263,6 +263,6 @@ contract SovereignCurveV2FuzzTest is CurveFixtureV2 {
         (, address c) = factory.deployTrinity(
             "At Cap", "ATCAP", SUPPLY, address(this), VIRTUAL_NATIVE, 490, 10, 5, bytes32(0), false, 0
         );
-        assertEq(SovereignCurveV2(payable(c)).totalFeeBps(), 500, "total di batas bukan 500 bps");
+        assertEq(AdextoCurve(payable(c)).totalFeeBps(), 500, "total di batas bukan 500 bps");
     }
 }

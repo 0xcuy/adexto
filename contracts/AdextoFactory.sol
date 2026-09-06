@@ -2,32 +2,33 @@
 pragma solidity ^0.8.26;
 
 import {AdextoToken} from "./AdextoToken.sol";
-import {SovereignCurveV2} from "./SovereignCurveV2.sol";
+import {AdextoCurve} from "./AdextoCurve.sol";
 import {IIdentityRegistry} from "./IIdentityRegistry.sol";
 
 /**
- * @title AdextoCurveFactoryV2
- * @notice Zero-deposit launch for ADEXTO (adexto.xyz), version 0.11.0: token +
- *         bonding curve in one transaction, no liquidity deposit, and a protocol
- *         fee leg that the protocol itself can actually collect.
+ * @title AdextoFactory
+ * @notice Zero-deposit launch for ADEXTO (adexto.xyz): token + bonding curve in one
+ *         transaction, no liquidity deposit, and a protocol fee leg that the protocol
+ *         itself can actually collect.
  *
- * @dev WHY THIS CARRIES A VERSION SUFFIX WHEN `AdextoCurveFactory` DELIBERATELY DOES NOT
+ * @dev NAMANYA TIDAK MEMUAT NOMOR GENERASI
  *
- * `AdextoCurveFactory` argues at length that a version belongs in `VERSION` and not
- * in a contract name, because a name is permanent once verified and forces every
- * later fix to invent another one. That argument was correct and it assumed one
- * factory existed at a time.
+ * Berkas ini sempat bernama `AdextoCurveFactoryV2`. Suffix itu dibuang sebelum
+ * di-broadcast, dengan alasan yang sama yang sudah ditulis panjang di
+ * `AdextoCurveFactory`: nama kontrak permanen begitu diverifikasi, jadi angka generasi
+ * di dalam nama memaksa setiap perbaikan berikutnya mengarang angka lagi — V3, V4 —
+ * dan konsumen harus mengejar nama, bukan alamat.
  *
- * That assumption no longer holds. `AdextoCurveFactory` v0.10.0 is deployed and
- * immutable with five live markets on 0G, and its curves cannot be made to charge a
- * protocol fee because every fee rate in them is `immutable`. So two factories now
- * exist permanently and side by side, and two contracts cannot share one name.
+ * Argumen itu sempat saya anggap gugur karena dua factory kini hidup bersamaan dan dua
+ * kontrak tidak bisa berbagi satu nama. Yang benar adalah: keduanya memang butuh nama
+ * BERBEDA, tapi tidak harus nama BERNOMOR. Proyek yang baru mulai tetapi sudah memajang
+ * "V2" terbaca seperti sudah dua kali dibongkar, padahal yang terjadi hanya satu
+ * penambahan pada kaki fee.
  *
- * The suffix is therefore a direct consequence of having no upgrade lever, which is
- * the property the project chose on purpose. `VERSION` still carries the precise
- * number; the suffix only distinguishes two coexisting deployments.
+ * `VERSION` di bawah tetap memuat angka presisnya, dan di situ ia bisa naik tanpa
+ * mengubah identitas kontrak.
  *
- * WHAT CHANGED FROM v0.10.0
+ * WHAT CHANGED FROM AdextoCurveFactory
  *
  * One addition: `PROTOCOL_FEE_BPS`, charged on top of the creator's configured
  * total and claimable only to the `immutable protocolTreasury` set at deployment.
@@ -50,7 +51,7 @@ import {IIdentityRegistry} from "./IIdentityRegistry.sol";
  *   - creator dibayar dari irisan fee setiap swap, ke alamat yang terkunci di
  *     kurva sejak deployment.
  */
-contract AdextoCurveFactoryV2 {
+contract AdextoFactory {
     /**
      * @notice Versi factory, dibaca on-chain.
      * @dev `0.y.z` berarti pengembangan awal: API publiknya belum boleh dianggap
@@ -242,7 +243,7 @@ contract AdextoCurveFactoryV2 {
         uint256 depthFeeBps = swapFeeBps - creatorShareBps - treasuryShareBps;
 
         // 1. Deploy the curve first so the token can bind to it immutably.
-        SovereignCurveV2 sovereignCurve = new SovereignCurveV2(
+        AdextoCurve sovereignCurve = new AdextoCurve(
             address(this),
             agentIdentity,
             msg.sender,
@@ -272,14 +273,14 @@ contract AdextoCurveFactoryV2 {
         // 3. Bind and load the curve atomically with 100% of supply. No native
         //    changes hands, so a launch costs the creator gas only.
         sovereignCurve.bindToken(token);
-        uint256 minted = IERC20Balance(token).balanceOf(address(this));
+        uint256 minted = IERC20SupplySeed(token).balanceOf(address(this));
         require(minted > 0, "Factory: nothing minted");
-        require(IERC20Balance(token).approve(curve, minted), "Factory: approve failed");
+        require(IERC20SupplySeed(token).approve(curve, minted), "Factory: approve failed");
         sovereignCurve.initializeCurve(minted);
 
         // 4. Nothing is forwarded to the creator on purpose: no free allocation
         //    means no supply to dump. The creator earns from `creatorShareBps`.
-        require(IERC20Balance(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
+        require(IERC20SupplySeed(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
 
         symbolRegistry[symbolKey] = token;
         curveOf[token] = curve;
@@ -352,7 +353,16 @@ contract AdextoCurveFactoryV2 {
     }
 }
 
-interface IERC20Balance {
+/**
+ * @dev Permukaan ERC-20 sekecil yang dibutuhkan factory untuk memuat kurva: setujui,
+ *      lalu pastikan saldonya sendiri nol.
+ *
+ *      Dinamai sendiri, bukan `IERC20Approve` seperti di `AdextoCurveFactory.sol`,
+ *      karena nama yang sama di dua berkas membuat pencarian artifact berdasarkan nama
+ *      jadi ambigu — hal yang sama yang ditandai Aderyn pada interface di
+ *      `AdextoCurve.sol`.
+ */
+interface IERC20SupplySeed {
     function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
 }

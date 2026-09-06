@@ -2,8 +2,8 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {AdextoCurveFactoryV2} from "../contracts/AdextoCurveFactoryV2.sol";
-import {SovereignCurveV2} from "../contracts/SovereignCurveV2.sol";
+import {AdextoFactory} from "../contracts/AdextoFactory.sol";
+import {AdextoCurve} from "../contracts/AdextoCurve.sol";
 import {AdextoToken} from "../contracts/AdextoToken.sol";
 
 /**
@@ -20,9 +20,9 @@ import {AdextoToken} from "../contracts/AdextoToken.sol";
  * kedua saldo itu satu alamat — dan pengalihan fee protokol ke creator tidak akan
  * terdeteksi.
  */
-abstract contract CurveFixtureV2 is Test {
-    AdextoCurveFactoryV2 internal factory;
-    SovereignCurveV2 internal curve;
+abstract contract AdextoCurveFixture is Test {
+    AdextoFactory internal factory;
+    AdextoCurve internal curve;
     AdextoToken internal token;
 
     /// EOA tanpa kode, jadi `call` bernilai ke sini pasti berhasil.
@@ -42,10 +42,10 @@ abstract contract CurveFixtureV2 is Test {
     /// Sama besaran dengan pembukaan 0G di produksi.
     uint256 internal constant VIRTUAL_NATIVE = 1500 ether;
 
-    function _launchV2() internal {
-        factory = new AdextoCurveFactoryV2(PROTOCOL_TREASURY);
+    function _launchCurve() internal {
+        factory = new AdextoFactory(PROTOCOL_TREASURY);
         (address t, address c) = factory.deployTrinity(
-            "Fuzz Curve Agent V2",
+            "Adexto Curve Fuzz Agent",
             "FUZZ2",
             SUPPLY,
             address(this),
@@ -58,7 +58,7 @@ abstract contract CurveFixtureV2 is Test {
             0
         );
         token = AdextoToken(t);
-        curve = SovereignCurveV2(payable(c));
+        curve = AdextoCurve(payable(c));
 
         /**
          * Lewati jendela anti-sniper.
@@ -80,7 +80,7 @@ abstract contract CurveFixtureV2 is Test {
      * sebesar fee protokol yang belum diklaim, dan kekurangannya baru muncul sebagai
      * penjualan gagal bagi siapa pun yang kebetulan terakhir.
      */
-    function _assertSolventV2() internal view {
+    function _assertSolvent() internal view {
         uint256 accounted =
             curve.realNative() + curve.creatorOwed() + curve.treasuryNative() + curve.protocolOwed();
         assertGe(address(curve).balance, accounted, "kurva insolven: saldo < yang tercatat");

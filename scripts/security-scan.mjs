@@ -62,8 +62,8 @@ const LAUNCH_PATH = [
   // Status deploy-nya urusan terpisah dan dinyatakan di tempat lain (/pitch dan
   // /whitepaper menyebut v0.11.0 ditulis tapi belum di-deploy). Berkas ini soal kode
   // mana yang dipindai, bukan kode mana yang sudah hidup.
-  "contracts/AdextoCurveFactoryV2.sol",
-  "contracts/SovereignCurveV2.sol",
+  "contracts/AdextoFactory.sol",
+  "contracts/AdextoCurve.sol",
   "contracts/AdextoToken.sol",
   "contracts/IIdentityRegistry.sol",
 ];

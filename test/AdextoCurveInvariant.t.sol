@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {CurveFixtureV2} from "./CurveFixtureV2.sol";
-import {SovereignCurveV2} from "../contracts/SovereignCurveV2.sol";
+import {AdextoCurveFixture} from "./AdextoCurveFixture.sol";
+import {AdextoCurve} from "../contracts/AdextoCurve.sol";
 import {AdextoToken} from "../contracts/AdextoToken.sol";
 
 /**
@@ -14,8 +14,8 @@ import {AdextoToken} from "../contracts/AdextoToken.sol";
  * "klaim protokol di tengah rentetan jual" — tempat akuntansi yang benar per langkah
  * paling mungkin meleset saat digabung.
  */
-contract CurveHandlerV2 {
-    SovereignCurveV2 public immutable curve;
+contract AdextoCurveHandler {
+    AdextoCurve public immutable curve;
     AdextoToken public immutable token;
 
     /// Ghost: dijumlahkan sendiri supaya invarian tidak bergantung pada penghitung kontrak.
@@ -26,7 +26,7 @@ contract CurveHandlerV2 {
     uint256 public creatorClaims;
     uint256 public protocolClaims;
 
-    constructor(SovereignCurveV2 _curve, AdextoToken _token) payable {
+    constructor(AdextoCurve _curve, AdextoToken _token) payable {
         curve = _curve;
         token = _token;
     }
@@ -48,7 +48,7 @@ contract CurveHandlerV2 {
      * kelihatannya teruji padahal tidak ada satu pun penjualan yang terjadi.
      *
      * Tepi rentang 1 wei tidak hilang dari cakupan: itu justru yang diuji fuzz
-     * stateless di SovereignCurveV2Fuzz.t.sol, yang sengaja membatasi dari 1 wei.
+     * stateless di AdextoCurveFuzz.t.sol, yang sengaja membatasi dari 1 wei.
      * Berkas ini bertugas mencari URUTAN, dan urutan hanya berarti kalau aksinya
      * benar-benar terjadi.
      */
@@ -114,18 +114,18 @@ contract CurveHandlerV2 {
     }
 }
 
-contract SovereignCurveV2InvariantTest is CurveFixtureV2 {
-    CurveHandlerV2 internal handler;
+contract AdextoCurveInvariantTest is AdextoCurveFixture {
+    AdextoCurveHandler internal handler;
     uint256 internal initialSupply;
     uint256 internal lastFloor;
     uint256 internal lastTotalProtocolPaid;
 
     function setUp() public {
-        _launchV2();
+        _launchCurve();
         initialSupply = token.totalSupply();
         lastFloor = curve.floorPriceNativePerToken();
 
-        handler = new CurveHandlerV2{value: 5_000_000 ether}(curve, token);
+        handler = new AdextoCurveHandler{value: 5_000_000 ether}(curve, token);
         vm.deal(address(handler), 5_000_000 ether);
 
         targetContract(address(handler));
@@ -285,6 +285,6 @@ contract SovereignCurveV2InvariantTest is CurveFixtureV2 {
             handler.protocolAccrued(),
             "fee protokol hilang atau tercipta setelah kelima aksi"
         );
-        _assertSolventV2();
+        _assertSolvent();
     }
 }

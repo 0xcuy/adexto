@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-09-06T19:23:13.021Z",
-  "commit": "1aa9c4dc5a2830e8ce554ac92ed5979523024435",
-  "commitTime": "2026-09-07T02:21:38+07:00",
+  "generatedAt": "2026-09-06T19:45:44.778Z",
+  "commit": "6c54ed17ddfe3e08a1e3cc8c797092a693f7b670",
+  "commitTime": "2026-09-07T02:24:52+07:00",
   "dirty": true,
   "scope": {
     "launchPath": [
       "contracts/AdextoCurveFactory.sol",
       "contracts/SovereignCurve.sol",
-      "contracts/AdextoCurveFactoryV2.sol",
-      "contracts/SovereignCurveV2.sol",
+      "contracts/AdextoFactory.sol",
+      "contracts/AdextoCurve.sol",
       "contracts/AdextoToken.sol",
       "contracts/IIdentityRegistry.sol"
     ]
@@ -41,15 +41,6 @@
       "detail": "21 properties passed, 0 failed · 2 suites · 4096 runs each",
       "cases": [
         "testFuzz_buyQuoteMatchesExecution(uint256)",
-        "testFuzz_buyRoundsInFavourOfCurve(uint256)",
-        "testFuzz_buybackCappedAtOnePercent(uint256,address)",
-        "testFuzz_cannotSellMoreThanOutstanding(uint256,uint256)",
-        "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
-        "testFuzz_feesNeverExceedInput(uint256)",
-        "testFuzz_roundTripNeverProfitable(uint256)",
-        "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
-        "testFuzz_supplyNeverGrows(uint256)",
-        "testFuzz_buyQuoteMatchesExecution(uint256)",
         "testFuzz_buybackChargesNoProtocolFee(uint256)",
         "testFuzz_creatorAndProtocolClaimsAreIndependent(uint256)",
         "testFuzz_fourLegsNeverExceedInput(uint256)",
@@ -60,7 +51,16 @@
         "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
         "test_capCountsProtocolLeg()",
         "test_feeLegsMatchPublishedNumbers()",
-        "test_zeroProtocolTreasuryRejected()"
+        "test_zeroProtocolTreasuryRejected()",
+        "testFuzz_buyQuoteMatchesExecution(uint256)",
+        "testFuzz_buyRoundsInFavourOfCurve(uint256)",
+        "testFuzz_buybackCappedAtOnePercent(uint256,address)",
+        "testFuzz_cannotSellMoreThanOutstanding(uint256,uint256)",
+        "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
+        "testFuzz_feesNeverExceedInput(uint256)",
+        "testFuzz_roundTripNeverProfitable(uint256)",
+        "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
+        "testFuzz_supplyNeverGrows(uint256)"
       ]
     },
     {
@@ -125,9 +125,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 997
+        "warnings": 977
       },
-      "detail": "0 errors, 997 warnings (style & gas rules)"
+      "detail": "0 errors, 977 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -153,10 +153,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50134,
+        "totalCalls": 50157,
         "uniqueInstructions": 7252
       },
-      "detail": "4/4 properties passed · 50,134 calls",
+      "detail": "4/4 properties passed · 50,157 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

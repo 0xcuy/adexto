@@ -2,12 +2,11 @@
 pragma solidity ^0.8.26;
 
 /**
- * @dev Suffix `V2` pada kedua interface di berkas ini BUKAN kosmetik.
+ * @dev Kedua interface ini dinamai berbeda dari yang ada di `SovereignCurve.sol`.
  *
- * Keduanya semula bernama `IERC20Minimal` dan `IAdextoToken`, sama dengan yang
- * dideklarasikan `SovereignCurve.sol`. Aderyn menandainya sebagai "Contract Name
- * Reused in Different Files", dan itu benar: dua deklarasi bernama sama membuat
- * pencarian artifact berdasarkan NAMA jadi ambigu, sehingga skrip deploy yang meminta
+ * Di sana namanya `IERC20Minimal` dan `IAdextoToken`. Aderyn menandai nama yang dipakai
+ * ulang di berkas berbeda, dan itu benar: dua deklarasi bernama sama membuat pencarian
+ * artifact berdasarkan NAMA jadi ambigu, sehingga skrip deploy yang meminta
  * `IERC20Minimal` bisa mengambil salah satu tanpa memberi tahu.
  *
  * Menariknya ke satu berkas bersama akan lebih rapi, tetapi itu berarti menyunting
@@ -15,7 +14,7 @@ pragma solidity ^0.8.26;
  * dengan bytecode lima pasar yang hidup di 0G. Jadi yang dinamai ulang adalah berkas
  * yang belum di-deploy.
  */
-interface IERC20MinimalV2 {
+interface IERC20Curve {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
@@ -23,31 +22,44 @@ interface IERC20MinimalV2 {
     function totalSupply() external view returns (uint256);
 }
 
-interface IAdextoTokenV2 {
+interface IAdextoBurnable {
     function executeTreasuryBuyback(uint256 amountToBurn) external;
 }
 
 /**
- * @title SovereignCurveV2
- * @notice Virtual-reserve bonding curve for ADEXTO (adexto.xyz), version 0.11.0.
+ * @title AdextoCurve
+ * @notice Virtual-reserve bonding curve for ADEXTO (adexto.xyz).
  *
- * @dev WHY THIS IS A SEPARATE FILE INSTEAD OF AN EDIT TO SovereignCurve.sol
+ * @dev NAMANYA TIDAK MEMUAT NOMOR GENERASI, DAN ITU DISENGAJA
  *
- * v0.10.0 is already live: five markets on 0G mainnet reference its bytecode, and
- * all three of its fee rates are `immutable` with no setter and no admin. Editing
- * `SovereignCurve.sol` in place would leave the source at HEAD no longer matching
- * the contracts those markets actually run, so anyone verifying the live curve
- * against this repository would find a mismatch and be right to distrust it.
+ * Berkas ini sempat bernama `SovereignCurveV2`. Suffix itu dibuang sebelum di-broadcast,
+ * karena begitu sebuah kontrak diverifikasi di explorer, namanya permanen: ia tertanam
+ * di source terverifikasi dan di setiap ABI yang orang integrasikan. Nama yang memuat
+ * angka generasi memaksa perbaikan berikutnya mengarang angka lagi, dan pembaca jadi
+ * mengejar nama alih-alih alamat.
  *
- * So `SovereignCurve.sol` stays frozen as the source of the deployed v0.10.0
- * markets, and this file is what new launches use. The duplication is the cost of
- * having no upgrade lever, which is the property the project chose on purpose.
+ * Efeknya juga menyesatkan ke luar. Proyek yang baru dimulai tetapi sudah memajang
+ * "V2" terbaca seperti sudah dua kali dibongkar, padahal yang terjadi hanya satu
+ * penambahan pada kaki fee. Nomor versinya tinggal di `VERSION` di bawah, tempat ia
+ * bisa naik tanpa mengubah identitas kontrak.
  *
- * Existing v0.10.0 markets never pay a protocol fee. That is not a migration
- * that is pending — it is permanent. There is no path by which ADEXTO, ADT or the
- * NOVA* markets can be made to pay one.
+ * KENAPA BERKAS TERPISAH, BUKAN SUNTINGAN PADA SovereignCurve.sol
  *
- * WHAT CHANGED FROM v0.10.0
+ * `SovereignCurve` sudah hidup: lima pasar di 0G mainnet merujuk bytecode-nya, dan
+ * ketiga tarif fee-nya `immutable`, tanpa setter dan tanpa admin. Menyuntingnya di
+ * tempat akan membuat source di HEAD tidak lagi cocok dengan kontrak yang benar-benar
+ * dijalankan pasar-pasar itu, sehingga siapa pun yang memverifikasi kurva live terhadap
+ * repo ini akan menemukan ketidakcocokan — dan berhak tidak percaya.
+ *
+ * Jadi `SovereignCurve.sol` dibekukan sebagai source pasar yang sudah di-deploy, dan
+ * berkas ini yang dipakai peluncuran baru. Duplikasinya adalah harga dari tidak punya
+ * tuas upgrade, yang justru sifat yang dipilih proyek ini sejak awal.
+ *
+ * Pasar `SovereignCurve` yang sudah ada TIDAK AKAN PERNAH membayar fee protokol. Itu
+ * bukan migrasi yang tertunda — itu permanen. Tidak ada jalur apa pun untuk membuat
+ * ADEXTO, ADT, atau NOVA* membayarnya.
+ *
+ * WHAT CHANGED FROM SovereignCurve
  *
  * One addition: a fourth fee leg, `protocolFeeBps`, accruing to `protocolOwed` and
  * claimable only to the `immutable protocolTreasury`. Everything else — the
@@ -141,7 +153,7 @@ interface IAdextoTokenV2 {
  * The 1% anti-sniper window is enforced by `AdextoToken._update`, so it applies to
  * curve payouts automatically.
  */
-contract SovereignCurveV2 {
+contract AdextoCurve {
     string public constant VERSION = "0.11.0";
 
     // ─── Immutable wiring ────────────────────────────────────────────────────
@@ -265,24 +277,24 @@ contract SovereignCurveV2 {
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
     modifier nonReentrant() {
-        require(_locked == 0, "SovereignCurve: reentrant");
+        require(_locked == 0, "AdextoCurve: reentrant");
         _locked = 1;
         _;
         _locked = 0;
     }
 
     modifier onlyFactory() {
-        require(msg.sender == factory, "SovereignCurve: only factory");
+        require(msg.sender == factory, "AdextoCurve: only factory");
         _;
     }
 
     modifier ensure(uint256 deadline) {
-        require(deadline == 0 || block.timestamp <= deadline, "SovereignCurve: expired");
+        require(deadline == 0 || block.timestamp <= deadline, "AdextoCurve: expired");
         _;
     }
 
     modifier live() {
-        require(initialized, "SovereignCurve: curve not initialized");
+        require(initialized, "AdextoCurve: curve not initialized");
         _;
     }
 
@@ -299,16 +311,16 @@ contract SovereignCurveV2 {
     ) {
         require(
             _factory != address(0) && _agentTreasury != address(0) && _creator != address(0),
-            "SovereignCurve: zero address"
+            "AdextoCurve: zero address"
         );
         // Checked even when `_protocolFeeBps` is zero. A curve deployed with a zero
         // treasury and a non-zero fee would accrue `protocolOwed` that can never be
         // claimed, and since nothing here is mutable it would be stranded forever.
-        require(_protocolTreasury != address(0), "SovereignCurve: zero protocol treasury");
-        require(_virtualNative > 0, "SovereignCurve: zero virtual reserve");
+        require(_protocolTreasury != address(0), "AdextoCurve: zero protocol treasury");
+        require(_virtualNative > 0, "AdextoCurve: zero virtual reserve");
         require(
             _depthFeeBps + _creatorFeeBps + _treasuryBuybackBps + _protocolFeeBps <= MAX_TOTAL_FEE_BPS,
-            "SovereignCurve: fee too high"
+            "AdextoCurve: fee too high"
         );
         factory = _factory;
         agentTreasury = _agentTreasury;
@@ -324,8 +336,8 @@ contract SovereignCurveV2 {
     // ─── Setup ───────────────────────────────────────────────────────────────
 
     function bindToken(address token) external onlyFactory {
-        require(targetToken == address(0), "SovereignCurve: token already bound");
-        require(token != address(0), "SovereignCurve: zero token");
+        require(targetToken == address(0), "AdextoCurve: token already bound");
+        require(token != address(0), "AdextoCurve: zero token");
         targetToken = token;
     }
 
@@ -335,13 +347,13 @@ contract SovereignCurveV2 {
      * @dev Caller must have approved `tokenAmount` first.
      */
     function initializeCurve(uint256 tokenAmount) external onlyFactory nonReentrant {
-        require(!initialized, "SovereignCurve: already initialized");
-        require(targetToken != address(0), "SovereignCurve: token not bound");
-        require(tokenAmount > 0, "SovereignCurve: token seed required");
+        require(!initialized, "AdextoCurve: already initialized");
+        require(targetToken != address(0), "AdextoCurve: token not bound");
+        require(tokenAmount > 0, "AdextoCurve: token seed required");
 
         require(
-            IERC20MinimalV2(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
-            "SovereignCurve: token transfer failed"
+            IERC20Curve(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
+            "AdextoCurve: token transfer failed"
         );
 
         curveTokens = tokenAmount;
@@ -446,15 +458,15 @@ contract SovereignCurveV2 {
 
     /// @notice Plain native transfers execute as a market buy with no slippage bound.
     receive() external payable {
-        require(initialized, "SovereignCurve: curve not initialized");
-        require(_locked == 0, "SovereignCurve: reentrant");
+        require(initialized, "AdextoCurve: curve not initialized");
+        require(_locked == 0, "AdextoCurve: reentrant");
         _locked = 1;
         _buy(0, msg.sender);
         _locked = 0;
     }
 
     function _buy(uint256 minTokensOut, address recipient) private returns (uint256 tokensOut) {
-        require(msg.value > 0, "SovereignCurve: zero native in");
+        require(msg.value > 0, "AdextoCurve: zero native in");
 
         uint256 depthFee;
         uint256 creatorFee;
@@ -462,9 +474,9 @@ contract SovereignCurveV2 {
         uint256 protocolFee;
         (tokensOut, depthFee, creatorFee, treasuryFee, protocolFee) = getBuyQuote(msg.value);
 
-        require(tokensOut > 0, "SovereignCurve: insufficient output");
-        require(tokensOut >= minTokensOut, "SovereignCurve: slippage");
-        require(tokensOut < curveTokens - _tokensSold, "SovereignCurve: insufficient curve liquidity");
+        require(tokensOut > 0, "AdextoCurve: insufficient output");
+        require(tokensOut >= minTokensOut, "AdextoCurve: slippage");
+        require(tokensOut < curveTokens - _tokensSold, "AdextoCurve: insufficient curve liquidity");
 
         // Depth fee stays with the curve; creator, buyback and protocol are carved out.
         _curveNative = _curveNative + msg.value - creatorFee - treasuryFee - protocolFee;
@@ -478,8 +490,8 @@ contract SovereignCurveV2 {
         swapCount += 1;
 
         require(
-            IERC20MinimalV2(targetToken).transfer(recipient, tokensOut),
-            "SovereignCurve: token transfer failed"
+            IERC20Curve(targetToken).transfer(recipient, tokensOut),
+            "AdextoCurve: token transfer failed"
         );
 
         _assertSolvent();
@@ -509,33 +521,33 @@ contract SovereignCurveV2 {
         ensure(deadline)
         returns (uint256 nativeOut)
     {
-        require(tokenAmountIn > 0, "SovereignCurve: zero token amount");
+        require(tokenAmountIn > 0, "AdextoCurve: zero token amount");
         // Nobody can return more tokens than the curve ever released.
-        require(tokenAmountIn <= _tokensSold, "SovereignCurve: exceeds outstanding supply");
+        require(tokenAmountIn <= _tokensSold, "AdextoCurve: exceeds outstanding supply");
         address recipient = to == address(0) ? msg.sender : to;
 
         (uint256 quotedOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee) =
             getSellQuote(tokenAmountIn);
-        require(quotedOut > 0, "SovereignCurve: insufficient output");
-        require(quotedOut >= minNativeOut, "SovereignCurve: slippage");
+        require(quotedOut > 0, "AdextoCurve: insufficient output");
+        require(quotedOut >= minNativeOut, "AdextoCurve: slippage");
 
         // Actionable errors instead of an opaque ERC-20 revert bubbling up.
         require(
-            IERC20MinimalV2(targetToken).balanceOf(msg.sender) >= tokenAmountIn,
-            "SovereignCurve: insufficient token balance"
+            IERC20Curve(targetToken).balanceOf(msg.sender) >= tokenAmountIn,
+            "AdextoCurve: insufficient token balance"
         );
         require(
-            IERC20MinimalV2(targetToken).allowance(msg.sender, address(this)) >= tokenAmountIn,
-            "SovereignCurve: approve the curve before selling"
+            IERC20Curve(targetToken).allowance(msg.sender, address(this)) >= tokenAmountIn,
+            "AdextoCurve: approve the curve before selling"
         );
 
         // Leaves the curve: payout + creator + buyback + protocol. Depth is retained.
         uint256 leaving = quotedOut + creatorFee + treasuryFee + protocolFee;
-        require(leaving <= _curveNative, "SovereignCurve: curve solvency");
+        require(leaving <= _curveNative, "AdextoCurve: curve solvency");
 
         require(
-            IERC20MinimalV2(targetToken).transferFrom(msg.sender, address(this), tokenAmountIn),
-            "SovereignCurve: transferFrom failed"
+            IERC20Curve(targetToken).transferFrom(msg.sender, address(this), tokenAmountIn),
+            "AdextoCurve: transferFrom failed"
         );
 
         _curveNative -= leaving;
@@ -553,7 +565,7 @@ contract SovereignCurveV2 {
         swapCount += 1;
 
         (bool sent, ) = payable(recipient).call{value: quotedOut}("");
-        require(sent, "SovereignCurve: native transfer failed");
+        require(sent, "AdextoCurve: native transfer failed");
 
         _assertSolvent();
 
@@ -583,12 +595,12 @@ contract SovereignCurveV2 {
      */
     function claimCreatorFees() external nonReentrant returns (uint256 amount) {
         amount = creatorOwed;
-        require(amount > 0, "SovereignCurve: nothing to claim");
+        require(amount > 0, "AdextoCurve: nothing to claim");
         creatorOwed = 0;
         totalCreatorFeesPaid += amount;
 
         (bool sent, ) = payable(creator).call{value: amount}("");
-        require(sent, "SovereignCurve: creator transfer failed");
+        require(sent, "AdextoCurve: creator transfer failed");
 
         _assertSolvent();
         emit CreatorFeesClaimed(creator, amount);
@@ -615,12 +627,12 @@ contract SovereignCurveV2 {
      */
     function claimProtocolFees() external nonReentrant returns (uint256 amount) {
         amount = protocolOwed;
-        require(amount > 0, "SovereignCurve: nothing to claim");
+        require(amount > 0, "AdextoCurve: nothing to claim");
         protocolOwed = 0;
         totalProtocolFeesPaid += amount;
 
         (bool sent, ) = payable(protocolTreasury).call{value: amount}("");
-        require(sent, "SovereignCurve: protocol transfer failed");
+        require(sent, "AdextoCurve: protocol transfer failed");
 
         _assertSolvent();
         emit ProtocolFeesClaimed(protocolTreasury, amount);
@@ -685,18 +697,18 @@ contract SovereignCurveV2 {
         live
         returns (uint256 tokensBurned)
     {
-        require(nativeAmount > 0 && nativeAmount <= treasuryNative, "SovereignCurve: bad buyback amount");
+        require(nativeAmount > 0 && nativeAmount <= treasuryNative, "AdextoCurve: bad buyback amount");
         // At most 1% of the native reserve in one call. Multiplied rather than
         // divided so no precision is lost on small reserves.
         require(
             nativeAmount * 100 <= virtualNative + _curveNative,
-            "SovereignCurve: buyback exceeds 1% of reserve"
+            "AdextoCurve: buyback exceeds 1% of reserve"
         );
 
         (uint256 tokensOut, uint256 depthFee, , , ) = getBuyQuote(nativeAmount);
-        require(tokensOut > 0, "SovereignCurve: buyback output zero");
-        require(tokensOut >= minTokensBurned, "SovereignCurve: buyback slippage");
-        require(tokensOut < curveTokens - _tokensSold, "SovereignCurve: insufficient curve liquidity");
+        require(tokensOut > 0, "AdextoCurve: buyback output zero");
+        require(tokensOut >= minTokensBurned, "AdextoCurve: buyback slippage");
+        require(tokensOut < curveTokens - _tokensSold, "AdextoCurve: insufficient curve liquidity");
 
         // Moves from the buyback bucket into the curve; nothing leaves the contract.
         treasuryNative -= nativeAmount;
@@ -706,7 +718,7 @@ contract SovereignCurveV2 {
         swapCount += 1;
 
         // Tokens bought are burned by the token contract, permanently reducing supply.
-        IAdextoTokenV2(targetToken).executeTreasuryBuyback(tokensOut);
+        IAdextoBurnable(targetToken).executeTreasuryBuyback(tokensOut);
         totalTokensBurned += tokensOut;
 
         _assertSolvent();
@@ -737,7 +749,7 @@ contract SovereignCurveV2 {
     function _assertSolvent() private view {
         require(
             address(this).balance >= _curveNative + creatorOwed + treasuryNative + protocolOwed,
-            "SovereignCurve: accounting mismatch"
+            "AdextoCurve: accounting mismatch"
         );
     }
 }
