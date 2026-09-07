@@ -7,7 +7,7 @@
 [![Version](https://img.shields.io/badge/Contracts-v0.11.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004_agent_binding-WORKS-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
 [![Chains](https://img.shields.io/badge/Mainnets-0G_·_Base_·_Arbitrum_·_Monad-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#-mainnet-deployments)
-[![x402](https://img.shields.io/badge/x402_Edge-CANNOT_TAKE_PAYMENT-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
+[![x402](https://img.shields.io/badge/x402_Edge-QUOTES_ONLY-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
 
 ---
 
@@ -165,7 +165,7 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 | Trading / swap | **Live on 0G** | Real fills exist on the 0G markets. The other three chains have factories but no markets yet. |
 | Own AMM (`AdextoCurve`) | **Deployed per launch** | The curve ships with the factory. `SovereignCurve` is the previous generation's curve and still serves the markets it was deployed for. |
 | Agent compute (0G) | **Works. Attestation is claimed, not checked** | Inference runs. The 0G router tells us each model is Intel TDX attested via dstack, and we print what it tells us. We never fetch the raw attestation quote and never verify it, so treat that label as the router's word, not our proof. |
-| x402 edge gateway | **Cannot take payment** | The unpaid half works: call it and a real Cloudflare Worker returns HTTP 402 with a real price list. The paid half does not exist — send a signed EIP-712 voucher and it answers **501 Not Implemented**. No money has ever passed through it, so the 10% facilitation fee in the revenue model has nothing to take a share of. |
+| x402 edge gateway | **Quotes a price and checks who you are. Cannot collect** | Two of the three steps work. See [x402 edge](#x402-edge) for what each one does and what the third would take. No money has ever passed through it, so the 10% facilitation fee in the revenue model has nothing to take a share of. |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | The Graph indexing | **Live on Base and Arbitrum, absent on 0G and Monad** | `adexto-base` and `adexto-arbitrum` are live and `SUBGRAPH_URL_*` points at both, `hasIndexingErrors: false` on each. Both chains have factories but no markets, so those subgraphs correctly return nothing. **0G is where the markets actually are and it is not indexed at all** — `SUBGRAPH_URL_0G` is empty, and the app reads 0G trades straight from RPC logs instead. The manifest carries both factory generations as separate data sources, because the `Swap` signatures differ and pointing one data source at the new factory would drop every existing market. Not published to the decentralized network. See below. |
 | Governance | **Does not work** | Not "nobody has voted yet" — nobody *can*. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote reverts. `proposalCount` is 0 on all four. |
@@ -220,6 +220,25 @@ node scripts/test-erc8004-binding.mjs                          # 24 assertions, 
 ```
 
 Registering on all four cost roughly $0.10 in total across eight transactions.
+
+### x402 edge
+
+**What is it for, if it cannot take money?** The x402 flow has three steps. Two of them are here and work; the third is not built. Naming them is the only way the answer is useful.
+
+| Step | State | What actually happens |
+|---|---|---|
+| 1. Quote the price | **works** | An unpaid call gets HTTP 402, a `WWW-Authenticate: x402` header, and a machine-readable price list — `0.005 USDC` for an inference query, `0.010` for a quant signal, `0.020` for custom execution. A client discovers the terms without asking a human. |
+| 2. Prove who is paying | **works** | Send an EIP-712 voucher and the signature is recovered and checked against the address you claim. Not a stub: sign with one key and claim a different address and it answers `401` with the address it actually recovered. |
+| 3. Collect the money | **not built** | A correctly signed voucher gets `501 Not Implemented`. Nothing is transferred and no work is dispatched. |
+
+So today it is a **priced, authenticated endpoint that never charges** — useful for an agent to discover terms and identify itself, useless for getting paid.
+
+Two things about step 3 that are easy to gloss over, and shouldn't be:
+
+- **The voucher is not a payment authorisation.** It is a custom `Voucher` type of our own — `agent`, `amount`, `nonce`. Verifying it proves the signer controls that address; it does **not** prove they hold USDC or authorise anyone to move it. Real settlement would sign USDC's own EIP-3009 `TransferWithAuthorization` instead, which is what a facilitator can actually submit on-chain.
+- **Building step 3 needs a funded hot key in the Worker.** Someone has to submit that transfer and pay gas. `Env.SIGNER_PRIVATE_KEY` is already declared in `cloudflare-worker/src/index.ts` and **never read** — the slot for that key exists, unused, which is worth knowing before assuming settlement is a small change. It is a security decision, not a feature toggle.
+
+The endpoint declares its own limit in its own response body: the 402 payload carries `settlementImplemented: false` and a note saying a voucher returns 501. An integrator learns the boundary from the first reply, not after building a payment client.
 
 ### The Graph
 
