@@ -84,10 +84,22 @@ for i in $(seq 1 30); do
   [ "$i" -eq 30 ] && { printf ' TIDAK PERNAH SIAP\n'; fail=1; }
 done
 
-for r in / /studio /swap /explorer /docs /pitch /whitepaper /governance; do
+# `/governance` DICABUT dari daftar ini karena halamannya dihapus — governance tidak
+# bisa dibuat berfungsi tanpa menambah permukaan admin yang protokol ini janjikan tidak
+# ada. Membiarkannya di sini membuat setiap deploy gagal atas 404 yang memang disengaja.
+for r in / /studio /swap /explorer /docs /pitch /whitepaper /security /agent/demo; do
   code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
   printf '  %-13s HTTP %s\n' "$r" "$code"
   [ "$code" = "200" ] || fail=1
+done
+
+# Rute yang HARUS hilang. Dulu tidak ada pemeriksaan ini, jadi halaman yang dicabut bisa
+# tetap tersaji dari image lama tanpa ada yang tahu — kebalikan dari masalah di atas dan
+# jauh lebih sulit terlihat.
+for r in /governance; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
+  printf '  %-13s HTTP %s (diharapkan 404)\n' "$r" "$code"
+  [ "$code" = "404" ] || fail=1
 done
 
 # Kosakata generasi lama tidak boleh muncul lagi di permukaan publik.
