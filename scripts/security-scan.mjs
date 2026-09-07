@@ -20,7 +20,8 @@
  * Pakai: node scripts/security-scan.mjs
  */
 import { execFileSync, execSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -440,12 +441,38 @@ log("→ echidna");
   }
 }
 
+/**
+ * HASH TIAP BERKAS KONTRAK YANG BENAR-BENAR DIPINDAI.
+ *
+ * `commit` saja TIDAK cukup, dan itu bukan teori — penjaga deploy baru saja menolak
+ * sebuah perubahan komentar karenanya.
+ *
+ * Urutan yang wajar adalah: sunting kontrak, pindai, lalu commit. Tapi scan mencatat
+ * `HEAD` pada saat ia berjalan, dan pada saat itu suntingannya masih di working tree.
+ * Jadi laporan berkata "saya memindai ccc727d" padahal yang dipindai adalah kode yang
+ * beberapa saat kemudian menjadi e322885. Penjaga lalu menjalankan
+ * `git diff <commit>..HEAD -- contracts/`, melihat berkas itu berubah, dan
+ * menyimpulkan laporannya basi — padahal laporan itu justru menggambarkan kode yang
+ * sekarang. `dirty: true` sudah dicatat, tetapi tidak ada yang membacanya.
+ *
+ * Memindai ulang sesudah commit "memperbaikinya" satu kali dan meninggalkan jebakannya
+ * utuh untuk kali berikutnya. Hash isi berkas menghilangkan seluruh kelas masalah ini:
+ * ia tidak peduli commit, tidak peduli urutan, dan menjawab pertanyaan yang sebenarnya
+ * ingin dijawab penjaga — apakah kode yang dipindai sama dengan kode yang ada sekarang.
+ */
+const contractHashes = {};
+for (const f of readdirSync(path.join(ROOT, "contracts")).filter((f) => f.endsWith(".sol")).sort()) {
+  const source = readFileSync(path.join(ROOT, "contracts", f));
+  contractHashes[`contracts/${f}`] = createHash("sha256").update(source).digest("hex").slice(0, 16);
+}
+
 // ── tulis laporan ───────────────────────────────────────────────────────────
 const report = {
   generatedAt: new Date().toISOString(),
   commit,
   commitTime,
   dirty,
+  contractHashes,
   scope: { launchPath: LAUNCH_PATH },
   engines,
 };

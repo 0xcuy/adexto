@@ -372,16 +372,22 @@ export default function PitchDeckPage() {
               ia hanya mencocokkan "no router"/"no endpoint", bukan "pending ...
               support". Celah itu ditutup, dan bagian 11 sekarang memeriksa KEADAAN
               receiver-nya, bukan kata-katanya. */}
+          {/* "DAO governance — IN PROGRESS" DICABUT. Ia tidak sedang dikerjakan dan
+              tidak akan: `execute` hanya bisa memanggil apa yang alamat governor sudah
+              diizinkan, dan jalur peluncuran tidak punya satu pun setter maupun owner.
+              Memberinya kuasa berarti menambah permukaan admin — hal yang /security
+              nyatakan tidak ada, dan alasan kenapa tidak ada yang bisa menguras pasar.
+              Menandai kontradiksi sebagai roadmap adalah janji yang tidak bisa ditepati. */}
           <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-white border border-line">
             <div>
-              <strong className="text-ink block text-sm">Phase 2 (Q4 2026):</strong>
+              <strong className="text-ink block text-sm">Dropped, not postponed:</strong>
               <span className="text-ink-soft text-xs">
-                DAO governance. The Governor is deployed on all four chains and cannot weigh a vote until a
-                governance token is set, so the scope it would govern has to be decided before the vote, not
-                after. Cross-chain buybacks were dropped rather than postponed — see below.
+                DAO governance and cross-chain buybacks. The Governor is deployed on all four chains and controls
+                nothing, because every fee rate is immutable and no contract on the launch path has an owner or a
+                setter. Giving it power would mean adding the admin surface this protocol is built without.
               </span>
             </div>
-            <span className="shrink-0 px-3 py-1 rounded bg-accent-soft text-accent font-bold text-xs">IN PROGRESS</span>
+            <span className="shrink-0 px-3 py-1 rounded bg-cream-3 text-ink-soft font-bold text-xs">DROPPED</span>
           </div>
         </div>
       </div>

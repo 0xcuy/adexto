@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Compass, ArrowDownUp, CloudLightning,
-  Award, ShieldCheck, Sparkles, Vote, Menu, X, Twitter, Github
+  Award, ShieldCheck, Sparkles, Menu, X, Twitter, Github
 } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
@@ -28,11 +28,24 @@ export default function Navbar() {
    * tujuannya tetap sama tanpa kata-kata itu. Ikon juga dilepas di desktop —
    * dengan enam label yang sudah jelas, ikon hanya menambah bentuk untuk dipilah
    * mata. Di drawer mobile ikon tetap ada, karena di sana ia jadi target sentuh.
+   *
+   * "Governance" DICABUT, dan bukan karena halamannya belum selesai. Halaman itu
+   * seluruhnya menjelaskan bahwa voting tidak mungkin — dan tidak akan pernah mungkin
+   * di desain ini. Diperiksa, bukan diingat: `governanceToken` di 0G dan Arbitrum
+   * menunjuk `SovereignHook`, kontrak 1.495 byte tanpa `symbol()` dan tanpa
+   * `balanceOf()`, sementara di Base dan Monad ia alamat nol. Satuan suaranya "ADAI",
+   * token yang tidak pernah ada. Dan target yang katanya diperintah — parameter fee
+   * hook — `immutable` sejak v1.
+   *
+   * Yang menutup pilihannya: `execute` hanya bisa melakukan apa yang alamat governor
+   * sudah diizinkan lakukan, dan tidak ada satu pun setter di jalur peluncuran.
+   * Memberinya kuasa berarti menambah permukaan admin, yaitu hal yang /security
+   * nyatakan tidak ada. Jadi menu yang isinya penjelasan kenapa sebuah tombol tidak
+   * ada, lebih baik tidak menjadi menu.
    */
   const links = [
     { href: "/explorer", label: "Explorer", icon: Compass },
     { href: "/swap", label: "Swap", icon: ArrowDownUp },
-    { href: "/governance", label: "Governance", icon: Vote },
     { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
     { href: "/docs", label: "Docs", icon: ShieldCheck },
     { href: "/pitch", label: "Deck", icon: Award },

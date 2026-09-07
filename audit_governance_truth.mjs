@@ -1,12 +1,19 @@
 /**
  * Apa yang SEBENARNYA ada di keempat Governor yang sudah ter-deploy.
  *
- * Halaman /governance menampilkan tiga proposal (AIP-01..03) dengan hasil voting,
- * dan sebuah angka "Your Voting Power" dalam satuan ADAI. Tak satu pun dari itu
- * dibaca dari chain: proposalnya array konstan di berkas komponen, dan voting
- * power-nya adalah saldo native 0G dikalikan 10.000 lalu diberi label ADAI.
- * Skrip ini membaca keadaan sesungguhnya supaya halamannya bisa ditulis ulang
- * dari fakta, bukan dari tebakan.
+ * KENAPA SKRIP INI MASIH ADA SETELAH HALAMANNYA DIHAPUS
+ *
+ * Ia ditulis untuk memperbaiki /governance, yang dulu menampilkan tiga proposal
+ * (AIP-01..03) beserta hasil voting dan sebuah "Your Voting Power" bersatuan ADAI —
+ * semuanya array konstan di berkas komponen, bukan bacaan chain. Halaman itu sekarang
+ * DICABUT seluruhnya, bukan diperbaiki: governance tidak bisa dibuat berfungsi di
+ * desain ini tanpa menambah permukaan admin yang justru dijanjikan tidak ada.
+ *
+ * Tapi README masih membuat klaim spesifik tentang keempat kontrak itu — governanceToken
+ * alamat nol di Base dan Monad, menunjuk hook v1 tanpa `balanceOf` di 0G dan Arbitrum,
+ * `proposalCount` nol di keempatnya, threshold dan quorum bersatuan ADAI yang tidak
+ * pernah ada. Skrip inilah buktinya. Klaim tanpa cara memeriksanya adalah klaim yang
+ * akan basi tanpa ada yang tahu.
  *
  * Read-only, nol biaya.
  */

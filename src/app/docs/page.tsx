@@ -28,7 +28,7 @@ export default async function DocsPage() {
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.10.0</code> on all four mainnets with launching enabled, ERC-8004 identity binding, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement, the MCP tool suite, and governance voting. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement and the MCP tool suite. There is no governance and there will not be — the contracts have no admin surface to vote over. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -414,22 +414,36 @@ export default async function DocsPage() {
               <Globe className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-base">Subdomain Rewrite &amp; DAO Specs</h3>
-              <span className="text-xs font-mono text-accent font-bold">Edge Routing &amp; AdextoGovernor</span>
+              <h3 className="font-bold text-ink text-base">Subdomain Rewrite</h3>
+              <span className="text-xs font-mono text-accent font-bold">Edge Routing</span>
             </div>
           </div>
+          {/* SEKSI DAO DICABUT DARI SINI, dan alasannya bukan "belum selesai".
+              
+              Teks lama menjelaskan panjang kenapa tidak ada suara yang bisa masuk:
+              governanceToken alamat nol di Base/Monad, dan di 0G/Arbitrum menunjuk hook
+              v1 yang tidak punya balanceOf. Semuanya benar. Yang tidak disebut: bahkan
+              kalau alamatnya dibetulkan, proposal yang lolos tidak bisa memerintah apa
+              pun. `execute` hanya memanggil `targetContract.call`, jadi governor terbatas
+              pada apa yang alamatnya sendiri sudah diizinkan — dan tidak ada satu pun
+              setter di jalur peluncuran, tidak ada owner, semua tarif fee immutable.
+              Bahkan parameter fee hook v1 yang katanya diperintah pun immutable sejak
+              lahir.
+              
+              Jadi ini bukan fitur tertunda, ini kontradiksi dengan jaminan inti protokol.
+              Halaman /governance sudah dihapus seluruhnya. Menyisakan penjelasan panjang
+              di sini hanya memindahkan basa-basinya. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
-            {/* "the token does not exist yet" benar untuk Base dan Monad, tapi
-                kurang tepat untuk 0G dan Arbitrum: di sana governanceToken menunjuk
-                kontrak yang ADA (hook v1, 1.495 byte) namun bukan ERC-20, jadi
-                balanceOf revert. Hasil akhirnya sama — tidak ada suara yang bisa
-                masuk — tapi sebabnya berbeda, dan halaman /governance sudah
-                menyebutkan perbedaan itu. */}
-            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token terminal. The Governor is deployed on all four chains with a 4,000,000-token quorum and a 100,000-token proposal threshold, and <strong className="text-ink">no vote can be cast on any of them</strong>. <code className="text-accent">castVote</code> weighs a ballot with <code className="text-accent">governanceToken.balanceOf(msg.sender)</code>: that address is the zero address on Base and Monad, and on 0G and Arbitrum it points at the superseded v1 hook, which has no <code className="text-accent">balanceOf</code>. Either way the call reverts.
+            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token
+            terminal.
           </p>
-          <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
-            Quorum: 4,000,000 tokens | Period: 3 days | Governance token: unwired on all four chains
-          </div>
+          <p className="text-xs text-ink-soft leading-relaxed">
+            <strong className="text-ink">There is no governance in this protocol.</strong>{" "}
+            <code className="text-accent">AdextoGovernor</code> is deployed on all four chains and controls
+            nothing — every fee rate is <code className="text-accent">immutable</code>, there is no owner and no
+            setter anywhere on the launch path, so a passed proposal would have nothing to call. The addresses
+            stay listed below because the contracts really are on chain, marked as what they are: inert.
+          </p>
         </div>
       </div>
 

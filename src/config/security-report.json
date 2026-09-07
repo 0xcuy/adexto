@@ -1,8 +1,21 @@
 {
-  "generatedAt": "2026-09-07T00:36:10.416Z",
-  "commit": "ccc727d58a6197ef7fd27c387e2079f3fd6a1b45",
-  "commitTime": "2026-09-07T07:33:00+07:00",
+  "generatedAt": "2026-09-07T00:56:24.633Z",
+  "commit": "e3228858593be357e7a26fd42e051e8f920477e1",
+  "commitTime": "2026-09-07T07:37:43+07:00",
   "dirty": true,
+  "contractHashes": {
+    "contracts/AdextoCCIPReceiver.sol": "69b13336e639ff1d",
+    "contracts/AdextoCCIPTreasuryRouter.sol": "7185806125e075b8",
+    "contracts/AdextoCurve.sol": "4671289bad779434",
+    "contracts/AdextoCurveFactory.sol": "dd83495e91407353",
+    "contracts/AdextoFactory.sol": "8e436060c8f99af1",
+    "contracts/AdextoGovernor.sol": "f4ff48c1adb8217f",
+    "contracts/AdextoToken.sol": "86a2678cb15a8267",
+    "contracts/AdextoTrinityFactory.sol": "e02933aa8f7fbe44",
+    "contracts/IIdentityRegistry.sol": "f81b03d63679a015",
+    "contracts/SovereignCurve.sol": "093ed92ab6ccc838",
+    "contracts/SovereignHook.sol": "07781e29b560d093"
+  },
   "scope": {
     "launchPath": [
       "contracts/AdextoCurveFactory.sol",
@@ -152,10 +165,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50143,
+        "totalCalls": 50085,
         "uniqueInstructions": 7252
       },
-      "detail": "4/4 properties passed · 50,143 calls",
+      "detail": "4/4 properties passed · 50,085 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

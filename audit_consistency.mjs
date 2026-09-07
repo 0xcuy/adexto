@@ -30,6 +30,7 @@
  *
  * Pakai: node audit_consistency.mjs
  */
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 // Dipakai bagian 13 untuk membandingkan commit laporan pemindaian dengan HEAD.
 import { execSync } from "node:child_process";
@@ -461,7 +462,8 @@ console.log("\n── penyangkalan usang vs keadaan env sebenarnya ──");
   } else {
     const { chromium } = await import("playwright");
     const browser = await chromium.launch();
-    const routes = ["/", "/studio", "/swap", "/explorer", "/docs", "/pitch", "/governance"];
+    // `/governance` dicabut: halamannya dihapus, dan memeriksa rute 404 selalu lulus.
+    const routes = ["/", "/studio", "/swap", "/explorer", "/docs", "/pitch"];
     for (const route of routes) {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
       try {
@@ -1290,25 +1292,67 @@ console.log("\n── /security: klaim mesin vs security-report.json ──");
            * karena halaman keamanan yang menggambarkan bytecode yang salah lebih buruk
            * daripada tidak ada halaman.
            */
-          let changed = null;
-          try {
-            changed = execSync(`git diff --name-only ${rep.commit}..HEAD -- contracts/`, { encoding: "utf8" }).trim();
-          } catch {
-            /* commit laporan tidak ada di riwayat ini (mis. setelah rebase) */
-          }
-          if (changed === null) {
-            soft("commit laporan tidak ada di riwayat repo ini", `${String(rep.commit).slice(0, 12)} — pindai ulang`);
-          } else if (changed.length === 0) {
-            ok(
-              "laporan dari commit lain, tetapi contracts/ identik",
-              `${String(rep.commit).slice(0, 12)} → ${head.slice(0, 12)}, 0 kontrak berubah`
-            );
+          /**
+           * HASH ISI BERKAS lebih dulu; diff commit hanya cadangan.
+           *
+           * Membandingkan lewat `git diff <commit>..HEAD` MENOLAK alur kerja yang benar,
+           * dan itu bukan teori — penjaga ini baru saja memblokir sebuah perbaikan
+           * komentar. Urutan yang wajar adalah: sunting kontrak, pindai, lalu commit.
+           * Saat scan berjalan, suntingannya masih di working tree, jadi `rep.commit`
+           * menunjuk commit SEBELUM perubahan itu. Diff-nya lalu memperlihatkan berkas
+           * berubah dan penjaga menyimpulkan laporannya basi — padahal laporan itu
+           * justru menggambarkan kode yang ada sekarang. Laporan sudah mencatat
+           * `dirty: true`, tapi tidak ada yang membacanya.
+           *
+           * Memindai ulang sesudah commit "memperbaikinya" sekali dan meninggalkan
+           * jebakannya utuh untuk kali berikutnya. Hash isi berkas menjawab pertanyaan
+           * yang sebenarnya: apakah kode yang dipindai sama dengan kode sekarang. Tidak
+           * peduli commit, tidak peduli urutan.
+           */
+          const hashes = rep.contractHashes ?? null;
+          if (hashes) {
+            const current = {};
+            for (const f of readdirSync("contracts").filter((n) => n.endsWith(".sol")).sort()) {
+              current[`contracts/${f}`] = createHash("sha256")
+                .update(readFileSync(`contracts/${f}`))
+                .digest("hex")
+                .slice(0, 16);
+            }
+            const drifted = Object.keys({ ...hashes, ...current }).filter((k) => hashes[k] !== current[k]);
+            if (drifted.length === 0) {
+              ok(
+                "kode yang dipindai identik dengan contracts/ sekarang",
+                `${Object.keys(current).length} berkas, hash cocok`
+              );
+            } else {
+              bad(
+                "kontrak berubah setelah pemindaian terakhir",
+                `${drifted.length} berkas (${drifted.slice(0, 3).join(", ")}) — jalankan node scripts/security-scan.mjs`
+              );
+            }
           } else {
-            const list = changed.split("\n");
-            bad(
-              "kontrak berubah setelah pemindaian terakhir",
-              `${list.length} berkas (${list.slice(0, 3).join(", ")}) — jalankan node scripts/security-scan.mjs`
-            );
+            // Laporan lama tanpa `contractHashes`. Jatuh ke diff commit, dan katakan
+            // kenapa jawabannya bisa keliru alih-alih memberi rasa aman yang salah.
+            let changed = null;
+            try {
+              changed = execSync(`git diff --name-only ${rep.commit}..HEAD -- contracts/`, { encoding: "utf8" }).trim();
+            } catch {
+              /* commit laporan tidak ada di riwayat ini (mis. setelah rebase) */
+            }
+            if (changed === null) {
+              soft("commit laporan tidak ada di riwayat repo ini", `${String(rep.commit).slice(0, 12)} — pindai ulang`);
+            } else if (changed.length === 0) {
+              soft(
+                "laporan tanpa contractHashes",
+                `${String(rep.commit).slice(0, 12)} → ${head.slice(0, 12)}, diff commit bersih — pindai ulang untuk pemeriksaan berbasis hash`
+              );
+            } else {
+              const list = changed.split("\n");
+              bad(
+                "kontrak berubah setelah pemindaian terakhir",
+                `${list.length} berkas (${list.slice(0, 3).join(", ")}) — jalankan node scripts/security-scan.mjs`
+              );
+            }
           }
         }
       }
