@@ -30,6 +30,26 @@ import {
  * menunjuk kontrak hook tanpa `balanceOf` atau ke alamat nol, memberi suara
  * PASTI revert di keempat chain.
  *
+ * YANG LEBIH PENTING, DAN YANG DULU TIDAK DIKATAKAN HALAMAN INI
+ *
+ * Alamat token yang salah itu terbaca seperti bug pengkabelan: ganti alamatnya,
+ * governance jalan. Tidak. `execute` memanggil `targetContract.call(callData)`,
+ * jadi Governor hanya bisa melakukan apa yang alamatnya sendiri sudah diizinkan
+ * melakukan — dan tidak ada apa pun di protokol ini yang mengizinkannya.
+ *
+ * Diperiksa dengan menggeledah, bukan diingat: `contracts/AdextoCurve.sol`,
+ * `AdextoToken.sol` dan `AdextoFactory.sol` memuat NOL kata "governor" dan NOL
+ * `function set…`. Satu-satunya fungsi berizin adalah `onlyFactory` pada
+ * `bindToken`/`initializeCurve` — sekali pakai, saat launch — dan
+ * `executeTreasuryBuyback`, yang membakar token milik PEMANGGILNYA sendiri.
+ * Ketiga tarif fee `immutable`. Tidak ada owner.
+ *
+ * Jadi memperbaiki alamat token akan menghasilkan mekanisme voting yang tidak
+ * memutuskan apa pun. Memberinya sesuatu untuk diperintah berarti menambah
+ * permukaan admin — yaitu hal yang /security nyatakan tidak ada, dan alasan
+ * kenapa tidak ada yang bisa menguras pasar. Kedua pilihan yang jujur: biarkan
+ * kontraknya mati, atau cabut. Menyalakan tombol vote bukan salah satunya.
+ *
  * Halaman lama juga menghitung "Your Voting Power" sebagai saldo native 0G
  * dikalikan 10.000, memberinya satuan "ADAI", dan menulis "✓ Eligible to cast
  * on-chain votes". Token ADAI tidak ada — namanya hanya muncul sebagai komentar
@@ -191,13 +211,31 @@ export default function GovernancePage() {
               : "Voting is impossible on every chain right now."}
           </p>
           {readsDone && !anyVotable && (
-            <p className="text-xs leading-relaxed text-ink-soft">
-              <code className="text-ink">castVote</code> weighs a ballot by{" "}
-              <code className="text-ink">governanceToken.balanceOf(msg.sender)</code>. On 0G and Arbitrum that
-              address points at the v1 AMM contract, which has no <code className="text-ink">balanceOf</code>;
-              on Base and Monad it is the zero address. Either way the call reverts, so no vote button is offered
-              here — showing one would only cost you gas.
-            </p>
+            <>
+              <p className="text-xs leading-relaxed text-ink-soft">
+                <code className="text-ink">castVote</code> weighs a ballot by{" "}
+                <code className="text-ink">governanceToken.balanceOf(msg.sender)</code>. On 0G and Arbitrum that
+                address points at the v1 AMM contract, which has no <code className="text-ink">balanceOf</code>;
+                on Base and Monad it is the zero address. Either way the call reverts, so no vote button is
+                offered here — showing one would only cost you gas.
+              </p>
+              {/* Ini bagian yang paling mudah salah dibaca, dan paling penting ada di
+                  paling atas: memperbaiki alamat token TIDAK membuat governance berarti.
+                  Halaman ini dulu membaca seperti bug pengkabelan yang tinggal disambung.
+                  Bukan. Yang menghalangi bukan alamat, melainkan tidak adanya apa pun
+                  untuk diperintah. */}
+              <p className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-xs leading-relaxed text-ink-soft">
+                <strong className="text-ink">Pointing it at a real token would not fix this.</strong> A passed
+                proposal calls <code className="text-ink">targetContract</code> with its calldata, so a Governor
+                can only do what its own address is already allowed to do — and nothing in this protocol grants
+                it anything. Searched and verified: the launch-path contracts contain{" "}
+                <strong className="text-ink">zero</strong> references to a governor and{" "}
+                <strong className="text-ink">zero</strong> setters. Every fee rate is{" "}
+                <code className="text-ink">immutable</code>, there is no owner, and the only permissioned
+                functions are <code className="text-ink">onlyFactory</code> during a launch and a burn that
+                destroys the caller&apos;s own tokens. So a working vote here would decide nothing.
+              </p>
+            </>
           )}
           <p className="text-xs leading-relaxed text-ink-soft">
             Proposals recorded on-chain across all four chains: <strong className="text-ink" data-numeric>{loading ? "…" : totalProposals}</strong>.
@@ -298,9 +336,14 @@ export default function GovernancePage() {
             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line font-mono text-[10px] font-bold text-ink-soft">
               1
             </span>
+            {/* Langkah ini DULU berbunyi "tidak ada token seperti itu di chain mana pun".
+                Sudah tidak benar sejak $ADEXTO diluncurkan di factory 0.11.0, dan
+                membiarkannya akan membuat halaman ini mengaku lebih tertinggal daripada
+                kenyataannya. */}
             <span>
-              Deploy the governance token. The threshold and quorum constants are denominated in it, and no such
-              token exists on any chain today.
+              <strong className="text-ink line-through">Deploy the governance token.</strong> Done on 0G:
+              <code className="text-ink"> $ADEXTO</code> is live with a real market, so the threshold and quorum
+              constants finally have a unit. The other three chains have factories but no token yet.
             </span>
           </li>
           <li className="flex items-start gap-3">
@@ -317,10 +360,21 @@ export default function GovernancePage() {
             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line font-mono text-[10px] font-bold text-ink-soft">
               3
             </span>
+            {/* Ini bukan pekerjaan yang tertunda, ini kontradiksi. Ditulis begitu, karena
+                menyebutnya "langkah berikutnya" menyiratkan ia akan selesai kalau ada
+                waktu — padahal menyelesaikannya berarti membatalkan jaminan utama
+                protokol ini. */}
             <span>
-              Give the Governor authority over something. A passed proposal calls{" "}
-              <code className="text-ink">targetContract</code> with its calldata; the curve parameters it would
-              govern are immutable per market, so the scope has to be decided before the vote, not after.
+              <strong className="text-ink">Give the Governor authority over something — and this is not a task,
+              it is a contradiction.</strong>{" "}
+              There is nothing to hand over. No setters exist anywhere, no contract knows what a governor is, and
+              every fee rate is <code className="text-ink">immutable</code>. Creating something for it to control
+              means adding an admin surface — which is precisely the thing{" "}
+              <Link href="/security" className="font-semibold text-accent hover:underline">
+                /security
+              </Link>{" "}
+              says does not exist, and the reason nobody can drain a market. So the honest options are to leave
+              these contracts inert, or to remove them. Making the vote button work is not one of them.
             </span>
           </li>
         </ol>
