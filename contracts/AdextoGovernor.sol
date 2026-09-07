@@ -5,8 +5,36 @@ import {AdextoToken} from "./AdextoToken.sol";
 
 /**
  * @title AdextoGovernor
- * @notice On-chain DAO governance protocol for ADEXTO Ecosystem (adexto.xyz)
- * @dev Governs Uniswap v4 Sovereign Hook fee parameters, 0G TEE compute whitelist, and treasury rebalancing.
+ * @notice Deployed on four mainnets and GOVERNS NOTHING. Read this before wiring it
+ *         to anything.
+ *
+ * @dev The old `@dev` line here read: "Governs Uniswap v4 Sovereign Hook fee
+ *      parameters, 0G TEE compute whitelist, and treasury rebalancing." None of those
+ *      three things exist. There is no Uniswap v4 hook in this protocol, no compute
+ *      whitelist anywhere, and no treasury that can be rebalanced.
+ *
+ *      What is actually true, and it is structural rather than unfinished:
+ *
+ *      `execute` performs `targetContract.call(callData)`, so this contract can only
+ *      do what its own address is already permitted to do. Nothing in the protocol
+ *      permits it anything. `AdextoCurve`, `AdextoToken` and `AdextoFactory` contain
+ *      no reference to a governor and no setters at all. Every fee rate is
+ *      `immutable`. There is no owner. The only permissioned functions are
+ *      `onlyFactory` on `bindToken`/`initializeCurve` — one-shot, during a launch —
+ *      and `executeTreasuryBuyback`, which burns the caller's own balance.
+ *
+ *      So a working vote here would decide nothing, and that is not a gap to close.
+ *      Giving this contract power means adding an admin surface to contracts whose
+ *      central guarantee is that none exists — the same guarantee that makes it
+ *      impossible for anyone, including us, to drain a market.
+ *
+ *      `governanceToken` is `immutable` and on the deployed instances it points at a
+ *      contract with no `balanceOf` (0G, Arbitrum) or at the zero address (Base,
+ *      Monad), so `castVote` reverts everywhere. `proposalCount` is 0 on all four.
+ *
+ *      The `ADAI` in the comments on the two constants below is a token that has
+ *      never existed. It is left visible rather than renamed because it is evidence
+ *      of how far this file drifted from anything real.
  */
 contract AdextoGovernor {
     enum ProposalState { Pending, Active, Defeated, Succeeded, Executed }
