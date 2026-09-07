@@ -14,8 +14,23 @@ interface ICCIPReceiver {
 
 /**
  * @title AdextoCCIPReceiver
- * @notice Cross-Chain Liquidity Receiver & Automated Market Order Executor
- * @dev Receives buyback commands from 0G Mainnet/Base and executes local pool swaps
+ * @notice Inert. Records cross-chain buyback messages and executes nothing.
+ * @dev This contract does NOT execute swaps, and the header above used to say it did.
+ *
+ * `ccipReceive` decodes the payload, bumps two counters and emits an event. It never
+ * calls `targetHook`, which is therefore set at construction and never read. Nothing
+ * moves. That is the whole behaviour.
+ *
+ * The gap is deliberate and CCIP was dropped rather than finished, so this is the
+ * final state, not a stub waiting on a follow-up. Three of the four deployed
+ * receivers were even given a router address that does not exist on their chain,
+ * which means `onlyRouter` can never pass and they cannot be invoked at all. They
+ * are left deployed rather than hidden, because an address that exists on chain
+ * should be findable in the source that produced it.
+ *
+ * `audit_consistency.mjs` asserts this stays inert on all four chains. If someone
+ * later wires the execution path, that audit fails on purpose: turning this on is a
+ * decision to re-argue, not a blank to quietly fill in.
  */
 contract AdextoCCIPReceiver {
     address public immutable router;

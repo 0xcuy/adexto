@@ -17,7 +17,7 @@ import LiveOrderBook from "@/components/LiveOrderBook";
 import LiveTradeFeed from "@/components/LiveTradeFeed";
 import Link from "next/link";
 import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
-import { claimCreatorFees, describeTxError } from "@/lib/dex";
+import { claimCreatorFees, claimProtocolFees, describeTxError } from "@/lib/dex";
 import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
@@ -108,14 +108,20 @@ export default function TokenTerminal({
   const [prices, setPrices] = useState<AssetPrices>(FALLBACK_PRICES);
   const [showSlippage, setShowSlippage] = useState(false);
   const [copied, setCopied] = useState(false);
- const [claimingFees, setClaimingFees] = useState(false);
- const [claimLine, setClaimLine] = useState<string | null>(null);
+  const [claimingFees, setClaimingFees] = useState(false);
+  const [claimLine, setClaimLine] = useState<string | null>(null);
+  // State terpisah dari klaim creator. Keduanya bisa tampil bersamaan bagi creator
+  // di pasar 0.11.0; satu state bersama akan membuat dua tombol berputar sekaligus
+  // dan menaruh pesan hasil di panel yang salah.
+  const [claimingProtocol, setClaimingProtocol] = useState(false);
+  const [protocolClaimLine, setProtocolClaimLine] = useState<string | null>(null);
 
   const onCorrectChain = isOnChain(project.chainId);
   const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
   const tokenPriceUsd = swap.spotPriceNative * nativeUsd;
   /** Penghasilan creator dalam USD: 0.0₄1 0G tidak memberi tahu apa pun soal nilainya. */
   const creatorOwedUsd = swap.pool ? Number(ethers.formatEther(swap.pool.creatorOwed)) * nativeUsd : 0;
+  const protocolOwedUsd = swap.pool ? Number(ethers.formatEther(swap.pool.protocolOwed)) * nativeUsd : 0;
   const marketCapUsd = project.supply * tokenPriceUsd;
 
   useEffect(() => {
@@ -674,6 +680,72 @@ export default function TokenTerminal({
                 {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
               </div>
             )}
+
+          {/* Fee protokol yang mengendap di kurva 0.11.0.
+              Tampil untuk SIAPA PUN, bukan hanya creator, dan itu memang maksudnya:
+              tujuan dana terkunci `immutable` di kontrak, jadi pemanggil hanya bisa
+              memindahkan dana ke alamat yang sudah ditetapkan sejak deploy — ia tidak
+              bisa mengalihkannya. Tanpa tombol ini, fee menganggur sampai ada yang
+              memanggilnya lewat explorer, dan itu menjadikan langkah publik seolah
+              langkah privat.
+              `protocolOwed` sendiri sudah menjadi penanda generasi: kurva 0.10.0 tidak
+              punya getter-nya sehingga nilainya 0 dan panel ini tidak pernah muncul. */}
+          {isConnected && swap.pool?.isCurve && swap.pool.protocolOwed > 0n && (
+            <div className="rounded-2xl border border-line bg-white p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+                  Protocol fee waiting
+                </span>
+                <span className="text-[11px] text-ink-faint">
+                  {(Number(swap.pool.protocolFeeBps) / 100).toFixed(2)}% added on top
+                </span>
+              </div>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p
+                    className="text-lg font-semibold text-ink" data-numeric
+                    title={`${plainDecimal(Number(ethers.formatEther(swap.pool.protocolOwed)))} ${chain.nativeSymbol}`}
+                  >
+                    {formatSmallNumber(Number(ethers.formatEther(swap.pool.protocolOwed)))} {chain.nativeSymbol}
+                    {protocolOwedUsd > 0 && (
+                      <span className="text-ink-soft text-xs font-normal"> · {formatUsd(protocolOwedUsd)}</span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-ink-faint">
+                    Anyone can send this to the treasury. The destination is fixed in the
+                    contract, so you pay the gas and cannot change where it goes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={claimingProtocol}
+                  onClick={async () => {
+                    setClaimingProtocol(true);
+                    setProtocolClaimLine(null);
+                    try {
+                      const ethereum = getActiveEip1193();
+                      if (!ethereum) throw new Error("No wallet available.");
+                      const { hash } = await claimProtocolFees({
+                        ethereum,
+                        chain,
+                        curveAddress: project.poolAddress as string,
+                      });
+                      setProtocolClaimLine(`Sent to treasury. ${hash.slice(0, 10)}…`);
+                      swap.refresh();
+                    } catch (e) {
+                      setProtocolClaimLine(describeTxError(e));
+                    } finally {
+                      setClaimingProtocol(false);
+                    }
+                  }}
+                  className="shrink-0 rounded-xl border border-line bg-white px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-paper disabled:opacity-40"
+                >
+                  {claimingProtocol ? "Sending…" : "Send"}
+                </button>
+              </div>
+              {protocolClaimLine && <p className="text-[11px] text-ink-soft">{protocolClaimLine}</p>}
+            </div>
+          )}
 
           {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}

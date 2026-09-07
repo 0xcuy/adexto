@@ -543,6 +543,40 @@ export async function claimCreatorFees(params: {
   return { hash: receipt?.hash ?? tx.hash };
 }
 
+/**
+ * Kirim fee protokol yang mengendap ke treasury.
+ *
+ * Hanya ada di kurva 0.11.0; kurva 0.10.0 tidak punya fungsi ini dan panggilannya
+ * akan revert. Pemanggil harus mengecek `protocolOwed > 0` lebih dulu — itu sekaligus
+ * membuktikan kurvanya generasi 0.11.0, karena getter-nya juga tidak ada di 0.10.0.
+ *
+ * Siapa pun boleh memanggilnya dan itu bukan kelalaian, melainkan konsekuensi dari
+ * tujuan yang sudah dipatok: alamat treasury `immutable` di kontrak, jadi pemanggil
+ * tidak bisa mengubah ke mana dana pergi. Yang bisa ia lakukan hanya membayar gas
+ * untuk memindahkan dana ke tujuan yang sudah ditetapkan sejak deploy. Membatasi
+ * pemanggil justru akan menambah pemilik tanpa menambah keamanan apa pun.
+ */
+export async function claimProtocolFees(params: {
+  ethereum: any;
+  chain: ChainInfo;
+  curveAddress: string;
+}): Promise<{ hash: string }> {
+  const { ethereum, chain, curveAddress } = params;
+  await ensureWalletChain(ethereum, chain);
+  const provider = new ethers.BrowserProvider(ethereum);
+  const signer = await provider.getSigner();
+  const curve = new ethers.Contract(curveAddress, ADEXTO_CURVE_ABI, signer);
+  // Simulasi dulu supaya kurva 0.10.0 (atau saldo nol) tidak jadi gas terbuang.
+  try {
+    await curve.claimProtocolFees.staticCall();
+  } catch (error) {
+    throw new Error(`Protocol fee claim would fail on-chain: ${describeTxError(error)}`);
+  }
+  const tx = await curve.claimProtocolFees();
+  const receipt = await tx.wait();
+  return { hash: receipt?.hash ?? tx.hash };
+}
+
 function impactBps(amountIn: bigint, reserveIn: bigint): number {
   if (reserveIn <= 0n) return 0;
   return Number((amountIn * BPS) / (reserveIn + amountIn));
@@ -649,7 +683,15 @@ export async function executeBuy(params: {
   const provider = new ethers.BrowserProvider(ethereum);
   const signer = await provider.getSigner();
   const to = params.recipient ?? (await signer.getAddress());
-  const pool = new ethers.Contract(poolAddress, SOVEREIGN_HOOK_ABI, signer);
+  // Pakai ABI generasi TERBARU untuk kontrak eksekusi, bukan yang tertua.
+  //
+  // `buy` dan `sell` punya selector yang sama persis di ketiga generasi
+  // (buy 0x2afaca20, sell 0x8a038a54), jadi satu ABI melayani semuanya dan
+  // pemilihan generasi tidak mempengaruhi panggilan itu sendiri. Yang berbeda
+  // adalah `pool.interface` yang dibawa ke `parseSwapOut`: dengan ABI hook, ia
+  // hanya bisa mendekode event `Swap` generasi pertama, jadi trade di pasar
+  // 0.11.0 gagal di-parse dan hasilnya jatuh ke angka simulasi.
+  const pool = new ethers.Contract(poolAddress, ADEXTO_CURVE_ABI, signer);
   const deadline = deadlineFromNow(params.deadlineSeconds);
 
   const balance = await provider.getBalance(await signer.getAddress());
@@ -710,7 +752,8 @@ export async function executeSell(params: {
   const to = params.recipient ?? owner;
 
   const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-  const pool = new ethers.Contract(poolAddress, SOVEREIGN_HOOK_ABI, signer);
+  // ABI generasi terbaru — alasannya sama seperti di `executeBuy`.
+  const pool = new ethers.Contract(poolAddress, ADEXTO_CURVE_ABI, signer);
 
   const balance: bigint = await token.balanceOf(owner);
   if (balance < amountInTokens) {
@@ -762,16 +805,31 @@ export async function executeSell(params: {
 /**
  * Ambil amountOut sungguhan dari receipt.
  *
- * Event `Swap` kurva memecah fee menjadi depth/creator/treasury, jadi tanda
- * tangannya — dan topic0-nya — berbeda dari hook. Sebelumnya fungsi ini hanya
- * diberi interface hook, sehingga untuk pool kurva parseLog selalu gagal dan
- * pemanggil diam-diam memakai angka SIMULASI. Angkanya kebetulan sama, jadi
- * kegagalannya tidak terlihat; tapi yang dilaporkan bukan lagi hasil terkonfirmasi.
- * Karena itu kedua interface dicoba.
+ * KETIGA generasi harus dicoba, dan daftar ini sudah dua kali tertinggal.
+ *
+ * Event `Swap` berbeda tanda tangan di setiap generasi, jadi berbeda topic0:
+ * hook punya `lpFee, treasuryFee`; SovereignCurve memecahnya menjadi
+ * depth/creator/treasury; AdextoCurve 0.11.0 menambah `protocolFee`. Pertama kali
+ * daftar ini tertinggal, hanya interface hook yang ada dan setiap pool kurva gagal
+ * di-parse. Kali kedua — diperbaiki di sini — `ADEXTO_CURVE_ABI` yang belum masuk,
+ * jadi setiap trade di pasar 0.11.0 gagal di-parse.
+ *
+ * Kelas kegagalannya sama dan itulah yang membuatnya mahal: `parseSwapOut` yang
+ * gagal mengembalikan `null`, pemanggil jatuh ke `simulatedOut`, dan angkanya
+ * KEBETULAN sama. Jadi tidak ada yang error, tidak ada yang terlihat salah — yang
+ * hilang cuma sifatnya: yang ditampilkan bukan lagi hasil eksekusi terkonfirmasi
+ * melainkan hasil simulasi sebelum tanda tangan. Dua angka itu berpisah tepat saat
+ * paling penting: ketika keadaan pool bergerak antara simulasi dan eksekusi.
+ *
+ * `iface` opsional dipertahankan untuk pemanggil yang memegang interface pool
+ * sendiri, tapi ia TIDAK boleh diandalkan sebagai satu-satunya sumber — pemanggil
+ * bisa saja membangun kontraknya dengan ABI generasi lain, dan itu persis yang
+ * terjadi sebelum perbaikan ini.
  */
 function parseSwapOut(receipt: ethers.TransactionReceipt | null, iface?: ethers.Interface): bigint | null {
   if (!receipt) return null;
   const ifaces = [
+    new ethers.Interface(ADEXTO_CURVE_ABI),
     new ethers.Interface(SOVEREIGN_CURVE_ABI),
     new ethers.Interface(SOVEREIGN_HOOK_ABI),
     ...(iface ? [iface] : []),

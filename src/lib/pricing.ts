@@ -95,9 +95,25 @@ export function formatSmallNumber(value: number, sigDigits = 4): string {
     return sign + trimZeros(abs.toFixed(digits));
   }
 
-  const exp = Math.floor(Math.log10(abs));
+  let exp = Math.floor(Math.log10(abs));
+  // Pembulatan mantissa bisa MELUAP satu orde, dan dulu luapan itu dibuang.
+  //
+  // 0,00099999 memberi exp -4 dan mantissa 9,9999. Dibulatkan ke 3 desimal, ia
+  // menjadi 10,000 — sudah bukan mantissa lagi, karena mantissa harus 1..9,99.
+  // Kode lama tetap memakai exp -4 yang sudah basi, jadi jumlah nolnya tidak
+  // ikut berkurang dan hasilnya "0.0₃10": tiga nol lalu 10, yang dibaca sebagai
+  // 0,0001. Harga aslinya 0,001. Yang tampil sepuluh kali lebih murah dari yang
+  // sebenarnya, tanpa pesan error apa pun — dan justru di angka bulat, tempat
+  // orang paling mungkin melihat harga.
+  //
+  // Jadi: bulatkan dulu, baru tentukan orde. Kalau meluap ke >= 10, bagi 10 dan
+  // naikkan exp satu tingkat supaya jumlah nol menyusut mengikutinya.
+  let mantissa = Number((abs / 10 ** exp).toFixed(sigDigits - 1));
+  if (mantissa >= 10) {
+    mantissa /= 10;
+    exp += 1;
+  }
   const zeros = -exp - 1;
-  const mantissa = abs / 10 ** exp;
   const digits = trimZeros(mantissa.toFixed(sigDigits - 1)).replace(".", "");
   // Di bawah 3 nol, tulis biasa saja — subscript justru lebih sulit dibaca.
   if (zeros < 3) return sign + trimZeros(abs.toFixed(zeros + sigDigits));

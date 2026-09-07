@@ -1394,6 +1394,63 @@ console.log("\n── /security: klaim mesin vs security-report.json ──");
   }
 }
 
+// ── parseSwapOut harus mengenal SETIAP generasi kurva yang ada di dex.ts ────
+/**
+ * Penjaga ini ada karena kesalahan yang sama sudah terjadi DUA KALI.
+ *
+ * `parseSwapOut` menyimpan daftar interface untuk mendekode event `Swap` dari
+ * receipt. Setiap generasi kurva mengubah tanda tangan `Swap` — jadi mengubah
+ * topic0 — dan setiap kali generasi baru ditambahkan ke dex.ts, daftar itu lupa
+ * diperbarui. Pertama kali hanya ABI hook yang terdaftar, jadi semua pool kurva
+ * gagal di-parse. Kedua kali `ADEXTO_CURVE_ABI` (0.11.0) yang tertinggal.
+ *
+ * Yang membuatnya mahal adalah kegagalannya SUNYI: `parseSwapOut` yang gagal
+ * mengembalikan `null`, pemanggil jatuh ke angka simulasi, dan angkanya biasanya
+ * sama — jadi tidak ada error, tidak ada yang tampak salah. Yang hilang cuma
+ * sifat angkanya: bukan lagi hasil eksekusi terkonfirmasi. Tidak ada tes yang
+ * bisa menangkapnya tanpa membandingkan kedua nilai itu di pasar yang bergerak.
+ *
+ * Ini pemeriksaan sumber murni, tanpa jaringan: setiap konstanta ABI di dex.ts
+ * yang mendeklarasikan event `Swap` WAJIB muncul di daftar iface `parseSwapOut`.
+ */
+console.log("\n── parseSwapOut vs setiap generasi ABI kurva di dex.ts ──");
+{
+  const dexSrc = readFileSync("src/lib/dex.ts", "utf8");
+
+  // Konstanta ABI yang benar-benar punya event Swap — itulah yang bisa muncul di receipt.
+  const withSwapEvent = [...dexSrc.matchAll(/export const (\w+_ABI) = \[([\s\S]*?)\n\];/g)]
+    .filter(([, , bodyText]) => /"event Swap\(/.test(bodyText))
+    .map(([, name]) => name);
+
+  const listBody = dexSrc.match(/function parseSwapOut[\s\S]*?const ifaces = \[([\s\S]*?)\];/);
+  check("badan parseSwapOut terbaca", Boolean(listBody), listBody ? "daftar iface ditemukan" : "pola daftar iface berubah");
+
+  if (listBody) {
+    const listed = [...listBody[1].matchAll(/new ethers\.Interface\((\w+)\)/g)].map((m) => m[1]);
+    ok("generasi ABI dengan event Swap di dex.ts", `${withSwapEvent.length}: ${withSwapEvent.join(", ")}`);
+    const missing = withSwapEvent.filter((n) => !listed.includes(n));
+    check(
+      "setiap generasi yang punya event Swap terdaftar di parseSwapOut",
+      missing.length === 0,
+      missing.length === 0
+        ? `${listed.length} terdaftar: ${listed.join(", ")}`
+        : `TIDAK terdaftar: ${missing.join(", ")} — receipt generasi itu akan gagal di-parse dan UI diam-diam memakai angka simulasi`
+    );
+  }
+
+  // Pertukaran ABI di executeBuy/executeSell hanya aman selama selector-nya identik.
+  for (const fn of ["executeBuy", "executeSell"]) {
+    const used = dexSrc.match(
+      new RegExp(`export async function ${fn}[\\s\\S]*?new ethers\\.Contract\\(poolAddress, (\\w+), signer\\)`)
+    );
+    check(
+      `${fn} membangun kontrak pool dengan ABI yang juga terdaftar di parseSwapOut`,
+      Boolean(used) && withSwapEvent.includes(used[1]),
+      used ? used[1] : "pola pembuatan kontrak berubah"
+    );
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
