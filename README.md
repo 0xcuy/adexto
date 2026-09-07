@@ -76,7 +76,7 @@ graph TD
 Three things in that picture exist but are **not** part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
-- **The 0G Compute agent and the x402 edge are not wired into the curve.** The agent is an inference route; the x402 worker answers an HTTP 402 quote. Neither holds a key to anything on-chain, and neither can move the buyback balance. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a settlement path that has never existed in the code.
+- **The 0G Compute agent and the x402 edge are not wired into the curve.** The agent is an inference route; the x402 worker answers an HTTP 402 quote. Neither holds a key to anything on-chain, and neither can move the buyback balance. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a settlement path that has never existed. What *is* available without any new contract is a different path — a plain native transfer to the curve is a market buy, and `agentIdentity` can burn what it bought. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
 - **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call.
 
 ---
@@ -221,9 +221,33 @@ node scripts/test-erc8004-binding.mjs                          # 24 assertions, 
 
 Registering on all four cost roughly $0.10 in total across eight transactions.
 
+### Agent-to-agent: where the loop closes and where it breaks
+
+This is the point of pairing an agent identity with a bonding curve, and it is worth tracing edge by edge because **only one edge is missing** — and it is not the one you would guess.
+
+An agent sells something (a signal, an inference, an execution). Another agent pays for it, without a human, an account or a card. The earnings then have to reach the token the agent is bound to, or the pairing is decoration.
+
+| Edge | State | Evidence |
+|---|---|---|
+| Agent has an on-chain identity | **works** | ERC-8004 binding, verified by `ownerOf(agentId)` at launch |
+| Buyer discovers the price | **works** | HTTP 402 + `WWW-Authenticate: x402` + machine-readable price list |
+| Buyer proves who it is | **works** | EIP-712 recovered and matched; a forged claim gets `401` |
+| **Buyer actually pays** | **MISSING** | a valid voucher gets `501`. This is the only broken edge |
+| Earnings buy the token | **works** | a plain native transfer to the curve — empty calldata — executes a market buy |
+| Agent burns what it bought | **works** | `executeTreasuryBuyback` burns from the caller's own balance, gated to `agentIdentity` and the curve |
+
+The last two were verified on 0G mainnet rather than reasoned about. Sending `0.003 0G` to the curve with **no calldata** returned 148.317329 tokens, incremented `swapCount`, and moved the spot price — `receive()` routes into `_buy`. Then `executeTreasuryBuyback` destroyed 74.158664 of them, and `totalSupply` fell by exactly that amount. A random address calling the same function is rejected with `Unauthorized agent`.
+
+So the on-chain half already works and **needs no new contract**. Agent earnings can enter the token economy today: buy along the curve, burn what was bought, supply falls permanently. What is missing is upstream — collecting the payment in the first place.
+
+Two things that would be easy to overstate here, so they are stated flatly:
+
+- **Earnings cannot be deposited into the buyback vault.** `treasuryNative` fills only from the buyback leg of swap fees. Sending native to the curve is a *buy*, not a deposit. "Agent revenue funds the buyback vault" would be false; "agent revenue can buy and burn" is true. The old architecture diagram drew the first one, which is why the arrow was removed.
+- **`agentIdentity` is currently the deployer's address**, not a separate autonomous wallet. On the live $ADEXTO token it is `0x8a3c…ee7D`. The permission is real and immutable; who holds it is a key-management choice that has not been made yet.
+
 ### x402 edge
 
-**What is it for, if it cannot take money?** The x402 flow has three steps. Two of them are here and work; the third is not built. Naming them is the only way the answer is useful.
+**What is it for, if it cannot take money?** It is the first two steps of the flow above. Three steps exist; two are here and work.
 
 | Step | State | What actually happens |
 |---|---|---|
@@ -231,7 +255,7 @@ Registering on all four cost roughly $0.10 in total across eight transactions.
 | 2. Prove who is paying | **works** | Send an EIP-712 voucher and the signature is recovered and checked against the address you claim. Not a stub: sign with one key and claim a different address and it answers `401` with the address it actually recovered. |
 | 3. Collect the money | **not built** | A correctly signed voucher gets `501 Not Implemented`. Nothing is transferred and no work is dispatched. |
 
-So today it is a **priced, authenticated endpoint that never charges** — useful for an agent to discover terms and identify itself, useless for getting paid.
+So today it is a **priced, authenticated endpoint that never charges** — an agent can discover the terms and identify itself, and then nothing happens. Step 3 is the single missing edge in [the loop above](#agent-to-agent-where-the-loop-closes-and-where-it-breaks); everything downstream of it already works on-chain.
 
 Two things about step 3 that are easy to gloss over, and shouldn't be:
 
