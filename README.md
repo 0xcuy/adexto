@@ -5,14 +5,9 @@
 
 [![Website](https://img.shields.io/badge/Website-adexto.xyz-7C3AED?style=for-the-badge&logo=google-chrome&logoColor=white)](https://adexto.xyz)
 [![Version](https://img.shields.io/badge/Contracts-v0.11.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
-[![ERC-8004](https://img.shields.io/badge/ERC--8004-identity_registry_only-F59E0B?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
+[![ERC-8004](https://img.shields.io/badge/ERC--8004_agent_binding-WORKS-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
 [![Chains](https://img.shields.io/badge/Mainnets-0G_·_Base_·_Arbitrum_·_Monad-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#-mainnet-deployments)
-[![x402](https://img.shields.io/badge/x402_Edge-402_challenge,_no_settlement-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
-
-The two amber badges mark things that are **partly built**, and they name the part that is missing:
-
-- **ERC-8004 — identity registry only.** A launch can bind the token to an agent in the Identity Registry, and the factory verifies on-chain that the caller owns that agent. The standard's other two registries, Reputation and Validation, are not used at all. Separately: [EIP-8004](https://eips.ethereum.org/EIPS/eip-8004) is itself still a Draft, so the thing we integrate against can change.
-- **x402 Edge — the 402 challenge works, paying it does not.** Click the badge: a real Cloudflare Worker answers an unpaid call with a real HTTP 402 and a real price list. Present a signed payment voucher and it returns **501 Not Implemented**. No money has ever moved through it.
+[![x402](https://img.shields.io/badge/x402_Edge-CANNOT_TAKE_PAYMENT-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
 
 ---
 
@@ -22,7 +17,7 @@ A creator launches a token and it opens **inside a bonding curve against a virtu
 
 The curve is the permanent venue. There is **no graduation step** and no migration into an external pool, which is where most launchpad exploits have historically happened. There is also no withdrawal function anywhere in the curve, so no one — including us — can drain a market.
 
-To be precise about what that does and does not mean: it describes what the protocol does, not a restriction on the token. `AdextoToken` enforces a 1%-of-supply per-transaction cap only while `block.number <= launchBlock + 5`; after that window `_update` adds no condition at all, and there is no blacklist, no pause, no `Ownable` and no permanent transfer hook. It is a plain ERC-20. So **anyone can list one of these tokens on any external AMM, without our permission, and we could not stop it.** A second market with its own price could therefore exist alongside the curve. What the protocol guarantees is narrower and worth stating plainly: *we* never migrate the market, and nobody can withdraw the curve's own reserves.
+That is a statement about the protocol, not a restriction on the token. `AdextoToken` enforces a 1%-of-supply per-transaction cap only while `block.number <= launchBlock + 5`; after that `_update` adds no condition at all, and there is no blacklist, no pause, no `Ownable` and no permanent transfer hook. It is a plain ERC-20. So **anyone can list one of these tokens on any external AMM without our permission, and we could not stop it** — a second market with its own price can exist alongside the curve. The guarantee is narrower than "one market": *we* never migrate, and nobody can withdraw the curve's reserves.
 
 ### Fee split
 
@@ -36,15 +31,15 @@ The creator configures a total — 0.30% on the default preset — which the cur
 | Protocol | 0.10% | **added on top** | `protocolOwed`, claimable only to the factory's immutable `protocolTreasury` |
 | **Trader pays** | **0.40%** | | |
 
-Read `totalFeeBps()` on a curve rather than adding these up. It is the contract's own answer to what a trade costs, and it exists so that no caller can quietly disagree with the curve about the total.
+Read `totalFeeBps()` on the curve instead of adding these up. It is the contract's own answer to what a trade costs.
 
-The protocol leg is a `public constant PROTOCOL_FEE_BPS` on the factory and an `immutable protocolFeeBps` on each curve, with **no setter in either**. That is deliberate: a setter would make the contracts owned, which contradicts what `/security` says about them, and a timelock only means something if something is mutable. The consequence is worth stating plainly — **markets created by the previous factory can never pay it.** Their fee rates are immutable too, so that is permanent rather than a migration that has not happened yet.
+The protocol leg is a `public constant PROTOCOL_FEE_BPS` on the factory and an `immutable protocolFeeBps` on each curve, with **no setter in either**. A setter would make the contracts owned, which is the opposite of what `/security` claims about them. So: **markets created by the previous factory can never pay it.** Their rates are immutable too. That is permanent, not a migration waiting to happen.
 
-`claimProtocolFees()` is permissionless. Anyone may call it and the native always lands at the immutable treasury, so no key is ever required to collect the fee. The treasury's own key is only needed by its owner, later, to move the funds elsewhere.
+`claimProtocolFees()` is permissionless — anyone may call it, and the native always lands at the immutable treasury. No key is needed to collect the fee. The treasury's key is only needed by its owner, later, to move the money elsewhere.
 
-The studio offers three presets (0.10% / 0.30% / 0.50% of the creator-configured total) and the table shows the 0.30% standard one, but the preset list is UI only — the contract accepts any split subject to `swapFeeBps + PROTOCOL_FEE_BPS <= 500`. The protocol leg sits inside that comparison because the 5% cap applies to what a trader actually pays. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps` and the curve re-checks the sum against its own ceiling, so the shares cannot exceed the total.
+The studio's three presets (0.10% / 0.30% / 0.50%) are UI only. The contract accepts any split subject to `swapFeeBps + PROTOCOL_FEE_BPS <= 500`; the protocol leg is inside that comparison because the 5% cap applies to what a trader pays. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps`, and the curve re-checks the sum against its own ceiling.
 
-Two details about the buyback share, because "buyback" usually implies more than this one does. It is **permissionless** — `executeBuyback` carries only `nonReentrant` and `live`, so any address may call it, capped at 1% of the native reserve per call. And the native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns the tokens that purchase bought, so the effect is a permanent supply reduction rather than a payment to anyone. `agentTreasury` on the curve is a reference field and receives nothing, ever.
+The buyback does less than the word suggests. `executeBuyback` has no caller gate — only `nonReentrant` and `live` — so anyone may trigger it, capped at 1% of the native reserve per call. The native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns whatever that purchase bought. It reduces supply; it pays nobody. `agentTreasury` on the curve is a reference field and receives nothing, ever.
 
 ---
 
@@ -78,7 +73,7 @@ graph TD
     class Registry ext;
 ```
 
-Three things in that picture are worth separating from the launch path, because they are real but they are not part of `deployTrinity`:
+Three things in that picture exist but are **not** part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
 - **The 0G Compute agent and the x402 edge are not wired into the curve.** The agent is an inference route; the x402 worker answers an HTTP 402 quote. Neither holds a key to anything on-chain, and neither can move the buyback balance. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a settlement path that has never existed in the code.
@@ -92,7 +87,7 @@ Every address below was confirmed to hold bytecode by a direct `eth_getCode` cal
 
 `AdextoFactory` `0.11.0` is the current, executable generation: it deploys the token and its curve in one transaction, needs no liquidity deposit, can bind an ERC-8004 agent identity, and charges a 0.10% protocol fee on top of whatever the creator configures. Its runtime bytecode is **byte-identical across all four chains (21,281 bytes, keccak `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8`)** and reproducible from source with `node scripts/compile-contracts.mjs --via-ir`.
 
-That the four are byte-identical is worth one sentence of explanation, because it is not automatic: `protocolTreasury` is `immutable` and Solidity places immutables **inside** the runtime bytecode. The hashes match only because the same treasury address was used on every chain. Deploy one chain with a different treasury and this claim stops being true.
+Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Solidity puts immutables **inside** the runtime bytecode, so the hashes match only because the same treasury was used on every chain. One chain with a different treasury and the claim is false.
 
 `0.10.0` and `0.9.0` are listed alongside it because they are **still deployed and still permissionless** — superseding a factory in the UI does not remove it from the chain, and the markets it already created keep trading. The three generations have different `deployTrinity` behaviour and, for `0.9.0`, a different selector, so they must not be confused. Each row below states its `VERSION` as read from the contract.
 
@@ -158,36 +153,22 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 
 ## 📋 Honest status
 
-The point of this table is that nothing above it should be read as more finished than it is.
-
-| Component | State | What that means precisely |
+| Component | Works? | Exactly what that means |
 |---|---|---|
 | `AdextoFactory` `0.11.0` on 4 mainnets | **Live** | Broadcast and read back on each chain: `VERSION` `0.11.0`, `PROTOCOL_FEE_BPS` 10, `protocolTreasury` equal to the address published above, `totalProjectsCount` 0 at deployment, and runtime bytecode byte-identical across all four (21,281 B). |
 | Protocol fee revenue | **Live rate, zero earned** | The leg is charged and accrues on every `0.11.0` curve. Earnings so far are zero because earnings need volume. Markets created by `0.10.0` can never contribute: their fee rates are `immutable`. |
 | `AdextoCurveFactory` `0.10.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.11.0` adds the protocol fee leg. The markets it created on 0G keep trading on their original three-way split and can never pay a protocol fee, since their rates are immutable. |
 | `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` added the ERC-8004 binding, which changed the `deployTrinity` selector. All three generations are listed in the tables above so nobody mistakes one for another. |
-| ERC-8004 agent identity | **Optional, verified on-chain** | See [below](#erc-8004-agent-identity). Identity registry only; reputation and validation are not used. |
+| ERC-8004 agent binding | **Works. Off unless you ask for it** | Pass an agent id at launch and the factory calls `ownerOf(agentId)`, reverting unless you own that agent. Leave it out and the launch is one transaction with no agent. What is NOT used: the Reputation and Validation registries, and `supportsInterface`. So this integrates with one of the standard's three registries — it is not ERC-8004 compliance and this file does not call it that. [Details](#erc-8004-agent-identity). |
 | Launching through the site | **Enabled** | All four `NEXT_PUBLIC_CURVE_FACTORY_*` are set to the `0.11.0` addresses above, so the studio launches on the current generation. `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` carries the `0.10.0` addresses for verification only and is deliberately excluded from every "can this chain launch" check. |
 | Live markets | **2, both on 0G** | `$ADEXTO` and `$ADT`. Every launch that exists on chain is recorded once in [`src/config/onchain-launches.json`](src/config/onchain-launches.json) with its status — live, superseded, or a throwaway test ticker from a demo recording — and `audit_consistency.mjs` fails the build if an on-chain launch appears that the file does not account for. `allProjects` is append-only with no delete, so the factories' raw counter can only rise; it is not a growth number and is not quoted as one. |
 | Trading / swap | **Live on 0G** | Real fills exist on the 0G markets. The other three chains have factories but no markets yet. |
 | Own AMM (`AdextoCurve`) | **Deployed per launch** | The curve ships with the factory. `SovereignCurve` is the previous generation's curve and still serves the markets it was deployed for. |
-| Agent compute (0G) | **Live, partially attested** | The 0G router reports Intel TDX attestation via dstack for each model we call. We read that declaration; we do **not** fetch or verify the raw quote. |
-| x402 edge gateway | **Answers the challenge, cannot take payment** | What works: an unpaid call gets a real HTTP 402 with a real price list, from a real Cloudflare Worker you can hit yourself. What does not exist: paying it. Present a signed EIP-712 voucher and the worker returns **501 Not Implemented**. So no money has ever moved through it, and the 10% facilitation fee in the revenue model has nothing to take a share of. |
+| Agent compute (0G) | **Works. Attestation is claimed, not checked** | Inference runs. The 0G router tells us each model is Intel TDX attested via dstack, and we print what it tells us. We never fetch the raw attestation quote and never verify it, so treat that label as the router's word, not our proof. |
+| x402 edge gateway | **Cannot take payment** | The unpaid half works: call it and a real Cloudflare Worker returns HTTP 402 with a real price list. The paid half does not exist — send a signed EIP-712 voucher and it answers **501 Not Implemented**. No money has ever passed through it, so the 10% facilitation fee in the revenue model has nothing to take a share of. |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | The Graph indexing | **Live on Base and Arbitrum, absent on 0G and Monad** | `adexto-base` and `adexto-arbitrum` are live and `SUBGRAPH_URL_*` points at both, `hasIndexingErrors: false` on each. Both chains have factories but no markets, so those subgraphs correctly return nothing. **0G is where the markets actually are and it is not indexed at all** — `SUBGRAPH_URL_0G` is empty, and the app reads 0G trades straight from RPC logs instead. The manifest carries both factory generations as separate data sources, because the `Swap` signatures differ and pointing one data source at the new factory would drop every existing market. Not published to the decentralized network. See below. |
-| Governance | **Deployed, NOT operational** | Stronger than "unexercised": it cannot be exercised. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote would revert. `proposalCount` is 0 on all four. |
-
-### A claim this file got wrong
-
-This README once claimed something that was not true. It is written out here instead of being quietly deleted, because a file that hides its own corrections is asking to be trusted on nothing but its current wording.
-
-**The claim: "ERC-8004 compliance".**
-
-**It was false.** `AdextoToken` was an `ERC20` and nothing else. It carried one `address immutable agentIdentity` — a plain address field, set at launch, never checked against anything. The token never called a registry, so there was no standard to comply with. The source code itself said "ERC-8004 style", which is an analogy, while the README said compliance, which is a claim.
-
-**One part of it is true now.** Since factory `0.10.0`, a launch can bind the token to a real agent id in the ERC-8004 Identity Registry, and the factory calls `ownerOf(agentId)` and reverts unless the caller owns that agent. That part is on-chain and anyone can check it.
-
-**"Compliance" is still the wrong word, and we are not going to start using it.** The standard defines three registries. We use one. We do not implement `supportsInterface`, and the Reputation and Validation registries are not touched at all. The accurate description is the badge at the top of this file: identity registry only. Details in [ERC-8004 agent identity](#erc-8004-agent-identity).
+| Governance | **Does not work** | Not "nobody has voted yet" — nobody *can*. `castVote` weighs a ballot with `governanceToken.balanceOf(msg.sender)`, and that address is the zero address on Base and Monad, and the superseded v1 hook — which has no `balanceOf` — on 0G and Arbitrum. Every vote reverts. `proposalCount` is 0 on all four. |
 
 ### Why a bonding curve rather than a liquidity pool
 
@@ -202,11 +183,13 @@ The reason is the launch model, and it is checkable in the contracts rather than
 | Creator fee | 0.10% of every swap accrues on-chain inside the 0.30% the creator configures, so paying the creator costs the trader nothing extra | fees accrue to liquidity providers; paying a creator needs custom hook support the venue may not offer |
 | Code paths across our four chains | one, byte-identical | whatever venue happens to exist per chain |
 
-The third row is the substantive one. That a liquidity provider can withdraw is not a flaw — it is what an AMM is for. But it means the venue can be removed from under holders, and "we won't" is a promise. Here the same guarantee comes from the absence of code that could do it.
+Row three carries the weight. A liquidity provider being able to withdraw is not a flaw — it is what an AMM is for — but it means the venue can be pulled out from under holders, and "we won't" is only a promise. Here the guarantee is the absence of code that could do it.
 
 ### ERC-8004 agent identity
 
-Optional, off by default, and real when switched on. A launch may bind the token to an agent registered in the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Identity Registry, and `AdextoFactory` calls `ownerOf(agentId)` and refuses the launch unless the caller owns that agent — so a token cannot attach itself to somebody else's identity and inherit its reputation.
+**It works, and it is off unless you ask for it.** Pass an agent id at launch and `AdextoFactory` calls `ownerOf(agentId)` on the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Identity Registry, refusing the launch unless you own that agent — so a token cannot attach itself to somebody else's identity and inherit its reputation. Leave the id out and the launch is one transaction with no agent attached.
+
+**It is not ERC-8004 compliance, and this file used to say it was.** The standard has three registries; this uses the Identity Registry and nothing else. `supportsInterface` is not implemented. Reputation and Validation are not touched.
 
 | | |
 |---|---|
@@ -218,7 +201,7 @@ Optional, off by default, and real when switched on. A launch may bind the token
 | Reputation / Validation registries | **not used** |
 | Read on a token | `agentBound()`, then `agentId()` and `agentRegistry()` |
 
-Four things worth knowing before relying on it.
+Four things that will bite you otherwise.
 
 **An agent id means nothing without its chain.** The registry sits at one address on all four mainnets, which invites the assumption that an id is global. It is not — each registry keeps its own state, and `ownerOf(0)` returns three *different* owners across the four chains. Our own registrations came back `84622` on Base, `1457` on Arbitrum, `3545431` on 0G and `10247` on Monad for the same agent. Launching four chains with one id binds on the chain it came from and reverts on the rest with `Factory: agent not owned by caller`, after gas has been spent on each. Register once per chain and pass that chain's id.
 
@@ -240,28 +223,24 @@ Registering on all four cost roughly $0.10 in total across eight transactions.
 
 ### The Graph
 
-Deployed for two chains, and **not yet read by this site**. The manifest and per-network config are generated from `subgraph/chains.json` plus `build/deployments.json` (`npm run networks` in `subgraph/`).
+Deployed for Base and Arbitrum, and read by the site — `SUBGRAPH_URL_*` points at both. This section previously said "not yet read by this site", which stopped being true when those variables were set. The manifest and per-network config are generated from `subgraph/chains.json` plus `build/deployments.json` (`npm run networks` in `subgraph/`).
 
 | Subgraph | Version | Endpoint |
 |---|---|---|
 | `adexto-base` | `v0.11.0` | `https://api.studio.thegraph.com/query/1757874/adexto-base/v0.11.0` |
 | `adexto-arbitrum` | `v0.11.0` | `https://api.studio.thegraph.com/query/1757874/adexto-arbitrum/v0.11.0` |
 
-`v0.10.1` fixed a unit mismatch where `openingPriceNative` was a 1e18-scaled `BigInt` beside a decimal `spotPriceNative`. `v0.10.2` corrects the manifest description, which claimed "agent buyback burns" — `executeBuyback` has no caller gate at all, so anyone may trigger it and attributing it to an agent overstated what the contract enforces. The same version also stopped omitting the ERC-8004 `AgentBound` binding, which the subgraph indexes and the description had never mentioned.
+**The useful thing to know: the markets are on 0G, and 0G is not indexed.** Base and Arbitrum have factories but no markets, so those two subgraphs correctly return nothing. The Graph does not serve 0G and the self-hosted node for it is not running, so `SUBGRAPH_URL_0G` is empty and the app reads 0G trades straight from RPC logs. The subgraph is real infrastructure aimed at the two chains with the least to say.
 
-`v0.11.0` indexes **both curve generations side by side**, and the reason it has to is worth stating: the two `Swap` events are not the same event. `0.11.0` inserts `protocolFee` before both reserves, making it eleven fields with a different `topic0`, so one data source physically cannot match both. Repointing the existing data source at the new factory would therefore have dropped every market the old factory created — a subgraph that answers with fewer markets than the chain holds, while reporting itself healthy. There are now two data sources and two templates, with the mapping logic held once in `src/shared.ts` and four thin adapters over it.
+`v0.11.0` indexes **both curve generations side by side**, because the two `Swap` events are not the same event: `0.11.0` inserts `protocolFee` before both reserves, giving it eleven fields and a different `topic0`. One data source cannot match both, so repointing the existing one at the new factory would have dropped every market the old factory created — and reported itself healthy while doing it. There are two data sources and two templates, with the mapping logic held once in `src/shared.ts`.
 
-The schema gained `Curve.curveVersion` for the same reason. Without it, `protocolFeeBps: 0` on an old curve is indistinguishable from a new curve that happens to charge nothing, and a reader would reasonably conclude the rate can change. It cannot: it is `immutable` per curve.
+`Curve.curveVersion` exists for the same reason: without it, `protocolFeeBps: 0` on an old curve is indistinguishable from a new curve that charges nothing, which would suggest the rate can change. It cannot — it is `immutable` per curve.
 
-**A limitation to be plain about: the markets are on 0G, and 0G is not indexed at all.** Base and Arbitrum have factories but no markets, so those two subgraphs correctly return nothing — they are exercised, not useful. `SUBGRAPH_URL_0G` is empty because The Graph does not serve 0G and the self-hosted node for it is not running; the app reads 0G trades directly from RPC logs instead. So the subgraph is real infrastructure pointed at the chains that have the least to say.
+Earlier versions: `v0.10.1` fixed a 1e18 unit mismatch between `openingPriceNative` and `spotPriceNative`. `v0.10.2` removed "agent buyback burns" from the manifest description, since `executeBuyback` has no caller gate and attributing it to an agent overstated the contract.
 
-`SUBGRAPH_URL_*` **is now set** for both. It was held back on the reasoning that pointing the app at an endpoint which had never indexed a launch would replace direct chain reads with an indexer that has nothing to say. That reasoning was wrong about this codebase: `src/app/api/graphql/route.ts` treats the registry as the primary source and the indexer as additive, so an empty or unreachable indexer only leaves `live` null. Wiring it early also means the indexer path is exercised before a demo instead of during one.
+Nothing is published to the decentralized network, and publishing alone would not make it serve queries: indexers are paid in proportion to curation signal, so a subgraph with token signal gives them no reason to index it. The Studio endpoints above answer queries today without that.
 
-One consequence worth knowing: the route asks an indexer only about curves the registry already knows, so with an empty registry no query is issued at all and `chainsReachable` reads `0/0`. Reachability was therefore proven separately, by adding two throwaway registry rows locally to force the request — Base answered at block 50,862,947 in 334 ms and Arbitrum at 501,625,052 in 405 ms, both with `hasIndexingErrors: false` and zero curves, which is the correct answer for addresses that do not exist.
-
-Nothing is published to the decentralized network. That is a separate decision, and publishing alone would not make the subgraph serve queries: issuance is distributed to indexers in proportion to curation signal, so a subgraph with a token amount of signal gives an indexer no reason to index it. The Graph's own recent GIPs state that the signal required and the indexing response it produces are unpredictable, which is why they are building direct indexing agreements. The Studio endpoints above serve queries today without any of that.
-
-Two of the four chains cannot use Subgraph Studio at all, which is a property of The Graph and not a choice:
+Two of the four chains cannot use Subgraph Studio. That is The Graph's coverage, not our choice:
 
 | Chain | Target | Reason |
 |---|---|---|
