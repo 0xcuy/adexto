@@ -1566,6 +1566,76 @@ console.log("\n── jendela chart: bentuk tidak boleh berubah karena jam maju 
   }
 }
 
+// ── dua sulihan diam-diam yang keduanya merender angka salah sebagai fakta ──
+/**
+ * Kelas bugnya sama pada dua berkas berbeda: mengganti nilai yang TIDAK DIKETAHUI dengan
+ * nilai tetap yang kelihatan masuk akal, lalu menampilkan hasilnya tanpa penanda.
+ *
+ * 1. Waktu perdagangan. `getBlock` yang gagal dulu dibiarkan, dan timestamp yang hilang
+ *    diganti `Date.now()`. Itu memindahkan perdagangan berumur dua jam ke bucket terkini,
+ *    jadi pada bucket 15 detik seluruh riwayat menyatu menjadi SATU candle datar bertanda
+ *    waktu sekarang. Terukur di produksi: permintaan pertama pada cache dingin
+ *    mengembalikan 1 candle di 08:19:15, sementara fetch beberapa detik kemudian
+ *    mengembalikan 20 candle di 06:01:15.
+ *
+ * 2. Harga aset. `FALLBACK_PRICES` memuat delapan angka tetap, dipakai sebagai nilai awal
+ *    state DAN sebagai jalur cadangan `assetPriceUsd`. 0G dipatok 0,15 sementara harga
+ *    sebenarnya 0,192948, jadi kapitalisasi $ADEXTO dirender $3.002 padahal $3.887 —
+ *    salah 22% dan disajikan sebagai fakta.
+ *
+ * Keduanya diperiksa di tingkat sumber, karena keduanya adalah keputusan tentang APA yang
+ * boleh disulihkan, bukan angka yang bisa diukur dari luar.
+ */
+console.log("\n── nilai yang tidak diketahui tidak boleh disulih angka yang tampak wajar ──");
+{
+  const trades = readFileSync("src/lib/onchain-trades.ts", "utf8");
+  // Non-greedy sampai `).toISOString()` yang PERTAMA, jadi tanda kurung bersarang di
+  // dalam ekspresinya ikut tertangkap. Pola `[^)]*` yang lebih sempit gagal justru pada
+  // bentuk yang ingin ditangkap — ia melaporkan "pola berubah" alih-alih menyebut
+  // `Date.now()` yang ada di dalamnya.
+  const stamp = trades.match(/timestamp: new Date\(([\s\S]*?)\)\.toISOString\(\)/);
+  check("baris timestamp perdagangan terbaca", Boolean(stamp), stamp ? stamp[1].trim() : "pola berubah");
+  if (stamp) {
+    check(
+      "waktu perdagangan tidak pernah diambil dari jam sekarang",
+      !/Date\.now/.test(stamp[1]),
+      `timestamp: new Date(${stamp[1].trim()}) — `.concat(
+        /Date\.now/.test(stamp[1])
+          ? "jam sekarang di sini menumpuk perdagangan lama ke bucket terkini"
+          : "berasal dari waktu blok, atau diperkirakan dari blok tetangga"
+      )
+    );
+  }
+  check(
+    "waktu blok dicoba ulang, bukan sekali lalu menyerah",
+    /for \(let attempt = 1; attempt <= \d+; attempt\+\+\)[\s\S]{0,600}?getBlock/.test(trades),
+    "RPC 0G menjawab galat untuk kueri yang sah, jadi satu percobaan tidak pernah cukup"
+  );
+
+  const pricing = readFileSync("src/lib/pricing.ts", "utf8");
+  check(
+    "tidak ada lagi tabel FALLBACK_PRICES",
+    !/FALLBACK_PRICES/.test(pricing),
+    /FALLBACK_PRICES/.test(pricing) ? "tabel harga tetap kembali" : "diganti STABLE_PRICES"
+  );
+  const table = pricing.match(/export const STABLE_PRICES[^=]*=\s*\{([\s\S]*?)\};/);
+  check("tabel STABLE_PRICES terbaca", Boolean(table), table ? "ditemukan" : "pola berubah");
+  if (table) {
+    const entries = [...table[1].matchAll(/([A-Za-z0-9"']+)\s*:\s*([\d.]+)/g)].map(([, k, v]) => [
+      k.replace(/["']/g, ""),
+      Number(v),
+    ]);
+    const notPegged = entries.filter(([, v]) => v !== 1);
+    check(
+      "hanya aset berpatokan satu dolar yang boleh punya harga tetap",
+      notPegged.length === 0,
+      notPegged.length === 0
+        ? `${entries.length} entri, semuanya 1: ${entries.map(([k]) => k).join(", ")}`
+        : `harga pasar dipatok di sini: ${notPegged.map(([k, v]) => `${k}=${v}`).join(", ")} — angka ini akan dirender sebagai fakta`
+    );
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
