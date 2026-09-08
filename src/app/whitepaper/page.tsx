@@ -115,40 +115,71 @@ export default function WhitepaperPage() {
           <h2 className="text-xl font-bold text-ink flex items-center gap-2">
             <span className="text-accent font-mono">§4.</span> Tokenomics &amp; Value Accrual ($ADEXTO)
           </h2>
-          <p className="text-ink">
-            {/* Cakupan dikoreksi ke empat chain (sebelumnya hanya menyebut 0G dan
-                Arbitrum, padahal seluruh materi lain menyebut empat).
+          {/* SELURUH bagian ini ditulis ulang. Yang lama memuat lima pernyataan salah,
+              dan empat di antaranya bukan sekadar basi — memang tidak pernah benar.
 
-                Status porsi protokol dipertajam dari "planned but not yet
-                implemented". Kalimat itu benar saat ditulis dan sekarang menyesatkan
-                di dua arah sekaligus: kaki fee-nya SUDAH ditulis dan teruji di
-                v0.11.0, tapi ia juga TIDAK BISA pernah berlaku untuk kurva yang sudah
-                ada, karena setiap tarif di v0.10.0 `immutable`. "Belum
-                diimplementasikan" mengaburkan keduanya dan membuatnya terdengar
-                seperti sakelar yang tinggal dinyalakan. */}
-            The protocol native token ($ADEXTO) governs global factory parameters and subsidizes 0G TEE compute enclaves.
-            A 0.10% protocol fee share across all four networks is <strong>written and tested in the v0.11.0 curve, but
-            not deployed</strong>. Every curve now live splits its swap fee between retained depth, the creator, and that
-            token&apos;s own buyback vault, with no protocol cut in the path — and because those rates are immutable, no
-            live curve can ever be changed to include one. The share can only apply to markets launched after the new
-            factory is broadcast.
+              1. "governs global factory parameters". `AdextoFactory` tidak punya SATU
+                 setter pun, setiap tarif `immutable`, tidak ada owner, dan menu
+                 governance sudah dicabut seluruhnya. Tidak ada parameter yang bisa
+                 diatur siapa pun, termasuk pemegang token.
+              2. "subsidizes 0G TEE compute enclaves". Tidak ada whitelist compute dan
+                 tidak ada jalur subsidi di kontrak mana pun. Klaim yang sama sudah
+                 diralat di komentar `AdextoGovernor.sol`, tetapi terlewat di sini.
+              3. "but not deployed". Sudah ter-deploy di keempat mainnet: 21.281 B kode,
+                 VERSION 0.11.0, PROTOCOL_FEE_BPS 10 di 0G, Base, Arbitrum dan Monad.
+              4. "Every curve now live ... with no protocol cut in the path". Kebalikannya.
+                 Kedua pasar yang live memakai `protocolFeeBps` 10 dan SUDAH membayar
+                 treasury: $ADEXTO 0,0000372 0G, $ADT 0,00001 0G.
+              5. Tabel alokasi 40/25/20/15 — Community Stakers, Ecosystem Grants, Core
+                 Developers, Liquidity Reserve. Tidak ada satu pun dari empat itu. Tidak
+                 ada staking, hibah, vesting, atau cadangan di kontrak mana pun.
+                 `AdextoToken` melakukan `_mint(msg.sender, initialSupply)` dan launcher
+                 memindahkan SELURUHNYA ke kurva dalam transaksi yang sama. Dibaca dari
+                 chain: 100,00% supply dipegang kurva di kedua pasar.
+
+              Yang paling berbahaya justru tabelnya, karena angka dalam kotak terbaca
+              seperti fakta terverifikasi dan itulah bagian yang paling mungkin
+              di-screenshot. Angka di bawah sekarang semuanya bisa dibaca dari chain. */}
+          <p className="text-ink">
+            $ADEXTO is not a token with powers over this protocol. It is a market launched through the same factory as
+            any other, on a ticker the factory reserves for the protocol&apos;s own deployer. It governs nothing:{" "}
+            <code className="text-accent font-mono text-xs">AdextoFactory</code> and{" "}
+            <code className="text-accent font-mono text-xs">AdextoCurve</code> contain no setters at all, every fee rate
+            is <code className="text-accent font-mono text-xs">immutable</code>, and there is no owner. No vote, and no
+            token balance, can change a parameter that does not have a setter.
+          </p>
+          <p className="text-ink">
+            There was never an allocation. One billion tokens are minted in the launch transaction and the launcher moves
+            the entire balance into the bonding curve before that transaction ends, so the only way to obtain any is to
+            buy from the curve at the price the curve quotes. Supply moves in one direction only: buyback native accrued
+            from swap fees is spent along the curve and the tokens bought are burned, which is why $ADEXTO now reads
+            999,999,925.84 rather than a round billion.
+          </p>
+          <p className="text-ink">
+            The 0.10% protocol fee is live, not planned. Factory{" "}
+            <code className="text-accent font-mono text-xs">0.11.0</code> is deployed on all four mainnets with{" "}
+            <code className="text-accent font-mono text-xs">PROTOCOL_FEE_BPS = 10</code> and an immutable{" "}
+            <code className="text-accent font-mono text-xs">protocolTreasury</code>, and both live markets have already
+            paid it — 0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. It is added on top of the configured swap fee
+            rather than taken from it, so a market set to 0.30% costs a trader 0.40%. Markets launched on the earlier
+            0.10.0 factory carry no protocol leg and never can: their rates are immutable too.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-white border border-line">
-              <div className="text-xl font-semibold text-ink">40%</div>
-              <div className="text-[11px] text-ink-soft font-bold">Community Stakers</div>
+              <div className="text-xl font-semibold text-ink">100%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Supply in the curve</div>
             </div>
             <div className="p-3.5 rounded-lg bg-white border border-line">
-              <div className="text-xl font-semibold text-ink">25%</div>
-              <div className="text-[11px] text-ink-soft font-bold">Ecosystem Grants</div>
+              <div className="text-xl font-semibold text-ink">0%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Pre-allocated</div>
             </div>
             <div className="p-3.5 rounded-lg bg-white border border-line">
-              <div className="text-xl font-semibold text-ink">20%</div>
-              <div className="text-[11px] text-ink-soft font-bold">Core Developers</div>
+              <div className="text-xl font-semibold text-ink">0.40%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Paid per trade</div>
             </div>
             <div className="p-3.5 rounded-lg bg-white border border-line">
-              <div className="text-xl font-semibold text-ink">15%</div>
-              <div className="text-[11px] text-ink-soft font-bold">Liquidity Reserve</div>
+              <div className="text-xl font-semibold text-ink">0.10%</div>
+              <div className="text-[11px] text-ink-soft font-bold">Protocol leg of it</div>
             </div>
           </div>
         </section>

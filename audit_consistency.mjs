@@ -1636,6 +1636,82 @@ console.log("\n── nilai yang tidak diketahui tidak boleh disulih angka yang 
   }
 }
 
+// ── tidak boleh ada tabel alokasi token yang tidak diimplementasikan kontrak ─
+/**
+ * Penjaga ini ada karena whitepaper memuat pembagian suplai yang tidak pernah dibuat.
+ *
+ * §4 menampilkan empat kotak: Community Stakers 40%, Ecosystem Grants 25%, Core
+ * Developers 20%, Liquidity Reserve 15%. Tidak ada satu pun dari keempat mekanisme itu.
+ * `AdextoToken` melakukan `_mint(msg.sender, initialSupply)` sekali dan launcher
+ * memindahkan SELURUH saldo ke kurva di transaksi yang sama; dibaca dari chain, 100,00%
+ * suplai dipegang kurva di kedua pasar. Tidak ada staking, hibah, vesting, tim, atau
+ * cadangan di kontrak mana pun.
+ *
+ * Bentuknya yang membuatnya berbahaya: persentase di dalam kotak terbaca seperti fakta
+ * terverifikasi, dan justru bagian itu yang paling mungkin di-screenshot lalu diedarkan
+ * tanpa halaman di sekitarnya. Tidak ada penjaga lama yang menangkapnya — audit_claims
+ * memeriksa bahasa dan klaim yang tak memenuhi syarat, audit_consistency memeriksa alamat
+ * dan versi, dan sebuah pembagian karangan lolos dari keduanya.
+ *
+ * Yang diperiksa: satu, kontraknya memang tidak punya mekanisme alokasi. Dua, tidak ada
+ * teks yang terlihat pengguna memasangkan persentase dengan nama ember alokasi.
+ */
+console.log("\n── tabel alokasi token vs apa yang benar-benar ada di kontrak ──");
+{
+  const tokenSrc = readFileSync("contracts/AdextoToken.sol", "utf8");
+  const mints = [...tokenSrc.matchAll(/_mint\(([^,]+),/g)].map((m) => m[1].trim());
+  check(
+    "AdextoToken mencetak sekali, ke launcher, tanpa ember alokasi",
+    mints.length === 1 && mints[0] === "msg.sender",
+    `${mints.length} pemanggilan _mint: ${mints.join(", ") || "tidak ada"}`
+  );
+  const mechanisms = /\b(stake|staking|vesting|vest\b|cliff|airdrop|merkle)\b/i;
+  const contractHits = ["AdextoToken.sol", "AdextoCurve.sol", "AdextoFactory.sol"].filter((f) =>
+    mechanisms.test(readFileSync(`contracts/${f}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""))
+  );
+  ok("mekanisme staking/vesting/airdrop di kontrak peluncuran", contractHits.length === 0 ? "tidak ada" : contractHits.join(", "));
+
+  /**
+   * Persentase BULAT yang BERDEKATAN dengan nama golongan penerima.
+   *
+   * Versi pertama penjaga ini hanya mencari label ember di mana pun dalam satu berkas,
+   * dan itu menandai empat berkas yang justru menyatakan KEBALIKANNYA: "no free token
+   * allocation" di layout, "Your token allocation: 0 — you earn from fees" di studio,
+   * dan "paid per swap, not from a token allocation" di whitepaper. Penjaga yang
+   * menghukum kalimat yang membantah alokasi lebih buruk daripada tidak ada penjaga,
+   * karena ia menekan justru bantahan yang ingin dipertahankan.
+   *
+   * Dua penyaring membuatnya tepat sasaran. Pertama, kedekatan: tata letak kotak
+   * menaruh angka dan labelnya dalam markup yang sama, jadi 200 karakter cukup dan
+   * penyebutan yang berjauhan tidak ikut. Kedua, persentase BULAT tanpa desimal —
+   * ember alokasi ditulis 40%, sementara tarif fee di proyek ini selalu berdesimal
+   * seperti 0.10% atau 0.40%. Itu memisahkan keduanya tanpa daftar pengecualian.
+   */
+  /**
+   * `reserve` TIDAK berdiri sendiri di daftar ini.
+   *
+   * Sendirian, ia menandai "1% of the native reserve" di README, /docs dan /security —
+   * yaitu batas ukuran buyback, sebuah sifat kurva, bukan ember alokasi. Yang dikarang
+   * whitepaper adalah "Liquidity Reserve", sebuah nama ember, jadi yang dicocokkan
+   * bentuk itu.
+   */
+  const buckets =
+    "stakers|holders|developers|advisors|investors|foundation|team|grants|airdrop|liquidity reserve|strategic reserve|treasury reserve";
+  const pattern = new RegExp(`(?<![.\\d])\\d{1,3}\\s*%[\\s\\S]{0,200}?\\b(${buckets})\\b`, "i");
+  const offenders = [];
+  for (const f of sourceFiles()) {
+    const hit = visibleText(f).match(pattern);
+    if (hit) offenders.push(`${f}: "${hit[0].replace(/\s+/g, " ").slice(0, 60)}…"`);
+  }
+  check(
+    "tidak ada halaman yang memasangkan persentase dengan ember alokasi",
+    offenders.length === 0 && contractHits.length === 0,
+    offenders.length === 0
+      ? "suplai hanya punya satu tujuan, yaitu kurva"
+      : `pembagian yang tidak diimplementasikan kontrak: ${offenders.join(" · ")}`
+  );
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

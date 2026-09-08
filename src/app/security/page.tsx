@@ -484,13 +484,20 @@ export default function SecurityPage() {
             evidence, not proof.
           </li>
           <li>
+            {/* Kedua paruh kalimat ini sudah tertukar peran, jadi keduanya salah.
+                AdextoCurve/AdextoFactory bukan lagi "tidak ter-deploy" — keduanya ada di
+                keempat mainnet dan menjalankan kedua pasar yang live. Dan
+                SovereignCurve/AdextoCurveFactory bukan lagi yang "menjalankan setiap pasar
+                live" — pasar yang mereka lahirkan sudah digantikan. Keduanya tetap difuzz
+                karena pasar itu masih bisa diperdagangkan langsung ke kurvanya. */}
             <strong className="text-ink">Coverage is the curve, not everything on chain.</strong> The fuzz and invariant
-            suites target <code className="text-accent">SovereignCurve</code> and{" "}
-            <code className="text-accent">AdextoCurveFactory</code>, which run every live market, plus{" "}
-            <code className="text-accent">AdextoCurve</code> and <code className="text-accent">AdextoFactory</code>, which
-            are written and tested but not deployed, and <code className="text-accent">AdextoToken</code>. The superseded
-            v1 contracts and the inert cross-chain receivers are analysed statically but not fuzzed, because nothing
-            routes through them.
+            suites target <code className="text-accent">AdextoCurve</code> and{" "}
+            <code className="text-accent">AdextoFactory</code>, which run every live market, plus{" "}
+            <code className="text-accent">SovereignCurve</code> and{" "}
+            <code className="text-accent">AdextoCurveFactory</code>, which created the superseded markets and are still
+            covered because those curves remain tradable directly, and <code className="text-accent">AdextoToken</code>.
+            The superseded v1 contracts and the inert cross-chain receivers are analysed statically but not fuzzed,
+            because nothing routes through them.
           </li>
           <li>
             <strong className="text-ink">Semgrep runs a general ruleset.</strong> The registry has no Solidity pack —{" "}

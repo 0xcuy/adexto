@@ -165,7 +165,7 @@ export default function PitchDeckPage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (deployed, earning nothing yet)</strong>
+              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (deployed, earning a rounding error)</strong>
               {/* Riwayat baris ini layak disimpan, karena ia sudah dua kali salah ke
                   arah yang berlawanan.
 
@@ -179,8 +179,14 @@ export default function PitchDeckPage() {
                   "hidup" bukan "menghasilkan": pendapatannya nol sampai ada volume, dan
                   pasar yang lahir dari factory 0.10.0 TIDAK AKAN PERNAH membayarnya
                   karena setiap tarif fee di sana immutable. Itu permanen, bukan migrasi
-                  yang tertunda. */}
-              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. Revenue so far is zero, because revenue needs volume. Markets created by the previous factory can never pay it — their fee rates are immutable too.</p>
+                  yang tertunda.
+
+                  Koreksi ketiga: "Revenue so far is zero" juga berhenti benar. Treasury
+                  sudah menerima pembayaran. Angkanya memang sangat kecil, tapi "nol" dan
+                  "sangat kecil" adalah dua klaim berbeda, dan yang pertama sudah salah.
+                  Dibaca dari chain: $ADEXTO 0,0000372 dibayar + 0,0000288 mengendap,
+                  $ADT 0,00001 dibayar. Total seumur hidup 0,000076 0G. */}
+              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. Revenue so far is 0.000076 0G across both markets — a fraction of a cent, because revenue needs volume and there have been 14 swaps. Markets created by the previous factory can never pay it — their fee rates are immutable too.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
             </div>
 

@@ -189,8 +189,19 @@ const MUST_BE_QUALIFIED = [
       "no billing",
       "does not exist",
       "none of these",
-      "revenue so far is zero",
-      "earning nothing",
+      /**
+       * "revenue so far is" TANPA menuntut nilainya, dan itu perbaikan atas penanda ini
+       * sendiri.
+       *
+       * Dulu penandanya berbunyi "revenue so far is zero". Selama pendapatannya memang
+       * nol, penanda itu bekerja. Begitu treasury menerima pembayaran pertama, penanda
+       * itu berubah fungsi menjadi kebalikannya: audit MEWAJIBKAN halaman memuat kalimat
+       * yang sudah tidak benar, jadi pemeriksa itu sendiri yang memberkati klaim salah.
+       *
+       * Bentuk sekarang menuntut pengungkapannya ADA tanpa mengunci angkanya, sehingga
+       * ia tetap berlaku saat angkanya berubah.
+       */
+      "revenue so far is",
     ],
   ],
 ];
