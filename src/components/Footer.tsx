@@ -81,7 +81,16 @@ export default function Footer() {
                   komentarnya mencatat barisnya sudah mepet di 1280 px; menambah entri
                   ketujuh menukar satu masalah dengan masalah lain. */}
               <li><Link href="/security" className="hover:text-accent transition-colors">Security &amp; analyser output</Link></li>
-              <li><Link href="/pitch" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
+              {/* Menunjuk /docs, bukan /pitch. Keduanya merender `VerifiedDeploymentCard`
+                  yang sama, jadi ini bukan soal alamat mana yang benar — melainkan soal
+                  ke mana orang yang cuma ingin memeriksa satu alamat sebaiknya dikirim.
+                  Sebelumnya tautan berlabel "Deployed contract registry" menjatuhkan
+                  pembaca ke tengah memorandum penggalangan dana, yang menuntut dia
+                  melewati proyeksi pendapatan untuk mencapai tabel alamat. /docs adalah
+                  halaman status teknis; registry memang termasuk isinya.
+                  /pitch tetap tertaut di atas sebagai "VC Memorandum & Grants", yaitu
+                  namanya yang sebenarnya. */}
+              <li><Link href="/docs" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
             </ul>
           </div>
 

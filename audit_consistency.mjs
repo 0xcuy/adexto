@@ -1754,6 +1754,59 @@ console.log("\n── nomor generasi factory di dalam prosa vs label yang terver
   );
 }
 
+// ── label tautan footer vs apa yang benar-benar dirender tujuannya ──────────
+/**
+ * Penjaga ini ada karena sebuah tautan berlabel "Deployed contract registry" menunjuk
+ * /pitch, yaitu memorandum penggalangan dana.
+ *
+ * Alamatnya sendiri tidak salah — /pitch memang merender kartunya. Yang salah adalah ke
+ * mana pembaca dikirim: seseorang yang hanya ingin memeriksa satu alamat harus melewati
+ * proyeksi pendapatan lebih dulu. Kelas bugnya adalah label yang menjanjikan satu hal dan
+ * tujuan yang menyajikannya sebagai lampiran sesuatu yang lain, dan itu tidak akan pernah
+ * muncul sebagai error karena tautannya bekerja.
+ *
+ * Yang diperiksa: setiap tautan footer yang menjanjikan registry harus menuju halaman yang
+ * BENAR-BENAR merender `VerifiedDeploymentCard`. Tidak ditentukan halaman mana — hanya
+ * bahwa janjinya ditepati — sehingga kartunya boleh berpindah tanpa memaksa penjaga ini
+ * ikut diedit.
+ */
+console.log("\n── tautan footer yang menjanjikan registry vs halaman tujuannya ──");
+{
+  const footer = readFileSync("src/components/Footer.tsx", "utf8");
+  const links = [...visibleText("src/components/Footer.tsx").matchAll(/<Link\s+href="([^"]+)"[^>]*>([^<]+)<\/Link>/g)].map(
+    ([, href, label]) => ({ href, label: label.replace(/&amp;/g, "&").trim() })
+  );
+  check("tautan footer terbaca", links.length > 0, `${links.length} tautan`);
+
+  const promises = links.filter((l) => /contract registry|deployed contract/i.test(l.label));
+  ok("tautan yang menjanjikan registry", promises.length === 0 ? "tidak ada" : promises.map((p) => `"${p.label}" -> ${p.href}`).join(" · "));
+
+  const rendersCard = (href) => {
+    const file = `src/app${href === "/" ? "" : href}/page.tsx`;
+    if (!existsSync(file)) return null;
+    return /<VerifiedDeploymentCard\s*\/>/.test(readFileSync(file, "utf8"));
+  };
+  for (const p of promises) {
+    const r = rendersCard(p.href);
+    check(
+      `"${p.label}" menuju halaman yang merender registry`,
+      r === true,
+      r === null ? `${p.href} bukan halaman yang bisa dibaca` : r ? `${p.href} merender VerifiedDeploymentCard` : `${p.href} TIDAK merender kartunya`
+    );
+  }
+
+  // Kartunya harus hidup di setidaknya satu halaman permanen, bukan hanya di memo.
+  const hosts = ["docs", "security", "explorer", "swap", "studio", "whitepaper", "pitch"].filter((p) => {
+    const f = `src/app/${p}/page.tsx`;
+    return existsSync(f) && /<VerifiedDeploymentCard\s*\/>/.test(readFileSync(f, "utf8"));
+  });
+  check(
+    "registry dirender di halaman permanen, bukan hanya di /pitch",
+    hosts.some((h) => h !== "pitch"),
+    hosts.length === 0 ? "tidak dirender di mana pun" : `dirender di: ${hosts.map((h) => `/${h}`).join(", ")}`
+  );
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
