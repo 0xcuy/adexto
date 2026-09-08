@@ -12,7 +12,7 @@ import MarketPicker, { filterByChain } from "@/components/MarketPicker";
 import { FeeLines, SlippageRow, TradeAmounts, slippagePercent } from "@/components/swap-parts";
 import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { describeTxError } from "@/lib/dex";
-import { FALLBACK_PRICES, assetPriceUsd, type AssetPrices } from "@/lib/pricing";
+import { STABLE_PRICES, assetPriceUsd, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap, type SwapMarket } from "@/lib/use-sovereign-swap";
 import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
 
@@ -64,7 +64,7 @@ export default function SwapTerminal() {
   const [loading, setLoading] = useState(true);
   const [chainFilter, setChainFilter] = useState<string>("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [prices, setPrices] = useState<AssetPrices>(FALLBACK_PRICES);
+  const [prices, setPrices] = useState<AssetPrices>(STABLE_PRICES);
   const [showSlippage, setShowSlippage] = useState(false);
   /**
    * Praseleksi dari ?token=/?chain= hanya boleh terjadi SEKALI. Tanpa penjaga ini,
@@ -122,7 +122,7 @@ export default function SwapTerminal() {
       try {
         const res = await fetch("/api/prices");
         const data = await res.json();
-        if (!cancelled && data?.prices) setPrices({ ...FALLBACK_PRICES, ...data.prices });
+        if (!cancelled && data?.prices) setPrices({ ...STABLE_PRICES, ...data.prices });
       } catch {
         // fallback table already set
       }

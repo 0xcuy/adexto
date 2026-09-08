@@ -18,7 +18,7 @@ import LiveTradeFeed from "@/components/LiveTradeFeed";
 import Link from "next/link";
 import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
 import { claimCreatorFees, describeTxError } from "@/lib/dex";
-import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
+import { STABLE_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
@@ -105,7 +105,7 @@ export default function TokenTerminal({
   const swap = useSovereignSwap(market, address);
   const chain = swap.chain;
 
-  const [prices, setPrices] = useState<AssetPrices>(FALLBACK_PRICES);
+  const [prices, setPrices] = useState<AssetPrices>(STABLE_PRICES);
   const [showSlippage, setShowSlippage] = useState(false);
   const [copied, setCopied] = useState(false);
   const [claimingFees, setClaimingFees] = useState(false);
@@ -128,7 +128,7 @@ export default function TokenTerminal({
       try {
         const res = await fetch("/api/prices");
         const data = await res.json();
-        if (!cancelled && data?.prices) setPrices({ ...FALLBACK_PRICES, ...data.prices });
+        if (!cancelled && data?.prices) setPrices({ ...STABLE_PRICES, ...data.prices });
       } catch {
         // fallback table already in place
       }

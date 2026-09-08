@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CHAIN_LIST, explorerAddressUrl, resolveChainOrDefault } from "@/lib/chains";
-import { FALLBACK_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
+import { STABLE_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
 import {
   Search, ExternalLink, ShieldCheck, ArrowUpRight, CheckCircle2,
   CloudLightning, Sparkles, AlertTriangle, Lock, RefreshCw,
@@ -60,7 +60,7 @@ interface Project {
 
 export default function ExplorerPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [prices, setPrices] = useState<AssetPrices>(FALLBACK_PRICES);
+  const [prices, setPrices] = useState<AssetPrices>(STABLE_PRICES);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
   const [chainFilter, setChainFilter] = useState("all");
@@ -128,7 +128,7 @@ export default function ExplorerPage() {
       try {
         const res = await fetch("/api/prices");
         const data = await res.json();
-        if (!cancelled && data?.prices) setPrices({ ...FALLBACK_PRICES, ...data.prices });
+        if (!cancelled && data?.prices) setPrices({ ...STABLE_PRICES, ...data.prices });
       } catch {
         // fallback table already set
       }

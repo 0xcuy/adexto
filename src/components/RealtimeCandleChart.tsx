@@ -261,6 +261,14 @@ export default function RealtimeCandleChart({
    * penyebab, bukan cuma korbannya.
    */
   const [interval, setIntervalSeconds] = useState(60);
+  /**
+   * Apakah `?tf=` di URL sudah dibaca. Pengambilan data tidak dimulai sebelum ini benar.
+   *
+   * `window` tidak ada saat render server, jadi `tf` tidak bisa dijadikan nilai awal
+   * `useState` tanpa mengakibatkan ketidakcocokan hidrasi. Gerbang ini memberi hasil yang
+   * sama tanpa risiko itu: tepat SATU permintaan awal, dan bucket-nya sudah benar.
+   */
+  const [tfResolved, setTfResolved] = useState(false);
 
   /**
    * Skala logaritmik, autoscale, dan sumbu harga-vs-kapitalisasi.
@@ -298,9 +306,17 @@ export default function RealtimeCandleChart({
    */
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get("tf");
-    if (!raw) return;
-    const wanted = Number(raw);
-    if (INTERVALS.some((i) => i.seconds === wanted)) setIntervalSeconds(wanted);
+    if (raw) {
+      const wanted = Number(raw);
+      if (INTERVALS.some((i) => i.seconds === wanted)) setIntervalSeconds(wanted);
+    }
+    // Menandai `tf` sudah dibaca. Efek muat data MENUNGGU ini, kalau tidak ia sudah
+    // menembak sekali dengan interval bawaan 60 sebelum `tf` diterapkan — permintaan
+    // terbuang yang balasannya bisa datang SETELAH permintaan yang benar, dan urutannya
+    // hanya ditentukan keberuntungan jaringan. Terukur pada satu kali muat: bucket=60
+    // dijawab pada +396ms dan bucket=15 pada +447ms, dan pada muat berikutnya urutannya
+    // berbalik.
+    setTfResolved(true);
   }, []);
 
   useEffect(() => {
@@ -842,6 +858,9 @@ export default function RealtimeCandleChart({
 
   // Data refresh. `setData` replaces the whole series, so ordering is always valid.
   useEffect(() => {
+    // Tunggu `?tf=` selesai dibaca, kalau tidak permintaan pertama memakai bucket bawaan
+    // 60 dan bukan yang diminta tautannya.
+    if (!tfResolved) return;
     let cancelled = false;
 
     /**
@@ -1026,7 +1045,7 @@ export default function RealtimeCandleChart({
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [symbol, chainId, interval, refreshKey, showMcap]);
+  }, [tfResolved, symbol, chainId, interval, refreshKey, showMcap]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {

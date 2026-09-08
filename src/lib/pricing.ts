@@ -12,15 +12,28 @@
 
 export type AssetPrices = Record<string, number>;
 
-export const FALLBACK_PRICES: AssetPrices = {
-  ETH: 2650,
-  "0G": 0.15,
-  A0GI: 0.15,
+/**
+ * Harga tetap untuk stablecoin, dan HANYA itu.
+ *
+ * Sebelumnya di sini ada delapan angka — ETH 2650, 0G 0,15, cbBTC 62500, ARB 0,55,
+ * MON 0,25 — dan angka-angka itu dipakai dalam dua cara yang keduanya diam-diam salah.
+ * Ketiga komponen menjadikannya nilai awal `useState`, jadi lukisan PERTAMA memakai harga
+ * karangan; dan `assetPriceUsd` jatuh ke sini kapan pun harga live tidak ada, jadi
+ * angkanya bisa bertahan tanpa batas waktu.
+ *
+ * Yang membuatnya bukan sekadar ketidaktepatan: hasilnya dirender sebagai fakta. Bos
+ * melaporkan kapitalisasi pasar $3.002 pada $ADEXTO; itu 20.146 0G dikali 0,15 yang
+ * dipatok di sini, sementara 0G sebenarnya 0,192948 dan kapitalisasinya $3.887. Selisih
+ * 22%, tanpa satu pun tanda bahwa angkanya perkiraan.
+ *
+ * Stablecoin tetap ada karena "USDC bernilai satu dolar" adalah definisinya, bukan
+ * kutipan pasar yang kedaluwarsa. Sisanya dicabut: tanpa harga live, angka USD tidak
+ * ditampilkan sama sekali. Tanda hubung tidak mengklaim apa pun; angka yang salah
+ * mengklaim segalanya.
+ */
+export const STABLE_PRICES: AssetPrices = {
   USDC: 1,
   USDT: 1,
-  cbBTC: 62500,
-  ARB: 0.55,
-  MON: 0.25,
 };
 
 export interface ParsedPrice {
@@ -49,7 +62,10 @@ export function assetPriceUsd(symbol: string | null | undefined, prices: AssetPr
   if (!symbol) return 0;
   const key = symbol.toUpperCase();
   if (key === "USD") return 1;
-  return prices[symbol] ?? prices[key] ?? FALLBACK_PRICES[symbol] ?? FALLBACK_PRICES[key] ?? 0;
+  // Nol ketika harga live tidak diketahui, dan pemanggil menampilkan "—" untuk nol.
+  // Menyulihkan angka tetap di sini adalah cara kapitalisasi pasar bisa salah 22% tanpa
+  // ada yang menyadarinya.
+  return prices[symbol] ?? prices[key] ?? STABLE_PRICES[symbol] ?? STABLE_PRICES[key] ?? 0;
 }
 
 /** Convert an amount denominated in `unit` into USD. */

@@ -61,6 +61,13 @@ const CACHE_TTL_MS = 15_000;
 
 /** Sejauh mana pembacaan benar-benar menjangkau. Tanpa ini, terpotong tidak terlihat. */
 export interface SwapCoverage {
+  /**
+   * Berapa blok yang waktunya DIPERKIRAKAN karena node tidak menyajikannya.
+   *
+   * Dilaporkan supaya perkiraan tidak menyamar sebagai bacaan. Nol berarti setiap
+   * perdagangan bertanda waktu bloknya sendiri.
+   */
+  estimatedTimes?: number;
   /** Blok tertua yang BENAR-BENAR dipindai. */
   fromBlock: number | null;
   toBlock: number | null;
@@ -243,18 +250,81 @@ export async function readOnChainSwaps(
     const blockTimes = new Map<number, number>();
     const uniqueBlocks = [...new Set(recent.map((l) => l.blockNumber))];
     const BLOCK_BATCH = 20;
-    for (let i = 0; i < uniqueBlocks.length; i += BLOCK_BATCH) {
-      await Promise.all(
-        uniqueBlocks.slice(i, i + BLOCK_BATCH).map(async (blockNumber) => {
-          try {
-            const block = await provider.getBlock(blockNumber);
-            if (block) blockTimes.set(blockNumber, Number(block.timestamp));
-          } catch {
-            // ignore, fall back below
-          }
-        })
-      );
+    /**
+     * DICOBA ULANG, karena satu `getBlock` yang gagal dulu merusak seluruh chart.
+     *
+     * Blok ini pernah `catch {}` tanpa percobaan ulang, dan timestamp yang hilang
+     * kemudian diganti `Date.now()` di bawah. Itu substitusi terburuk yang mungkin:
+     * ia memindahkan perdagangan berumur dua jam ke bucket TERKINI. Pada bucket 15
+     * detik seluruh perdagangan lalu menyatu menjadi SATU candle datar bertanda waktu
+     * sekarang.
+     *
+     * Terukur di produksi, bukan diduga: permintaan pertama sesudah cache dingin
+     * mengembalikan 1 candle di 08:19:15 sementara fetch beberapa detik kemudian
+     * mengembalikan 20 candle di 06:01:15. Itu persis yang dilaporkan bos — klik
+     * pertama satu candle lurus, setelah reload baru lima candle sebenarnya muncul.
+     *
+     * RPC 0G memang menjawab galat untuk kueri yang sah; `scripts/seed-adexto-trades.mjs`
+     * sudah punya penunggu receipt dengan percobaan ulang karena alasan yang sama. Jadi
+     * mengandalkan satu percobaan di sini memang tidak pernah cukup.
+     */
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const missing = uniqueBlocks.filter((b) => !blockTimes.has(b));
+      if (missing.length === 0) break;
+      for (let i = 0; i < missing.length; i += BLOCK_BATCH) {
+        await Promise.all(
+          missing.slice(i, i + BLOCK_BATCH).map(async (blockNumber) => {
+            try {
+              const block = await provider.getBlock(blockNumber);
+              if (block) blockTimes.set(blockNumber, Number(block.timestamp));
+            } catch {
+              // dicoba lagi di putaran berikutnya
+            }
+          })
+        );
+      }
+      if (uniqueBlocks.some((b) => !blockTimes.has(b))) {
+        await new Promise((r) => setTimeout(r, 250 * attempt));
+      }
     }
+
+    /**
+     * Yang masih hilang DIPERKIRAKAN dari blok tetangga, tidak pernah dari jam sekarang.
+     *
+     * Nomor blok naik searah waktu, dan di sini sudah ada banyak jangkar yang timestamp-nya
+     * diketahui, jadi interpolasi linear antara jangkar terdekat memberi galat paling
+     * sebesar jarak antar-jangkar dikali waktu blok — hitungan detik pada rentang ini.
+     * `Date.now()` galatnya sebesar UMUR perdagangan itu, yang bisa berjam-jam, dan
+     * galat itu jatuh ke arah yang paling merusak: menumpuk semuanya ke bucket terkini.
+     *
+     * Kalau tidak ada satu pun jangkar, tidak ada yang bisa diperkirakan. Keadaan itu
+     * dilaporkan sebagai galat alih-alih digambar, karena rangkaian waktu tanpa waktu
+     * bukan rangkaian waktu.
+     */
+    const anchors = [...blockTimes.entries()].sort((a, b) => a[0] - b[0]);
+    if (anchors.length === 0) {
+      return {
+        trades: [],
+        coverage: emptyCoverage("Node returned no block timestamps, so trade times are unknown."),
+      };
+    }
+    const estimateTime = (blockNumber: number): number => {
+      const known = blockTimes.get(blockNumber);
+      if (known !== undefined) return known;
+      let lo = anchors[0];
+      let hi = anchors[anchors.length - 1];
+      for (const a of anchors) {
+        if (a[0] <= blockNumber) lo = a;
+        if (a[0] >= blockNumber) {
+          hi = a;
+          break;
+        }
+      }
+      if (lo[0] === hi[0]) return lo[1];
+      const ratio = (blockNumber - lo[0]) / (hi[0] - lo[0]);
+      return Math.round(lo[1] + ratio * (hi[1] - lo[1]));
+    };
+    const estimatedTimes = uniqueBlocks.filter((b) => !blockTimes.has(b)).length;
 
     const trades: TradeEvent[] = [];
     for (const log of recent) {
@@ -269,7 +339,9 @@ export async function readOnChainSwaps(
 
       const amountNative = Number(ethers.formatEther(isBuy ? amountIn : amountOut));
       const amountToken = Number(ethers.formatUnits(isBuy ? amountOut : amountIn, decimals));
-      const seconds = blockTimes.get(log.blockNumber);
+      // Selalu ada nilainya: dari blok, atau diperkirakan dari blok tetangga. Tidak
+      // pernah `Date.now()`.
+      const seconds = estimateTime(log.blockNumber);
 
       /**
        * The curve's true spot price after this trade, from the event's own
@@ -307,7 +379,7 @@ export async function readOnChainSwaps(
         priceNative: amountToken > 0 ? amountNative / amountToken : 0,
         priceNativeAfter,
         trader: String(parsed.args.trader),
-        timestamp: new Date((seconds ?? Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+        timestamp: new Date(seconds * 1000).toISOString(),
         blockNumber: log.blockNumber,
         source: "onchain",
         chainId: chain.chainId,
@@ -323,6 +395,7 @@ export async function readOnChainSwaps(
         truncated,
         blocksScanned: Math.max(0, latest - oldestScanned + 1),
         calls,
+        estimatedTimes,
         error: null,
       },
     };
