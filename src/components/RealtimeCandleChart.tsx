@@ -143,7 +143,23 @@ const DATE_ONLY_FROM_SECONDS = 86400;
  * listing di bursa mana pun.
  */
 const MIN_BARS_TO_FIT = 12;
-const YOUNG_MARKET_SLOTS = 24;
+/**
+ * Jumlah slot saat jendela dipatok. HARUS sama dengan `MIN_BARS_TO_FIT`.
+ *
+ * Dulu 24 sementara ambangnya 12, dan selisih itu membuat lompatan yang terlihat: pada
+ * 12 bar chart di-fit sehingga barnya mengisi seluruh pane, pada 11 bar chart dipatok ke
+ * 24 slot sehingga bar yang jumlahnya hampir sama mendadak hanya mengisi 46% pane dengan
+ * sisanya kosong. Satu bar hilang, setengah chart berubah.
+ *
+ * Dengan keduanya bernilai sama, kedua aturan bertemu tanpa patahan: tepat di 12 bar,
+ * memaku ke 12 slot dan `fitContent()` menghasilkan tampilan yang identik. Di bawah itu
+ * barnya menyusut secara wajar — 10 bar mengisi 83% pane, bukan 42%.
+ *
+ * Yang tetap dijaga adalah alasan patokan ini ada: `fitContent()` dengan satu bar
+ * meregangkannya selebar pane. Pada 12 slot, satu bar mengambil 1/12 lebar, yaitu lebar
+ * candle yang wajar.
+ */
+const YOUNG_MARKET_SLOTS = MIN_BARS_TO_FIT;
 
 /**
  * Lebar sumbu harga, dipatok sama untuk chart harga DAN kotak osilator.

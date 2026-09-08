@@ -500,7 +500,28 @@ export function buildCandles(
   const lastFilled = filledBuckets[filledBuckets.length - 1];
   const tradedBars = (lastFilled - filledBuckets[0]) / bucketSeconds + 1;
   const maxTrailing = Math.max(2, Math.ceil(tradedBars));
-  const endBucket = Math.min(nowBucket, lastFilled + maxTrailing * bucketSeconds);
+  /**
+   * Batas atas ekor adalah JAM DINDING, bukan `nowBucket`.
+   *
+   * `nowBucket` jatuh ke bucket perdagangan terakhir begitu tidak ada satu pun
+   * perdagangan di dalam jendela jam dinding. Memakainya sebagai batas ekor membuat
+   * `min()` selalu memilih `lastFilled`, jadi ekornya NOL — dan seluruh perhitungan
+   * `maxTrailing` di atas mati tanpa jejak persis pada keadaan yang paling
+   * membutuhkannya, yaitu pasar yang sedang sepi.
+   *
+   * Akibatnya bentuk chart berubah sendiri tanpa ada yang trading. Terukur pada seri
+   * $ADEXTO ini: satu jam setelah fill terakhir, 20 candle menjadi 10 — dan karena 10
+   * ada di bawah `MIN_BARS_TO_FIT`, chart beralih dari `fitContent()` ke jendela
+   * dipatok, sehingga barnya mengerut ke 42% kiri pane. Tidak ada perdagangan baru,
+   * tidak ada kode yang berjalan; hanya jam yang maju.
+   *
+   * `Math.max(wallBucket, lastFilled)` menjaga kasus data yang MENDAHULUI jam server —
+   * sequencer L2 yang berjalan sedikit cepat, dan devchain yang timestamp-nya jauh di
+   * depan. Tanpa itu batas ekor bisa jatuh sebelum fill terakhir dan candle terbaru
+   * hilang dari loop di bawah.
+   */
+  const tailCeiling = Math.max(wallBucket, lastFilled);
+  const endBucket = Math.min(tailCeiling, lastFilled + maxTrailing * bucketSeconds);
 
   for (let bucket = filledBuckets[0]; bucket <= endBucket; bucket += bucketSeconds) {
     const fills = byBucket.get(bucket);

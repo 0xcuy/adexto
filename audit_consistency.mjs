@@ -1513,6 +1513,59 @@ console.log("\n── petak getLogs per chain vs yang diterima RPC sungguhan ─
   }
 }
 
+// ── bentuk chart tidak boleh berubah sendiri saat jam maju ──────────────────
+/**
+ * Dua konstanta yang, kalau lepas, membuat chart berubah bentuk TANPA ada yang trading.
+ *
+ * Keduanya dilaporkan bos sebagai "kenapa jadi jelek, penjualannya tidak kelihatan",
+ * dan keduanya bukan tentang data — datanya benar sepanjang waktu, candle merahnya
+ * selalu ada. Yang salah adalah cara jendelanya dihitung:
+ *
+ * 1. Batas ekor bucket kosong dulu `Math.min(nowBucket, ...)`. `nowBucket` jatuh ke
+ *    bucket perdagangan terakhir begitu tidak ada perdagangan di dalam jendela jam
+ *    dinding, jadi `min()` selalu memilih `lastFilled` dan ekornya menjadi NOL. Terukur:
+ *    satu jam sesudah fill terakhir, 20 candle menjadi 10.
+ * 2. `YOUNG_MARKET_SLOTS` dulu 24 sementara `MIN_BARS_TO_FIT` 12. Begitu jumlah candle
+ *    jatuh di bawah 12, chart beralih dari `fitContent()` ke jendela dipatok 24 slot —
+ *    jadi 10 bar hanya mengisi 42% pane. Dua cacat itu bertemu: candle menyusut jumlahnya
+ *    karena (1), lalu mengerut ke separuh pane karena (2).
+ *
+ * Diperiksa di tingkat sumber karena repo ini tidak punya runner tes TS dan `tsx` hanya
+ * dependensi transitif, jadi penjaga yang memanggilnya akan lebih rapuh daripada yang
+ * dijaganya. Yang dipatok di sini persis dua keputusan yang kalau dibalik, cacatnya
+ * kembali.
+ */
+console.log("\n── jendela chart: bentuk tidak boleh berubah karena jam maju ──");
+{
+  const trades = readFileSync("src/lib/onchain-trades.ts", "utf8");
+  const chart = readFileSync("src/components/RealtimeCandleChart.tsx", "utf8");
+
+  const tail = trades.match(/const tailCeiling = ([^;]+);[\s\S]{0,400}?const endBucket = ([^;]+);/);
+  check("batas ekor bucket kosong terbaca", Boolean(tail), tail ? "ditemukan" : "pola tailCeiling/endBucket berubah");
+  if (tail) {
+    check(
+      "batas ekor dipatok jam dinding, bukan nowBucket",
+      /wallBucket/.test(tail[1]) && !/nowBucket/.test(tail[2]),
+      `tailCeiling = ${tail[1].trim()} · endBucket = ${tail[2].trim()}`
+    );
+    check(
+      "batas ekor tidak pernah jatuh sebelum fill terakhir",
+      /Math\.max\(\s*wallBucket\s*,\s*lastFilled\s*\)/.test(tail[1]),
+      "menjaga data yang timestamp-nya mendahului jam server (sequencer L2, devchain)"
+    );
+  }
+
+  const slots = chart.match(/const YOUNG_MARKET_SLOTS = ([^;]+);/);
+  check("YOUNG_MARKET_SLOTS terbaca", Boolean(slots), slots ? slots[1].trim() : "pola berubah");
+  if (slots) {
+    check(
+      "jumlah slot patokan = MIN_BARS_TO_FIT, jadi kedua aturan bertemu tanpa patahan",
+      /^MIN_BARS_TO_FIT$/.test(slots[1].trim()),
+      `YOUNG_MARKET_SLOTS = ${slots[1].trim()} — angka literal di sini berarti bar mengerut begitu ambang fit terlewat`
+    );
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
