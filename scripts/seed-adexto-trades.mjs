@@ -113,14 +113,46 @@ const fmtTok = (v) => Number(ethers.formatUnits(v, 18)).toLocaleString('en-US', 
  * `part` untuk jual adalah pembagi saldo saat itu, dihitung saat langkahnya jalan —
  * bukan dipaku di muka — supaya penjualan terakhir tidak pernah melebihi yang dipegang.
  */
-const FULL_PLAN = [
-  { kind: 'buy', native: '0.004' },
-  { kind: 'buy', native: '0.004' },
-  { kind: 'sell', divisor: 3n },
-  { kind: 'buy', native: '0.005' },
-  { kind: 'sell', divisor: 4n },
-  { kind: 'buy', native: '0.004' },
-];
+const PLANS = {
+  // Pola rekaman pertama: enam fill, dua jual diselipkan.
+  six: [
+    { kind: 'buy', native: '0.004' },
+    { kind: 'buy', native: '0.004' },
+    { kind: 'sell', divisor: 3n },
+    { kind: 'buy', native: '0.005' },
+    { kind: 'sell', divisor: 4n },
+    { kind: 'buy', native: '0.004' },
+  ],
+  /**
+   * Lima fill: empat beli dengan SATU jual tepat di tengah.
+   *
+   * Catatan di kepala berkas ini memperingatkan bahwa 4 beli + 1 jual pernah
+   * menghasilkan nol candle merah, jadi perlu jelas kenapa di sini tidak.
+   * Kegagalan itu terjadi pada bucket 1 menit: semua fill menyatu ke satu candle
+   * dan `close`-nya diambil dari fill terakhir, yang kebetulan pembelian. Pada
+   * tf=15 dengan jarak 25 detik, tiap fill mendapat bucket sendiri, dan
+   * `buildCandles` mengambil `open` dari `close` bucket sebelumnya — jadi bucket
+   * yang isinya hanya penjualan membuka di harga sebelumnya dan menutup lebih
+   * rendah. Merahnya bukan kebetulan, itu konsekuensi cara candle dibentuk.
+   *
+   * Jualnya 1/4 saldo, bukan lebih besar, supaya besarnya sebanding dengan tiap
+   * pembelian: cukup untuk terlihat, tanpa menenggelamkan empat fill lainnya.
+   */
+  five: [
+    { kind: 'buy', native: '0.004' },
+    { kind: 'buy', native: '0.005' },
+    { kind: 'sell', divisor: 4n },
+    { kind: 'buy', native: '0.004' },
+    { kind: 'buy', native: '0.006' },
+  ],
+};
+
+const PLAN_NAME = flagValue('plan', 'six');
+if (!PLANS[PLAN_NAME]) {
+  console.error(`--plan tidak dikenal: ${PLAN_NAME}. Pilihan: ${Object.keys(PLANS).join(', ')}`);
+  process.exit(1);
+}
+const FULL_PLAN = PLANS[PLAN_NAME];
 
 /**
  * `--from N` melanjutkan dari langkah ke-N, satu-basis.
@@ -150,7 +182,7 @@ console.log(`VERSION  : ${version}   totalFeeBps ${totalBps} (${(Number(totalBps
 console.log(`trader   : ${ME}`);
 console.log(`sekarang : ${swapsBefore} swap · spot ${ethers.formatEther(spotBefore)} · floor ${ethers.formatEther(floorBefore)} 0G/token`);
 console.log(`saldo    : ${fmt(nativeBefore)} 0G · ${fmtTok(heldBefore)} ${symbol}`);
-console.log(`rencana  : ${PLAN.map((p) => (p.kind === 'buy' ? `beli ${p.native}` : `jual 1/${p.divisor}`)).join(' → ')}`);
+console.log(`rencana  : ${PLAN_NAME} — ${PLAN.map((p) => (p.kind === 'buy' ? `beli ${p.native}` : `jual 1/${p.divisor}`)).join(' → ')}`);
 console.log(`jarak    : ${GAP_MS / 1000}s antar perdagangan\n`);
 
 if (!BROADCAST) {
