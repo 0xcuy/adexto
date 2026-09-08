@@ -1451,6 +1451,68 @@ console.log("\n── parseSwapOut vs setiap generasi ABI kurva di dex.ts ──
   }
 }
 
+// ── petak getLogs yang diklaim kode vs yang benar-benar diterima RPC ────────
+/**
+ * Penjaga ini ada karena kegagalannya TIDAK BISA DILIHAT dari situs.
+ *
+ * `readOnChainSwaps` membaca riwayat perdagangan dengan `getLogs`. Kalau rentang yang
+ * diminta melebihi yang diizinkan RPC, panggilannya melempar, dan selama satu tahun
+ * blok penangkapnya adalah `catch { return [] }` — sehingga "RPC menolak kueri" dan
+ * "pasar ini belum pernah diperdagangkan" menghasilkan tampilan yang sama persis:
+ * feed kosong, chart datar.
+ *
+ * Itu bukan hipotesis. Kode meminta 45.000 blok untuk SEMUA chain, sementara pengukuran
+ * menunjukkan Base menolak di 20.000 (413 Payload Too Large) dan Monad di 200. Jadi dua
+ * dari empat mainnet selalu melaporkan pasar kosong, dan tidak ada yang bisa
+ * membedakannya dari kebenaran.
+ *
+ * Angka di `LOG_SPAN_BY_CHAIN` karena itu adalah klaim tentang sistem di luar repo ini,
+ * dan penyedia RPC boleh mengetatkannya kapan saja tanpa memberi tahu. Diperiksa
+ * terhadap RPC sungguhan, bukan dipercaya.
+ */
+console.log("\n── petak getLogs per chain vs yang diterima RPC sungguhan ──");
+{
+  const src = readFileSync("src/lib/onchain-trades.ts", "utf8");
+  const table = src.match(/const LOG_SPAN_BY_CHAIN[^=]*=\s*\{([\s\S]*?)\};/);
+  check("tabel LOG_SPAN_BY_CHAIN terbaca", Boolean(table), table ? "ditemukan" : "pola tabel berubah");
+
+  if (table) {
+    const spans = [...table[1].matchAll(/(\d+):\s*([\d_]+)/g)].map(([, id, span]) => [
+      Number(id),
+      Number(span.replace(/_/g, "")),
+    ]);
+    ok("petak yang diklaim kode", spans.map(([id, s]) => `${CHAINS[id]?.key ?? id} ${s.toLocaleString("en-US")}`).join(" · "));
+
+    for (const [chainId, span] of spans) {
+      const c = CHAINS[chainId];
+      if (!c) {
+        check(`chain ${chainId} ada di daftar chain audit`, false, "petak untuk chain yang tidak dikenal audit ini");
+        continue;
+      }
+      try {
+        const p = providerFor(chainId);
+        const head = await p.getBlockNumber();
+        // Alamat mati: hasilnya pasti kosong, jadi yang diuji murni apakah RENTANGNYA
+        // diterima — tidak bergantung pasar mana yang sedang hidup di chain itu.
+        await p.getLogs({
+          address: "0x000000000000000000000000000000000000dEaD",
+          fromBlock: Math.max(0, head - span + 1),
+          toBlock: head,
+          topics: [["0x" + "ab".repeat(32)]],
+        });
+        ok(`${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima`, `kepala blok ${head}`);
+      } catch (e) {
+        const msg = String(e?.error?.message ?? e?.shortMessage ?? e?.message ?? e).slice(0, 70);
+        check(
+          `${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima`,
+          false,
+          `DITOLAK: ${msg} — riwayat perdagangan di chain ini akan tampil kosong`
+        );
+      }
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

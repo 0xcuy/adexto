@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
-import { readOnChainSwaps, buildCandles } from "@/lib/onchain-trades";
+import { readOnChainSwaps, buildCandles, type SwapCoverage } from "@/lib/onchain-trades";
 import { appendTrade, authorizeTelemetryWrite, listTrades, validateTrade, type TradeEvent } from "@/lib/telemetry";
 
 /**
@@ -34,12 +34,17 @@ export async function GET(req: Request) {
      * pasar diringkas jadi dua atau tiga bar — dan arah tiap perdagangan hilang di
      * dalamnya. Lantai itu membuang informasi yang justru paling ingin dilihat orang.
      *
-     * Batas atas 4 jam mengikuti pilihan interval terlebar di UI. Nilai bukan-angka atau
-     * nol jatuh ke 300, bukan ke NaN — `Math.max` dengan NaN mengembalikan NaN dan itu
-     * akan merusak seluruh perhitungan bucket di bawahnya tanpa suara.
+     * Batas atas mengikuti pilihan interval terlebar di UI. Dulu 4 jam, sekarang 1 tahun
+     * karena UI menawarkan 1d dan 1y — dan batas lama akan MENGGUNTING keduanya tanpa
+     * suara: permintaan 86.400 dijawab dengan bucket 14.400, jadi tombol "1d"
+     * menggambar bar 4 jam dan labelnya berbohong. Nilai bukan-angka atau nol jatuh ke
+     * 300, bukan ke NaN — `Math.max` dengan NaN mengembalikan NaN dan itu akan merusak
+     * seluruh perhitungan bucket di bawahnya tanpa suara.
      */
+    const MAX_BUCKET_SECONDS = 31_536_000; // 365 hari
     const bucketRaw = Number(searchParams.get("bucket"));
-    const bucketSeconds = Number.isFinite(bucketRaw) && bucketRaw >= 1 ? Math.min(14400, Math.floor(bucketRaw)) : 300;
+    const bucketSeconds =
+      Number.isFinite(bucketRaw) && bucketRaw >= 1 ? Math.min(MAX_BUCKET_SECONDS, Math.floor(bucketRaw)) : 300;
 
     // Each chain's deployment has its own pool and therefore its own price
     // history, so the chart must be able to pin a chain.
@@ -51,9 +56,21 @@ export async function GET(req: Request) {
 
     let trades: TradeEvent[] = [];
     let source: "onchain" | "agent" | "genesis" | "empty" = "empty";
+    let coverage: SwapCoverage | null = null;
 
     if (project?.poolAddress && project.poolLive) {
-      trades = await readOnChainSwaps(chain, project.poolAddress, symbol);
+      /**
+       * `project.blockNumber` diteruskan sebagai DASAR penelusuran log.
+       *
+       * Itu blok receipt peluncuran, dan karena token beserta kurvanya lahir dalam satu
+       * transaksi factory, tidak ada `Swap` yang bisa ada sebelumnya. Meneruskannya
+       * mengubah arti "riwayat penuh" dari perkiraan menjadi sesuatu yang bisa
+       * dinyatakan: penelusuran berhenti karena riwayatnya habis, bukan karena
+       * jendelanya habis.
+       */
+      const read = await readOnChainSwaps(chain, project.poolAddress, symbol, 400, project.blockNumber);
+      trades = read.trades;
+      coverage = read.coverage;
       if (trades.length > 0) source = "onchain";
     }
 
@@ -123,6 +140,16 @@ export async function GET(req: Request) {
       volumeNative: trades.reduce((sum, t) => sum + (t.amountNative || 0), 0),
       candles,
       trades,
+      /**
+       * Seberapa jauh pembacaan benar-benar menjangkau.
+       *
+       * Sebelumnya respons ini tidak memuat apa pun tentang jangkauan, jadi riwayat yang
+       * terpotong dan riwayat yang utuh terkirim dalam bentuk yang sama persis. Klien
+       * lalu menggambar apa yang diterimanya seolah itu segalanya — dan ketika jendela
+       * 45.000 blok memotong perdagangan hari sebelumnya, tidak ada satu pun field yang
+       * bisa dipakai untuk mengatakannya.
+       */
+      coverage,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

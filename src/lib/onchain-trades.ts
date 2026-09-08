@@ -13,12 +13,78 @@ import type { ChainInfo } from "@/lib/chains";
 import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ADEXTO_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
 import type { TradeEvent } from "@/lib/telemetry";
 
-const LOOKBACK_BLOCKS = 45_000;
+/**
+ * Lebar rentang `getLogs` yang benar-benar diterima tiap RPC publik. DIUKUR, bukan
+ * disalin dari dokumentasi.
+ *
+ * Angka ini menggantikan satu konstanta `LOOKBACK_BLOCKS = 45_000` yang dipakai untuk
+ * SEMUA chain, dan konstanta itu rusak dalam dua arah sekaligus:
+ *
+ * 1. Sebagai jendela, 45.000 blok bukan satuan waktu. Terukur: 1,052 s/blok di 0G
+ *    (13,2 jam), 2,000 di Base (25,0 jam), 0,251 di Arbitrum (3,1 jam), 0,302 di
+ *    Monad (3,8 jam). Jadi "riwayat" yang ditampilkan berarti empat hal berbeda
+ *    tergantung chain, dan di 0G perdagangan kemarin jatuh keluar dari feed.
+ * 2. Sebagai permintaan, 45.000 blok DITOLAK di dua dari empat chain. Terukur: Base
+ *    menolak di 20.000 dengan 413 Payload Too Large, Monad menolak di 200. Karena
+ *    seluruh badan fungsi ini dibungkus `try` yang mengembalikan array kosong, dua
+ *    chain itu tidak menampilkan "RPC menolak kueri" melainkan "belum ada
+ *    perdagangan" — kegagalan yang tidak bisa dibedakan dari pasar yang benar-benar
+ *    kosong.
+ *
+ * Nilai di bawah diberi margin dari yang terukur lolos: 0G dan Arbitrum lolos sampai
+ * 2.000.000, Base lolos di 10.000, Monad di 100. Chain tanpa entri memakai 10.000,
+ * yang terbukti diterima di keempat RPC yang diuji kecuali Monad.
+ */
+const LOG_SPAN_BY_CHAIN: Record<number, number> = {
+  16661: 500_000, // 0G mainnet
+  8453: 10_000, // Base
+  42161: 500_000, // Arbitrum
+  143: 100, // Monad
+};
+const DEFAULT_LOG_SPAN = 10_000;
+
+/**
+ * Anggaran panggilan `getLogs` per pembacaan.
+ *
+ * Penelusuran ke belakang harus punya batas, kalau tidak Monad — yang hanya menerima
+ * 100 blok per panggilan, yaitu sekitar 30 detik riwayat — akan mencoba ribuan
+ * panggilan untuk satu kali muat halaman.
+ *
+ * Konsekuensinya diterima dengan sadar dan DILAPORKAN, bukan disembunyikan: pada chain
+ * berpetak sempit, riwayat yang terbaca memang pendek, dan `coverage.reachedLaunch`
+ * menyatakannya supaya UI tidak menyiratkan pasarnya lahir di sana. Indexer adalah
+ * jawaban sebenarnya untuk chain seperti itu; subgraph sudah hidup di Base dan Arbitrum
+ * tetapi belum dibaca di sini, dan 0G tidak punya subgraph sama sekali.
+ */
+const MAX_LOG_CALLS = 16;
 const CACHE_TTL_MS = 15_000;
+
+/** Sejauh mana pembacaan benar-benar menjangkau. Tanpa ini, terpotong tidak terlihat. */
+export interface SwapCoverage {
+  /** Blok tertua yang BENAR-BENAR dipindai. */
+  fromBlock: number | null;
+  toBlock: number | null;
+  /** Penelusuran mencapai blok peluncuran pasar, jadi riwayatnya utuh. */
+  reachedLaunch: boolean;
+  /** Berhenti karena anggaran atau batas jumlah, bukan karena riwayat habis. */
+  truncated: boolean;
+  blocksScanned: number;
+  calls: number;
+  /**
+   * Pesan kalau RPC menolak. Dipisahkan dari "nol perdagangan" dengan sengaja: dua
+   * keadaan itu terlihat sama di UI selama satu tahun dan itulah cacatnya.
+   */
+  error: string | null;
+}
+
+export interface SwapReadResult {
+  trades: TradeEvent[];
+  coverage: SwapCoverage;
+}
 
 interface CacheEntry {
   at: number;
-  trades: TradeEvent[];
+  result: SwapReadResult;
 }
 
 declare global {
@@ -57,37 +123,101 @@ const SWAP_IFACES = [
 const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
 const ifaceForTopic = (topic0: string) => SWAP_IFACES[SWAP_TOPICS.indexOf(topic0)];
 
+const emptyCoverage = (error: string | null = null): SwapCoverage => ({
+  fromBlock: null,
+  toBlock: null,
+  reachedLaunch: false,
+  truncated: false,
+  blocksScanned: 0,
+  calls: 0,
+  error,
+});
+
 /**
  * @param limit How many of the most recent swaps to decode. Raised from 60 because
  *        the indicators need history to exist at all: RSI(14) needs 15 candles,
  *        MACD(12,26,9) needs 34 and SMA(50) needs 50, so a 60-trade window could
  *        leave the longer ones permanently warming up on a real market.
+ * @param launchBlock Blok tempat pasar ini LAHIR — `ProjectRecord.blockNumber`, yaitu
+ *        blok receipt peluncuran. Token dan kurvanya dibuat dalam satu transaksi
+ *        factory, jadi tidak ada `Swap` yang bisa ada sebelum blok itu. Dipakai sebagai
+ *        DASAR penelusuran, dan itu yang membuat "riwayat utuh" bisa dinyatakan sebagai
+ *        fakta, bukan harapan: begitu dasar tercapai, tidak ada lagi yang bisa terlewat.
+ *        `null` untuk catatan lama yang tidak menyimpannya; penelusuran lalu jatuh ke
+ *        anggaran panggilan dan `reachedLaunch` tetap `false` karena memang tidak
+ *        terbukti.
  */
 export async function readOnChainSwaps(
   chain: ChainInfo,
   poolAddress: string,
   symbol: string,
-  limit = 400
-): Promise<TradeEvent[]> {
-  if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return [];
+  limit = 400,
+  launchBlock: number | null = null
+): Promise<SwapReadResult> {
+  if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) {
+    return { trades: [], coverage: emptyCoverage("Pool address is not a valid contract address.") };
+  }
 
-  const key = `${chain.chainId}:${poolAddress.toLowerCase()}`;
+  const key = `${chain.chainId}:${poolAddress.toLowerCase()}:${launchBlock ?? "nolaunch"}`;
   const hit = cache().get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.trades.slice(0, limit);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    return { trades: hit.result.trades.slice(0, limit), coverage: hit.result.coverage };
+  }
 
   try {
     const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const latest = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, latest - LOOKBACK_BLOCKS);
-    // topic0 sebagai daftar = OR, jadi satu panggilan menangkap swap kurva maupun hook.
-    const logs = await provider.getLogs({
-      address: poolAddress,
-      fromBlock,
-      toBlock: latest,
-      topics: [SWAP_TOPICS],
-    });
+    const span = LOG_SPAN_BY_CHAIN[chain.chainId] ?? DEFAULT_LOG_SPAN;
+
+    /**
+     * Dasar penelusuran. Blok peluncuran kalau diketahui, kalau tidak sejauh anggaran.
+     *
+     * Dengan blok peluncuran, penelusuran berhenti karena riwayatnya HABIS. Tanpa itu,
+     * ia berhenti karena anggarannya habis — keadaan yang sama sekali berbeda, dan
+     * `reachedLaunch` di bawah membedakan keduanya.
+     */
+    const floor = Math.max(0, launchBlock && launchBlock > 0 ? launchBlock : latest - span * MAX_LOG_CALLS);
+
+    /**
+     * Berjalan MUNDUR dari kepala, bukan satu kueri lebar.
+     *
+     * Mundur karena yang paling dibutuhkan adalah perdagangan terbaru: kalau anggaran
+     * habis, yang hilang adalah bagian tertua, bukan yang paling penting. Satu kueri
+     * lebar tidak mungkin lagi begitu petaknya 100 blok di Monad.
+     */
+    const collected: ethers.Log[] = [];
+    let to = latest;
+    let calls = 0;
+    let reachedLaunch = false;
+    let oldestScanned = latest;
+
+    while (to >= floor && calls < MAX_LOG_CALLS) {
+      const from = Math.max(floor, to - span + 1);
+      // topic0 sebagai daftar = OR, jadi satu panggilan menangkap swap kurva maupun hook.
+      const batch = await provider.getLogs({
+        address: poolAddress,
+        fromBlock: from,
+        toBlock: to,
+        topics: [SWAP_TOPICS],
+      });
+      collected.unshift(...batch);
+      calls += 1;
+      oldestScanned = from;
+      if (from <= floor) {
+        // Hanya boleh disebut mencapai peluncuran kalau dasarnya MEMANG blok peluncuran.
+        reachedLaunch = Boolean(launchBlock && launchBlock > 0);
+        break;
+      }
+      // Cukup ketika sudah memenuhi `limit`: sisanya akan dipangkas juga di bawah, jadi
+      // memindainya hanya membebani RPC tanpa menambah satu pun baris yang tampil.
+      if (collected.length >= limit) break;
+      to = from - 1;
+    }
+
+    const logs = collected;
+    const truncated = !reachedLaunch;
 
     let decimals = 18;
     try {
@@ -184,10 +314,33 @@ export async function readOnChainSwaps(
       });
     }
 
-    cache().set(key, { at: Date.now(), trades });
-    return trades;
-  } catch {
-    return [];
+    const result: SwapReadResult = {
+      trades,
+      coverage: {
+        fromBlock: oldestScanned,
+        toBlock: latest,
+        reachedLaunch,
+        truncated,
+        blocksScanned: Math.max(0, latest - oldestScanned + 1),
+        calls,
+        error: null,
+      },
+    };
+    cache().set(key, { at: Date.now(), result });
+    return { trades: result.trades.slice(0, limit), coverage: result.coverage };
+  } catch (error: any) {
+    /**
+     * Kegagalan RPC DILAPORKAN, tidak lagi menjadi array kosong.
+     *
+     * Dulu blok ini `catch { return [] }`, dan itu membuat dua keadaan yang sangat
+     * berbeda terlihat persis sama di UI: "pasar ini belum pernah diperdagangkan" dan
+     * "RPC menolak kueri kita". Yang kedua benar-benar terjadi di Base dan Monad pada
+     * setiap pembacaan, karena kode meminta 45.000 blok sementara Base menolak di
+     * 20.000 dan Monad di 200 — jadi kedua chain itu melaporkan pasar kosong selama
+     * ini, dan tidak ada yang bisa membedakannya dari kebenaran.
+     */
+    const message = String(error?.shortMessage ?? error?.message ?? error);
+    return { trades: [], coverage: emptyCoverage(message.slice(0, 200)) };
   }
 }
 

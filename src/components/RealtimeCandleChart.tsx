@@ -101,7 +101,36 @@ const INTERVALS = [
   { label: "15m", seconds: 900 },
   { label: "1h", seconds: 3600 },
   { label: "4h", seconds: 14400 },
+  /**
+   * 1d dan 1y adalah bar 86.400 dan 31.536.000 detik, bukan hari kalender dan bukan
+   * tahun kalender. Bucket dihitung `floor(detik / lebar) * lebar` dari epoch, jadi
+   * batasnya jatuh di kelipatan tetap, bukan di tengah malam zona waktu mana pun. Untuk
+   * bar harian bedanya paling banyak beberapa jam; disebut di sini supaya tidak ada yang
+   * menyimpulkan ini candle harian bursa.
+   *
+   * Keduanya hanya berarti kalau riwayatnya benar-benar sepanjang itu. Yang membuatnya
+   * mungkin bukan tombol ini, melainkan penelusuran log yang dibatasi blok peluncuran di
+   * `readOnChainSwaps` — sebelum itu jendelanya 13,2 jam di 0G, jadi "1d" akan
+   * menghasilkan satu bar dan "1y" satu bar juga.
+   *
+   * Pada pasar yang lebih muda dari satu bar, hasilnya memang satu candle. Itu aritmetika
+   * umur pasar, bukan kerusakan, dan `YOUNG_MARKET_SLOTS` sudah menangani tampilannya
+   * supaya satu bar tidak diregangkan selebar pane.
+   */
+  { label: "1d", seconds: 86400 },
+  { label: "1y", seconds: 31536000 },
 ];
+
+/**
+ * Di atas ambang ini, sumbu waktu menampilkan TANGGAL saja, tanpa jam.
+ *
+ * Sumbu dikonfigurasi sekali dengan `timeVisible: true`, yang mencetak jam untuk setiap
+ * label. Pada bar harian atau tahunan itu menghasilkan label seperti "07:00" di bawah
+ * candle yang mewakili satu hari penuh — jam yang tidak berarti apa pun karena barnya
+ * tidak terjadi pada jam itu. Ambangnya di bawah 1 hari supaya 4 jam ke bawah tidak
+ * berubah perilakunya.
+ */
+const DATE_ONLY_FROM_SECONDS = 86400;
 
 /**
  * Di bawah jumlah bar ini, jendela waktu DIPATOK dan tidak di-fit.
@@ -263,6 +292,18 @@ export default function RealtimeCandleChart({
     if (url.searchParams.get("tf") === String(interval)) return;
     url.searchParams.set("tf", String(interval));
     window.history.replaceState(null, "", url.toString());
+  }, [interval]);
+
+  /**
+   * Sumbu waktu ikut interval. Tanpa ini, bar harian berlabel jam.
+   *
+   * Opsi `timeScale` dipasang SEKALI saat chart dibuat, jadi `timeVisible: true` berlaku
+   * untuk semua interval — termasuk 1d dan 1y, di mana label jam mengarang ketepatan yang
+   * tidak dimiliki barnya: satu bar mewakili seluruh hari, jadi mencetak "07:00" di
+   * bawahnya menyiratkan sesuatu terjadi pada jam itu.
+   */
+  useEffect(() => {
+    chartRef.current?.timeScale().applyOptions({ timeVisible: interval < DATE_ONLY_FROM_SECONDS });
   }, [interval]);
   const [priceNative, setPriceNative] = useState(fallbackPriceNative);
   const [changePct, setChangePct] = useState(0);

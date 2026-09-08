@@ -31,12 +31,32 @@ interface Trade {
 const fmtToken = (v: number) =>
   v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1000 ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : v.toFixed(2);
 
+/**
+ * Umur relatif. Berlanjut melewati hari, karena sekarang riwayatnya bisa sampai sana.
+ *
+ * Satuan terbesarnya dulu `d` tanpa batas atas, jadi fill berumur enam minggu tampil
+ * sebagai "42d". Itu tidak salah, hanya berhenti berguna — dan selama jendela bacanya
+ * masih 13 jam, kasus itu tidak pernah muncul sehingga tidak pernah terasa. Setelah
+ * jendelanya dibatasi blok peluncuran alih-alih hitungan blok tetap, ia muncul.
+ */
 function ago(timestamp: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(timestamp)) / 1000));
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
+  if (seconds < 2_592_000) return `${Math.floor(seconds / 86400)}d`;
+  if (seconds < 31_536_000) return `${Math.floor(seconds / 2_592_000)}mo`;
+  return `${Math.floor(seconds / 31_536_000)}y`;
+}
+
+interface Coverage {
+  fromBlock: number | null;
+  toBlock: number | null;
+  reachedLaunch: boolean;
+  truncated: boolean;
+  blocksScanned: number;
+  calls: number;
+  error: string | null;
 }
 
 export default function LiveTradeFeed({
@@ -51,6 +71,7 @@ export default function LiveTradeFeed({
 }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [source, setSource] = useState<string>("");
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -63,6 +84,7 @@ export default function LiveTradeFeed({
         if (cancelled) return;
         setTrades(Array.isArray(json.trades) ? json.trades : []);
         setSource(String(json.source || ""));
+        setCoverage(json.coverage ?? null);
       } catch {
         // keep previous
       } finally {
@@ -103,10 +125,20 @@ export default function LiveTradeFeed({
         ) : trades.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-1.5 text-center px-3">
             <Info className="w-4 h-4 text-ink-faint" />
-            <span className="text-ink-soft text-[10px]">No trades recorded for ${symbol} yet.</span>
+            {/* Penolakan RPC dipisahkan dari pasar yang benar-benar kosong. Keduanya dulu
+                menampilkan kalimat yang sama, sehingga kegagalan baca terbaca sebagai fakta
+                tentang pasarnya. */}
+            {coverage?.error ? (
+              <>
+                <span className="text-warn text-[10px]">Could not read trade history from the node.</span>
+                <span className="text-ink-faint text-[9px] break-all">{coverage.error}</span>
+              </>
+            ) : (
+              <span className="text-ink-soft text-[10px]">No trades recorded for ${symbol} yet.</span>
+            )}
           </div>
         ) : (
-          trades.slice(0, 12).map((t) => (
+          trades.slice(0, 50).map((t) => (
             <div
               key={t.id}
               className={`p-1.5 rounded-xl border flex items-center justify-between gap-2 ${
@@ -162,6 +194,28 @@ export default function LiveTradeFeed({
           ))
         )}
       </div>
+
+      {/* Jangkauan pembacaan, dinyatakan alih-alih disiratkan.
+          Pertanyaan yang memicu baris ini: "kenapa feed hari kemarin hilang?" Jawabannya
+          waktu itu adalah jendela 45.000 blok — sekitar 13 jam di 0G — tetapi tidak ada
+          apa pun di layar yang bisa mengatakannya, jadi feed yang terpotong tampak
+          identik dengan feed yang lengkap. Sekarang kalau riwayatnya utuh sampai
+          peluncuran, itu dinyatakan; kalau terpotong, itu juga dinyatakan. */}
+      {loaded && isLive && trades.length > 0 && coverage && (
+        <div className="mt-2 shrink-0 border-t border-line pt-1.5 text-[9px] text-ink-faint">
+          {coverage.reachedLaunch ? (
+            <span>
+              {trades.length} fill{trades.length === 1 ? "" : "s"} · full history since launch
+            </span>
+          ) : (
+            <span>
+              {trades.length} fill{trades.length === 1 ? "" : "s"} · newest {coverage.blocksScanned.toLocaleString("en-US")} blocks
+              only, older fills not read
+            </span>
+          )}
+          {trades.length > 50 && <span> · showing 50</span>}
+        </div>
+      )}
     </div>
   );
 }
