@@ -1177,13 +1177,25 @@ console.log("\n── VerifiedDeploymentCard: caption vs isi tabelnya sendiri �
         ok("caption tidak mengklaim satu generasi untuk seluruh daftar", `tabel memuat ${generations} generasi`);
       }
 
-      // Dan generasi yang DIPAKAI harus tetap disebut, supaya perbaikannya tidak
-      // berayun ke ekstrem lain: caption yang tidak menyebut apa pun membuat pembaca
-      // harus menebak baris mana yang relevan.
+      /**
+       * Generasi yang DIPAKAI harus tetap disebut — tapi lewat config, bukan nama tetap.
+       *
+       * Pemeriksaan ini dulu menuntut string `AdextoCurveFactory`, dan dengan begitu
+       * penjaganya sendiri ikut membeku di generasi lama: begitu caption dibetulkan untuk
+       * menamai AdextoFactory 0.11.0 — yang memang generasi aktif — pemeriksaan inilah yang
+       * gagal. Sebuah penjaga yang menghukum perbaikan lebih buruk daripada tidak ada
+       * penjaga.
+       *
+       * Yang diperiksa sekarang JSX mentahnya, bukan `caption`, karena `caption` sengaja
+       * membuang ekspresi `{...}` dan justru di situlah nilainya sekarang berada.
+       */
+      const rawCaption = captionMatch[1];
       check(
-        "caption menyebut generasi yang dipakai",
-        /AdextoCurveFactory/.test(caption),
-        /AdextoCurveFactory/.test(caption) ? "disebut" : "tambahkan nama factory yang aktif"
+        "caption menyebut generasi aktif lewat config, bukan nama tetap",
+        /CURVE_FACTORY_GENERATION\.contract/.test(rawCaption),
+        /CURVE_FACTORY_GENERATION\.contract/.test(rawCaption)
+          ? "diturunkan dari CURVE_FACTORY_GENERATION"
+          : "nama factory aktif ditulis tetap; pakai CURVE_FACTORY_GENERATION.contract"
       );
     }
 
@@ -1734,23 +1746,45 @@ console.log("\n── nomor generasi factory di dalam prosa vs label yang terver
   const current = cfg.match(/CURVE_FACTORY_GENERATION[\s\S]*?version:\s*"([^"]+)"/)?.[1] ?? null;
   check("versi generasi saat ini terbaca dari config", Boolean(current), current ?? "pola berubah");
 
-  const claims = [];
+  /**
+   * Literal versi di kalimat yang MENGKLAIM KEKINIAN dilarang, apa pun nilainya.
+   *
+   * Ini poin yang tidak saya pahami saat menulis penjaga versi pertama. Penjaga itu hanya
+   * membandingkan literal dengan versi sekarang, jadi ia lolos selama angkanya kebetulan
+   * cocok. Padahal literal yang cocok HARI INI tetap salah, karena ia akan membeku:
+   * itulah yang terjadi pada "ADEXTO Protocol v0.10.0" di baris paling atas halaman utama,
+   * pada "launch factory 0.10.0" di empat kartu chain dan empat entri marquee, pada
+   * caption registry yang menamai generasi digantikan sebagai "the generation that
+   * launches tokens today", dan pada /docs yang membekukan versi subgraph di v0.10.2.
+   * Ketujuh tempat itu benar saat ditulis.
+   *
+   * Yang TIDAK dilarang adalah batas historis. "Markets created before 0.11.0 run
+   * SovereignCurve" dan "The 0.10.0 curve has the first two" harus tetap literal, karena
+   * keduanya menyatakan batas generasi yang sudah lewat — menjadikannya mengikuti config
+   * akan membuatnya BERUBAH JADI SALAH begitu 0.12.0 rilis. Karena itu yang dicocokkan di
+   * bawah hanya bentuk yang mengklaim keadaan sekarang.
+   */
+  const CURRENCY_CLAIMS = [
+    [/Protocol\s+v\d+\.\d+\.\d+/i, "label versi protokol"],
+    [/launch factory\s+v?\d+\.\d+\.\d+/i, "label factory peluncuran"],
+    [/factory\s+v?\d+\.\d+\.\d+[^.]{0,30}\b(broadcast|live)\b/i, "factory disebut broadcast/live"],
+    [/v?\d+\.\d+\.\d+[^.]{0,60}is the generation that launches/i, "caption generasi yang meluncurkan"],
+    [/Studio[^.]{0,80}at\s+v\d+\.\d+\.\d+/i, "versi deployment Studio"],
+  ];
+  const frozen = [];
   for (const f of sourceFiles()) {
-    for (const m of visibleText(f).matchAll(/factory\s+v?(\d+\.\d+\.\d+)[^.]{0,80}?broadcast/gi)) {
-      claims.push({ f, v: m[1] });
+    const text = visibleText(f);
+    for (const [re, what] of CURRENCY_CLAIMS) {
+      const hit = text.match(re);
+      if (hit) frozen.push(`${f} (${what}): "${hit[0].replace(/\s+/g, " ").slice(0, 52)}"`);
     }
   }
-  ok(
-    "kalimat yang menyebut factory ter-broadcast",
-    claims.length === 0 ? "tidak ada yang menulis versinya di prosa" : claims.map((c) => `${c.f}=${c.v}`).join(" · ")
-  );
-  const stale = claims.filter((c) => c.v !== current);
   check(
-    "setiap kalimat itu menyebut generasi yang sekarang, bukan yang digantikan",
-    stale.length === 0,
-    stale.length === 0
-      ? `semua cocok ${current}`
-      : `menyebut generasi digantikan sebagai deployment sekarang: ${stale.map((c) => `${c.f}=${c.v}`).join(", ")}`
+    "tidak ada literal versi di kalimat yang mengklaim keadaan sekarang",
+    frozen.length === 0,
+    frozen.length === 0
+      ? `harus datang dari config; versi sekarang ${current}`
+      : `akan membeku di angka itu: ${frozen.join(" · ")}`
   );
 }
 

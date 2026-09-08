@@ -1,4 +1,5 @@
 import { CHAINS } from "@/lib/chains";
+import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 
 /**
  * Tumpukan kartu chain di sisi kanan hero, membuka sendiri saat halaman dibuka.
@@ -137,9 +138,12 @@ export default function ChainCardStack() {
                 <p className="text-[11px] text-ink-faint" data-numeric>
                   chain {chain.chainId}
                 </p>
+                {/* Versi dari config, bukan literal. Dulu "0.10.0" dan membeku di sana
+                    setelah 0.11.0 di-broadcast, jadi keempat kartu chain menampilkan
+                    generasi yang salah dengan titik hijau di sebelahnya. */}
                 <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-ink-soft">
                   <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
-                  launch factory 0.10.0
+                  launch factory {CURVE_FACTORY_GENERATION.version}
                 </p>
               </div>
             </div>

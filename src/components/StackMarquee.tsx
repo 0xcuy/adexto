@@ -1,4 +1,5 @@
 import { CHAINS } from "@/lib/chains";
+import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 
 /**
  * Ticker stack ekosistem.
@@ -81,10 +82,10 @@ const STACK: StackEntry[] = [
   // urusan baris ini — itu sudah dinyatakan sekali di deret angka hero, dan
   // mengulangnya di sini hanya membuat sembilan chip berbunyi seperti daftar
   // tunggu.
-  { name: CHAINS["0G"].name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/0g.svg", mark: "0G", tint: "#111827" },
-  { name: CHAINS.Base.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/base.svg", mark: "B", tint: "#0052FF" },
-  { name: CHAINS.Arbitrum.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/arbitrum.svg", mark: "A", tint: "#12AAFF" },
-  { name: CHAINS.Monad.name, role: "launch factory 0.10.0 live", live: true, logo: "/brand/monad.svg", mark: "M", tint: "#836EF9" },
+  { name: CHAINS["0G"].name, role: `launch factory ${CURVE_FACTORY_GENERATION.version} live`, live: true, logo: "/brand/0g.svg", mark: "0G", tint: "#111827" },
+  { name: CHAINS.Base.name, role: `launch factory ${CURVE_FACTORY_GENERATION.version} live`, live: true, logo: "/brand/base.svg", mark: "B", tint: "#0052FF" },
+  { name: CHAINS.Arbitrum.name, role: `launch factory ${CURVE_FACTORY_GENERATION.version} live`, live: true, logo: "/brand/arbitrum.svg", mark: "A", tint: "#12AAFF" },
+  { name: CHAINS.Monad.name, role: `launch factory ${CURVE_FACTORY_GENERATION.version} live`, live: true, logo: "/brand/monad.svg", mark: "M", tint: "#836EF9" },
   // Chip World ID "proof of personhood" DICABUT bersama gerbangnya. Jangan
   // dikembalikan sebagai chip mati bertanda `live: false`: deret ini dibaca sebagai
   // daftar apa yang dipakai ADEXTO, jadi logo World di sini menyiratkan verifikasi

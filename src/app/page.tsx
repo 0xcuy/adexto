@@ -8,6 +8,7 @@ import StackMarquee from "@/components/StackMarquee";
    ikon-ikonnya. */
 import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCircle, HelpCircle } from "lucide-react";
 import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 import ChainCardStack from "@/components/ChainCardStack";
 import PillarCards from "@/components/PillarCards";
 
@@ -41,14 +42,21 @@ export default function HomePage() {
       <section className="hero-pad relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid items-center gap-12 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-10">
           <div className="text-center xl:text-left">
-        {/* v0.10.0, bukan v1.0.0.
-            Semver menyatakan 1.0.0 berarti API publiknya sudah stabil, dan major
-            nol berarti masih pengembangan awal di mana apa pun boleh berubah. Yang
-            kedua masih keadaan kita, meskipun factory-nya kini SUDAH di-broadcast
-            ke keempat mainnet: belum ada satu pun peluncuran nyata, jadi API-nya
-            belum pernah diuji oleh pemakaian. Angka ini naik ke 1.0.0 setelah
-            peluncuran pertama berhasil — supaya angkanya berarti sesuatu. */}
-        <p className="kicker mb-6 justify-center xl:justify-start">ADEXTO Protocol v0.10.0</p>
+        {/* Angkanya DITURUNKAN dari `CURVE_FACTORY_GENERATION`, tidak ditulis tangan lagi.
+            Sebelumnya literal "v0.10.0" dan ia membeku di sana setelah factory 0.11.0
+            di-broadcast ke keempat mainnet, jadi baris paling atas halaman utama menyebut
+            generasi yang sudah digantikan. Label itu sendiri sudah diperiksa
+            audit_consistency terhadap `VERSION` di chain, jadi sekarang tidak ada tempat
+            untuk menyimpang.
+
+            Alasan lama tetap berlaku untuk major nol, tapi dasarnya berubah: dulu tertulis
+            "belum ada satu pun peluncuran nyata", dan itu sudah tidak benar — ada dua pasar
+            hidup. Yang membuatnya tetap 0.x adalah bahwa nomor ini melacak GENERASI
+            KONTRAK, dan `VERSION` di keempat factory memang berbunyi 0.11.0. Tag rilis di
+            GitHub urutan terpisah untuk manusia. */}
+        <p className="kicker mb-6 justify-center xl:justify-start">
+          ADEXTO Protocol v{CURVE_FACTORY_GENERATION.version}
+        </p>
 
         <h1 className="text-[2.5rem] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.06] text-ink mb-6">
           Launch an AI agent token with no liquidity deposit.{" "}

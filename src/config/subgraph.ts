@@ -132,6 +132,24 @@ export const SUBGRAPH_ENV_NAMES = ENDPOINT_ENV;
 export const ANY_SUBGRAPH_CONFIGURED = Object.values(SUBGRAPH_ENDPOINTS).some(Boolean);
 
 /**
+ * Versi deployment Studio, DITURUNKAN dari endpoint yang sedang dikonfigurasi.
+ *
+ * Ada karena /docs menulis angkanya dengan tangan dan angka itu membeku di v0.10.2 sampai
+ * tiga rilis sesudahnya, sementara subgraph sudah v0.11.0. Penjaga yang ada memeriksa URL
+ * endpoint dan `subgraph/package.json`, jadi keduanya benar — yang menyimpang justru
+ * kalimat prosa di sebelahnya, dan tidak ada yang memeriksa prosa.
+ *
+ * Diturunkan dan bukan disalin, supaya satu-satunya cara mengubahnya adalah mengubah
+ * endpointnya sendiri. `null` kalau belum ada endpoint, dan pemanggil harus menyatakan
+ * keadaan itu alih-alih mencetak versi yang tidak ada.
+ */
+export const STUDIO_VERSION =
+  Object.values(SUBGRAPH_ENDPOINTS)
+    .filter(Boolean)
+    .map((url) => (url as string).match(/\/(v\d+\.\d+\.\d+)/)?.[1])
+    .find(Boolean) ?? null;
+
+/**
  * Request budget for a single chain.
  *
  * Short on purpose. The registry has already produced a complete answer by the

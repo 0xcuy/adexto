@@ -199,9 +199,19 @@ export default function VerifiedDeploymentCard() {
             <p className="text-xs sm:text-sm text-ink-soft mt-1">
               Every address here is deployed and can be checked on its own chain. The list spans two generations on
               purpose and each row states which one it is:{" "}
-              <code className="text-accent">AdextoCurveFactory</code> <strong className="text-ink">v0.10.0</strong> is
-              the generation that launches tokens today, and the superseded v1 entries are kept because they remain
-              deployed and permanent — dropping them would hide what earlier versions of this page pointed readers at.
+              {/* Kalimat ini membantah tabelnya sendiri untuk KEDUA kalinya, dengan cara
+                  yang sama seperti yang dijelaskan komentar di atas. Ia menamai
+                  AdextoCurveFactory v0.10.0 sebagai generasi yang meluncurkan token hari
+                  ini, padahal `records` di atas sudah membangun baris teratasnya dari
+                  `CURVE_FACTORY_GENERATION` — yaitu AdextoFactory 0.11.0. Nama DAN versinya
+                  sekarang dua-duanya dari konstanta yang sama, jadi caption tidak bisa lagi
+                  menyebut generasi yang berbeda dari tabel di bawahnya. */}
+              <code className="text-accent">{CURVE_FACTORY_GENERATION.contract}</code>{" "}
+              <strong className="text-ink">v{CURVE_FACTORY_GENERATION.version}</strong> is the generation that launches
+              tokens today, and the superseded{" "}
+              <code className="text-accent">{SUPERSEDED_CURVE_FACTORY_GENERATION.contract}</code>{" "}
+              v{SUPERSEDED_CURVE_FACTORY_GENERATION.version} and v1 entries are kept because they remain deployed and
+              permanent — dropping them would hide what earlier versions of this page pointed readers at.
               {/* Kalimat ini dulu berbunyi "…but {LAUNCH_CLAUSE}, which is why there is still
                   nothing to trade." Dua-duanya berhenti benar begitu $ADEXTO diluncurkan:
                   klausanya berubah makna, dan ada pasar yang bisa diperdagangkan. */}

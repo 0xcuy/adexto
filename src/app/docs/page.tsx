@@ -3,6 +3,7 @@ import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
 import { ShieldCheck, Cpu, Database, Zap, Lock, Terminal, Layers, Sparkles, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
 import { agentAttestation } from "@/lib/og-attestation";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { STUDIO_VERSION } from "@/config/subgraph";
 
 /**
  * Halaman ini server component, jadi status attestation dibaca langsung dari
@@ -91,7 +92,7 @@ export default async function DocsPage() {
                 factory tanpa indexing error. Yang MASIH benar adalah bagian
                 keduanya — situs ini belum membacanya, karena SUBGRAPH_URL_* sengaja
                 dibiarkan kosong sampai ada satu peluncuran nyata yang terindeks. */}
-            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is deployed to Subgraph Studio for Base and Arbitrum One at v0.10.2, both synced past the factory&apos;s start block with no indexing errors. This site is now wired to read them, and the registry remains the primary source with the indexer additive — so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. No data comes from The Graph yet for a simple reason: the indexer is only asked about curves the registry already knows, and nothing has launched. 0G and Monad cannot use Studio at all: 0G is absent from The Graph&apos;s networks registry, and Monad is served by Firehose and Substreams only.</p>
+            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is deployed to Subgraph Studio for Base and Arbitrum One at {STUDIO_VERSION ?? "no version configured"}, both synced past the factory&apos;s start block with no indexing errors. This site is now wired to read them, and the registry remains the primary source with the indexer additive — so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. No data comes from The Graph for the two live markets either, and the reason is narrower than it looks: both are on 0G, which Studio cannot serve at all, so there is no indexer to ask about them. 0G and Monad cannot use Studio at all: 0G is absent from The Graph&apos;s networks registry, and Monad is served by Firehose and Substreams only.</p>
           </div>
 
           {/* Amber di kartu ini dulu menempatkan Cloudflare x402 sederet dengan
