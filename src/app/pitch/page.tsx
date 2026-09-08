@@ -23,8 +23,8 @@ export default function PitchDeckPage() {
         </h1>
         <p className="text-ink-soft text-sm sm:text-base mt-4 leading-relaxed">
           August 2026 · adexto.xyz · seeking $150K–$500K in ecosystem grants, primarily 0G and Base.
-          The curve factory is live on all four mainnets and {LAUNCH_CLAUSE}; this memo
-          says so wherever it matters rather than reading as traction it does not have.
+          The curve factory is live on all four mainnets and {LAUNCH_CLAUSE}. Every figure in this memo is
+          either read from chain or marked as a model, so you can check it instead of believing it.
         </p>
       </div>
 
@@ -52,9 +52,28 @@ export default function PitchDeckPage() {
             <ShieldAlert className="w-3.5 h-3.5" />
             <span>Executive summary</span>
           </div>
+          {/* Judul dan label kartu diubah dari kerangka BIAYA ke kerangka JAMINAN.
+              Tidak ada satu fakta yang berubah — ketiga tradeoff tetap tertulis utuh,
+              karena pembaca due diligence memang menghargainya dan membuangnya akan
+              menjadikan halaman ini brosur.
+
+              Yang salah adalah dari mana kekuatannya diambil. "what each one costs us"
+              menjadikan tesisnya sebagai daftar pengakuan, padahal properti itu SENDIRI
+              produknya: tarif fee `immutable`, tidak ada owner, tidak ada setter, tidak
+              ada jalur upgrade. Itu bisa diperiksa dengan satu panggilan RPC, dan hal
+              yang bisa diperiksa lebih kuat daripada proyeksi.
+
+              "Cost to us" juga diganti "Tradeoff" — artinya sama, tapi yang pertama
+              terbaca sebagai permintaan maaf dan yang kedua sebagai keputusan teknik. */}
           <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-            Three design choices, and what each one costs us
+            Three rules nobody can change, including us
           </h2>
+          <p className="text-ink-soft text-sm leading-relaxed">
+            None of this is a new idea. It is the property set that predates upgradeable contracts and admin
+            multisigs: no owner, no setter, no upgrade path, and a supply that no key can reissue. What is unusual
+            is applying it to a launchpad, where the standard design keeps a privileged key for exactly the
+            emergencies that later become exit routes. Every claim below is a function call away from being checked.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
             <div className="card card-hover p-4 space-y-2">
@@ -64,7 +83,7 @@ export default function PitchDeckPage() {
                 0.10% of every swap, taken from inside the 0.30% the creator configures rather than added on
                 top of it.
                 <strong className="text-ink block mt-1">
-                  Cost to us: a creator who wanted a fast exit has no reason to pick this.
+                  Tradeoff: a creator who wanted a fast exit has no reason to pick this.
                 </strong>
               </p>
             </div>
@@ -75,7 +94,7 @@ export default function PitchDeckPage() {
                 The curve opens against a virtual reserve, so a launch costs gas only, and it never migrates to
                 an external pool — removing the step most launchpad exploits target.
                 <strong className="text-ink block mt-1">
-                  Cost to us: liquidity can never be deepened by a partner, only by trading volume.
+                  Tradeoff: liquidity can never be deepened by a partner, only by trading volume.
                 </strong>
               </p>
             </div>
@@ -160,13 +179,36 @@ export default function PitchDeckPage() {
               tersambung — jadi judulnya menyebut apa isinya: model, bukan laporan.
               Kartu pertama sudah lama ditandai "(planned)"; tiga lainnya tidak,
               padahal statusnya sama. Sekarang keempatnya konsisten. */}
+          {/* Empat baris "Target: $450k/mo", "$185k MRR", "$120k/mo", "$80k/mo" DICABUT,
+              dan pencabutan itulah yang memperbaiki nada seluruh halaman.
+
+              Nada mindernya adalah GEJALA, bukan penyakitnya. Angka $450k/bulan pada
+              protokol dengan 14 swap memaksa kalimat merendahkan berdiri persis di
+              sebelahnya — itulah asal "earning a rounding error" dan "none of them
+              earning yet". Begitu proyeksinya hilang, kalimat yang sama tidak perlu
+              dimaafkan lagi.
+
+              Angka pengganti bukan hedge. Tarif lebih kuat daripada proyeksi karena ia
+              benar di SETIAP skala: 0,10% dari volume berlaku pada volume berapa pun,
+              sementara "$450k pada volume $900M" hanya benar pada satu volume yang kami
+              karang sendiri. Pembaca bisa mengalikannya sendiri; melakukannya untuk dia
+              hanya memindahkan asumsi kami ke dalam angka yang tampak seperti temuan.
+
+              Seluruh penyangkalan TETAP: settlement belum dibangun, tidak ada billing,
+              tool-nya tidak ada. Yang dicabut angka fantasinya, bukan pengungkapannya. */}
           <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-            Four planned revenue streams, none of them earning yet
+            Four revenue mechanisms, and exactly how far each one is built
           </h2>
+          <p className="text-ink-soft text-sm leading-relaxed">
+            Rates, not forecasts. A rate holds at every volume; a forecast holds at one volume we picked ourselves.
+            The first mechanism is on chain and collecting today, and its destination has no setter, so what it will
+            earn at scale is arithmetic rather than a promise. The other three are named at their intended rate with
+            their current state stated plainly.
+          </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">1. Curve Swap Take-Rate (deployed, earning a rounding error)</strong>
+              <strong className="text-ink block font-bold text-sm">1. Curve swap take-rate — live on four mainnets, collecting</strong>
               {/* Riwayat baris ini layak disimpan, karena ia sudah dua kali salah ke
                   arah yang berlawanan.
 
@@ -188,7 +230,7 @@ export default function PitchDeckPage() {
                   Dibaca dari chain: $ADEXTO 0,0000372 dibayar + 0,0000288 mengendap,
                   $ADT 0,00001 dibayar. Total seumur hidup 0,000076 0G. */}
               <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. Revenue so far is 0.000076 0G across both markets — a fraction of a cent, because revenue needs volume and there have been 14 swaps. Markets created by the previous factory can never pay it — their fee rates are immutable too.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $450k/mo at $900M Monthly Volume</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 0.10% of swap volume · destination immutable · no setter exists</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
@@ -199,7 +241,7 @@ export default function PitchDeckPage() {
                   `settlementImplemented: false` dan menjawab 501 untuk voucher yang
                   sah, jadi tidak ada pembayaran untuk dibagi 10%. */}
               <p className="text-ink-soft">A 10% facilitation take-rate on paid agent API calls. The 402 challenge and its quote are live; settlement is not built, so no payment exists to take a share of yet.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $120k/mo at 12M monthly tool calls</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 10% of paid calls · challenge live, settlement not built</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
@@ -214,7 +256,7 @@ export default function PitchDeckPage() {
               {/* Dulu "$185k/mo ARR" — ARR itu tahunan, jadi "per bulan ARR" bukan
                   satuan yang ada. Salah satuan di halaman proyeksi keuangan adalah
                   hal yang paling cepat membuat seluruh tabel diragukan. */}
-              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $185k MRR across 2,500 active enclaves</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Modelled tiers: $29 / $149 / $499 per month · nothing can bill them yet</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
@@ -226,7 +268,7 @@ export default function PitchDeckPage() {
                   dan tidak di tempat lain. Menyebutnya "premium" menyiratkan ada
                   yang bisa dibeli. */}
               <p className="text-ink-soft">A revenue split on agent tooling — security, brand assets, schedulers. None of these tools exist yet: there is no MCP server in this repo, only the names.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Target: $80k/mo in addon subscriptions</span>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: revenue split on agent tooling · no MCP server exists yet</span>
             </div>
           </div>
         </div>
@@ -237,9 +279,14 @@ export default function PitchDeckPage() {
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Competitive moat &amp; benchmark matrix</span>
           </div>
-          {/* "Why ADEXTO Dominates the Next Cycle" dihapus. Kami belum meluncurkan
-              satu token pun di mainnet; mengklaim dominasi siklus dari posisi itu
-              melemahkan tabel di bawahnya, yang sebenarnya isinya baik. */}
+          {/* "Why ADEXTO Dominates the Next Cycle" dihapus, dan tetap dihapus meskipun
+              alasan aslinya sudah berubah.
+
+              Alasan lamanya: kami belum meluncurkan satu token pun. Itu sudah tidak
+              benar — dua pasar hidup dengan 14 swap. Tapi 14 swap juga bukan dasar untuk
+              mengklaim dominasi siklus, jadi judulnya tetap tidak dipakai. Tabel di
+              bawahnya membandingkan DESAIN, dan perbandingan desain berdiri sendiri tanpa
+              perlu klaim pangsa pasar. */}
           <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">How the designs differ</h2>
 
           <div className="overflow-x-auto">
