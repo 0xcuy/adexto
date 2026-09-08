@@ -6,6 +6,7 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 
 export default function PitchDeckPage() {
   return (
@@ -342,8 +343,15 @@ export default function PitchDeckPage() {
             <div>
               <strong className="text-ink block text-sm">Phase 1 — contracts and app</strong>
               <span className="text-ink-soft text-xs">
+                {/* Nomor generasi ini basi satu generasi: tertulis v0.10.0 sementara yang
+                    menjalankan kedua pasar live adalah AdextoFactory 0.11.0, dan 0.10.0
+                    adalah factory yang DIGANTIKAN. Angkanya diambil dari
+                    src/config/contracts.ts, bukan ditulis tangan lagi, karena label itu
+                    sudah diperiksa audit_consistency terhadap VERSION di chain — jadi
+                    baris ini tidak bisa lagi menyimpang sendiri. */}
                 Curve and factory written, tested on five EVMs; app complete end to end; x402 quote endpoint
-                deployed; curve factory v0.10.0 broadcast to 0G, Base, Arbitrum and Monad — {LAUNCH_CLAUSE}
+                deployed; curve factory v{CURVE_FACTORY_GENERATION.version} broadcast to 0G, Base, Arbitrum and
+                Monad — {LAUNCH_CLAUSE}
               </span>
             </div>
             <span className="px-3 py-1 rounded bg-ok/10 text-ok border border-ok/30 font-bold text-xs uppercase">

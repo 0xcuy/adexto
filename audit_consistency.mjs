@@ -1712,6 +1712,48 @@ console.log("\n── tabel alokasi token vs apa yang benar-benar ada di kontrak
   );
 }
 
+// ── nomor generasi factory yang ditulis tangan di dalam prosa ───────────────
+/**
+ * Penjaga bagian 2 memeriksa label di `src/config/contracts.ts` terhadap VERSION di
+ * chain, dan itu lolos terus. Yang tidak diperiksa siapa pun: nomor generasi yang
+ * DITULIS TANGAN di tengah kalimat.
+ *
+ * /pitch memuat "curve factory v0.10.0 broadcast to 0G, Base, Arbitrum and Monad" jauh
+ * sesudah 0.11.0 dikirim ke keempatnya. Kalimat itu tidak sekadar tua — ia menyebut
+ * factory yang DIGANTIKAN sebagai deployment yang sekarang, jadi pembaca yang memeriksa
+ * alamatnya akan mencari generasi yang salah.
+ *
+ * Yang dicocokkan sempit dengan sengaja: hanya bentuk "factory <versi> broadcast", karena
+ * "broadcast" berbicara tentang apa yang berjalan SEKARANG. Penyebutan 0.10.0 dalam
+ * konteks lain memang benar dan harus tetap ada — pasar yang lahir darinya tidak akan
+ * pernah membayar fee protokol, dan itu fakta permanen yang layak disebut.
+ */
+console.log("\n── nomor generasi factory di dalam prosa vs label yang terverifikasi ──");
+{
+  const cfg = readFileSync("src/config/contracts.ts", "utf8");
+  const current = cfg.match(/CURVE_FACTORY_GENERATION[\s\S]*?version:\s*"([^"]+)"/)?.[1] ?? null;
+  check("versi generasi saat ini terbaca dari config", Boolean(current), current ?? "pola berubah");
+
+  const claims = [];
+  for (const f of sourceFiles()) {
+    for (const m of visibleText(f).matchAll(/factory\s+v?(\d+\.\d+\.\d+)[^.]{0,80}?broadcast/gi)) {
+      claims.push({ f, v: m[1] });
+    }
+  }
+  ok(
+    "kalimat yang menyebut factory ter-broadcast",
+    claims.length === 0 ? "tidak ada yang menulis versinya di prosa" : claims.map((c) => `${c.f}=${c.v}`).join(" · ")
+  );
+  const stale = claims.filter((c) => c.v !== current);
+  check(
+    "setiap kalimat itu menyebut generasi yang sekarang, bukan yang digantikan",
+    stale.length === 0,
+    stale.length === 0
+      ? `semua cocok ${current}`
+      : `menyebut generasi digantikan sebagai deployment sekarang: ${stale.map((c) => `${c.f}=${c.v}`).join(", ")}`
+  );
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
