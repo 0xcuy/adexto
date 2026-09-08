@@ -544,38 +544,21 @@ export async function claimCreatorFees(params: {
 }
 
 /**
- * Kirim fee protokol yang mengendap ke treasury.
+ * TIDAK ADA pembungkus `claimProtocolFees` di sini, dan itu keputusan.
  *
- * Hanya ada di kurva 0.11.0; kurva 0.10.0 tidak punya fungsi ini dan panggilannya
- * akan revert. Pemanggil harus mengecek `protocolOwed > 0` lebih dulu — itu sekaligus
- * membuktikan kurvanya generasi 0.11.0, karena getter-nya juga tidak ada di 0.10.0.
+ * Pernah ada satu, dipanggil dari sebuah panel di TokenTerminal. Keduanya dicabut: menyapu
+ * fee protokol adalah pekerjaan protokol, bukan pekerjaan trader, dan pada ukuran fee
+ * sekarang menekan tombol itu justru merugi — 0,0000288 0G mengendap melawan 0,0003 0G
+ * gas di kurva $ADEXTO.
  *
- * Siapa pun boleh memanggilnya dan itu bukan kelalaian, melainkan konsekuensi dari
- * tujuan yang sudah dipatok: alamat treasury `immutable` di kontrak, jadi pemanggil
- * tidak bisa mengubah ke mana dana pergi. Yang bisa ia lakukan hanya membayar gas
- * untuk memindahkan dana ke tujuan yang sudah ditetapkan sejak deploy. Membatasi
- * pemanggil justru akan menambah pemilik tanpa menambah keamanan apa pun.
+ * Pembungkus di berkas ini memakai `BrowserProvider`, jadi ia hanya berguna untuk UI. Kalau
+ * penyapuannya dijalankan di luar peramban, membiarkan pembungkus ini di sini akan
+ * mengembalikan cacat yang sudah pernah dilaporkan: fungsi yang diekspor tanpa satu pun
+ * pemanggil. Jadi fungsinya hidup di tempat ia benar-benar dipanggil, bukan di sini.
+ *
+ * `claimProtocolFees()` tetap ada di `ADEXTO_CURVE_ABI` karena ia memang ada di kontrak,
+ * dan itu satu-satunya jalan keluar bagi `protocolOwed`.
  */
-export async function claimProtocolFees(params: {
-  ethereum: any;
-  chain: ChainInfo;
-  curveAddress: string;
-}): Promise<{ hash: string }> {
-  const { ethereum, chain, curveAddress } = params;
-  await ensureWalletChain(ethereum, chain);
-  const provider = new ethers.BrowserProvider(ethereum);
-  const signer = await provider.getSigner();
-  const curve = new ethers.Contract(curveAddress, ADEXTO_CURVE_ABI, signer);
-  // Simulasi dulu supaya kurva 0.10.0 (atau saldo nol) tidak jadi gas terbuang.
-  try {
-    await curve.claimProtocolFees.staticCall();
-  } catch (error) {
-    throw new Error(`Protocol fee claim would fail on-chain: ${describeTxError(error)}`);
-  }
-  const tx = await curve.claimProtocolFees();
-  const receipt = await tx.wait();
-  return { hash: receipt?.hash ?? tx.hash };
-}
 
 function impactBps(amountIn: bigint, reserveIn: bigint): number {
   if (reserveIn <= 0n) return 0;
