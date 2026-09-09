@@ -1879,6 +1879,67 @@ console.log("\n── ABI publik vs artifact yang dikompilasi ──");
           : `menyimpang — ${!sameFile ? `${name}.json basi` : ""}${!sameFile && !sameIndex ? " dan " : ""}${!sameIndex ? "index.json basi" : ""}; jalankan node scripts/export-abi.mjs`
       );
     }
+    /**
+     * Daftar nama di atas jangan sampai jadi satu-satunya kebenaran.
+     *
+     * Landing page sekarang menaut ABI ini alih-alih memuat cuplikan Solidity yang
+     * disalin tangan — cuplikan itu dibongkar justru karena basi: ia menampilkan
+     * generasi AdextoCurveFactory/SovereignCurve padahal setiap pasar yang hidup
+     * memakai AdextoFactory/AdextoCurve. Tautan tidak akan basi seperti cuplikan,
+     * TAPI daftarnya bisa: kontrak keempat diekspor dan halaman itu diam saja, atau
+     * halaman menyebut nama yang ABI-nya tidak pernah ada.
+     *
+     * Jadi tiga himpunan harus identik: berkas di public/abi/, kunci di index.json,
+     * dan `ABI_FILES` di landing page.
+     */
+    const expected = ["AdextoFactory", "AdextoCurve", "AdextoToken"];
+    const onDisk = readdirSync(dir)
+      .filter((f) => f.endsWith(".json") && f !== "index.json")
+      .map((f) => f.replace(/\.json$/, ""))
+      .sort();
+    const inIndex = Object.keys(idx.contracts ?? {}).sort();
+    const sortedExpected = [...expected].sort();
+    check(
+      "berkas ABI di public/abi/ = kunci di index.json",
+      JSON.stringify(onDisk) === JSON.stringify(inIndex),
+      `disk: ${onDisk.join(", ")} · index: ${inIndex.join(", ")}`
+    );
+    check(
+      "himpunan ABI yang diperiksa = yang benar-benar diterbitkan",
+      JSON.stringify(onDisk) === JSON.stringify(sortedExpected),
+      onDisk.join(", ") || "kosong"
+    );
+
+    const homePath = "src/app/page.tsx";
+    if (existsSync(homePath)) {
+      const home = readFileSync(homePath, "utf8");
+      const m = home.match(/const ABI_FILES = \[([^\]]*)\]/);
+      const listed = m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort() : null;
+      check(
+        "ABI_FILES di landing page = berkas di public/abi/",
+        listed !== null && JSON.stringify(listed) === JSON.stringify(onDisk),
+        listed === null
+          ? "ABI_FILES tidak ditemukan di landing page"
+          : `halaman: ${listed.join(", ")} · disk: ${onDisk.join(", ")}`
+      );
+      /**
+       * Halaman depan tidak boleh menamai generasi yang sudah digantikan sebagai
+       * kode yang berjalan. Inilah kesalahan yang membongkar cuplikan lama, dan
+       * tanpa penjaga ia bisa kembali lewat salin-tempel dari commit mana pun.
+       *
+       * Diperiksa lewat `visibleText`, BUKAN sumber mentah. Versi pertama memakai
+       * sumber mentah dan langsung menuduh komentar yang menjelaskan kenapa nama itu
+       * dibuang — penjaga yang menghukum perbaikannya sendiri, kelas bug yang sudah
+       * dua kali muncul di berkas ini.
+       */
+      const superseded = /AdextoCurveFactory|SovereignCurve/.test(visibleText(homePath));
+      check(
+        "landing page tidak menyebut generasi kontrak yang sudah digantikan",
+        !superseded,
+        superseded ? "masih menyebut AdextoCurveFactory/SovereignCurve" : "hanya generasi aktif"
+      );
+    }
+
     // CHAINS di berkas ini di-key dengan chainId, sementara index.json memakai nama
     // network GeckoTerminal. Yang menjembatani keduanya `c.key` ("0G" -> "0g").
     for (const c of Object.values(CHAINS)) {

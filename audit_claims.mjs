@@ -271,8 +271,62 @@ if (!tokenRoute) {
 for (const route of ROUTES) {
   await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 60000 });
   await page.waitForTimeout(2200);
-  const text = await page.evaluate(() => document.body.innerText);
-  const html = await page.content();
+
+  /**
+   * PANEL YANG BERSEMBUNYI DI BALIK TAB IKUT DIBACA.
+   *
+   * Ini lubang yang nyata, bukan hipotesis. Landing page memuat tiga tab kode dengan
+   * `{activeCodeTab === "hook" && ...}`; default-nya "factory", jadi dua panel lain
+   * tidak pernah ter-mount. Salah satunya berisi komentar Solidity berbahasa Indonesia
+   * ("mengendap di kurva") — dan `kurva` MEMANG sudah terdaftar di ID_WORDS. Pemeriksa
+   * ini melaporkan BERSIH berkali-kali sementara teksnya ada di produksi, hanya satu
+   * klik jauhnya. Yang gagal bukan daftar katanya, tapi asumsi bahwa apa yang dirender
+   * saat load adalah seluruh isi halaman.
+   *
+   * Jadi setiap tombol diklik dan hasilnya diakumulasi. Tombol yang menavigasi ke luar
+   * halaman diabaikan lewat pemeriksaan URL; tombol yang membuka dialog juga aman
+   * karena teksnya tetap milik halaman yang sama.
+   */
+  const collect = async () => ({
+    text: await page.evaluate(() => document.body.innerText),
+    html: await page.content(),
+  });
+
+  let { text, html } = await collect();
+  const url0 = page.url();
+
+  /**
+   * JANGAN klik tombol yang melakukan sesuatu.
+   *
+   * Pemeriksa ini berjalan terhadap PRODUKSI. Mengklik setiap tombol tanpa saringan
+   * berarti sekali waktu ia menekan "Launch", "Buy", atau "Connect wallet" di situs
+   * sungguhan. Yang dicari di sini hanya panel teks yang tersembunyi, jadi tombol
+   * yang kata-katanya menyiratkan aksi dilewati — bukan karena pasti berbahaya,
+   * tapi karena tidak ada alasan mengambil risikonya.
+   */
+  const ACTION_WORDS =
+    /\b(launch|deploy|buy|sell|swap|connect|approve|sign|confirm|claim|send|submit|mint|burn|withdraw|transfer|generate|upload)\b/i;
+
+  const buttons = await page.locator("button:visible").all();
+  for (let i = 0; i < buttons.length; i++) {
+    try {
+      const label = ((await buttons[i].innerText().catch(() => "")) || "").trim();
+      if (ACTION_WORDS.test(label)) continue;
+      await buttons[i].click({ timeout: 1500, noWaitAfter: true });
+      await page.waitForTimeout(180);
+      if (page.url() !== url0) {
+        await page.goto(url0, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(600);
+        continue;
+      }
+      const next = await collect();
+      text += "\n" + next.text;
+      html += next.html;
+    } catch {
+      // Tombol yang tertutup elemen lain atau menghilang setelah klik pertama
+      // bukan temuan; yang dicari isi panelnya, bukan kesehatan tombolnya.
+    }
+  }
 
   const hits = BANNED.filter(([phrase]) => text.includes(phrase));
   const clashes = CONTRADICTIONS.filter((c) => html.includes(c.a) && html.includes(c.b));

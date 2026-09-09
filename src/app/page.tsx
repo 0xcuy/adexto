@@ -1,7 +1,9 @@
-"use client";
+/* "use client" dibuang bersama tab kode. Satu-satunya yang membuat halaman ini
+   komponen klien adalah `activeCodeTab`; tidak ada handler, efek, atau akses
+   window lain di sini. Anak-anaknya (StackMarquee, ChainCardStack, PillarCards)
+   membawa direktifnya sendiri kalau memang perlu. */
 
 import Link from "next/link";
-import { useState } from "react";
 import StackMarquee from "@/components/StackMarquee";
 /* Cpu, Layers, Coins, TrendingUp, Lock dan Globe dibuang dari sini: keenamnya hanya
    dipakai empat kartu pilar, yang sekarang tinggal di PillarCards.tsx bersama
@@ -12,9 +14,14 @@ import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 import ChainCardStack from "@/components/ChainCardStack";
 import PillarCards from "@/components/PillarCards";
 
-export default function HomePage() {
-  const [activeCodeTab, setActiveCodeTab] = useState<"factory" | "hook" | "cloudflare">("factory");
+/**
+ * Kontrak yang ABI-nya diterbitkan. Daftar ini WAJIB sama dengan isi public/abi/,
+ * dan audit_consistency memeriksanya — kalau tidak, halaman ini bisa diam-diam
+ * menyembunyikan satu kontrak atau menyebut kontrak yang ABI-nya tidak ada.
+ */
+const ABI_FILES = ["AdextoFactory", "AdextoCurve", "AdextoToken"] as const;
 
+export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center relative">
       {/* ── HERO ────────────────────────────────────────────────────────────────
@@ -316,16 +323,19 @@ export default function HomePage() {
               <p className="kicker mb-3">
                 <CloudLightning className="w-3.5 h-3.5" /> Agent monetisation
               </p>
-              {/* Seksi ini dulu menjanjikan tiga hal, dan hanya satu yang benar.
-                  Yang benar: Worker mengembalikan tantangan HTTP 402 dengan harga
-                  dan alamat vault penyelesaian — hidup sekarang, bisa dicoba dengan
-                  satu curl. Yang belum ada: verifikasi tanda tangan EIP-712 yang
-                  sesungguhnya, penyelesaian multi-token, dan penyaluran otomatis ke
-                  vault buyback. Ketiganya tertulis sebagai fitur berjalan.
-                  Angkanya juga bertengkar sendiri: pilar dan judul menyebut
-                  "sub-50ms", FAQ di bawah menyebut "<35ms". Sekarang satu angka,
-                  dan angka itu milik jaringan Cloudflare, bukan hasil pengukuran
-                  kami — jadi disebut apa adanya. */}
+              {/* Seksi ini dulu menjanjikan tiga hal dan hanya satu yang benar; yang
+                  belum ada ditulis sebagai fitur berjalan. Angkanya juga bertengkar
+                  sendiri: pilar dan judul menyebut "sub-50ms", FAQ di bawah menyebut
+                  "<35ms". Sekarang satu angka, dan angka itu milik jaringan Cloudflare,
+                  bukan hasil pengukuran kami — jadi disebut apa adanya.
+
+                  Catatan versi berikutnya: daftar di bawah pernah salah ke arah yang
+                  sebaliknya. Ia menyangkal verifikasi EIP-712 lama setelah verifikasi itu
+                  benar-benar dipasang di worker. Jadi daftar ini harus diuji ke worker
+                  yang hidup, bukan diwarisi. Keadaan sekarang, diukur langsung:
+                  402 tanpa voucher, 401 untuk tanda tangan palsu, 501 untuk voucher sah.
+                  Yang benar-benar belum ada: penyelesaian on-chain dan penyaluran
+                  otomatis ke vault buyback. */}
               <h2 className="text-3xl sm:text-4xl font-semibold text-ink mb-4">
                 An API that bills other machines
               </h2>
@@ -343,11 +353,27 @@ export default function HomePage() {
                     assets and settlement vault. Try it below on the agent demo page.
                   </span>
                 </div>
+                {/* Baris ini dulu berbunyi "Not wired yet: EIP-712 voucher verification
+                    and on-chain settlement". Separuhnya sudah tidak benar: worker
+                    produksi memang memeriksa tanda tangannya. Dibuktikan langsung ke
+                    worker yang hidup — tanda tangan palsu dijawab 401 "Signature does
+                    not verify", voucher yang sah dijawab 501 dengan alamat pembayar yang
+                    dipulihkan benar dari tanda tangan itu. Merendahkan diri sendiri
+                    tetap salah kalau tidak sesuai keadaan. */}
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
+                  <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                  <span className="text-ink">
+                    <strong className="text-ink">Live now:</strong> EIP-712 voucher verification. A forged
+                    signature is rejected with 401; a valid one is answered with the payer address recovered
+                    from it.
+                  </span>
+                </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Not wired yet:</strong> EIP-712 voucher verification and
-                    on-chain settlement. The endpoint quotes terms; it does not yet take payment.
+                    <strong className="text-ink">Not wired yet:</strong> on-chain settlement. A verified
+                    voucher is answered with 501, not 200. The endpoint quotes terms and checks who is
+                    asking; it does not yet take payment.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
@@ -361,127 +387,73 @@ export default function HomePage() {
               </div>
             </div>
 
-      {/* Smart Contract & Cloudflare Code Tab */}
+      {/* Dulu di sini ada tiga tab berisi cuplikan Solidity dan TypeScript yang
+          DISALIN TANGAN, dengan caption "Signatures match contracts/ in the repo".
+
+          Cuplikan salinan tangan tidak bisa diperiksa mesin, dan menurut komentarnya
+          sendiri sudah dua kali basi — pernah menampilkan `contract SovereignHook is
+          BaseHook` dengan `LP_SPLIT = 70` yang tidak pernah ada, lalu `external
+          payable` pada fungsi launch yang tidak menerima pembayaran. Saat dibongkar ia
+          salah lagi dalam dua hal sekaligus:
+
+          1. Tab kontraknya menampilkan generasi yang SUDAH DIGANTIKAN
+             (AdextoCurveFactory / SovereignCurve) padahal setiap pasar yang hidup
+             memakai AdextoFactory / AdextoCurve — nama yang sudah lama diketahui
+             config di berkas ini lewat CURVE_FACTORY_GENERATION.
+          2. Tab worker-nya menampilkan `verifyEIP712Sig(...)` lalu
+             `Response.json({ agentResult: await dispatch0GTEE() })`. Kedua fungsi itu
+             tidak ada di cloudflare-worker/src/index.ts, dan jalur sukses itu tidak
+             pernah dikembalikan worker: voucher yang sah dijawab 501.
+
+          Penggantinya bukan cuplikan yang lebih rapi, tapi bukti yang tidak bisa
+          melenceng diam-diam: ABI yang diterbitkan di /abi/, yang dibandingkan
+          byte-per-byte dengan artifact kompilasi pada setiap deploy. Daftar nama di
+          bawah dijaga audit_consistency terhadap isi public/abi/, jadi kalau kontrak
+          bertambah atau berganti nama, halaman ini gagal audit alih-alih berbohong. */}
       <div className="bg-white p-4 sm:p-6 rounded-2xl border border-line overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4 mb-4">
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-accent" />
-            <span className="text-xs font-semibold text-ink tracking-wider">ON-CHAIN &amp; EDGE CODE</span>
+            <span className="text-xs font-semibold text-ink tracking-wider">PUBLISHED INTERFACE</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button 
-              onClick={() => setActiveCodeTab("factory")}
-              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
-                activeCodeTab === "factory" 
-                  ? "bg-accent-soft text-accent border border-accent/30" 
-                  : "text-ink-soft hover:text-ink bg-cream-3"
-              }`}
-            >
-              AdextoCurveFactory.sol
-            </button>
-            <button 
-              onClick={() => setActiveCodeTab("hook")}
-              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
-                activeCodeTab === "hook" 
-                  ? "bg-accent-soft text-accent border border-accent/30" 
-                  : "text-ink-soft hover:text-ink bg-cream-3"
-              }`}
-            >
-              SovereignCurve.sol
-            </button>
-            <button 
-              onClick={() => setActiveCodeTab("cloudflare")}
-              className={`px-2.5 sm:px-3 py-1 rounded text-[11px] sm:text-xs font-mono font-bold transition-all ${
-                activeCodeTab === "cloudflare" 
-                  ? "bg-accent/10 text-accent border border-accent/30" 
-                  : "text-ink-soft hover:text-ink bg-cream-3"
-              }`}
-            >
-              cloudflare-x402.ts
-            </button>
-          </div>
+          <span className="font-mono text-[11px] text-ink-faint">
+            {CURVE_FACTORY_GENERATION.contract} {CURVE_FACTORY_GENERATION.version}
+          </span>
         </div>
 
-        <div className="font-mono text-[11px] sm:text-xs text-ink space-y-2 bg-white p-4 sm:p-5 rounded-xl border border-line overflow-x-auto leading-relaxed max-w-full">
-                {activeCodeTab === "factory" && (
-                  <>
-                    <div className="text-ink-soft">// SPDX-License-Identifier: MIT</div>
-                    <div className="text-accent">pragma solidity ^0.8.26;</div>
-                    {/* Tanda tangan ini WAJIB cocok dengan AdextoCurveFactory.
-                        Perhatikan: TIDAK `payable` — launch tidak menerima pembayaran
-                        apa pun, hanya gas. Versi lama di sini menulis `external payable`
-                        dan nama kontrak yang tidak ada. */}
-                    <div className="text-ink mt-2 font-bold">contract <span className="text-accent">AdextoCurveFactory</span> &#123;</div>
-                    <div className="pl-4 text-ink-soft">event TrinityProjectDeployed(address token, address curve, address creator, ...);</div>
-                    <div className="pl-4 text-ok mt-1 font-semibold">function deployTrinity(</div>
-                    <div className="pl-8 text-ink">string memory name,</div>
-                    <div className="pl-8 text-ink">string memory symbol,</div>
-                    <div className="pl-8 text-ink">uint256 initialSupply,</div>
-                    <div className="pl-8 text-ink">address agentIdentity,</div>
-                    <div className="pl-8 text-ink">uint256 virtualNative,</div>
-                    <div className="pl-8 text-ink">uint256 swapFeeBps,</div>
-                    <div className="pl-8 text-ink">uint256 creatorShareBps,</div>
-                    <div className="pl-8 text-ink">uint256 treasuryShareBps,</div>
-                    {/* `metadataRoot`, BUKAN `teeAttestationRoot`. Nilainya adalah
-                        root penyimpanan 0G DA dari metadata launch — sebuah hash
-                        konten, bukan laporan attestation hardware, dan nama lamanya
-                        itulah yang membuat halaman ini pernah mengklaim attestation
-                        yang tidak pernah diperiksa siapa pun. Nama parameter tidak
-                        masuk hitungan selector, jadi ABI-nya tetap kompatibel.
-                        Baris di bawah blok ini berbunyi "Signatures match
-                        contracts/", jadi kalau cuplikan ini basi, klaim itu bohong. */}
-                    <div className="pl-8 text-ink">bytes32 metadataRoot</div>
-                    <div className="pl-4 text-ok font-semibold">) external returns (address token, address curve);</div>
-                    <div className="text-ink font-bold">&#125;</div>
-                  </>
-                )}
-                {activeCodeTab === "hook" && (
-                  /* Cuplikan ini WAJIB cocok dengan contracts/SovereignCurve.sol.
-                     Sebelumnya di sini tertulis `contract SovereignHook is BaseHook`
-                     dengan afterSwap dan LP_SPLIT = 70 — kontrak yang tidak pernah
-                     ada di repo ini. Siapa pun yang membuka kontraknya akan tahu
-                     halaman depan menjanjikan sistem yang lain. */
-                  <>
-                    <div className="text-ink-soft">// SPDX-License-Identifier: MIT</div>
-                    <div className="text-accent font-bold">contract SovereignCurve &#123;</div>
-                    <div className="pl-4 text-ink-soft">uint256 public immutable virtualNative; // reserve pembuka, tanpa setoran</div>
-                    <div className="pl-4 text-ink-soft">uint256 public immutable depthFeeBps; // mengendap di kurva</div>
-                    <div className="pl-4 text-ink-soft">uint256 public immutable creatorFeeBps; // langsung ke creator</div>
-                    <div className="pl-4 text-ok mt-2 font-semibold">function _buy(uint256 minTokensOut, address recipient)</div>
-                    <div className="pl-4 sm:pl-8 text-ink">private returns (uint256 tokensOut) &#123;</div>
-                    <div className="pl-6 sm:pl-12 text-accent">_curveNative += msg.value - creatorFee - treasuryFee;</div>
-                    <div className="pl-6 sm:pl-12 text-accent">creatorOwed += creatorFee;</div>
-                    <div className="pl-4 sm:pl-8 text-ink">&#125;</div>
-                    <div className="text-accent font-bold">&#125;</div>
-                  </>
-                )}
-                {activeCodeTab === "cloudflare" && (
-                  <>
-                    <div className="text-ink-soft">// Cloudflare Worker: Edge x402 Facilitator</div>
-                    <div className="text-accent">export default &#123;</div>
-                    <div className="pl-4 text-ink">async fetch(request: Request, env: Env): Promise&lt;Response&gt; &#123;</div>
-                    <div className="pl-8 text-ink-soft">const authHeader = request.headers.get("X-402-Authorization");</div>
-                    <div className="pl-8 text-ok">if (!authHeader) return new Response("Payment Required", &#123; status: 402 &#125;);</div>
-                    <div className="pl-8 text-ink">const valid = await verifyEIP712Sig(authHeader, env.VAULT_ADDR);</div>
-                    <div className="pl-8 text-accent">return Response.json(&#123; agentResult: await dispatch0GTEE() &#125;);</div>
-                    <div className="pl-4 text-ink">&#125;</div>
-                    <div className="text-accent">&#125;;</div>
-                  </>
-                )}
-              </div>
+        <p className="text-ink-soft text-xs sm:text-sm leading-relaxed mb-4">
+          Rather than quote the contracts here by hand, the ABI is published. Every deploy
+          compares each published file byte for byte against the artifact the compiler
+          produced, so these cannot drift from what is running.
+        </p>
 
-              <div className="mt-4 pt-4 border-t border-line flex items-center justify-between text-xs text-ink-soft">
-                {/* "Cloudflare Edge Verified" adalah lencana tanpa makna — tidak
-                    ada badan yang memverifikasi apa pun di situ. Diganti dengan
-                    pernyataan yang bisa diperiksa: cuplikan di atas memang tanda
-                    tangan fungsi yang ada di berkas kontraknya. */}
-                <span className="flex items-center gap-1.5 text-ink-soft">
-                  <ShieldCheck className="w-4 h-4 text-ink-faint" />
-                  Signatures match contracts/ in the repo
-                </span>
-                <span className="font-mono text-ink-faint">adexto.xyz</span>
-              </div>
+        <div className="space-y-2">
+          {ABI_FILES.map((name) => (
+            <div
+              key={name}
+              className="flex items-center justify-between gap-3 rounded-xl border border-line bg-cream-2 px-3.5 py-2.5"
+            >
+              <span className="font-mono text-[11px] sm:text-xs font-semibold text-ink">{name}.sol</span>
+              <a
+                href={`/abi/${name}.json`}
+                className="font-mono text-[11px] sm:text-xs text-accent hover:underline shrink-0"
+              >
+                ABI &rarr;
+              </a>
             </div>
+          ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-line flex items-center justify-between gap-3 text-xs text-ink-soft">
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-ink-faint" />
+            Checked against the compiled artifacts on every deploy
+          </span>
+          <a href="/abi/index.json" className="font-mono text-accent hover:underline shrink-0">
+            /abi/
+          </a>
+        </div>
+      </div>
           </div>
         </div>
       </section>
