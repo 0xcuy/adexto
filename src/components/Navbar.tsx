@@ -56,7 +56,10 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => setMobileMenuOpen(false)}>
-            <img src="/logo.svg" alt="" aria-hidden="true" className="w-7 h-7 object-contain shrink-0" />
+            {/* 36px di header 64px, sebanding dengan mark di header situs lain.
+                Sebelumnya 28px, dan karena artwork-nya masih membawa padding plat
+                lama, tinta yang benar-benar terlihat cuma sekitar 17px. */}
+            <img src="/logo.svg" alt="" aria-hidden="true" className="w-9 h-9 object-contain shrink-0" />
             <span className="font-semibold tracking-tight text-ink text-[15px]">ADEXTO</span>
           </Link>
 

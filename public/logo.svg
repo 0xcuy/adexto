@@ -1,4 +1,9 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ADEXTO">
+<svg viewBox="63 66 386 386" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ADEXTO">
+  <!-- viewBox dipangkas ke kotak batas tinta sesungguhnya (x 74-438, y 104-414),
+       dijadikan persegi berpusat di (256, 259) dengan sisa napas 6%. Dulu viewBox-nya
+       0 0 512 512 karena glyph masih duduk di atas plat dan butuh jarak ke tepi plat.
+       Setelah plat dibuang, jarak itu jadi ruang mati: logo terlihat kecil di slot
+       yang sama. Sekarang tinta mengisi 94% lebar kotak, bukan 71%. -->
   <mask id="adexto-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
     <rect width="512" height="512" fill="#fff"/>
     <g transform="rotate(-14 256 286)"><path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill="none" stroke="#000" stroke-width="20" stroke-linejoin="round"/></g>
