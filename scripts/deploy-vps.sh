@@ -87,7 +87,7 @@ done
 # `/governance` DICABUT dari daftar ini karena halamannya dihapus — governance tidak
 # bisa dibuat berfungsi tanpa menambah permukaan admin yang protokol ini janjikan tidak
 # ada. Membiarkannya di sini membuat setiap deploy gagal atas 404 yang memang disengaja.
-for r in / /studio /swap /explorer /docs /pitch /whitepaper /security /agent/demo; do
+for r in / /studio /swap /explorer /docs /pitch /whitepaper /security /agent/demo /x402; do
   code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
   printf '  %-13s HTTP %s\n' "$r" "$code"
   [ "$code" = "200" ] || fail=1

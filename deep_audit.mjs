@@ -13,6 +13,7 @@ import { chromium } from 'playwright';
     '/governance',
     '/explorer',
     '/agent/demo',
+    '/x402',
     '/pitch',
     '/whitepaper',
     '/docs',

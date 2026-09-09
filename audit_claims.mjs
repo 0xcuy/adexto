@@ -29,7 +29,11 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
 // /governance TIDAK ada di daftar ini: rutenya dicabut, jadi memindainya hanya akan
 // mengambil teks halaman 404. Yang menjaga agar ia tetap tercabut adalah pemeriksaan
 // 404 terbalik di scripts/deploy-vps.sh, bukan daftar rute ini.
-const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/security,/agent/demo".split(",");
+// /x402 ikut dipindai sejak ada. Halaman itu adalah satu-satunya tempat di situs ini
+// yang mengutip alamat penerima pembayaran, harga atomik, dan dua hash transaksi
+// sungguhan — yaitu justru teks yang paling merugikan kalau menyimpang dari endpoint
+// hidupnya, dan paling mudah basi karena ditulis tangan.
+const ROUTES = "/,/studio,/swap,/explorer,/docs,/pitch,/whitepaper,/security,/agent/demo,/x402".split(",");
 
 /**
  * Frasa terlarang, masing-masing dengan alasannya. Alasan ikut dicetak supaya

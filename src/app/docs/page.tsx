@@ -29,7 +29,7 @@ export default async function DocsPage() {
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and an HTTP 402 quote endpoint. Not live: x402 settlement and the MCP tool suite. There is no governance and there will not be — the contracts have no admin surface to vote over. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Not live: the MCP tool suite, and the USDC taken in still reaches the treasury rather than the curve&apos;s buyback vault. There is no governance and there will not be — the contracts have no admin surface to vote over. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}

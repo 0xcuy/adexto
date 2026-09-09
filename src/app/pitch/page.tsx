@@ -403,9 +403,9 @@ export default function PitchDeckPage() {
                     src/config/contracts.ts, bukan ditulis tangan lagi, karena label itu
                     sudah diperiksa audit_consistency terhadap VERSION di chain — jadi
                     baris ini tidak bisa lagi menyimpang sendiri. */}
-                Curve and factory written, tested on five EVMs; app complete end to end; x402 quote endpoint
-                deployed; curve factory v{CURVE_FACTORY_GENERATION.version} broadcast to 0G, Base, Arbitrum and
-                Monad — {LAUNCH_CLAUSE}
+                Curve and factory written, tested on five EVMs; app complete end to end; x402 cross-chain buys
+                paying and delivering with real funds; curve factory v{CURVE_FACTORY_GENERATION.version} broadcast
+                to 0G, Base, Arbitrum and Monad — {LAUNCH_CLAUSE}
               </span>
             </div>
             <span className="px-3 py-1 rounded bg-ok/10 text-ok border border-ok/30 font-bold text-xs uppercase">

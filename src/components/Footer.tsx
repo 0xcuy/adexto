@@ -65,6 +65,14 @@ export default function Footer() {
               <li><Link href="/explorer" className="hover:text-accent transition-colors">Explorer</Link></li>
               <li><Link href="/swap" className="hover:text-accent transition-colors">Swap</Link></li>
               <li><Link href="/agent/demo" className="hover:text-accent transition-colors">Agent demo</Link></li>
+              {/* Ditaruh di sini, bukan di navbar. Navbar sudah memuat enam tautan dan
+                  komentarnya mencatat barisnya mepet di 1280 px.
+
+                  Labelnya menyebut APA YANG DIBELI, bukan nama protokolnya saja.
+                  "x402" sendirian hanya berarti sesuatu bagi orang yang sudah tahu
+                  spesifikasinya; yang lain tidak punya petunjuk bahwa tautan itu soal
+                  membeli token lintas chain. */}
+              <li><Link href="/x402" className="hover:text-accent transition-colors">x402 cross-chain buys</Link></li>
             </ul>
           </div>
 
