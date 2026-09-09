@@ -391,9 +391,21 @@ const calls = [];
 page.on("request", (r) => {
   if (r.url().includes("x402")) calls.push(r.url());
 });
-const btn = page.locator('button:has-text("GET the")').first();
+/**
+ * Tombolnya dicari lewat atribut, BUKAN lewat teksnya.
+ *
+ * Pemeriksaan ini dulu memakai `button:has-text("GET the")`. Itu mengikat penjaga pada
+ * copy pemasaran: begitu labelnya disunting menjadi kalimat yang lebih tepat, penjaganya
+ * gagal padahal halamannya justru membaik. Penjaga yang menghukum penyuntingan copy
+ * tidak menangkap kebohongan, ia hanya membekukan kalimat.
+ *
+ * Yang dijaga di sini adalah PERILAKU: ada tombol yang benar-benar memanggil jaringan,
+ * dan halaman menampilkan status HTTP yang sungguhan. Keduanya tidak berubah ketika
+ * kalimatnya berubah.
+ */
+const btn = page.locator("button[data-x402-request]").first();
 if ((await btn.count()) === 0) {
-  console.log("  GAGAL  tombol permintaan tidak ada");
+  console.log("  GAGAL  tombol permintaan tidak ada (cari button[data-x402-request])");
   fail++;
 } else {
   await btn.click();

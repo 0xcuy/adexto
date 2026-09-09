@@ -203,7 +203,13 @@ export default function AgentDemoPage() {
             </ol>
           </div>
 
+          {/* `data-x402-request` adalah pengait untuk audit_claims, dan ia ada karena
+              penjaganya dulu mencari tombol ini lewat teksnya — `button:has-text("GET
+              the")`. Begitu labelnya diubah menjadi kalimat yang lebih tepat,
+              penjaganya gagal padahal halamannya benar: penjaga yang terikat pada copy
+              pemasaran menghukum penyuntingan copy, bukan menangkap kebohongan. */}
           <button
+            data-x402-request
             onClick={call}
             disabled={busy}
             className="w-full py-4 rounded-xl font-semibold text-xs bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
