@@ -35,7 +35,7 @@ const NETWORKS = {
   "0g": { chainId: 16661, rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai", explorer: "https://chainscan.0g.ai", native: "0G" },
   base: { chainId: 8453, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", native: "ETH" },
   arbitrum: { chainId: 42161, rpc: "https://arb1.arbitrum.io/rpc", explorer: "https://arbiscan.io", native: "ETH" },
-  monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadvision.com", native: "MON" },
+  monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadscan.com", native: "MON" },
   devchain: { chainId: 31337, rpc: "http://127.0.0.1:8545", explorer: "", native: "ETH" },
 };
 

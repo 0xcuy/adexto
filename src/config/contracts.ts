@@ -154,7 +154,16 @@ export const ADEXTO_CONTRACTS = {
     chainName: "Monad Mainnet",
     nativeSymbol: "MON",
     rpcUrl: "https://rpc.monad.xyz",
-    blockExplorer: "https://monadvision.com",
+    /**
+     * Dulu `monadvision.com`, dan itu membalas HTTP 403 — bukan cuma dari satu IP,
+     * tapi juga dengan User-Agent peramban sungguhan. Akibatnya setiap tautan
+     * explorer Monad di situs ini DAN tujuh baris tabel alamat di README menuntun
+     * pembaca ke penolakan. Ini kelas cacat yang paling mahal di halaman yang
+     * seluruh gunanya adalah "silakan periksa sendiri": tautan verifikasi yang
+     * tidak bisa dibuka lebih buruk daripada tidak ada tautan, karena pembaca
+     * menyimpulkan alamatnya yang palsu, bukan explorer-nya yang menolak.
+     */
+    blockExplorer: "https://monadscan.com",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     curveFactoryAddress: CURVE_FACTORY.monad,
     supersededCurveFactoryAddress: PREV_CURVE_FACTORY.monad,

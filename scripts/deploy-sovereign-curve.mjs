@@ -39,7 +39,7 @@ const NETWORKS = {
   "0g": { chainId: 16661, rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai", explorer: "https://chainscan.0g.ai", native: "0G" },
   arbitrum: { chainId: 42161, rpc: "https://arb1.arbitrum.io/rpc", explorer: "https://arbiscan.io", native: "ETH" },
   base: { chainId: 8453, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", native: "ETH" },
-  monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadvision.com", native: "MON" },
+  monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadscan.com", native: "MON" },
 
   // Testnets — prove the flow on the real remote EVM before spending mainnet gas.
   "0g-testnet": {
