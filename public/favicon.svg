@@ -1,6 +1,7 @@
-<svg viewBox="63 66 386 386" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ADEXTO">
-  <!-- viewBox dipangkas ke kotak batas tinta sesungguhnya, sama seperti logo.svg.
-       Di 16px selisihnya paling terasa: tinta jadi 94% lebar kotak, bukan 71%. -->
+<svg viewBox="74 77 364 364" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ADEXTO">
+  <!-- viewBox dipangkas mepet ke kotak batas tinta, sama seperti logo.svg. Di 16px
+       selisihnya paling terasa: tinta jadi 100% lebar kotak, bukan 71%. Tetap persegi
+       karena favicon di tab browser selalu diperlakukan persegi. -->
   <style>#g{fill:#141110}@media(prefers-color-scheme:dark){#g{fill:#f4efe4}}</style>
   <mask id="adexto-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
     <rect width="512" height="512" fill="#fff"/>

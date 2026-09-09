@@ -12,7 +12,7 @@ export default function Footer() {
               {/* Dulu logo ini dibungkus kotak putih ber-border. Karena logonya
                   sudah tidak punya plat sendiri, kotak itu jadi kotak di dalam
                   kotak dan membuatnya terlihat sesak. Dibuang. */}
-              <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-11 h-11 object-contain shrink-0" />
+              <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-12 h-12 object-contain shrink-0" />
               <div>
                 <span className="font-semibold text-ink tracking-wide text-base block leading-tight">ADEXTO PROTOCOL</span>
                 <span className="text-[10px] text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
