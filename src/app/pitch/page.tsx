@@ -100,12 +100,14 @@ export default function PitchDeckPage() {
             </div>
 
             <div className="card card-hover p-4 space-y-2">
-              <span className="text-ink font-semibold text-sm block">3. Machine-payable agent endpoints</span>
+              <span className="text-ink font-semibold text-sm block">3. Machine-payable cross-chain buys</span>
               <p className="text-ink-soft leading-relaxed">
-                Each agent answers unpaid calls with HTTP 402 and a price, so revenue can come from other
-                software rather than from speculation.
+                A market lives on one chain but a buyer&apos;s money does not have to. An unpaid call is answered
+                with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain delivers
+                the tokens directly.
                 <strong className="text-ink block mt-1">
-                  Status: the challenge is live; verification and settlement are not built yet.
+                  Status: quote, payment and delivery are live and proven with real funds. Size is capped by the
+                  native inventory we hold.
                 </strong>
               </p>
             </div>
@@ -234,14 +236,19 @@ export default function PitchDeckPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">2. Cloudflare x402 Micropayment Split (planned)</strong>
-              {/* "settled between machines at the global edge" bertentangan dengan
-                  kartu Orchestrator di seksi atas halaman INI, yang menyatakan
-                  penyelesaian belum dibangun. Worker-nya sendiri mengembalikan
-                  `settlementImplemented: false` dan menjawab 501 untuk voucher yang
-                  sah, jadi tidak ada pembayaran untuk dibagi 10%. */}
-              <p className="text-ink-soft">A 10% facilitation take-rate on paid agent API calls. The 402 challenge and its quote are live; settlement is not built, so no payment exists to take a share of yet.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 10% of paid calls · challenge live, settlement not built</span>
+              <strong className="text-ink block font-bold text-sm">2. Spread on cross-chain buys (live, inventory-capped)</strong>
+              {/* Kartu ini dulu menjanjikan "10% facilitation take-rate on paid agent
+                  API calls" — angka yang tidak pernah ada di kode mana pun, dan waktu
+                  itu tidak ada pembayaran untuk dibagi sama sekali.
+
+                  Sekarang pembayarannya sungguhan, jadi angkanya diukur, bukan
+                  dikarang. Pada pembelian sungguhan pertama: settlement Base 85.768 gas
+                  = $0,00128, buy 0G 98.918 gas = $0,00008. Pada order $0,02 spread 300
+                  bps hanya menghasilkan $0,0006, jadi pembelian itu MERUGI $0,00075.
+                  Harganya lalu dinaikkan ke $0,10, di mana marginnya sekitar +$0,0016.
+                  Yang membatasi sekarang persediaan, bukan harga. */}
+              <p className="text-ink-soft">A 3% spread held back when converting the buyer&apos;s USDC into the target chain&apos;s native asset. Measured on real transactions, gas on both chains costs $0.00136 per fill, so a $0.02 order lost money and the price is now $0.10, where the margin is about $0.0016. Delivering a token means spending native we hold, so the number of fills is capped by that inventory rather than by demand.</p>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 3% of order size · live · capped by native inventory</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">

@@ -86,7 +86,20 @@ const BANNED = [
   ["enclave key", "alamat yang dimaksud adalah EOA deployer"],
   ["ADAI", "token tata kelola tidak ada di chain mana pun"],
   ["exponential curve", "kurvanya produk-konstan, x*y=k"],
-  ["settled trustlessly", "penyelesaian x402 belum dibangun"],
+  /**
+   * Alasan larangan ini SUDAH BERUBAH, dan larangannya tetap.
+   *
+   * Dulu: "penyelesaian x402 belum dibangun". Itu tidak lagi benar — pembayaran USDC
+   * sekarang diselesaikan lewat EIP-3009 dan kontrak USDC sendiri yang memeriksa tanda
+   * tangannya, jadi kaki pembayarannya memang tanpa perantara yang perlu dipercaya.
+   *
+   * Yang tetap membuat frasa ini berlebihan: kedua kakinya TIDAK atomik. Token diantar
+   * di satu chain dan pembayaran ditarik di chain lain, dan tidak ada apa pun on-chain
+   * yang mengikat keduanya. Pembeli tidak menanggung risiko dana — tidak ada pembayaran
+   * yang diambil sebelum pengiriman berhasil — tapi ia tetap bergantung pada kami untuk
+   * mengirimkan `buy` itu. Ketergantungan itu bukan "trustless".
+   */
+  ["settled trustlessly", "dua kakinya lintas chain dan tidak atomik; pembeli masih bergantung pada kami mengirim buy"],
   ["Uniswap", "nol integrasi Uniswap di repo ini"],
   // Chainlink dan CCIP dicabut bersama-sama, dan dilarang dengan alasan yang lebih
   // kuat daripada "belum dipakai": TIDAK ADA versi yang berguna tanpa memindahkan

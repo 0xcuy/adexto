@@ -10,10 +10,18 @@ account_id = "c1a94ec73ec04756ac77a82a6ef21df6"
 # VAULT_TREASURY — dua hal berbeda dipanggil satu nama. Payee TIDAK PERNAH dari header.
 X402_PAYEE = "0x24268Fffc119ec5550F68e80D94476fD64daE967"
 
-# 0,02 USDC per pembelian. Ditetapkan dari angka terukur: satu settlement
-# transferWithAuthorization di Base memakai 102.352 gas, sekitar $0,0028 pada 0,011
-# gwei. Harga 0,005 USDC yang lama hampir tidak menutupi gasnya sendiri.
-X402_PRICE_ATOMIC = "20000"
+# 0,10 USDC per pembelian, dari untung-rugi yang DIUKUR pada dua transaksi sungguhan,
+# bukan ditebak:
+#   settlement Base   85.768 gas = $0,00128
+#   buy 0G            98.918 gas = $0,00008
+#   gas total                     $0,00136
+# Pendapatan hanya spread. Pada 300 bps, order $0,02 menghasilkan $0,0006 dan karena
+# itu MERUGI $0,00075 setiap kali — terbukti pada pembelian sungguhan pertama. Break
+# even ada di sekitar $0,05; pada $0,10 marginnya sekitar +$0,0016.
+#
+# Naikkan harganya berarti setiap pembelian memakan lebih banyak persediaan 0G, jadi
+# jumlah order yang bisa dilayani turun. Itu batas persediaan, bukan batas harga.
+X402_PRICE_ATOMIC = "100000"
 
 # Ditahan dari nilai USDC sebelum dikonversi ke native: menutup gas di dua chain dan
 # risiko harga native bergerak antara kutipan dan eksekusi.

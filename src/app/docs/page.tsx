@@ -101,7 +101,7 @@ export default async function DocsPage() {
               memang belum berjalan. */}
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
-            <p className="text-ink-soft">An HTTP 402 challenge served from Cloudflare&apos;s edge, quoting the price and settlement vault for an agent call. Voucher verification returns 501: settlement is not implemented.</p>
+            <p className="text-ink-soft">Sells a cross-chain buy. An unpaid request is answered with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain sends the tokens to your own address. Settlement is by EIP-3009, so USDC itself checks the signature and no new contract has to be trusted.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -397,14 +397,21 @@ export default async function DocsPage() {
             </div>
             <div>
               <h3 className="font-bold text-ink text-base">Cloudflare x402 Protocol Flow</h3>
-              <span className="text-xs font-mono text-accent font-bold">Payment challenge live · settlement pending</span>
+              <span className="text-xs font-mono text-accent font-bold">Quote, pay and delivery all live</span>
             </div>
           </div>
+          {/* Baris contoh di bawah dulu berbunyi `Authorization: x402-v1
+              EIP712Sig(0x1234...USDC)` — sebuah header yang tidak pernah ada. Yang
+              benar-benar dibaca endpoint adalah `X-PAYMENT` berisi JSON ter-base64
+              sesuai x402 v2. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Puts an HTTP 402 gate in front of an agent API so another machine can read the price and the settlement vault without a blockchain call. A signed EIP-712 voucher is checked for authenticity, but settlement is not built, so the gateway answers 501 rather than pretending payment occurred.
+            Puts an HTTP 402 gate in front of a cross-chain buy, so another machine can read the price and what
+            it would receive without a blockchain call. Paying means signing an EIP-3009 transfer authorization
+            on USDC: the token contract checks it, so no separate escrow has to be trusted. Delivery happens
+            before the charge, which means a failed buy costs us rather than the buyer.
           </p>
           <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
-            Authorization: x402-v1 EIP712Sig(0x1234...USDC)
+            X-PAYMENT: base64(&#123; scheme: &quot;exact&quot;, network: &quot;base&quot;, payload: &#123; signature, authorization &#125; &#125;)
           </div>
         </div>
 

@@ -42,30 +42,34 @@ import {
  */
 
 /** Worker yang benar-benar ter-deploy. Subdomain edge.adexto.xyz belum dipasang. */
-const GATEWAY = "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402";
+const GATEWAY = "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/buy";
 
 /**
- * Satu jalur contoh.
+ * Satu pasar contoh.
  *
- * Dulu di sini ada tiga "agent route" — AEGIS, QNOVA, CSENT — masing-masing
- * dengan harga berbeda. Dua hal salah sekaligus. QNOVA dan CSENT tidak pernah
- * dicetak factory, jadi halaman ini mengiklankan agen milik token yang tidak
- * ada. Dan worker TIDAK membedakan harga per ticker: ia mengembalikan ketiga
- * kelas harga yang sama untuk ticker apa pun, lalu sekadar menggemakan ticker
- * itu di field `agent`. Jadi peta "QNOVA = 0.005" adalah karangan halaman ini,
- * bukan kutipan dari gerbangnya.
+ * Dulu di sini ada tiga "agent route" — AEGIS, QNOVA, CSENT — masing-masing dengan
+ * harga berbeda. Dua hal salah sekaligus. QNOVA dan CSENT tidak pernah dicetak
+ * factory, jadi halaman ini mengiklankan agen milik token yang tidak ada. Dan worker
+ * TIDAK membedakan harga per ticker: ia mengembalikan tiga kelas harga yang sama untuk
+ * ticker apa pun. Jadi peta "QNOVA = 0.005" adalah karangan halaman ini.
  *
- * Yang tertinggal adalah apa yang benar: satu jalur contoh, dan ketiga kelas
- * harga apa adanya sebagaimana muncul di jawaban 402 di sebelah kanan.
+ * Ketiga kelas harga itu pun sekarang sudah tidak ada. Endpoint-nya menjual satu hal
+ * dengan satu harga: satu pembelian lintas chain. Simbolnya diselesaikan lewat
+ * /api/pool, jadi ticker yang tidak punya pasar dijawab 404 alih-alih dikutip.
  */
-const DEMO_AGENT = "adexto";
+const DEMO_MARKET = "adexto";
 
-/** Persis seperti yang dikembalikan worker di objek `pricing`, untuk ticker apa pun. */
-const QUOTED_CLASSES: Array<{ key: string; price: string; purpose: string }> = [
-  { key: "inferenceQuery", price: "0.005 USDC", purpose: "one inference call" },
-  { key: "quantSignal", price: "0.010 USDC", purpose: "curve depth and slippage report" },
-  { key: "customExecution", price: "0.020 USDC", purpose: "custom execution" },
-];
+/**
+ * Bukti bahwa jalur berbayarnya benar-benar jalan, bukan klaim.
+ *
+ * Halaman ini hanya melakukan permintaan TANPA bayar, karena membayar menuntut tanda
+ * tangan dompet dan itu tidak bisa dilakukan tombol tanpa wallet. Supaya klaim "sudah
+ * hidup" tetap bisa diperiksa, dua hash pembelian sungguhan disebut apa adanya.
+ */
+const PROOF = {
+  usdc: "0x65a79f7b35fb755aee92da2bb11703df1045955188df352ab4dcfc9b18a62190",
+  buy: "0x7a1583a34e7abd49347b2686bf7c63cf0344f39ec565d85df73ffb502e6d7daf",
+};
 
 interface Attempt {
   status: number;
@@ -76,7 +80,7 @@ interface Attempt {
 }
 
 export default function AgentDemoPage() {
-  const route = DEMO_AGENT;
+  const route = DEMO_MARKET;
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -119,48 +123,84 @@ export default function AgentDemoPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="border-b border-line pb-6 mb-8">
-        <p className="kicker mb-3">x402 payment challenge</p>
+        <p className="kicker mb-3">x402 cross-chain buy</p>
         <h1 className="text-3xl font-semibold text-ink">An endpoint that quotes its own price</h1>
         <p className="text-sm text-ink-soft mt-2 max-w-2xl leading-relaxed">
-          Every agent route answers an unpaid request with HTTP 402 and a machine-readable quote: the price, the
-          assets it accepts, and the vault that should receive payment. The button below performs that request
-          from your browser and prints exactly what came back.
+          Ask for a token and an unpaid request is answered with HTTP 402 and a machine-readable quote: what it
+          costs in USDC on Base, how much of the target chain&apos;s native asset that buys, and the minimum
+          number of tokens the curve will deliver. The button below performs that request from your browser and
+          prints exactly what came back.
         </p>
       </div>
 
-      {/* Ruang lingkup dinyatakan di muka, bukan disembunyikan di catatan kaki. */}
-      <div className="mb-8 rounded-2xl border border-warn/30 bg-warn/10 p-4 flex items-start gap-3">
-        <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-        <p className="text-xs leading-relaxed text-ink-soft">
-          <strong className="text-ink">This is the discovery half of x402.</strong> The challenge is live and
-          the quote is real. Paying it is not implemented: the gateway does not yet verify an EIP-712 voucher,
-          settle on-chain, or forward revenue to a buyback vault. Nothing on this page is simulated — if the
-          request fails, you will see the failure.
-        </p>
+      {/* Ruang lingkup dinyatakan di muka, bukan disembunyikan di catatan kaki. Baris
+          ini dulu berbunyi "This is the discovery half of x402 … paying it is not
+          implemented", dan itu sudah tidak benar. */}
+      <div className="mb-8 rounded-2xl border border-line bg-white p-4 flex items-start gap-3">
+        <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+        <div className="space-y-2 text-xs leading-relaxed text-ink-soft">
+          <p>
+            <strong className="text-ink">Paying is live.</strong> A buyer signs an EIP-3009 authorization for
+            USDC on Base, sends it in{" "}
+            <code className="font-mono text-ink-soft">X-PAYMENT</code>, and the curve on 0G delivers the tokens
+            to their own address. This page only performs the unpaid request, because paying needs a wallet
+            signature that a button cannot produce on its own.
+          </p>
+          <p>
+            So that the claim can be checked rather than taken: one real purchase paid{" "}
+            <a
+              className="font-mono text-accent hover:underline"
+              href={`https://basescan.org/tx/${PROOF.usdc}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              0.02 USDC on Base
+            </a>{" "}
+            and received{" "}
+            <a
+              className="font-mono text-accent hover:underline"
+              href={`https://chainscan.0g.ai/tx/${PROOF.buy}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              $ADEXTO on 0G
+            </a>
+            . Nothing on this page is simulated — if the request fails, you will see the failure.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: route picker */}
         <div className="lg:col-span-5 space-y-4">
           <div className="card p-5 space-y-3">
-            <h2 className="text-[10px] uppercase tracking-wider text-ink-faint font-bold">What it quotes</h2>
-            <p className="text-[11px] leading-relaxed text-ink-soft">
-              The gateway returns these three price classes for any ticker in the path. The ticker is echoed back
-              in the <code className="font-mono text-ink-soft">agent</code> field; it does not change the quote.
-            </p>
-            <div className="space-y-2">
-              {QUOTED_CLASSES.map((c) => (
-                <div key={c.key} className="rounded-xl border border-line bg-white p-3.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-bold text-ink">{c.key}</span>
-                    <span className="rounded border border-line bg-cream-2 px-2 py-0.5 font-mono text-[10px] text-ink-soft">
-                      {c.price}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-ink-soft">{c.purpose}</p>
-                </div>
-              ))}
-            </div>
+            <h2 className="text-[10px] uppercase tracking-wider text-ink-faint font-bold">How the quote is built</h2>
+            {/* Dulu di sini ada tiga kelas harga tetap yang ditulis di halaman ini,
+                bukan dikutip dari gerbangnya. Sekarang tidak ada angka harga di sini
+                sama sekali: satu-satunya angka yang ditampilkan halaman ini datang dari
+                jawaban di sebelah kanan. */}
+            <ol className="space-y-2.5 text-[11px] leading-relaxed text-ink-soft">
+              <li className="rounded-xl border border-line bg-white p-3">
+                <strong className="text-ink">1. The symbol is resolved by us, not you.</strong> The path names a
+                ticker, and the market behind it comes from our own registry. A ticker with no live market is
+                answered 404 instead of quoted.
+              </li>
+              <li className="rounded-xl border border-line bg-white p-3">
+                <strong className="text-ink">2. USDC becomes native at a live rate.</strong> The rate is read
+                when you ask, and the response names its source and the spread held back, so the number can be
+                checked rather than trusted.
+              </li>
+              <li className="rounded-xl border border-line bg-white p-3">
+                <strong className="text-ink">3. The curve prices the tokens.</strong> That native amount goes
+                through the curve&apos;s own quote function, and the response carries both the quote and the
+                minimum you would accept.
+              </li>
+              <li className="rounded-xl border border-line bg-white p-3">
+                <strong className="text-ink">4. Inventory is stated up front.</strong> Delivering a token means
+                spending native we hold, so the quote says how many more buys that stock covers. When it runs
+                out the answer is 503, not a payment we cannot honour.
+              </li>
+            </ol>
           </div>
 
           <button
@@ -174,7 +214,7 @@ export default function AgentDemoPage() {
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" /> GET the ${DEMO_AGENT.toUpperCase()} route
+                <Play className="w-4 h-4" /> Quote a ${DEMO_MARKET.toUpperCase()} buy
               </>
             )}
           </button>
@@ -250,7 +290,8 @@ export default function AgentDemoPage() {
                     <div className="flex items-start gap-2 rounded-lg border border-ok/30 bg-ok/10 p-2.5 text-ink-soft">
                       <CheckCircle2 className="w-3.5 h-3.5 text-ok shrink-0 mt-0.5" />
                       <span>
-                        402 is the expected answer. The route is telling an unpaid caller what it would cost.
+                        402 is the expected answer. The endpoint is telling an unpaid caller what the buy would
+                        cost and what it would deliver.
                       </span>
                     </div>
                   )}

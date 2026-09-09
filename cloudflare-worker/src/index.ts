@@ -99,7 +99,16 @@ const b64 = (o: unknown) =>
 function baseProviderVia(env: Env): ethers.JsonRpcProvider {
   const fr = new ethers.FetchRequest(env.BASE_RPC);
   if (env.RPC_RELAY_SECRET) fr.setHeader("x-relay-key", env.RPC_RELAY_SECRET);
-  return new ethers.JsonRpcProvider(fr, 8453, { staticNetwork: true });
+  /**
+   * `batchMaxCount: 1` bukan penyetelan kinerja.
+   *
+   * ethers menggabungkan panggilan yang berdekatan menjadi satu larik JSON-RPC, dan
+   * relai kami menolak batch dengan sengaja — batch berarti satu permintaan bisa
+   * menyelundupkan metode yang tidak ada di daftar izin. Tanpa baris ini setiap
+   * pembayaran gagal dengan "batched requests are not relayed". Yang dilonggarkan
+   * kliennya, bukan penjaganya.
+   */
+  return new ethers.JsonRpcProvider(fr, 8453, { staticNetwork: true, batchMaxCount: 1 });
 }
 
 const CURVE_ABI = [
@@ -198,8 +207,18 @@ export default {
     if (url.searchParams.get("health") === "1") {
       const t0 = Date.now();
       try {
-        const net = await baseProviderVia(env).getNetwork();
-        return json({ base: { reachable: true, chainId: Number(net.chainId), ms: Date.now() - t0, via: env.BASE_RPC } }, 200);
+        /**
+         * `getNetwork()` TIDAK dipakai di sini. Provider ini dibuat dengan
+         * `staticNetwork: true`, jadi getNetwork menjawab dari konfigurasi tanpa
+         * menyentuh jaringan — versi pertama pemeriksaan ini melaporkan `reachable:
+         * true` dalam 0ms sementara Base bisa saja mati total. Pemeriksaan yang tidak
+         * bisa gagal lebih buruk daripada tidak ada pemeriksaan.
+         *
+         * `getBlockNumber()` menuntut jawaban RPC sungguhan.
+         */
+        const provider = baseProviderVia(env);
+        const block = await provider.getBlockNumber();
+        return json({ base: { reachable: true, chainId: 8453, blockNumber: block, ms: Date.now() - t0, via: env.BASE_RPC } }, 200);
       } catch (e: any) {
         return json(
           { base: { reachable: false, ms: Date.now() - t0, via: env.BASE_RPC, detail: String(e?.message).slice(0, 200) } },

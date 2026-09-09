@@ -321,67 +321,73 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <p className="kicker mb-3">
-                <CloudLightning className="w-3.5 h-3.5" /> Agent monetisation
+                <CloudLightning className="w-3.5 h-3.5" /> Cross-chain buys
               </p>
-              {/* Seksi ini dulu menjanjikan tiga hal dan hanya satu yang benar; yang
-                  belum ada ditulis sebagai fitur berjalan. Angkanya juga bertengkar
-                  sendiri: pilar dan judul menyebut "sub-50ms", FAQ di bawah menyebut
-                  "<35ms". Sekarang satu angka, dan angka itu milik jaringan Cloudflare,
-                  bukan hasil pengukuran kami — jadi disebut apa adanya.
+              {/* Seksi ini sudah salah ke DUA arah, dan keduanya layak dicatat.
 
-                  Catatan versi berikutnya: daftar di bawah pernah salah ke arah yang
-                  sebaliknya. Ia menyangkal verifikasi EIP-712 lama setelah verifikasi itu
-                  benar-benar dipasang di worker. Jadi daftar ini harus diuji ke worker
-                  yang hidup, bukan diwarisi. Keadaan sekarang, diukur langsung:
-                  402 tanpa voucher, 401 untuk tanda tangan palsu, 501 untuk voucher sah.
-                  Yang benar-benar belum ada: penyelesaian on-chain dan penyaluran
-                  otomatis ke vault buyback. */}
+                  Pertama ia menjanjikan tiga hal yang belum ada sebagai fitur berjalan.
+                  Lalu, setelah verifikasi EIP-712 benar-benar dipasang, ia masih
+                  menyangkalnya — merendahkan diri sendiri tetap salah kalau tidak sesuai
+                  keadaan. Kesimpulannya: daftar ini harus diuji ke endpoint yang HIDUP
+                  setiap kali disunting, bukan diwarisi.
+
+                  Diukur langsung ke produksi saat baris ini ditulis, dengan uang
+                  sungguhan: tanpa X-PAYMENT 402 berisi kutipan; 0,02 USDC dibayar di
+                  Base lewat otorisasi EIP-3009; 4768,95 $ADEXTO mendarat di 0G di atas
+                  minTokensOut; dua tx dikembalikan — beli
+                  0x7a1583a34e7abd49347b2686bf7c63cf0344f39ec565d85df73ffb502e6d7daf di
+                  0G dan settlement
+                  0x65a79f7b35fb755aee92da2bb11703df1045955188df352ab4dcfc9b18a62190 di
+                  Base. Bolak-balik 16,2 detik.
+
+                  Yang MASIH belum ada disebut apa adanya di kartu terakhir: persediaan
+                  0G-nya terbatas, dan hasil USDC-nya belum disalurkan ke vault buyback.
+
+                  Angka latensi lama ("sub-50ms" di pilar, "<35ms" di FAQ) sudah dibuang:
+                  itu milik jaringan Cloudflare, bukan pengukuran kami, dan sekarang
+                  angka yang disebut adalah bolak-balik yang benar-benar kami ukur. */}
               <h2 className="text-3xl sm:text-4xl font-semibold text-ink mb-4">
-                An API that bills other machines
+                Pay on Base, get the token on 0G
               </h2>
               <p className="text-ink-soft text-sm leading-relaxed mb-6">
-                Every agent endpoint answers an unpaid request with HTTP 402 Payment Required, quoting its
-                price and the vault that should receive payment. The challenge is served from Cloudflare&apos;s
-                edge, so a caller learns the terms without touching an RPC node.
+                A market can only live on one chain, but a buyer&apos;s money does not have to. Ask for a
+                token and the endpoint answers HTTP 402 with a quote. Pay it with USDC on Base and the
+                curve on 0G sends the tokens straight to your address. No bridging, and no holding the
+                target chain&apos;s gas token.
               </p>
 
               <div className="space-y-3.5 text-xs sm:text-sm">
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Live now:</strong> the 402 challenge, with price, accepted
-                    assets and settlement vault. Try it below on the agent demo page.
+                    <strong className="text-ink">Live now:</strong> the whole path, with real money. One
+                    USDC payment on Base, tokens delivered on 0G, both transaction hashes returned.
                   </span>
                 </div>
-                {/* Baris ini dulu berbunyi "Not wired yet: EIP-712 voucher verification
-                    and on-chain settlement". Separuhnya sudah tidak benar: worker
-                    produksi memang memeriksa tanda tangannya. Dibuktikan langsung ke
-                    worker yang hidup — tanda tangan palsu dijawab 401 "Signature does
-                    not verify", voucher yang sah dijawab 501 dengan alamat pembayar yang
-                    dipulihkan benar dari tanda tangan itu. Merendahkan diri sendiri
-                    tetap salah kalau tidak sesuai keadaan. */}
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Live now:</strong> EIP-712 voucher verification. A forged
-                    signature is rejected with 401; a valid one is answered with the payer address recovered
-                    from it.
+                    <strong className="text-ink">Live now:</strong> settlement by EIP-3009. You sign a
+                    USDC transfer authorization; USDC itself checks the signature, so no new contract has
+                    to be trusted. A forged one is rejected, and a used one cannot be replayed.
+                  </span>
+                </div>
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
+                  <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                  <span className="text-ink">
+                    <strong className="text-ink">No custody:</strong> the curve&apos;s{" "}
+                    <span className="font-mono text-[11px]">buy</span> takes a recipient, so tokens go to
+                    you directly. Delivery happens before the charge, so a failed buy costs us and never
+                    you.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Not wired yet:</strong> on-chain settlement. A verified
-                    voucher is answered with 501, not 200. The endpoint quotes terms and checks who is
-                    asking; it does not yet take payment.
-                  </span>
-                </div>
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
-                  <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-                  <span className="text-ink">
-                    <strong className="text-ink">Not wired yet:</strong> routing that revenue into the
-                    curve&apos;s buyback vault. The vault and its burn path exist on-chain; the edge does not
-                    feed it.
+                    <strong className="text-ink">Limits worth knowing:</strong> delivering a token means
+                    spending 0G we hold, so the size we can fill is capped by that inventory and the
+                    endpoint answers 503 once it runs out. The USDC it takes in is not yet routed to the
+                    curve&apos;s buyback vault.
                   </span>
                 </div>
               </div>
@@ -403,7 +409,7 @@ export default function HomePage() {
           2. Tab worker-nya menampilkan `verifyEIP712Sig(...)` lalu
              `Response.json({ agentResult: await dispatch0GTEE() })`. Kedua fungsi itu
              tidak ada di cloudflare-worker/src/index.ts, dan jalur sukses itu tidak
-             pernah dikembalikan worker: voucher yang sah dijawab 501.
+             pernah dikembalikan worker: waktu itu voucher yang sah dijawab 501.
 
           Penggantinya bukan cuplikan yang lebih rapi, tapi bukti yang tidak bisa
           melenceng diam-diam: ABI yang diterbitkan di /abi/, yang dibandingkan
