@@ -1,10 +1,13 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ADEXTO">
-  <rect width="512" height="512" rx="120" fill="#7c3aed"/>
-  <path d="M256,104 L438,414 L350,414 L256,214 L162,414 L74,414 Z" fill="#f4efe4"/>
-  <g transform="rotate(-14 256 286)">
-    <path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill="none" stroke="#7c3aed" stroke-width="19" stroke-linejoin="round"/>
-    <path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill="#f4efe4" fill-rule="evenodd"/>
+  <style>#g{fill:#141110}@media(prefers-color-scheme:dark){#g{fill:#f4efe4}}</style>
+  <mask id="adexto-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+    <rect width="512" height="512" fill="#fff"/>
+    <g transform="rotate(-14 256 286)"><path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill="none" stroke="#000" stroke-width="20" stroke-linejoin="round"/></g>
+    <circle cx="388" cy="302" r="34" fill="none" stroke="#000" stroke-width="20"/>
+  </mask>
+  <g id="g">
+    <path d="M256,104 L438,414 L350,414 L256,214 L162,414 L74,414 Z" mask="url(#adexto-cut)"/>
+    <g transform="rotate(-14 256 286)"><path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill-rule="evenodd"/></g>
+    <circle cx="388" cy="302" r="34"/>
   </g>
-  <circle cx="378" cy="300" r="55" fill="none" stroke="#7c3aed" stroke-width="19"/>
-  <circle cx="378" cy="300" r="55" fill="#f4efe4"/>
 </svg>

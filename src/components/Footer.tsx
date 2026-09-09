@@ -9,9 +9,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl overflow-hidden border border-line p-1 bg-white">
-                <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-full h-full object-contain" />
-              </div>
+              {/* Dulu logo ini dibungkus kotak putih ber-border. Karena logonya
+                  sudah tidak punya plat sendiri, kotak itu jadi kotak di dalam
+                  kotak dan membuatnya terlihat sesak. Dibuang. */}
+              <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-9 h-9 object-contain shrink-0" />
               <div>
                 <span className="font-semibold text-ink tracking-wide text-base block leading-tight">ADEXTO PROTOCOL</span>
                 <span className="text-[10px] text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
