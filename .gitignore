@@ -46,6 +46,12 @@ private_key
 private-key*
 *token*github*
 token github*
+
+# Konfigurasi asisten lokal. `.kiro/steering/*.md` adalah instruksi untuk alat yang
+# saya jalankan di mesin ini, bukan bagian dari produk — tidak dibaca aplikasi, tidak
+# dipakai build, dan tidak berguna bagi siapa pun yang mengkloning repo. Satu berkas
+# sempat ter-commit di 7900421 tanpa disengaja.
+.kiro/
 secrets.json
 
 # Logs
