@@ -32,16 +32,26 @@ import type { TradeEvent } from "@/lib/telemetry";
  *    kosong.
  *
  * Nilai di bawah diberi margin dari yang terukur lolos: 0G dan Arbitrum lolos sampai
- * 2.000.000, Base lolos di 10.000, Monad di 100. Chain tanpa entri memakai 10.000,
- * yang terbukti diterima di keempat RPC yang diuji kecuali Monad.
+ * 2.000.000, Monad hanya sampai 100.
+ *
+ * Base TURUN dari 10.000 ke 2.000 dalam hitungan hari, dan itu bukan catatan sepele —
+ * itu justru buktinya kenapa angka-angka ini tidak boleh dipercaya tanpa diperiksa.
+ * Pada pengukuran pertama Base menerima 10.000 dan menolak 20.000; pada pengukuran
+ * berikutnya ia menolak 10.000 DAN 5.000, dan menerima 2.000. Tidak ada pemberitahuan,
+ * tidak ada perubahan di repo ini. Penjaga di `audit_consistency.mjs` yang menemukannya,
+ * dan tanpa penjaga itu gejalanya akan berupa riwayat perdagangan Base yang kosong tanpa
+ * satu pun pesan galat.
+ *
+ * Chain tanpa entri memakai 2.000, yaitu nilai paling ketat yang masih terbukti diterima
+ * di keempat RPC yang diuji kecuali Monad.
  */
 const LOG_SPAN_BY_CHAIN: Record<number, number> = {
   16661: 500_000, // 0G mainnet
-  8453: 10_000, // Base
+  8453: 2_000, // Base — diukur 2026-09-09; sebelumnya 10.000
   42161: 500_000, // Arbitrum
   143: 100, // Monad
 };
-const DEFAULT_LOG_SPAN = 10_000;
+const DEFAULT_LOG_SPAN = 2_000;
 
 /**
  * Anggaran panggilan `getLogs` per pembacaan.
