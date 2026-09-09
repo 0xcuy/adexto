@@ -357,37 +357,48 @@ export default function HomePage() {
               </p>
 
               <div className="space-y-3.5 text-xs sm:text-sm">
+                {/* Keempat kartu ini pernah ditulis sebagai bantahan: "No custody",
+                    "a failed buy costs us and never you", "Limits worth knowing". Semua
+                    isinya benar, tapi dua di antaranya sebenarnya KEKUATAN yang ditulis
+                    seperti permintaan maaf, dan itu membuat seluruh seksi terbaca minder.
+
+                    Plafon persediaan tidak dihapus, dipindahkan ke tempat yang bisa
+                    ditindaklanjuti: setiap kutipan 402 membawa `inventory.remainingBuys`
+                    dan kalau habis endpoint menjawab 503 beserta alasannya, jadi
+                    integrator melihatnya di payload, bukan di iklan. Batas yang sama
+                    juga tertulis di /docs dan /pitch. Penyaluran USDC ke vault buyback
+                    adalah mekanika treasury, bukan hal yang dialami pembeli, jadi
+                    tempatnya di /docs. */}
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Live now:</strong> the whole path, with real money. One
-                    USDC payment on Base, tokens delivered on 0G, both transaction hashes returned.
+                    <strong className="text-ink">You pay only if it worked.</strong> The tokens are
+                    delivered first and the charge is taken after, so you are never billed for a purchase
+                    that did not arrive.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Live now:</strong> settlement by EIP-3009. You sign a
-                    USDC transfer authorization; USDC itself checks the signature, so no new contract has
-                    to be trusted. A forged one is rejected, and a used one cannot be replayed.
+                    <strong className="text-ink">The tokens land in your own wallet.</strong> The
+                    curve&apos;s <span className="font-mono text-[11px]">buy</span> takes a recipient, so it
+                    sends them to your address. They never pass through us.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
                   <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">No custody:</strong> the curve&apos;s{" "}
-                    <span className="font-mono text-[11px]">buy</span> takes a recipient, so tokens go to
-                    you directly. Delivery happens before the charge, so a failed buy costs us and never
-                    you.
+                    <strong className="text-ink">Nothing new to trust.</strong> You sign a USDC transfer
+                    authorization and USDC itself checks it. No escrow contract, no deposit. A forged
+                    signature is rejected and a used one cannot be replayed.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-white border border-line">
-                  <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                   <span className="text-ink">
-                    <strong className="text-ink">Limits worth knowing:</strong> delivering a token means
-                    spending 0G we hold, so the size we can fill is capped by that inventory and the
-                    endpoint answers 503 once it runs out. The USDC it takes in is not yet routed to the
-                    curve&apos;s buyback vault.
+                    <strong className="text-ink">Proven with real funds.</strong> Both transaction hashes
+                    come back in the response, so you can read the payment and the delivery on two
+                    explorers instead of taking our word for it.
                   </span>
                 </div>
               </div>

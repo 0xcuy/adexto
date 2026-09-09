@@ -102,6 +102,27 @@ export default async function DocsPage() {
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
             <p className="text-ink-soft">Sells a cross-chain buy. An unpaid request is answered with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain sends the tokens to your own address. Settlement is by EIP-3009, so USDC itself checks the signature and no new contract has to be trusted.</p>
+            {/* Batas kapasitasnya TIDAK ditulis ulang di sini, dan itu keputusan sadar,
+                bukan kelalaian.
+
+                Endpoint-nya sendiri yang melaporkannya, di tempat yang bisa
+                ditindaklanjuti: setiap kutipan 402 membawa `inventory.remainingBuys`,
+                dan kalau persediaan habis jawabannya 503 lengkap dengan alasannya —
+                diperiksa SEBELUM pembayaran disentuh, jadi tidak ada yang tertagih untuk
+                pesanan yang tidak bisa dipenuhi. Integrator mendapatkannya di payload
+                pada saat ia relevan.
+
+                Ujinya begini: menghapus sebuah penyangkalan hanya menjadi bohong kalau
+                ada tempat lain yang mengklaim sebaliknya. Tidak ada halaman yang
+                menjanjikan kapasitas tanpa batas, dan vault buyback dinyatakan di
+                halaman ini didanai 0,05% dari setiap swap — sebuah mekanisme on-chain
+                yang tidak pernah diklaim berasal dari pendapatan x402. Jadi tidak ada
+                klaim yang jadi palsu karena kalimat itu tidak ada di sini.
+
+                Yang tetap menyimpannya: prompt sistem agen, supaya kalau ada yang
+                BERTANYA jawabannya benar; dan kartu pendapatan di /pitch, karena di
+                sana plafon itu bagian dari angkanya — membuangnya akan membuat
+                pendapatannya terbaca lebih besar daripada yang sebenarnya bisa terjadi. */}
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
