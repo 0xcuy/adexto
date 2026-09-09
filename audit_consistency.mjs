@@ -1841,6 +1841,58 @@ console.log("\n── tautan footer yang menjanjikan registry vs halaman tujuann
   );
 }
 
+// ── ABI publik di public/abi/ vs kontrak yang dikompilasi ───────────────────
+/**
+ * ABI ini dipublikasikan untuk dilampirkan ke pengajuan indexer, jadi ia dikutip orang
+ * luar. Kalau kontrak dikompilasi ulang dengan perubahan sementara berkas ini tidak
+ * diekspor lagi, yang beredar adalah ABI yang tidak menggambarkan kontrak mana pun —
+ * dan tidak ada yang akan menyadarinya, karena berkasnya tetap ada dan tetap valid JSON.
+ *
+ * `scripts/export-abi.mjs` sudah memverifikasi ABI terhadap bytecode yang ter-deploy,
+ * termasuk mempertanggungjawabkan setiap byte immutable. Yang diperiksa di sini lebih
+ * sempit dan tidak butuh jaringan: apa yang dipublikasikan sama dengan apa yang
+ * dikompilasi, dan alamat yang tercatat sama dengan env yang sudah diperiksa ke chain
+ * di bagian 1.
+ */
+console.log("\n── ABI publik vs artifact yang dikompilasi ──");
+{
+  const dir = "public/abi";
+  if (!existsSync(`${dir}/index.json`)) {
+    check("public/abi/index.json ada", false, "jalankan node scripts/export-abi.mjs");
+  } else {
+    const idx = JSON.parse(readFileSync(`${dir}/index.json`, "utf8"));
+    for (const name of ["AdextoFactory", "AdextoCurve", "AdextoToken"]) {
+      const artPath = `build/artifacts/${name}.json`;
+      if (!existsSync(artPath)) {
+        check(`${name}: artifact ada`, false, "kompilasi dulu");
+        continue;
+      }
+      const art = JSON.parse(readFileSync(artPath, "utf8"));
+      const published = JSON.parse(readFileSync(`${dir}/${name}.json`, "utf8"));
+      const sameFile = JSON.stringify(published) === JSON.stringify(art.abi);
+      const sameIndex = JSON.stringify(idx.contracts?.[name]?.abi) === JSON.stringify(art.abi);
+      check(
+        `${name}: ABI publik = ABI hasil kompilasi`,
+        sameFile && sameIndex,
+        sameFile && sameIndex
+          ? `${art.abi.length} entri`
+          : `menyimpang — ${!sameFile ? `${name}.json basi` : ""}${!sameFile && !sameIndex ? " dan " : ""}${!sameIndex ? "index.json basi" : ""}; jalankan node scripts/export-abi.mjs`
+      );
+    }
+    // CHAINS di berkas ini di-key dengan chainId, sementara index.json memakai nama
+    // network GeckoTerminal. Yang menjembatani keduanya `c.key` ("0G" -> "0g").
+    for (const c of Object.values(CHAINS)) {
+      const recorded = idx.networks?.[c.key.toLowerCase()];
+      const envAddr = env[c.factoryEnv];
+      check(
+        `${c.key}: alamat factory di index.json = env yang diperiksa ke chain`,
+        recorded && envAddr && recorded.factory?.toLowerCase() === envAddr.toLowerCase(),
+        recorded ? `${recorded.factory} vs ${envAddr}` : "network tidak tercatat di index.json"
+      );
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
