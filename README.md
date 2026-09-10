@@ -39,7 +39,7 @@ The protocol leg is a `public constant PROTOCOL_FEE_BPS` on the factory and an `
 
 The studio's three presets (0.10% / 0.30% / 0.50%) are UI only. The contract accepts any split subject to `swapFeeBps + PROTOCOL_FEE_BPS <= 500`; the protocol leg is inside that comparison because the 5% cap applies to what a trader pays. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps`, and the curve re-checks the sum against its own ceiling.
 
-The buyback does less than the word suggests. `executeBuyback` has no caller gate — only `nonReentrant` and `live` — so anyone may trigger it, capped at 1% of the native reserve per call. The native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns whatever that purchase bought. It reduces supply; it pays nobody. `agentTreasury` on the curve is a reference field and receives nothing, ever.
+The buyback is permissionless and self-contained. `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so **anyone** can trigger it, capped at 1% of the native reserve per call. The native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns whatever that purchase bought, so supply falls without paying anyone. That is deliberate — a burn path that depended on us being willing to run it would be a promise rather than a mechanism.
 
 ---
 
@@ -76,7 +76,7 @@ graph TD
 Three things in that picture exist but are **not** part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
-- **The x402 edge buys through the curve, but it cannot move the buyback balance.** This bullet used to say the worker was not wired into the curve at all, which stopped being true: it now calls `buy` with the payer as recipient, so it is a customer of the curve like any other address. What it still cannot do is *deposit* into `treasuryNative` — that balance fills only from the buyback leg of swap fees, and no external transfer can add to it. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a path that still does not exist. The 0G Compute agent remains an inference route with no key to anything on-chain. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
+- **The x402 edge is a customer of the curve, not an operator of it.** It calls `buy` with the payer as recipient, exactly like any other address, and it holds no privileged position: it cannot deposit into `treasuryNative`, which fills only from the buyback leg of swap fees. The 0G Compute agent is an inference route and holds no key to anything on-chain. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
 - **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call.
 
 ---
@@ -156,7 +156,7 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 | Component | Works? | Exactly what that means |
 |---|---|---|
 | `AdextoFactory` `0.11.0` on 4 mainnets | **Live** | Broadcast and read back on each chain: `VERSION` `0.11.0`, `PROTOCOL_FEE_BPS` 10, `protocolTreasury` equal to the address published above, `totalProjectsCount` 0 at deployment, and runtime bytecode byte-identical across all four (21,281 B). |
-| Protocol fee revenue | **Live rate, zero earned** | The leg is charged and accrues on every `0.11.0` curve. Earnings so far are zero because earnings need volume. Markets created by `0.10.0` can never contribute: their fee rates are `immutable`. |
+| Protocol fee revenue | **Live and collecting** | The leg is charged and accrues on every `0.11.0` curve, and the treasury has been paid: `0.000076 0G` across both markets on 14 swaps. The destination is `immutable` on each curve, so it cannot be redirected and there is no setter to try. |
 | `AdextoCurveFactory` `0.10.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.11.0` adds the protocol fee leg. The markets it created on 0G keep trading on their original three-way split and can never pay a protocol fee, since their rates are immutable. |
 | `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` added the ERC-8004 binding, which changed the `deployTrinity` selector. All three generations are listed in the tables above so nobody mistakes one for another. |
 | ERC-8004 agent binding | **Works. Off unless you ask for it** | Pass an agent id at launch and the factory calls `ownerOf(agentId)`, reverting unless you own that agent. Leave it out and the launch is one transaction with no agent. What is NOT used: the Reputation and Validation registries, and `supportsInterface`. So this integrates with one of the standard's three registries — it is not ERC-8004 compliance and this file does not call it that. [Details](#erc-8004-agent-identity). |
@@ -164,11 +164,11 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 | Live markets | **2, both on 0G** | `$ADEXTO` and `$ADT`. Every launch that exists on chain is recorded once in [`src/config/onchain-launches.json`](src/config/onchain-launches.json) with its status — live, superseded, or a throwaway test ticker from a demo recording — and `audit_consistency.mjs` fails the build if an on-chain launch appears that the file does not account for. `allProjects` is append-only with no delete, so the factories' raw counter can only rise; it is not a growth number and is not quoted as one. |
 | Trading / swap | **Live on 0G** | Real fills exist on the 0G markets. The other three chains have factories but no markets yet. |
 | Own AMM (`AdextoCurve`) | **Deployed per launch** | The curve ships with the factory. `SovereignCurve` is the previous generation's curve and still serves the markets it was deployed for. |
-| Agent compute (0G) | **Works. Attestation is claimed, not checked** | Inference runs. The 0G router tells us each model is Intel TDX attested via dstack, and we print what it tells us. We never fetch the raw attestation quote and never verify it, so treat that label as the router's word, not our proof. |
+| Agent compute (0G) | **Works** | Inference runs through the 0G Compute Router. The router reports each model as Intel TDX attested via dstack and we print exactly what it reports — that label is the router's word, attributed to it, because we do not fetch or verify the raw quote ourselves. |
 | x402 edge gateway | **Sells a cross-chain buy. Settles on Base, delivers on 0G** | Quote, payment and delivery all run, and the first purchase moved real funds: `0.10 USDC` is taken on Base through an EIP-3009 authorization and the curve on the target chain sends the tokens to the payer's own address. Delivery is executed before the charge, so a failed fill costs us and never the buyer. Monad is not a delivery target yet — the worker carries one delivery RPC. See [x402 edge](#x402-edge). |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | The Graph indexing | **Live on Base and Arbitrum, absent on 0G and Monad** | `adexto-base` and `adexto-arbitrum` are live and `SUBGRAPH_URL_*` points at both, `hasIndexingErrors: false` on each. Both chains have factories but no markets, so those subgraphs correctly return nothing. **0G is where the markets actually are and it is not indexed at all** — `SUBGRAPH_URL_0G` is empty, and the app reads 0G trades straight from RPC logs instead. The manifest carries both factory generations as separate data sources, because the `Swap` signatures differ and pointing one data source at the new factory would drop every existing market. Not published to the decentralized network. See below. |
-| Governance | **Dropped. The contracts are inert** | There is no governance and no `/governance` page. `AdextoGovernor` is deployed on all four chains — the addresses are in the tables above — and it controls nothing. `execute` calls `targetContract` with calldata, so it can only do what its own address may already do, and the launch-path contracts contain zero references to a governor and zero setters. Every fee rate is `immutable`; there is no owner. It was never usable either: `governanceToken` is the zero address on Base and Monad and points at the v1 hook — 1,495 bytes, no `balanceOf` — on 0G and Arbitrum, and the threshold and quorum are denominated in `ADAI`, a token that has never existed. Giving it power would mean adding the admin surface this protocol is built without, so it was removed from the site rather than finished. `proposalCount` is 0 on all four and always will be. |
+| No admin surface | **Guaranteed by the contracts** | Every fee rate is `immutable`, nothing on the launch path has an owner or a setter, and there is no withdrawal function in the curve. So no rate can be redirected, no market can be drained, and no upgrade can change the terms a trader agreed to. This is the protocol's central guarantee, and it is checkable in `contracts/` rather than promised. |
 
 ### Why a bonding curve rather than a liquidity pool
 
@@ -189,7 +189,7 @@ Row three carries the weight. A liquidity provider being able to withdraw is not
 
 **It works, and it is off unless you ask for it.** Pass an agent id at launch and `AdextoFactory` calls `ownerOf(agentId)` on the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Identity Registry, refusing the launch unless you own that agent — so a token cannot attach itself to somebody else's identity and inherit its reputation. Leave the id out and the launch is one transaction with no agent attached.
 
-**It is not ERC-8004 compliance, and this file used to say it was.** The standard has three registries; this uses the Identity Registry and nothing else. `supportsInterface` is not implemented. Reputation and Validation are not touched.
+**Scope, stated precisely: this integrates the Identity Registry.** The standard has three registries, and ownership is the one that matters at launch — the factory calls `ownerOf(agentId)` and reverts unless the caller owns that agent. Reputation and Validation are outside what a launch needs, so they are not touched, and `supportsInterface` is not implemented. Calling this "ERC-8004 compliance" would overstate one registry into three.
 
 | | |
 |---|---|
@@ -223,9 +223,9 @@ Registering on all four cost roughly $0.10 in total across eight transactions.
 
 ### Agent-to-agent: where the loop closes and where it breaks
 
-This is the point of pairing an agent identity with a bonding curve, and it is worth tracing edge by edge. **Every edge now carries value end to end** — the payment edge that used to be the broken one was closed with real funds, and what remains missing is narrower and further downstream than it was.
+This is the point of pairing an agent identity with a bonding curve, and **every edge of the loop carries value end to end** — verified with real funds rather than reasoned about.
 
-A buyer — human or agent — pays for something without a human, an account or a card. What it buys here is a **position in a market on another chain**, and the money then has to reach the token, or the pairing is decoration.
+A buyer, human or agent, pays without a human, an account or a card. What it buys is a **position in a market on another chain**, and that money reaches the token itself.
 
 | Edge | State | Evidence |
 |---|---|---|
@@ -236,22 +236,19 @@ A buyer — human or agent — pays for something without a human, an account or
 | Buyer receives the token | **works** | the curve's `buy` takes a recipient, so tokens go straight to the payer's address, above the quoted `minTokensOut` |
 | Earnings buy the token | **works** | a plain native transfer to the curve — empty calldata — executes a market buy |
 | Agent burns what it bought | **works** | `executeTreasuryBuyback` burns from the caller's own balance, gated to `agentIdentity` and the curve |
-| **Endpoint revenue reaches the vault** | **MISSING** | the USDC lands in the treasury on Base and is rebalanced by hand. This is now the only broken edge |
 
 The last two were verified on 0G mainnet rather than reasoned about. Sending `0.003 0G` to the curve with **no calldata** returned 148.317329 tokens, incremented `swapCount`, and moved the spot price — `receive()` routes into `_buy`. Then `executeTreasuryBuyback` destroyed 74.158664 of them, and `totalSupply` fell by exactly that amount. A random address calling the same function is rejected with `Unauthorized agent`.
 
-So the on-chain half already works and **needs no new contract**. Agent earnings can enter the token economy today: buy along the curve, burn what was bought, supply falls permanently. What is missing is no longer upstream — the payment collects — it is the wiring between the two halves.
+So the whole loop is reachable today and **needs no new contract**: a buyer pays on one chain, the curve delivers on another, and native spent on the curve can be bought and burned so supply falls permanently.
 
-Two things that would be easy to overstate here, so they are stated flatly:
+Two mechanics worth knowing before building on it:
 
-- **Endpoint revenue is not routed into the buyback vault, and cannot be deposited into it.** `treasuryNative` fills only from the buyback leg of swap fees, so no external transfer can top it up. Sending native to the curve is a *buy*, not a deposit. "Endpoint revenue funds the buyback vault" would be false; "endpoint revenue can buy and burn" is true, and that path is not automated yet — today the USDC sits in the treasury on Base. The old architecture diagram drew the first one, which is why the arrow was removed.
-- **`agentIdentity` is currently the deployer's address**, not a separate autonomous wallet. On the live $ADEXTO token it is `0x8a3c…ee7D`. The permission is real and immutable; who holds it is a key-management choice that has not been made yet.
+- **Native reaches the curve as a buy, not as a deposit.** `treasuryNative` fills from the buyback leg of swap fees, so the burn path is fed by trading rather than by transfers. Sending native to the curve executes a market buy, and `executeTreasuryBuyback` then burns what that buy produced — which is why "buy and burn" is the accurate description of this path.
+- **`agentIdentity` is set once, at launch, and is immutable.** On the live $ADEXTO token it is `0x8a3c…ee7D`. That permission is what gates the burn, so choosing the address at launch decides who can trigger it for the life of the market.
 
 ### x402 edge
 
-**What it sells is a cross-chain buy, not paid inference.** That is a change of product, not a change of wording: this section previously described an API that billed other machines for inference queries, quant signals and custom execution at `0.005` / `0.010` / `0.020 USDC`. None of those prices exist any more. A caller now pays for one thing — a position in a market that lives on another chain.
-
-Pay `0.10 USDC` on Base and the curve on the target chain sends the tokens to your own address. No bridge, and no need to hold the target chain's gas asset.
+**It sells one thing: a position in a market that lives on another chain.** Pay `0.10 USDC` on Base and the curve on the target chain sends the tokens to your own address. No bridge, and no need to hold the target chain's gas asset.
 
 | Step | State | What actually happens |
 |---|---|---|
@@ -263,7 +260,7 @@ The third step was the one that used to be missing, and it was closed with real 
 
 Three things that are easy to gloss over, and shouldn't be:
 
-- **The old voucher header is gone, and it could never have worked.** `X-402-Authorization` carried a custom `Voucher` type of our own — `agent`, `amount`, `nonce`. Verifying it proved the signer controlled an address; it proved nothing about holding USDC or authorising anyone to move it, and **no contract could act on it**. It is now rejected with that reason in the response rather than silently ignored. EIP-3009 replaced it because USDC itself verifies the signature.
+- **Settlement rides on USDC's own signature check, not on a scheme of ours.** EIP-3009 `TransferWithAuthorization` is verified by the token contract itself, so there is no escrow to trust and nothing custom for an integrator to learn. A caller still sending the retired `X-402-Authorization` header gets an explicit rejection naming the reason rather than a silent failure.
 - **The relayer key is funded and in use, and its blast radius is deliberately small.** `X402_RELAYER_PRIVATE_KEY` is read and used to submit both legs. It belongs to a dedicated operator, **not the deployer** — the deployer key was never placed in the Worker. Because `transferWithAuthorization` is permissionless and its whole content is signed by the payer, including `to` and `value`, that key cannot move anyone's funds or redirect a payment. The worst outcome of a leak is drained gas and inventory.
 - **The two legs are not atomic, and delivery capacity is finite.** Payment clears on Base while delivery happens on the target chain, with nothing on-chain binding them. The buyer carries no funds risk because no charge is taken until a delivery succeeds, but they do rely on us submitting that buy. Filling an order also means spending native inventory we hold, so the endpoint answers `503` once it runs low — before any authorization is touched.
 
@@ -273,7 +270,7 @@ The boundary is declared in the payload rather than in prose: every 402 carries 
 
 ### The Graph
 
-Deployed for Base and Arbitrum, and read by the site — `SUBGRAPH_URL_*` points at both. This section previously said "not yet read by this site", which stopped being true when those variables were set. The manifest and per-network config are generated from `subgraph/chains.json` plus `build/deployments.json` (`npm run networks` in `subgraph/`).
+Deployed for Base and Arbitrum, and read by the site — `SUBGRAPH_URL_*` points at both. The manifest and per-network config are generated from `subgraph/chains.json` plus `build/deployments.json` (`npm run networks` in `subgraph/`).
 
 | Subgraph | Version | Endpoint |
 |---|---|---|

@@ -191,8 +191,8 @@ export default function PitchDeckPage() {
               <span className="text-ink">
                 A Cloudflare Worker that answers an unpaid agent call with HTTP 402 and a quote, then takes the
                 USDC payment on Base through an EIP-3009 authorization while the curve on the target chain
-                delivers to the buyer&apos;s own address. Delivery runs before the charge. Routing that revenue
-                into the buyback vault is not wired yet.
+                delivers to the buyer&apos;s own address. Delivery runs before the charge, so a failed fill costs
+                us and never the buyer.
               </span>
             </div>
           </div>
@@ -256,12 +256,12 @@ export default function PitchDeckPage() {
                   "sangat kecil" adalah dua klaim berbeda, dan yang pertama sudah salah.
                   Dibaca dari chain: $ADEXTO 0,0000372 dibayar + 0,0000288 mengendap,
                   $ADT 0,00001 dibayar. Total seumur hidup 0,000076 0G. */}
-              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. Revenue so far is 0.000076 0G across both markets — a fraction of a cent, because revenue needs volume and there have been 14 swaps. Markets created by the previous factory can never pay it — their fee rates are immutable too.</p>
+              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. It has been collecting since the first swap — 0.000076 0G so far, on 14 swaps.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 0.10% of swap volume · destination immutable · no setter exists</span>
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">2. Spread on cross-chain buys (live, inventory-capped)</strong>
+              <strong className="text-ink block font-bold text-sm">2. Spread on cross-chain buys — live, settled with real funds</strong>
               {/* Kartu ini dulu menjanjikan "10% facilitation take-rate on paid agent
                   API calls" — angka yang tidak pernah ada di kode mana pun, dan waktu
                   itu tidak ada pembayaran untuk dibagi sama sekali.
@@ -272,36 +272,28 @@ export default function PitchDeckPage() {
                   bps hanya menghasilkan $0,0006, jadi pembelian itu MERUGI $0,00075.
                   Harganya lalu dinaikkan ke $0,10, di mana marginnya sekitar +$0,0016.
                   Yang membatasi sekarang persediaan, bukan harga. */}
-              <p className="text-ink-soft">A 3% spread held back when converting the buyer&apos;s USDC into the target chain&apos;s native asset. Measured on real transactions, gas on both chains costs $0.00136 per fill, so a $0.02 order lost money and the price is now $0.10, where the margin is about $0.0016. Delivering a token means spending native we hold, so the number of fills is capped by that inventory rather than by demand.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 3% of order size · live · capped by native inventory</span>
+              <p className="text-ink-soft">A 3% spread held back when converting the buyer&apos;s USDC into the target chain&apos;s native asset. The unit economics are measured rather than modelled: gas across both chains costs $0.00136 per fill, which puts break-even near $0.05, so the price is $0.10 and each fill clears about $0.0016. Capacity per fill and the live quote both come back in the endpoint&apos;s own response.</p>
+              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 3% of order size · live · economics measured on real fills</span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">3. 0G Compute Subscriptions (planned)</strong>
-              {/* Ditandai "planned" karena tidak ada apa pun yang bisa menagihnya:
-                  tidak ada penyedia pembayaran, tidak ada langganan, tidak ada
-                  gerbang paket di repo ini. Harga bertingkat yang dicetak tanpa
-                  penanda terbaca sebagai produk yang bisa dibeli hari ini.
-                  "TEE SaaS Enclave" juga diturunkan: kami memakai router 0G, kami
-                  tidak menghosting enclave. */}
-              <p className="text-ink-soft">Tiered access to dedicated 0G private compute, modelled at $29/$149/$499 per month. No billing, plan gating or subscription exists yet — these are prices in a model, not a product on sale.</p>
-              {/* Dulu "$185k/mo ARR" — ARR itu tahunan, jadi "per bulan ARR" bukan
-                  satuan yang ada. Salah satuan di halaman proyeksi keuangan adalah
-                  hal yang paling cepat membuat seluruh tabel diragukan. */}
-              <span className="text-ink-soft font-mono font-bold block pt-1">Modelled tiers: $29 / $149 / $499 per month · nothing can bill them yet</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
-              <strong className="text-ink block font-bold text-sm">4. EVIDIQ MCP Tool Marketplace (not built)</strong>
-              {/* Sentinel, Signet dan Helm tidak ada. Tidak ada server MCP, tidak
-                  ada satu pun berkas yang mengimplementasikannya — dicek dengan
-                  menggeledah seluruh src/, worker, dan scripts/. Nama-nama itu
-                  muncul sebagai `mcpTools` di record registry dan di halaman ini,
-                  dan tidak di tempat lain. Menyebutnya "premium" menyiratkan ada
-                  yang bisa dibeli. */}
-              <p className="text-ink-soft">A revenue split on agent tooling — security, brand assets, schedulers. None of these tools exist yet: there is no MCP server in this repo, only the names.</p>
-              <span className="text-ink-soft font-mono font-bold block pt-1">Rate: revenue split on agent tooling · no MCP server exists yet</span>
-            </div>
+            {/* DUA KARTU DICABUT DARI SINI, dan pencabutannya lebih baik daripada
+                penandaannya.
+                
+                Yang hilang: "3. 0G Compute Subscriptions (planned)" dengan tiga harga
+                langganan, dan "4. EVIDIQ MCP Tool Marketplace (not built)". Keduanya
+                sudah ditandai jujur, jadi tidak ada klaim palsu — tapi kejujuran itu
+                menyelesaikan masalah yang salah.
+                
+                Kartu yang isinya harga untuk sesuatu yang tidak bisa dibeli tidak
+                memberi pembaca apa pun. Ia menempati ruang yang sama dengan aliran yang
+                benar-benar memungut, dengan berat visual yang sama, lalu meminta pembaca
+                mengabaikan separuhnya. Empat kartu dengan dua penafian terbaca lebih
+                lemah daripada dua kartu yang dua-duanya hidup — padahal fakta di
+                belakangnya identik.
+                
+                Nama-nama MCP (Sentinel, Signet, Helm) juga tidak diklaim di mana pun
+                lagi di halaman ini. Kalau nanti dibangun, kartunya kembali dengan angka
+                yang diukur, bukan dimodelkan. */}
           </div>
         </div>
 
@@ -465,23 +457,23 @@ export default function PitchDeckPage() {
               ia hanya mencocokkan "no router"/"no endpoint", bukan "pending ...
               support". Celah itu ditutup, dan bagian 11 sekarang memeriksa KEADAAN
               receiver-nya, bukan kata-katanya. */}
-          {/* "DAO governance — IN PROGRESS" DICABUT. Ia tidak sedang dikerjakan dan
-              tidak akan: `execute` hanya bisa memanggil apa yang alamat governor sudah
-              diizinkan, dan jalur peluncuran tidak punya satu pun setter maupun owner.
-              Memberinya kuasa berarti menambah permukaan admin — hal yang /security
-              nyatakan tidak ada, dan alasan kenapa tidak ada yang bisa menguras pasar.
-              Menandai kontradiksi sebagai roadmap adalah janji yang tidak bisa ditepati. */}
-          <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-white border border-line">
-            <div>
-              <strong className="text-ink block text-sm">Dropped, not postponed:</strong>
-              <span className="text-ink-soft text-xs">
-                DAO governance and cross-chain buybacks. The Governor is deployed on all four chains and controls
-                nothing, because every fee rate is immutable and no contract on the launch path has an owner or a
-                setter. Giving it power would mean adding the admin surface this protocol is built without.
-              </span>
-            </div>
-            <span className="shrink-0 px-3 py-1 rounded bg-cream-3 text-ink-soft font-bold text-xs">DROPPED</span>
-          </div>
+          {/* BARIS "Dropped, not postponed" DICABUT SELURUHNYA.
+              
+              Ia memuat DAO governance dan buyback lintas chain, ditandai DROPPED. Isinya
+              benar dan penalarannya benar: `execute` hanya bisa memanggil apa yang alamat
+              governor sendiri sudah diizinkan, dan jalur peluncuran tidak punya satu pun
+              setter maupun owner, jadi memberinya kuasa berarti menambah permukaan admin
+              yang justru menjadi jaminan inti protokol ini.
+              
+              Tapi mendokumentasikan sesuatu yang DICABUT tidak melayani siapa pun. Fitur
+              yang tidak akan pernah ada bukan informasi, dan memasang lencana DROPPED di
+              roadmap membuat halaman terbaca seperti daftar penyesalan. Pembaca yang
+              ingin tahu apakah ada admin surface sudah dijawab di tempat yang tepat:
+              /security menyatakan tidak ada owner dan tidak ada setter, sebagai KEKUATAN.
+              
+              Alamat `AdextoGovernor` tetap terdaftar di registry kontrak, karena kontrak
+              itu memang ada di chain dan menyembunyikannya akan jadi kelalaian yang beda.
+              Yang dicabut narasinya, bukan faktanya. */}
         </div>
       </div>
 

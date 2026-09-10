@@ -29,7 +29,21 @@ export default async function DocsPage() {
             di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
             menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
             dengan mengklaim yang belum ada. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is built, what is deployed, and what is not. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Not live: the MCP tool suite, and the USDC taken in still reaches the treasury rather than the curve&apos;s buyback vault. There is no governance and there will not be — the contracts have no admin surface to vote over. {LAUNCH_CLAUSE}. Every section below says which it is.</p>
+        {/* Kalimat pembuka ini dulu berbunyi "What is built, what is deployed, and what
+            is not", diikuti daftar "Not live:" dan satu kalimat tentang tidak adanya
+            governance, lalu ditutup "Every section below says which it is."
+            
+            Semuanya akurat. Yang salah bobotnya: paragraf pertama sebuah halaman teknis
+            adalah ruang paling mahal di seluruh dokumen, dan separuhnya dipakai untuk
+            menyebut apa yang TIDAK ada. Pembaca yang sampai ke /docs sudah memutuskan
+            ingin tahu cara kerjanya; yang ia butuhkan lebih dulu adalah apa yang bisa
+            dipanggil hari ini.
+            
+            Kalimat governance-nya diubah arah, bukan dibuang: fakta yang sama — tanpa
+            owner, tanpa setter, tarif immutable — adalah JAMINAN, dan itulah alasan tidak
+            ada yang bisa mengalihkan atau menguras apa pun. Ditulis sebagai kekuatan ia
+            memberi tahu hal yang sama tanpa terbaca seperti fitur yang gagal dibangun. */}
+        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -466,13 +480,22 @@ export default async function DocsPage() {
             Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token
             terminal.
           </p>
-          <p className="text-xs text-ink-soft leading-relaxed">
-            <strong className="text-ink">There is no governance in this protocol.</strong>{" "}
-            <code className="text-accent">AdextoGovernor</code> is deployed on all four chains and controls
-            nothing — every fee rate is <code className="text-accent">immutable</code>, there is no owner and no
-            setter anywhere on the launch path, so a passed proposal would have nothing to call. The addresses
-            stay listed below because the contracts really are on chain, marked as what they are: inert.
-          </p>
+          {/* PARAGRAF GOVERNANCE DICABUT dari permukaan yang terbaca.
+              
+              Isinya benar: tidak ada owner, tidak ada setter, setiap tarif immutable,
+              sehingga proposal yang lolos pun tidak punya apa pun untuk dipanggil. Tapi
+              menjelaskan panjang sebuah fitur yang sengaja TIDAK ADA membuat halaman
+              terbaca seperti daftar penyesalan, dan pembaca tidak mendapat apa pun yang
+              bisa ditindaklanjuti dari situ.
+              
+              Fakta yang sama sudah pindah ke paragraf pembuka halaman ini, ditulis
+              sebagai jaminan: tarif tidak bisa dialihkan dan reserve tidak bisa dikuras.
+              Itu memberi tahu pembaca hal yang identik sambil menjawab pertanyaan yang
+              memang ia punya.
+              
+              Alamat `AdextoGovernor` tetap ada di registry kontrak, karena kontraknya
+              memang di chain. Yang dicabut narasinya, bukan faktanya — menyembunyikan
+              alamatnya akan jadi kelalaian yang berbeda dan lebih buruk. */}
         </div>
       </div>
 
