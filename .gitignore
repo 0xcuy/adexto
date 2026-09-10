@@ -119,6 +119,23 @@ devchain/node_modules/
 # key, tidak ada token, tidak ada string 64-hex di dalamnya; dua kemunculan
 # `ghp_` hanyalah prefix telanjang yang dipakai sebagai pola grep.
 ADEXTO-RUNBOOK.md
+# Runbook submission hackathon. Sensitif secara STRATEGIS, bukan operasional.
+#
+# Isinya bounty mana yang diambil dan mana yang ditolak beserta alasannya, penalaran
+# pemilihan track, batas kerjaan in-window, dan daftar pekerjaan yang belum selesai.
+# Itu posisi kompetitif selama lomba masih berjalan, dan tidak berguna bagi siapa pun
+# yang mengkloning repo ini. Yang seharusnya dibaca publik lebih dulu adalah README.
+#
+# CATATAN: berkas ini SUDAH ter-commit di 1dc2730 dan ter-push, jadi baris ini hanya
+# menghentikan perubahan BERIKUTNYA. `git rm --cached` mencabutnya dari HEAD sehingga
+# tidak lagi tampil di GitHub, tetapi isinya tetap terbaca lewat commit itu.
+# Membersihkan riwayat menuntut penulisan ulang plus force-push — destruktif, tidak
+# dilakukan tanpa diminta.
+#
+# Diperiksa sebelum diputuskan: nol private key, nol token, nol `ghp_`. Ada tiga string
+# 64-hex, dan ketiganya hash transaksi yang sudah publik di Basescan dan chainscan.0g.ai
+# — memang dimaksudkan untuk dibuka siapa saja, jadi bukan kebocoran.
+METROPOLIS-RUNBOOK.md
 
 # Toolchain keamanan: dependensi pihak ketiga dan keluaran perkakas, bukan sumber.
 #

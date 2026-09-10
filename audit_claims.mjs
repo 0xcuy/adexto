@@ -104,6 +104,39 @@ const BANNED = [
    * mengirimkan `buy` itu. Ketergantungan itu bukan "trustless".
    */
   ["settled trustlessly", "dua kakinya lintas chain dan tidak atomik; pembeli masih bergantung pada kami mengirim buy"],
+  /**
+   * DUA larangan berikut mengawal satu keputusan produk dari DUA arah berlawanan, dan
+   * pasangan itulah temuannya.
+   *
+   * Penyelesaian x402 sudah hidup dan memindahkan dana sungguhan. Sejak itu:
+   *
+   *   /pitch masih memuat "Settlement is not implemented" — menyangkal fitur yang
+   *   bekerja. Ini lolos berkali-kali karena "Settlement is not" hanya terdaftar
+   *   sebagai KONTRADIKSI BERPASANGAN dengan "settled between machines"; halaman itu
+   *   tidak memuat pasangannya, jadi klaim palsunya berdiri sendiri tanpa penjaga.
+   *
+   *   /whitepaper sebaliknya memuat "x402 revenue distribution" — mengklaim penyaluran
+   *   pendapatan ke vault buyback yang JUSTRU belum dibangun.
+   *
+   * Menyangkal yang sudah ada sama merugikannya dengan mengklaim yang belum ada: yang
+   * pertama membuat produk terbaca lebih mentah daripada kenyataannya, yang kedua
+   * membuatnya terbaca lebih jadi. Keduanya berasal dari satu perubahan yang hanya
+   * sebagian permukaannya ikut diperbarui — pola yang sama yang melahirkan
+   * `launch-state.ts`.
+   */
+  ["Settlement is not implemented", "penyelesaian EIP-3009 sudah hidup dan sudah memindahkan dana sungguhan"],
+  ["revenue distribution", "penyaluran pendapatan x402 ke vault buyback BELUM tersambung; USDC berhenti di treasury"],
+  /**
+   * Produk x402 adalah PEMBELIAN LINTAS CHAIN, bukan inference berbayar.
+   *
+   * Model lamanya menjual "quantitative signals, security audits, generative assets" —
+   * sebuah API yang menagih mesin lain. Itu diganti seluruhnya, tapi koreksinya tidak
+   * sampai ke /whitepaper, yang masih menjelaskan produk yang sudah tidak ada berbulan
+   * setelah landing, docs, dan pitch diperbaiki. Ketiga frasa ini dilarang supaya
+   * versi lamanya tidak bisa pulang lewat satu halaman yang terlewat.
+   */
+  ["quantitative signals", "produk x402 menjual eksekusi beli lintas chain, bukan inference berbayar"],
+  ["EVIDIQ MCP Documentation", "dokumentasi itu tidak ada; perangkat MCP belum dibangun"],
   ["Uniswap", "nol integrasi Uniswap di repo ini"],
   // Chainlink dan CCIP dicabut bersama-sama, dan dilarang dengan alasan yang lebih
   // kuat daripada "belum dipakai": TIDAK ADA versi yang berguna tanpa memindahkan

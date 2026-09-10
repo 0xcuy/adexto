@@ -87,7 +87,26 @@ export default function WhitepaperPage() {
             </div>
             <div className="p-4 rounded-xl bg-white border border-ok/30">
               <strong className="text-ok block mb-1 text-sm font-bold">O → Orchestrator</strong>
-              <span className="text-ink">Master coordinator managing automated buyback, burns, and x402 revenue distribution.</span>
+              {/* Kalimat lama menyebut orchestrator sebagai koordinator yang mengelola
+                  buyback, burn, DAN penyaluran pendapatan x402. Frasa terakhir itu
+                  sekarang terlarang di `audit_claims.mjs`, jadi tidak dikutip harfiah di
+                  sini — mengutip frasa terlarang di dalam komentar sudah pernah
+                  menggagalkan penjaga di `launch-state.ts`.
+
+                  Ia salah ke arah SEBALIKNYA dari kartu di /pitch, dan itu yang membuat
+                  pasangan ini pantas dicatat: satu halaman menyangkal penyelesaian yang
+                  sudah bekerja, halaman lain mengklaim penyaluran pendapatan yang belum
+                  dibangun. Dua-duanya berasal dari satu keputusan produk yang berubah dan
+                  hanya sebagian permukaannya ikut diperbarui.
+
+                  Burn-nya nyata dan permissionless. Yang tidak ada adalah kaki yang
+                  memberinya makan dari pendapatan x402 — hari ini USDC-nya berhenti di
+                  treasury dan direbalance manual. Jadi klaim penyaluran itu DIHAPUS,
+                  bukan diperhalus. */}
+              <span className="text-ink">
+                Coordinates the cross-chain buy path and the permissionless buyback burn. Routing x402 revenue
+                into the vault is not wired yet: the USDC reaches the treasury and is rebalanced by hand.
+              </span>
             </div>
           </div>
         </section>
@@ -95,14 +114,19 @@ export default function WhitepaperPage() {
         {/* Section 3 */}
         <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-ink flex items-center gap-2">
-            <span className="text-accent font-mono">§3.</span> The x402 Micropayment Engine &amp; Auto-Buyback
+            <span className="text-accent font-mono">§3.</span> Cross-Chain Buys over x402 &amp; Auto-Buyback
           </h2>
           <p className="text-ink">
-            Every ADEXTO agent exposes an HTTP 402 Payment Required endpoint. When external users, bots, or DAOs query the agent for quantitative signals, security audits, or generative assets, the agent accepts USDC/USDT0 micropayments via EIP-712 cryptographic signatures.
+            The x402 endpoint sells a <strong className="text-ink">cross-chain buy</strong>, not paid inference.
+            An unpaid request is answered with HTTP 402 and a quote; paying it means signing one EIP-3009
+            transfer authorization for USDC on Base, which the token contract itself verifies, and the curve on
+            the target chain sends the tokens straight to the payer&apos;s address. No bridge, and no need to
+            hold the target chain&apos;s gas asset. Delivery is executed before the charge, so a failed fill
+            costs the protocol rather than the buyer.
           </p>
           <div className="p-4 rounded-xl bg-white border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
             <span className="text-ok font-bold block mb-2">// Revenue Flow Equation</span>
-            R_total = SwapFees(AdextoCurve) + x402_Micropayments(EVIDIQ)<br />
+            R_total = SwapFees(AdextoCurve) + x402_CrossChainBuys<br />
             Trader_Pays = swapFeeBps + PROTOCOL_FEE_BPS &nbsp;// the protocol leg is additive<br />
             Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
             Protocol_Share = PROTOCOL_FEE_BPS * Volume &nbsp;// to an immutable treasury, claimable by anyone<br />
@@ -187,8 +211,16 @@ export default function WhitepaperPage() {
 
       {/* CTA Footer */}
       <div className="mt-16 pt-8 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
-        <Link href="/docs" className="text-xs font-bold text-accent hover:text-accent font-mono flex items-center gap-1.5">
-          Explore EVIDIQ MCP Documentation →
+        {/* Label lama mengajak pembaca menjelajahi dokumentasi MCP EVIDIQ. Ia menjanjikan
+            dokumentasi untuk perangkat yang BELUM dibangun — /docs sendiri menyebutnya
+            belum live — lalu mengarahkan ke /docs yang tidak memuatnya. Tautan yang
+            menjanjikan halaman tidak ada lebih merusak daripada tidak ada tautan.
+            Labelnya kini terlarang di `audit_claims.mjs`, jadi tidak dikutip harfiah.
+
+            Penggantinya menunjuk /x402, yang benar-benar mendokumentasikan endpoint yang
+            dibahas di §3, lengkap dengan bentuk payload dan kedua hash transaksinya. */}
+        <Link href="/x402" className="text-xs font-bold text-accent hover:text-accent font-mono flex items-center gap-1.5">
+          Read the x402 integration reference →
         </Link>
         <Link
           href="/studio"

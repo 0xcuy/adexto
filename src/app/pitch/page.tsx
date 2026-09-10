@@ -163,11 +163,36 @@ export default function PitchDeckPage() {
             </div>
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">O → Orchestrator</strong>
-              {/* Bukan "settling": worker mengutip harga, belum menyelesaikan
-                  pembayaran. Angka sub-50ms juga bukan hasil ukuran kami. */}
+              {/* Kalimat lama menyatakan penyelesaian pembayaran belum dibangun. DICABUT,
+                  dan cara ia bertahan jauh lebih penting daripada kalimatnya sendiri.
+
+                  Frasanya sengaja TIDAK dikutip harfiah di komentar ini. Ia sekarang
+                  terdaftar terlarang di `audit_claims.mjs`, dan pemeriksa itu membaca
+                  `innerText` sehingga komentar JSX memang tidak terbaca — tapi penjaga
+                  lain di repo ini mencocokkan pola ke SELURUH berkas termasuk komentar,
+                  dan `launch-state.ts` sudah pernah menggagalkan deploy justru karena
+                  mengutip frasa terlarangnya sendiri.
+
+                  Ia benar ketika ditulis. Lalu `e095163` membangun penyelesaian EIP-3009
+                  yang berhasil memindahkan dana sungguhan, dan sejak saat itu kartu ini
+                  menyangkal fitur yang bekerja — jenis kesalahan yang sama merugikannya
+                  dengan mengklaim yang belum ada, karena pembaca menyimpulkan produknya
+                  lebih mentah daripada kenyataannya.
+
+                  Penjaga di `audit_claims.mjs` TIDAK menangkapnya, dan itu celah nyata:
+                  "Settlement is not" hanya terdaftar sebagai KONTRADIKSI berpasangan
+                  dengan "settled between machines". Halaman ini tidak memuat pasangannya,
+                  jadi klaim palsunya lewat sendirian. Sekarang frasanya dilarang berdiri
+                  sendiri.
+
+                  Pelajaran yang sama seperti `launch-state.ts`: klausa yang menyatakan
+                  sesuatu BELUM ada punya tanggal kedaluwarsa, dan tanggal itu tidak
+                  mengumumkan diri. */}
               <span className="text-ink">
-                A Cloudflare Worker that answers unpaid agent calls with HTTP 402 and a price. Settlement is not
-                implemented.
+                A Cloudflare Worker that answers an unpaid agent call with HTTP 402 and a quote, then takes the
+                USDC payment on Base through an EIP-3009 authorization while the curve on the target chain
+                delivers to the buyer&apos;s own address. Delivery runs before the charge. Routing that revenue
+                into the buyback vault is not wired yet.
               </span>
             </div>
           </div>
