@@ -23,7 +23,10 @@ services:
         NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE: ${NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE:-}
         NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD: ${NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://adexto.xyz}
-        NEXT_PUBLIC_EDGE_GATEWAY: ${NEXT_PUBLIC_EDGE_GATEWAY:-https://edge.adexto.xyz}
+        # Bawaannya dulu `https://edge.adexto.xyz`, hostname yang tidak pernah diikat ke
+        # apa pun dan membalas HTTP 525 selama berbulan-bulan. Gerbang x402 sekarang
+        # dilayani di x402.adexto.xyz, terikat langsung ke Worker sebagai custom domain.
+        NEXT_PUBLIC_EDGE_GATEWAY: ${NEXT_PUBLIC_EDGE_GATEWAY:-https://x402.adexto.xyz}
     container_name: adexto-production
     restart: always
     ports:

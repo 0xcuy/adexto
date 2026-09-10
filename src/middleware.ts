@@ -32,14 +32,34 @@ export function middleware(req: NextRequest) {
    */
   const mainDomains = ["adexto.xyz", "www.adexto.xyz", "edge.adexto.xyz", "x402.adexto.xyz"];
 
+  /**
+   * Subdomain yang menamai SEKSI APLIKASI, bukan pasar.
+   *
+   * Ketiganya sudah lama punya sertifikat sendiri di produksi — seseorang memang
+   * memaksudkannya bekerja — tapi aturan di bawah memperlakukan setiap subdomain
+   * sebagai slug token, jadi `studio.adexto.xyz` di-rewrite ke `/token/studio` dan
+   * membalas 404. Ketiganya 404 sejak dibuat, dan itu tidak terlihat selama SEMUA
+   * subdomain masih gagal di lapisan TLS dengan 525: satu kegagalan menutupi yang lain.
+   *
+   * Dipetakan ke halamannya masing-masing, bukan didaftarkan ke `mainDomains` — kalau
+   * hanya dilewatkan, `studio.adexto.xyz` akan menampilkan halaman depan dan hostname-nya
+   * jadi bohong tentang isinya.
+   */
+  const APP_SECTIONS: Record<string, string> = {
+    studio: "/studio",
+    swap: "/swap",
+    explorer: "/explorer",
+    docs: "/docs",
+  };
+
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
     // Extract subdomain (e.g. "aegis" from "aegis.adexto.xyz")
     const parts = host.split(".");
     if (parts.length >= 3) {
       const subdomain = parts[0];
-      // If user accesses root of subdomain, rewrite to /token/[subdomain]
+      // If user accesses root of subdomain, rewrite to the section or /token/[subdomain]
       if (url.pathname === "/" || url.pathname === "") {
-        url.pathname = `/token/${subdomain}`;
+        url.pathname = APP_SECTIONS[subdomain] ?? `/token/${subdomain}`;
         return NextResponse.rewrite(url);
       }
     }

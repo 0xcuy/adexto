@@ -1,0 +1,95 @@
+# Caddy produksi untuk adexto.xyz — disalin ke /etc/caddy/Caddyfile di VPS.
+#
+# KENAPA BERKAS INI ADA DI REPO
+#
+# Versi sebelumnya hanya hidup di server, dan akibatnya sebuah cacat bertahan tanpa
+# terlihat: blok situsnya memuat DAFTAR HOSTNAME YANG DITULIS TANGAN, dan daftar itu
+# memuat `aegis`, `qnova`, `csent` — slug token demo lama — sementara `adt` dan `adexto`,
+# dua pasar yang BENAR-BENAR hidup, tidak ada di sana.
+#
+# Dampaknya bukan kosmetik. `/docs` menyatakan middleware menerjemahkan
+# `[token].adexto.xyz` menjadi terminal per-token, dan middleware itu memang benar. Yang
+# hilang adalah sertifikatnya: hostname di luar daftar tidak punya sertifikat, handshake
+# TLS gagal, dan Cloudflare membalas HTTP 525. Diuji sebelum perbaikan ini:
+# adt.adexto.xyz, adexto.adexto.xyz, dan edge.adexto.xyz semuanya 525, hanya www yang 200.
+#
+# Dan pendekatannya tidak bisa diselamatkan dengan menambah nama: di launchpad yang siapa
+# pun bisa pakai, daftar yang disunting tangan tidak akan pernah mengejar peluncuran
+# berikutnya. Jadi daftarnya diganti sertifikat wildcard.
+#
+# KENAPA DNS-01, DAN KENAPA BUKAN YANG LAIN
+#
+#   Origin Certificate Cloudflare — jalur paling sederhana, tapi penerbitannya menuntut
+#   Origin CA Key, bukan API token. Dicoba: API membalas 1016 "User is not authorized".
+#
+#   HTTP-01 per-hostname lewat on-demand TLS — bisa, tapi menuntut endpoint gerbang dan
+#   menempel pada batas Let's Encrypt 50 sertifikat per minggu per domain. Zone ini punya
+#   wildcard DNS, jadi satu pemindai yang menghantam <acak>.adexto.xyz bisa menghabiskan
+#   kuota itu dan memblokir peluncuran yang sah.
+#
+#   DNS-01 wildcard — satu sertifikat menutup setiap subdomain selamanya. Tidak ada
+#   gerbang, tidak ada ACME per-hostname, tidak ada kuota yang bisa dihabiskan orang luar.
+#
+# Plugin DNS-nya TIDAK menuntut compile dari source: binary Caddy dengan
+# github.com/caddy-dns/cloudflare dirakit oleh API download resmi Caddy.
+#
+# BLOKNYA DIPISAH, DAN ITU DISENGAJA
+#
+# Hostname eksplisit di bawah sudah punya sertifikat yang bekerja hari ini. Kalau
+# semuanya dilebur ke satu blok wildcard, kegagalan DNS-01 akan menjatuhkan situs
+# utamanya juga — termasuk /api/rpc/base, relai yang dipakai Worker x402 untuk
+# menyelesaikan pembayaran. Dipisah, kegagalan wildcard hanya mengenai subdomain yang
+# hari ini pun sudah 525. Caddy mencocokkan hostname paling spesifik lebih dulu, jadi
+# blok pertama tetap menang.
+
+adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.xyz, aegis.adexto.xyz, qnova.adexto.xyz, csent.adexto.xyz {
+    reverse_proxy 127.0.0.1:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# Setiap subdomain lain, termasuk setiap pasar yang diluncurkan setelah ini.
+#
+# Token dibaca dari lingkungan, bukan ditulis di sini: berkas ini ada di repo publik.
+# Ia disuplai lewat /etc/caddy/cf.env, chmod 640 root:caddy, dan dirujuk unit systemd.
+*.adexto.xyz {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# Cloudflare menyambung ke origin lewat HTTPS (mode SSL zone: full), jadi blok ini jarang
+# terpakai. Dipertahankan supaya permintaan HTTP langsung ke IP tidak menggantung.
+:80 {
+    reverse_proxy 127.0.0.1:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# Layanan lain di kotak yang sama, tidak berkaitan dengan adexto.
+router.zexa.my.id {
+    handle /api/webhook* {
+        reverse_proxy 127.0.0.1:8788
+    }
+    handle /api/mailbox* {
+        reverse_proxy 127.0.0.1:8788
+    }
+    handle {
+        reverse_proxy 127.0.0.1:20128
+    }
+}
+0g.zexa.my.id {
+    reverse_proxy 127.0.0.1:20128
+}

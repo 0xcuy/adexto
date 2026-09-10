@@ -125,6 +125,22 @@ const BANNED = [
    * `launch-state.ts`.
    */
   ["Settlement is not implemented", "penyelesaian EIP-3009 sudah hidup dan sudah memindahkan dana sungguhan"],
+  /**
+   * Dua frasa berikut lolos dari penjaga yang sudah ada, dan cara lolosnya adalah
+   * temuannya.
+   *
+   * Kartu pilar di landing page berbunyi "402 challenge live · settlement pending" dan
+   * menggambarkan produk sebagai gerbang di depan API agent. Keduanya salah sejak
+   * penyelesaian dibangun, tapi TIDAK ADA satu pun larangan yang cocok: daftar ini
+   * memuat "Settlement is not implemented" — kalimat versi /pitch — sementara landing
+   * page memakai kata yang berbeda untuk klaim yang sama.
+   *
+   * Pelajarannya: melarang SATU susunan kata hanya melindungi satu halaman. Klaim yang
+   * sama muncul dengan kalimat berbeda di setiap permukaan, jadi yang perlu dilarang
+   * adalah setiap bentuk yang menyatakan penyelesaian belum berjalan.
+   */
+  ["settlement pending", "penyelesaian sudah berjalan dan terbukti dengan dana sungguhan"],
+  ["402 challenge live", "menyiratkan hanya kaki pertama yang jalan; pembayaran dan pengiriman juga jalan"],
   ["revenue distribution", "penyaluran pendapatan x402 ke vault buyback BELUM tersambung; USDC berhenti di treasury"],
   /**
    * Produk x402 adalah PEMBELIAN LINTAS CHAIN, bukan inference berbayar.
@@ -150,7 +166,21 @@ const BANNED = [
   ["receive 0% of ongoing", "tidak benar: pump.fun membayar creator bagian fee trading"],
   ["Platform takes all", "sama"],
   ["/mo ARR", "ARR itu tahunan; 'per bulan ARR' bukan satuan"],
-  ["edge.adexto.xyz", "subdomain itu belum dipasang dan membalas HTTP 525"],
+  /**
+   * Alasan larangan ini BERUBAH, dan larangannya tetap — dengan dasar yang lebih kuat.
+   *
+   * Dulu: "subdomain itu belum dipasang dan membalas HTTP 525". Itu tidak lagi benar.
+   * Sertifikat wildcard `*.adexto.xyz` sekarang diterbitkan lewat DNS-01, jadi
+   * edge.adexto.xyz menjawab 200 seperti subdomain lain.
+   *
+   * Yang membuatnya tetap terlarang: gerbang x402 TIDAK dilayani di sana. Ia dilayani di
+   * `x402.adexto.xyz`, terikat langsung ke Cloudflare Worker sebagai custom domain.
+   * `edge.adexto.xyz` cuma menampilkan situsnya. Menyebutnya sebagai alamat gerbang akan
+   * mengarahkan integrator ke hostname yang tidak pernah membalas 402 — kelas kesalahan
+   * yang lebih buruk daripada 525, karena halamannya memuat dan kegagalannya tidak
+   * terlihat sampai pembayaran dicoba.
+   */
+  ["edge.adexto.xyz", "gerbang x402 dilayani di x402.adexto.xyz; hostname ini hanya menampilkan situs"],
 ];
 
 /**

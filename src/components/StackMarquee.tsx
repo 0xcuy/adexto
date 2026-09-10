@@ -91,7 +91,10 @@ const STACK: StackEntry[] = [
   // daftar apa yang dipakai ADEXTO, jadi logo World di sini menyiratkan verifikasi
   // manusia yang tidak lagi terjadi — dan logo pihak ketiga untuk integrasi yang
   // tidak berjalan adalah klaim palsu yang paling mudah dipercaya orang.
-  { name: "Cloudflare Workers", role: "x402 payment challenge", live: true, logo: "/brand/cloudflare.svg", mark: "CF", tint: "#F38020" },
+  // Perannya dulu ditulis "x402 payment challenge" — hanya kaki pertamanya. Worker ini
+  // memverifikasi otorisasi EIP-3009, mengirim buy di chain tujuan, lalu menyelesaikan
+  // pembayarannya di Base. Menyebutnya "challenge" berhenti di gerbang.
+  { name: "Cloudflare Workers", role: "x402 cross-chain buys", live: true, logo: "/brand/cloudflare.svg", mark: "CF", tint: "#F38020" },
   // Satu-satunya entri tanpa logo, atas permintaan pemiliknya sendiri; lihat
   // catatan 3 di atas dan /public/brand/SOURCES.txt.
   { name: "CoinGecko", role: "native price feed", live: true, mark: "CG", tint: "#8DC63F" },

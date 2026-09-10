@@ -37,11 +37,18 @@ import {
  * penyelesaian pembayarannya belum tersambung.
  *
  * Endpoint yang dulu terdaftar (`https://edge.adexto.xyz/audit/v1` dan dua
- * saudaranya) semuanya mati — subdomainnya belum pernah dipasang dan membalas
- * HTTP 525. URL Worker yang benar dipakai di bawah.
+ * saudaranya) semuanya mati: hostname-nya tidak pernah diikat ke Worker mana pun.
+ * Alamat gerbang yang benar dipakai di bawah.
  */
 
-/** Worker yang benar-benar ter-deploy. Subdomain edge.adexto.xyz belum dipasang. */
+/**
+ * Hostname gerbang, terikat langsung ke Worker sebagai custom domain Cloudflare.
+ *
+ * BUKAN `edge.adexto.xyz`. Hostname itu sekarang menjawab 200 karena sertifikat wildcard
+ * zone sudah terbit, tetapi yang dilayaninya adalah situsnya — bukan gerbang. Menunjuk ke
+ * sana akan gagal dengan cara yang lebih buruk daripada 525: halamannya memuat, dan
+ * ketidakcocokannya baru terlihat ketika sebuah pembayaran dicoba.
+ */
 const GATEWAY = "https://x402.adexto.xyz/v1/x402/buy";
 
 /**

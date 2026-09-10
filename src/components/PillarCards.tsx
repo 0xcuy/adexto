@@ -160,15 +160,27 @@ const PILLARS: Pillar[] = [
     subtitle: "Cloudflare Workers x402",
     body: (
       <>
-        An HTTP 402 gate in front of the agent&apos;s API, so another machine can discover the price and the
-        settlement vault without a human in the loop. The buyback vault and its burn path exist in the curve;
-        connecting edge revenue to it is still to come.
+        One paid HTTP request buys a token whose market lives on another chain. USDC settles on Base through an
+        EIP-3009 authorization the token contract verifies itself, while the curve delivers straight to the
+        buyer&apos;s own address — no bridge, and no need to hold the target chain&apos;s gas. Delivery runs before
+        the charge, and every purchase feeds a buyback that burns supply.
       </>
     ),
-    // Kaki kartu ini CATATAN, bukan pencapaian \u2014 402 hidup, settlement belum. Warnanya
-    // diredam supaya tidak terbaca seperti tiga kaki kartu lain yang menyatakan sesuatu
-    // yang sudah berjalan.
-    footer: { label: "402 challenge live · settlement pending", Icon: Globe, caveat: true },
+    /**
+     * Kaki kartu ini BUKAN lagi catatan, dan `caveat` dicabut bersamaan.
+     *
+     * Bunyinya dulu "402 challenge live · settlement pending", diredam warnanya supaya
+     * tidak terbaca seperti tiga kartu lain yang menyatakan sesuatu yang berjalan. Itu
+     * benar ketika ditulis, lalu penyelesaian EIP-3009 dibangun dan memindahkan dana
+     * sungguhan — sejak itu kartu ini meredam pencapaiannya sendiri.
+     *
+     * Badannya juga menggambarkan produk yang salah: "gate in front of the agent's API"
+     * adalah model inference berbayar yang sudah diganti pembelian lintas chain.
+     *
+     * Dan klausa terakhirnya sudah lunas: loop buyback tersambung, berjalan otomatis di
+     * ambang ekonomi, dan burn pertama menghancurkan 7,110759702852663544 $ADEXTO.
+     */
+    footer: { label: "Settles on Base · delivers on 0G · burns supply", Icon: Globe },
   },
 ];
 

@@ -377,11 +377,20 @@ export default function PitchDeckPage() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-bold text-ink">Agent API billing</td>
+                  {/* Baris ini dulu berjudul "Agent API billing" dan berbunyi "HTTP 402
+                      quote live · settlement pending". Dua-duanya basi: judulnya menamai
+                      model inference berbayar yang sudah diganti, dan nilainya menyangkal
+                      penyelesaian yang sudah memindahkan dana sungguhan.
+
+                      Ia lolos dari audit klaim karena daftar terlarang memuat kalimat
+                      versi halaman LAIN — "Settlement is not implemented" — sementara
+                      baris ini memakai kata berbeda untuk klaim yang sama. Frasanya
+                      sekarang dilarang berdiri sendiri. */}
+                  <td className="py-3 pr-4 font-bold text-ink">Cross-chain buy-in</td>
                   <td className="py-3 px-4 text-ink-soft">None</td>
                   <td className="py-3 px-4 text-ink-soft">None</td>
                   <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">
-                    HTTP 402 quote live · settlement pending
+                    Pay USDC on Base, receive on the target chain
                   </td>
                 </tr>
               </tbody>
