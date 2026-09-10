@@ -18,7 +18,19 @@ export function middleware(req: NextRequest) {
   // di port selain 3000.
   const host = hostname.split(":")[0].toLowerCase();
   const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes("[");
-  const mainDomains = ["adexto.xyz", "www.adexto.xyz", "edge.adexto.xyz"];
+  /**
+   * `x402.adexto.xyz` ada di daftar ini sebagai PERTAHANAN, bukan karena dibutuhkan.
+   *
+   * Hostname itu terikat langsung ke Worker sebagai custom domain, jadi permintaannya
+   * tidak pernah mencapai Next.js dan middleware ini tidak akan pernah melihatnya.
+   *
+   * Tapi zone ini punya wildcard `*.adexto.xyz` yang proxied ke VPS, jadi kalau route
+   * Worker-nya suatu saat dicabut, permintaan JATUH ke sini — dan aturan di bawah akan
+   * memperlakukan "x402" sebagai slug token lalu me-rewrite ke `/token/x402` yang
+   * membalas 404. Kegagalan itu menyesatkan: ia menyalahkan token yang tidak ada alih-
+   * alih routing yang hilang. Didaftarkan di sini, jatuhnya menjadi halaman utama.
+   */
+  const mainDomains = ["adexto.xyz", "www.adexto.xyz", "edge.adexto.xyz", "x402.adexto.xyz"];
 
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
     // Extract subdomain (e.g. "aegis" from "aegis.adexto.xyz")

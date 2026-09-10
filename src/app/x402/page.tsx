@@ -35,7 +35,15 @@ import {
  * basi tanpa memberi tahu siapa pun. Pembaca diarahkan ke payload untuk itu.
  */
 
-const ENDPOINT = "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/buy/adexto";
+/**
+ * Hostname sendiri, bukan `*.workers.dev`.
+ *
+ * Alamat penyedia yang telanjang memberi tahu pembaca di mana sesuatu dihosting alih-alih
+ * apa itu, dan pada halaman yang gunanya menyerahkan alamat pembayaran, itu detail yang
+ * paling tidak layak menempati baris pertama. `workers.dev` tetap dilayani, jadi klien
+ * lama tidak rusak.
+ */
+const ENDPOINT = "https://x402.adexto.xyz/v1/x402/buy/adexto";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const PAYEE = "0x24268Fffc119ec5550F68e80D94476fD64daE967";
 

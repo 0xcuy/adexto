@@ -42,7 +42,7 @@ import {
  */
 
 /** Worker yang benar-benar ter-deploy. Subdomain edge.adexto.xyz belum dipasang. */
-const GATEWAY = "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/buy";
+const GATEWAY = "https://x402.adexto.xyz/v1/x402/buy";
 
 /**
  * Satu pasar contoh.

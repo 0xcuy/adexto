@@ -1,4 +1,36 @@
 name = "adexto-x402-edge"
+
+# Hostname sendiri, bukan `*.workers.dev`.
+#
+# KENAPA CUSTOM DOMAIN, BUKAN SEKADAR RECORD DNS
+#
+# Percobaan sebelumnya membuat `edge.adexto.xyz` dan berhenti di situ, lalu subdomain itu
+# membalas HTTP 525 — cukup lama sampai frasanya masuk daftar terlarang di
+# `audit_claims.mjs`. Penyebabnya bukan DNS yang salah: zone ini punya wildcard
+# `*.adexto.xyz` yang proxied ke VPS, jadi hostname apa pun MEMANG resolve, lalu
+# Cloudflare mencoba TLS ke origin yang tidak punya sertifikat untuk subdomain itu.
+# Handshake gagal, dan 525 adalah kode untuk kegagalan itu.
+#
+# `custom_domain = true` menyelesaikannya di lapisan yang benar: hostname-nya diikat ke
+# Worker ini, Cloudflare menerbitkan sertifikat edge-nya sendiri, dan permintaan tidak
+# pernah menyentuh VPS. Menambah record DNS lagi tidak akan pernah memperbaikinya karena
+# masalahnya bukan resolusi.
+#
+routes = [
+  { pattern = "x402.adexto.xyz", custom_domain = true }
+]
+
+# WAJIB, dan ini bukan pilihan gaya.
+#
+# Begitu `routes` ada di berkas ini, wrangler MEMATIKAN `*.workers.dev` secara default.
+# Ia memperingatkannya saat deploy, dan akibatnya langsung: situs live, halaman demo,
+# `/x402`, README, dan audit klaim semuanya masih menunjuk URL workers.dev — jadi
+# memperbaiki tampilan alamat justru akan mematikan endpoint yang sudah dipakai.
+#
+# Dibiarkan `true` sampai setiap rujukan berpindah, dan bahkan setelah itu tetap berguna:
+# klien mana pun di luar sana yang sudah menyimpan URL lama tidak rusak karena kami
+# mengganti nama.
+workers_dev = true
 main = "src/index.ts"
 compatibility_date = "2026-08-16"
 compatibility_flags = ["nodejs_compat"]

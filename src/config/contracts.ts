@@ -185,7 +185,7 @@ export const ADEXTO_CONTRACTS = {
   deployer: "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
   daStorageIndexer: "https://indexer-storage-turbo.0g.ai",
   computeRouter: "https://router-api.0g.ai/v1",
-  edgeX402Gateway: "https://adexto-x402-edge.cucuvirtual.workers.dev",
+  edgeX402Gateway: "https://x402.adexto.xyz",
 
   // Fallback direct references for the 0G primary chain
   chainId: 16661,

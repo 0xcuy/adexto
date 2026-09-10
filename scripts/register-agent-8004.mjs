@@ -102,7 +102,7 @@ function describeAgent(agentId) {
     image: "https://adexto.xyz/logo.svg",
     services: [
       { name: "web", endpoint: "https://adexto.xyz" },
-      { name: "x402", endpoint: "https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto", version: "v1" },
+      { name: "x402", endpoint: "https://x402.adexto.xyz/v1/x402/adexto", version: "v1" },
     ],
     x402Support: true,
     chainId: net.chainId,

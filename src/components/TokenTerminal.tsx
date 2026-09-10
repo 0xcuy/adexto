@@ -359,7 +359,7 @@ export default function TokenTerminal({
                 </a>
               )}
               <a
-                href={`https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/${project.slug}`}
+                href={`https://x402.adexto.xyz/v1/x402/${project.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent hover:underline flex items-center gap-1 font-bold"

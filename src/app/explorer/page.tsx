@@ -398,7 +398,7 @@ export default function ExplorerPage() {
                       </span>
                     )}
                     <a
-                      href="https://adexto-x402-edge.cucuvirtual.workers.dev"
+                      href="https://x402.adexto.xyz"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-accent hover:text-ink flex items-center gap-1 hover:underline"

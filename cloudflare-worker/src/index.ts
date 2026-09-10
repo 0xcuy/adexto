@@ -363,8 +363,21 @@ export default {
       return json({ error: "market_not_tradable", detail: market.reason, symbol: market.symbol }, 409);
     }
 
+    /**
+     * `resource` HARUS berupa URL yang benar-benar melayani permintaan ini.
+     *
+     * Sebelumnya ia dibangun dari `ADEXTO_ORIGIN`, sehingga berbunyi
+     * `https://adexto.xyz/v1/x402/buy/adexto` — alamat yang TIDAK ADA: origin itu
+     * melayani situsnya, bukan endpoint ini. Di x402 `resource` adalah pengenal barang
+     * yang dibayar, jadi mengisinya dengan URL yang membalas 404 memberi klien satu-
+     * satunya hal yang tidak boleh salah: ke mana harus kembali.
+     *
+     * Diambil dari hostname permintaan itu sendiri, bukan dari konfigurasi kedua. Dengan
+     * begitu ia selalu benar di setiap alamat worker ini dijangkau — domain kustom
+     * maupun `workers.dev` — dan tidak bisa menyimpang ketika salah satunya berubah.
+     */
     const requirements: PaymentRequirements = buildPaymentRequirements({
-      resource: `${origin}/v1/x402/buy/${market.symbol.toLowerCase()}`,
+      resource: `${url.origin}/v1/x402/buy/${market.symbol.toLowerCase()}`,
       description:
         `Buy $${market.symbol} on ${market.chainName} with USDC on Base. ` +
         `The curve sends the tokens straight to your address; we never hold them.`,
