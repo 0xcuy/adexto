@@ -7,7 +7,7 @@
 [![Version](https://img.shields.io/badge/Contracts-v0.11.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004_agent_binding-WORKS-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
 [![Chains](https://img.shields.io/badge/Mainnets-0G_·_Base_·_Arbitrum_·_Monad-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#-mainnet-deployments)
-[![x402](https://img.shields.io/badge/x402_Edge-QUOTES_ONLY-F59E0B?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto-x402-edge.cucuvirtual.workers.dev/v1/x402/adexto)
+[![x402](https://img.shields.io/badge/x402_Edge-CROSS--CHAIN_BUYS-10B981?style=for-the-badge&logo=cloudflare&logoColor=white)](https://adexto.xyz/x402)
 
 ---
 
@@ -76,7 +76,7 @@ graph TD
 Three things in that picture exist but are **not** part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
-- **The 0G Compute agent and the x402 edge are not wired into the curve.** The agent is an inference route; the x402 worker answers an HTTP 402 quote. Neither holds a key to anything on-chain, and neither can move the buyback balance. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a settlement path that has never existed. What *is* available without any new contract is a different path — a plain native transfer to the curve is a market buy, and `agentIdentity` can burn what it bought. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
+- **The x402 edge buys through the curve, but it cannot move the buyback balance.** This bullet used to say the worker was not wired into the curve at all, which stopped being true: it now calls `buy` with the payer as recipient, so it is a customer of the curve like any other address. What it still cannot do is *deposit* into `treasuryNative` — that balance fills only from the buyback leg of swap fees, and no external transfer can add to it. An earlier version of this diagram drew an arrow from the worker into the vault, which implied a path that still does not exist. The 0G Compute agent remains an inference route with no key to anything on-chain. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
 - **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call.
 
 ---
@@ -165,7 +165,7 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 | Trading / swap | **Live on 0G** | Real fills exist on the 0G markets. The other three chains have factories but no markets yet. |
 | Own AMM (`AdextoCurve`) | **Deployed per launch** | The curve ships with the factory. `SovereignCurve` is the previous generation's curve and still serves the markets it was deployed for. |
 | Agent compute (0G) | **Works. Attestation is claimed, not checked** | Inference runs. The 0G router tells us each model is Intel TDX attested via dstack, and we print what it tells us. We never fetch the raw attestation quote and never verify it, so treat that label as the router's word, not our proof. |
-| x402 edge gateway | **Quotes a price and checks who you are. Cannot collect** | Two of the three steps work. See [x402 edge](#x402-edge) for what each one does and what the third would take. No money has ever passed through it, so the 10% facilitation fee in the revenue model has nothing to take a share of. |
+| x402 edge gateway | **Sells a cross-chain buy. Settles on Base, delivers on 0G** | Quote, payment and delivery all run, and the first purchase moved real funds: `0.10 USDC` is taken on Base through an EIP-3009 authorization and the curve on the target chain sends the tokens to the payer's own address. Delivery is executed before the charge, so a failed fill costs us and never the buyer. Monad is not a delivery target yet — the worker carries one delivery RPC. See [x402 edge](#x402-edge). |
 | 0G DA metadata anchoring | **Live** | Launch metadata is anchored and its storage root travels in calldata as `metadataRoot`. |
 | The Graph indexing | **Live on Base and Arbitrum, absent on 0G and Monad** | `adexto-base` and `adexto-arbitrum` are live and `SUBGRAPH_URL_*` points at both, `hasIndexingErrors: false` on each. Both chains have factories but no markets, so those subgraphs correctly return nothing. **0G is where the markets actually are and it is not indexed at all** — `SUBGRAPH_URL_0G` is empty, and the app reads 0G trades straight from RPC logs instead. The manifest carries both factory generations as separate data sources, because the `Swap` signatures differ and pointing one data source at the new factory would drop every existing market. Not published to the decentralized network. See below. |
 | Governance | **Dropped. The contracts are inert** | There is no governance and no `/governance` page. `AdextoGovernor` is deployed on all four chains — the addresses are in the tables above — and it controls nothing. `execute` calls `targetContract` with calldata, so it can only do what its own address may already do, and the launch-path contracts contain zero references to a governor and zero setters. Every fee rate is `immutable`; there is no owner. It was never usable either: `governanceToken` is the zero address on Base and Monad and points at the v1 hook — 1,495 bytes, no `balanceOf` — on 0G and Arbitrum, and the threshold and quorum are denominated in `ADAI`, a token that has never existed. Giving it power would mean adding the admin surface this protocol is built without, so it was removed from the site rather than finished. `proposalCount` is 0 on all four and always will be. |
@@ -223,46 +223,53 @@ Registering on all four cost roughly $0.10 in total across eight transactions.
 
 ### Agent-to-agent: where the loop closes and where it breaks
 
-This is the point of pairing an agent identity with a bonding curve, and it is worth tracing edge by edge because **only one edge is missing** — and it is not the one you would guess.
+This is the point of pairing an agent identity with a bonding curve, and it is worth tracing edge by edge. **Every edge now carries value end to end** — the payment edge that used to be the broken one was closed with real funds, and what remains missing is narrower and further downstream than it was.
 
-An agent sells something (a signal, an inference, an execution). Another agent pays for it, without a human, an account or a card. The earnings then have to reach the token the agent is bound to, or the pairing is decoration.
+A buyer — human or agent — pays for something without a human, an account or a card. What it buys here is a **position in a market on another chain**, and the money then has to reach the token, or the pairing is decoration.
 
 | Edge | State | Evidence |
 |---|---|---|
 | Agent has an on-chain identity | **works** | ERC-8004 binding, verified by `ownerOf(agentId)` at launch |
-| Buyer discovers the price | **works** | HTTP 402 + `WWW-Authenticate: x402` + machine-readable price list |
-| Buyer proves who it is | **works** | EIP-712 recovered and matched; a forged claim gets `401` |
-| **Buyer actually pays** | **MISSING** | a valid voucher gets `501`. This is the only broken edge |
+| Buyer discovers the terms | **works** | HTTP 402 + `WWW-Authenticate: x402` + x402 v2 `accepts[]` with the asset, amount, payee and a full quote |
+| Buyer proves it can pay | **works** | EIP-3009 signature recovered and matched to `from`, checked against the balance and the on-chain nonce state |
+| **Buyer actually pays** | **works** | `transferWithAuthorization` on mainnet USDC. `0.10 USDC` moves from payer to treasury; a replayed authorization is refused |
+| Buyer receives the token | **works** | the curve's `buy` takes a recipient, so tokens go straight to the payer's address, above the quoted `minTokensOut` |
 | Earnings buy the token | **works** | a plain native transfer to the curve — empty calldata — executes a market buy |
 | Agent burns what it bought | **works** | `executeTreasuryBuyback` burns from the caller's own balance, gated to `agentIdentity` and the curve |
+| **Endpoint revenue reaches the vault** | **MISSING** | the USDC lands in the treasury on Base and is rebalanced by hand. This is now the only broken edge |
 
 The last two were verified on 0G mainnet rather than reasoned about. Sending `0.003 0G` to the curve with **no calldata** returned 148.317329 tokens, incremented `swapCount`, and moved the spot price — `receive()` routes into `_buy`. Then `executeTreasuryBuyback` destroyed 74.158664 of them, and `totalSupply` fell by exactly that amount. A random address calling the same function is rejected with `Unauthorized agent`.
 
-So the on-chain half already works and **needs no new contract**. Agent earnings can enter the token economy today: buy along the curve, burn what was bought, supply falls permanently. What is missing is upstream — collecting the payment in the first place.
+So the on-chain half already works and **needs no new contract**. Agent earnings can enter the token economy today: buy along the curve, burn what was bought, supply falls permanently. What is missing is no longer upstream — the payment collects — it is the wiring between the two halves.
 
 Two things that would be easy to overstate here, so they are stated flatly:
 
-- **Earnings cannot be deposited into the buyback vault.** `treasuryNative` fills only from the buyback leg of swap fees. Sending native to the curve is a *buy*, not a deposit. "Agent revenue funds the buyback vault" would be false; "agent revenue can buy and burn" is true. The old architecture diagram drew the first one, which is why the arrow was removed.
+- **Endpoint revenue is not routed into the buyback vault, and cannot be deposited into it.** `treasuryNative` fills only from the buyback leg of swap fees, so no external transfer can top it up. Sending native to the curve is a *buy*, not a deposit. "Endpoint revenue funds the buyback vault" would be false; "endpoint revenue can buy and burn" is true, and that path is not automated yet — today the USDC sits in the treasury on Base. The old architecture diagram drew the first one, which is why the arrow was removed.
 - **`agentIdentity` is currently the deployer's address**, not a separate autonomous wallet. On the live $ADEXTO token it is `0x8a3c…ee7D`. The permission is real and immutable; who holds it is a key-management choice that has not been made yet.
 
 ### x402 edge
 
-**What is it for, if it cannot take money?** It is the first two steps of the flow above. Three steps exist; two are here and work.
+**What it sells is a cross-chain buy, not paid inference.** That is a change of product, not a change of wording: this section previously described an API that billed other machines for inference queries, quant signals and custom execution at `0.005` / `0.010` / `0.020 USDC`. None of those prices exist any more. A caller now pays for one thing — a position in a market that lives on another chain.
+
+Pay `0.10 USDC` on Base and the curve on the target chain sends the tokens to your own address. No bridge, and no need to hold the target chain's gas asset.
 
 | Step | State | What actually happens |
 |---|---|---|
-| 1. Quote the price | **works** | An unpaid call gets HTTP 402, a `WWW-Authenticate: x402` header, and a machine-readable price list — `0.005 USDC` for an inference query, `0.010` for a quant signal, `0.020` for custom execution. A client discovers the terms without asking a human. |
-| 2. Prove who is paying | **works** | Send an EIP-712 voucher and the signature is recovered and checked against the address you claim. Not a stub: sign with one key and claim a different address and it answers `401` with the address it actually recovered. |
-| 3. Collect the money | **not built** | A correctly signed voucher gets `501 Not Implemented`. Nothing is transferred and no work is dispatched. |
+| 1. Quote the terms | **works** | An unpaid call gets HTTP 402, a `WWW-Authenticate: x402` header, and an x402 v2 `accepts[]` block naming the asset, the exact amount, the payee and the timeout — plus a `quote` carrying the curve, the native spent, and the `minTokensOut` the buy will not go below. |
+| 2. Verify the payment | **works** | The caller signs an EIP-3009 `TransferWithAuthorization` for USDC — typed data, so no gas and no allowance. The signature is recovered and matched to `from`, the EIP-712 domain is read **from the USDC contract** rather than the request, and the nonce is checked on-chain before anything else happens. |
+| 3. Deliver, then collect | **works** | The curve's `buy` runs first with the payer as recipient. Only after that receipt is confirmed is the authorization submitted to USDC. Both transaction hashes come back in the body, and the settlement result repeats in `X-PAYMENT-RESPONSE`. |
 
-So today it is a **priced, authenticated endpoint that never charges** — an agent can discover the terms and identify itself, and then nothing happens. Step 3 is the single missing edge in [the loop above](#agent-to-agent-where-the-loop-closes-and-where-it-breaks); everything downstream of it already works on-chain.
+The third step was the one that used to be missing, and it was closed with real money rather than declared done. One request produced a Base settlement and a 0G delivery 16.2 seconds apart; a replayed authorization is refused with `invalid_transaction_state`. Full payload reference, status codes and both transaction hashes: [adexto.xyz/x402](https://adexto.xyz/x402).
 
-Two things about step 3 that are easy to gloss over, and shouldn't be:
+Three things that are easy to gloss over, and shouldn't be:
 
-- **The voucher is not a payment authorisation.** It is a custom `Voucher` type of our own — `agent`, `amount`, `nonce`. Verifying it proves the signer controls that address; it does **not** prove they hold USDC or authorise anyone to move it. Real settlement would sign USDC's own EIP-3009 `TransferWithAuthorization` instead, which is what a facilitator can actually submit on-chain.
-- **Building step 3 needs a funded hot key in the Worker.** Someone has to submit that transfer and pay gas. `Env.SIGNER_PRIVATE_KEY` is already declared in `cloudflare-worker/src/index.ts` and **never read** — the slot for that key exists, unused, which is worth knowing before assuming settlement is a small change. It is a security decision, not a feature toggle.
+- **The old voucher header is gone, and it could never have worked.** `X-402-Authorization` carried a custom `Voucher` type of our own — `agent`, `amount`, `nonce`. Verifying it proved the signer controlled an address; it proved nothing about holding USDC or authorising anyone to move it, and **no contract could act on it**. It is now rejected with that reason in the response rather than silently ignored. EIP-3009 replaced it because USDC itself verifies the signature.
+- **The relayer key is funded and in use, and its blast radius is deliberately small.** `X402_RELAYER_PRIVATE_KEY` is read and used to submit both legs. It belongs to a dedicated operator, **not the deployer** — the deployer key was never placed in the Worker. Because `transferWithAuthorization` is permissionless and its whole content is signed by the payer, including `to` and `value`, that key cannot move anyone's funds or redirect a payment. The worst outcome of a leak is drained gas and inventory.
+- **The two legs are not atomic, and delivery capacity is finite.** Payment clears on Base while delivery happens on the target chain, with nothing on-chain binding them. The buyer carries no funds risk because no charge is taken until a delivery succeeds, but they do rely on us submitting that buy. Filling an order also means spending native inventory we hold, so the endpoint answers `503` once it runs low — before any authorization is touched.
 
-The endpoint declares its own limit in its own response body: the 402 payload carries `settlementImplemented: false` and a note saying a voucher returns 501. An integrator learns the boundary from the first reply, not after building a payment client.
+The boundary is declared in the payload rather than in prose: every 402 carries `inventory.remainingBuys`, so an integrator learns the limit from the first reply instead of after building a payment client.
+
+**Making Monad a delivery target** is tracked in a separate repository, [`0xcuy/adexto-monad`](https://github.com/0xcuy/adexto-monad), together with the buyback router that would close the revenue edge above. The worker currently carries a single delivery RPC, which is why 0G is not a choice but the only destination it can express. The curve, factory, registry and terminal stay here.
 
 ### The Graph
 
