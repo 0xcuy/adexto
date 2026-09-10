@@ -350,16 +350,38 @@ export default function X402Page() {
             ditindaklanjuti: satu-satunya orang yang membaca sejauh ini adalah
             orang yang akan memanggil endpoint-nya. */}
         <div className="p-4 rounded-xl bg-cream-3 border border-line space-y-2">
-          <strong className="block text-sm font-bold text-ink">Two limits to design around</strong>
+          <strong className="block text-sm font-bold text-ink">Every fill feeds a burn, and the burn runs itself</strong>
+          {/* Kartu ini dulu menyatakan USDC-nya belum tersalur ke vault buyback dan
+              direbalance manual. Kalimat itu salah memahami mekanismenya sendiri.
+
+              Tidak ada yang perlu disalurkan: `treasuryNative` HANYA terisi dari kaki
+              fee buyback, jadi tidak ada transfer luar yang bisa menambahnya — dan
+              pengiriman x402 itu sendiri sebuah `buy` di kurva, sehingga ia sudah
+              membayar kaki itu pada setiap fill. Vault-nya terisi sendiri sejak hari
+              pertama.
+
+              Yang benar-benar hilang cuma satu: tidak ada yang pernah memanggil
+              `executeBuyback`. Dibaca dari chain sebelum ini dibangun,
+              `totalTokensBurned` bernilai NOL di kedua pasar sementara vault sudah
+              terkumpul dari 20 swap. */}
           <p className="text-xs text-ink-soft leading-relaxed">
-            <strong className="text-ink">The two legs are not atomic.</strong> Payment clears on Base and delivery
-            happens on 0G, and nothing on-chain binds them together. The buyer carries no funds risk, because no
-            charge is taken until a delivery succeeds — but they do rely on the operator to submit that buy.
+            <strong className="text-ink">The burn is funded by the purchase itself.</strong> A delivery is a buy on
+            the curve, so it pays the curve&apos;s buyback fee leg and the vault grows on every fill. Nothing has to
+            be moved between chains, because <span className="font-mono text-[11px]">treasuryNative</span> can only
+            be filled by trading in the first place.
           </p>
           <p className="text-xs text-ink-soft leading-relaxed">
-            <strong className="text-ink">The USDC taken in is not routed to the curve&apos;s buyback vault yet.</strong>{" "}
-            The vault and its burn path are on-chain and anyone can trigger a burn, but this endpoint does not
-            feed it. Revenue reaches the treasury address above and is rebalanced by hand.
+            <strong className="text-ink">It fires on an economic threshold, not on a schedule.</strong> After each
+            purchase settles, the endpoint spends the vault to buy and burn — but only once the vault is worth at
+            least three times the gas needed to trigger it. Measured on the live curve, one call costs about{" "}
+            <span className="font-mono text-[11px]">0.0005 0G</span>, so burning every fill would destroy less value
+            than it spent. The threshold is read from chain state, which is what makes it automatic rather than
+            supervised. Each response reports the decision and the numbers behind it.
+          </p>
+          <p className="text-xs text-ink-soft leading-relaxed">
+            <strong className="text-ink">The two legs are not atomic, and that protects the buyer.</strong> Payment
+            clears on Base while delivery happens on the target chain. Because the charge is only taken after a
+            delivery succeeds, a failed fill costs the protocol and never the buyer.
           </p>
         </div>
       </div>

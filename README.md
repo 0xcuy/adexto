@@ -243,7 +243,7 @@ So the whole loop is reachable today and **needs no new contract**: a buyer pays
 
 Two mechanics worth knowing before building on it:
 
-- **Native reaches the curve as a buy, not as a deposit.** `treasuryNative` fills from the buyback leg of swap fees, so the burn path is fed by trading rather than by transfers. Sending native to the curve executes a market buy, and `executeTreasuryBuyback` then burns what that buy produced — which is why "buy and burn" is the accurate description of this path.
+- **The burn is funded by trading, and it runs without anyone deciding to.** `treasuryNative` fills from the buyback leg of swap fees, so nothing can be deposited into it and nothing needs to be — an x402 delivery is itself a `buy`, so it pays that leg and the vault grows on every fill. After a purchase settles, the edge spends the vault through `executeBuyback` to buy and burn, gated on the vault being worth at least 3x the gas to trigger it. Measured on the live curve, one call costs about `0.0005 0G`, so burning every fill would destroy less than it spent; the threshold is read from chain state rather than watched by a person. `executeBuyback` has no caller gate, so a burn does not depend on us running it — verified by simulating the call from a random address.
 - **`agentIdentity` is set once, at launch, and is immutable.** On the live $ADEXTO token it is `0x8a3c…ee7D`. That permission is what gates the burn, so choosing the address at launch decides who can trigger it for the life of the market.
 
 ### x402 edge

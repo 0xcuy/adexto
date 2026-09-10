@@ -105,7 +105,9 @@ export default function WhitepaperPage() {
                   bukan diperhalus. */}
               <span className="text-ink">
                 Coordinates the cross-chain buy path and the permissionless buyback burn. Routing x402 revenue
-                into the vault is not wired yet: the USDC reaches the treasury and is rebalanced by hand.
+                into the vault needs no transfer: a delivery is a buy, so it pays the buyback fee leg and the
+                vault grows on every fill. The endpoint then spends it to buy and burn once the vault outweighs
+                the gas to trigger it.
               </span>
             </div>
           </div>

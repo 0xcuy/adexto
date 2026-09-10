@@ -39,6 +39,21 @@ BASE_RPC = "https://adexto.xyz/api/rpc/base"
 OG_RPC = "https://evmrpc.0g.ai"
 # Satu asal untuk registry pasar DAN harga, supaya tidak ada sumber kebenaran kedua.
 ADEXTO_ORIGIN = "https://adexto.xyz"
+# Kelipatan biaya gas yang harus tersedia di vault buyback sebelum burn dijalankan.
+#
+# Setiap pengiriman x402 adalah `buy` di kurva, jadi ia membayar kaki fee buyback dan
+# `treasuryNative` naik sendiri pada setiap fill — tidak ada yang perlu dipindahkan
+# antar chain. Yang perlu diputuskan hanya KAPAN membelanjakannya.
+#
+# Diukur di kurva $ADEXTO sebelum angka ini dipilih: vault memegang 0,000143 0G
+# sementara satu panggilan `executeBuyback` memakan ~0,000506 0G gas. Membakar pada
+# setiap fill berarti membelanjakan 3,5x nilai yang dihancurkan — otomatis, dan merugi.
+#
+# Dengan 3, sebuah burn baru berjalan ketika vault-nya bernilai minimal tiga kali gas
+# pemicunya, jadi setiap burn selalu menghancurkan lebih banyak daripada biayanya.
+# Naikkan untuk efisiensi lebih tinggi dengan burn lebih jarang; turunkan ke 1 berarti
+# sekadar balik modal.
+X402_BURN_GAS_MULTIPLE = "3"
 
 # Rahasia, disetel lewat `wrangler secret put`, tidak pernah di berkas ini:
 #   RPC_RELAY_SECRET — kunci bersama untuk relai di BASE_RPC; tanpa ini relai 401

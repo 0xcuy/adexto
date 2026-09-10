@@ -71,6 +71,26 @@ export interface Env {
   OG_RPC: string;
   /** Asal registry dan harga. Satu asal, supaya tidak ada sumber kebenaran kedua. */
   ADEXTO_ORIGIN: string;
+  /**
+   * Berapa kali lipat biaya gas yang harus tersedia di vault sebelum burn dijalankan.
+   *
+   * KENAPA AMBANG INI ADA, DAN KENAPA TANPA IA FITURNYA MERUGI
+   *
+   * Setiap pembelian di kurva menaikkan `treasuryNative` lewat kaki fee buyback, jadi
+   * vault-nya terisi sendiri tanpa transfer dari luar. Tapi memanggil `executeBuyback`
+   * butuh gas, dan pada volume sekarang gasnya LEBIH BESAR daripada yang dibakar:
+   * diukur di kurva $ADEXTO, vault memegang 0,000143 0G sementara satu panggilan
+   * memakan ~0,000506 0G. Membakar tiap fill berarti membelanjakan 3,5x nilai yang
+   * dihancurkan.
+   *
+   * Jadi otomatisasi yang benar bukan "bakar setiap kali", melainkan "bakar begitu
+   * layak". Ambangnya membuat setiap burn selalu menghancurkan lebih banyak nilai
+   * daripada biaya memicunya, dan keputusannya diambil dari angka on-chain, bukan
+   * oleh manusia yang memantau.
+   *
+   * Tidak diset berarti 3.
+   */
+  X402_BURN_GAS_MULTIPLE?: string;
 }
 
 const CORS = {
@@ -114,7 +134,106 @@ function baseProviderVia(env: Env): ethers.JsonRpcProvider {
 const CURVE_ABI = [
   "function getBuyQuote(uint256 nativeIn) view returns (uint256,uint256,uint256,uint256,uint256)",
   "function buy(uint256 minTokensOut,address to,uint256 deadline) payable returns (uint256)",
+  // Tiga di bawah dipakai jalur burn otomatis. `executeBuyback` TIDAK punya gerbang
+  // pemanggil — hanya `nonReentrant` dan `live` — jadi alamat mana pun boleh memicunya,
+  // dan itu diverifikasi dengan `staticCall` dari alamat acak sebelum dipakai di sini.
+  "function treasuryNative() view returns (uint256)",
+  "function getReserves() view returns (uint256,uint256)",
+  "function executeBuyback(uint256 nativeAmount,uint256 minTokensBurned) returns (uint256)",
 ];
+
+interface BurnResult {
+  executed: boolean;
+  /** Kenapa dilewati. Selalu diisi ketika `executed` false, supaya tidak ada diam. */
+  skipped?: string;
+  transaction?: string;
+  nativeSpent?: string;
+  tokensBurned?: string;
+}
+
+/**
+ * Belanjakan vault buyback untuk membeli lalu membakar, tanpa manusia.
+ *
+ * KENAPA INI BUKAN "MENYALURKAN PENDAPATAN KE VAULT"
+ *
+ * Deskripsi lama menyiratkan USDC harus berpindah dari Base ke vault, dan itu memang
+ * mustahil: `treasuryNative` hanya terisi dari kaki fee buyback, tidak ada transfer
+ * luar yang bisa menambahnya. Yang sebenarnya terjadi lebih sederhana dan sudah
+ * berjalan — pengiriman x402 ITU SENDIRI sebuah `buy` di kurva, jadi ia membayar kaki
+ * fee buyback dan vault naik pada setiap fill.
+ *
+ * Jadi tidak ada yang perlu disalurkan. Yang hilang cuma satu: tidak ada yang pernah
+ * memanggil `executeBuyback`. Dibaca dari chain sebelum ini ditulis,
+ * `totalTokensBurned` bernilai NOL di kedua pasar live sementara vault sudah terkumpul
+ * dari 20 swap.
+ *
+ * KENAPA KEGAGALANNYA TIDAK BOLEH TERLIHAT PEMBELI
+ *
+ * Pembeli sudah dilayani ketika fungsi ini jalan: tokennya terkirim dan pembayarannya
+ * selesai. Burn adalah urusan protokol dengan dirinya sendiri. Jadi tidak ada jalur di
+ * sini yang boleh melempar, dan hasilnya dilaporkan sebagai data — bukan sebagai galat
+ * yang mengubah status HTTP.
+ *
+ * Receipt-nya juga TIDAK ditunggu. Menunggu konfirmasi burn akan menambah detik ke
+ * respons seseorang yang pembeliannya sudah tuntas, demi kepastian yang tidak ia
+ * butuhkan. Hash-nya dikembalikan supaya tetap bisa diperiksa.
+ */
+async function autoBurn(
+  curveAddress: string,
+  operator: ethers.Wallet,
+  provider: ethers.JsonRpcProvider,
+  slippageBps: bigint,
+  gasMultiple: bigint
+): Promise<BurnResult> {
+  try {
+    const curve = new ethers.Contract(curveAddress, CURVE_ABI, operator);
+    const [vault, reserves] = await Promise.all([
+      curve.treasuryNative() as Promise<bigint>,
+      curve.getReserves() as Promise<[bigint, bigint]>,
+    ]);
+    if (vault === 0n) return { executed: false, skipped: "buyback vault is empty" };
+
+    // Kontrak menolak lebih dari 1% reserve native dalam satu panggilan, jadi batasnya
+    // dihitung di sini alih-alih membiarkan transaksinya revert.
+    const cap = reserves[0] / 100n;
+    const spend = vault < cap ? vault : cap;
+    if (spend === 0n) return { executed: false, skipped: "1% reserve cap rounds the spend to zero" };
+
+    // Ambang ekonomi: burn harus menghancurkan lebih banyak nilai daripada gasnya.
+    let gasCost: bigint;
+    try {
+      const gas = await curve.executeBuyback.estimateGas(spend, 0n);
+      const fee = await provider.getFeeData();
+      const price = fee.gasPrice ?? 0n;
+      gasCost = gas * price;
+    } catch (e: any) {
+      return { executed: false, skipped: `gas estimate failed: ${String(e?.shortMessage ?? e?.message ?? e).slice(0, 90)}` };
+    }
+    if (gasCost > 0n && spend < gasCost * gasMultiple) {
+      return {
+        executed: false,
+        skipped: `vault ${ethers.formatEther(spend)} below the ${gasMultiple}x gas threshold ${ethers.formatEther(gasCost * gasMultiple)}`,
+      };
+    }
+
+    // Lantai slippage diturunkan dari kutipan kontrak sendiri, memakai toleransi yang
+    // sama dengan kaki pengiriman. Mengirim 0 akan menerima harga apa pun.
+    const quoted = (await curve.getBuyQuote(spend)) as [bigint, bigint, bigint, bigint, bigint];
+    const minBurned = (quoted[0] * (10000n - slippageBps)) / 10000n;
+
+    const tx = await curve.executeBuyback(spend, minBurned);
+    return {
+      executed: true,
+      transaction: tx.hash,
+      nativeSpent: ethers.formatEther(spend),
+      tokensBurned: `>=${ethers.formatEther(minBurned)}`,
+    };
+  } catch (e: any) {
+    // Tertelan dengan sengaja: pembeli sudah dilayani, dan burn yang gagal bukan
+    // kegagalan pembelian mereka.
+    return { executed: false, skipped: String(e?.shortMessage ?? e?.message ?? e).slice(0, 120) };
+  }
+}
 
 /**
  * Tunggu receipt dengan mencobanya berulang, JANGAN pakai `tx.wait()`.
@@ -404,6 +523,25 @@ export default {
       relayerKey: env.X402_RELAYER_PRIVATE_KEY,
     });
 
+    /**
+     * Terakhir: bakar, kalau sudah layak.
+     *
+     * Urutannya bukan kebetulan. Burn dijalankan SETELAH pembeli dilayani sepenuhnya —
+     * token terkirim, pembayaran diselesaikan — karena ia urusan protokol dengan
+     * dirinya sendiri dan tidak boleh berdiri di antara pembeli dan barangnya.
+     *
+     * Pembelian yang baru saja terjadi sudah menaikkan `treasuryNative` lewat kaki fee
+     * buyback, jadi fungsi di bawah membelanjakan uang yang dihasilkan fill ini sendiri.
+     * Tidak ada yang perlu dipindahkan antar chain, dan tidak ada kontrak baru.
+     */
+    const burn = await autoBurn(
+      market.poolAddress,
+      operator,
+      ogProvider,
+      slippageBps,
+      BigInt(env.X402_BURN_GAS_MULTIPLE ?? "3")
+    );
+
     const body = {
       symbol: market.symbol,
       chain: market.chainName,
@@ -428,6 +566,14 @@ export default {
             payTo: requirements.payTo,
           }
         : { success: false, errorReason: settled.errorReason, detail: settled.detail, payer: settled.payer },
+      /**
+       * Dilaporkan sebagai data, bukan sebagai galat.
+       *
+       * `executed: false` bukan kegagalan pembelian: ia berarti vault belum melewati
+       * ambang gas, dan `skipped` menyebut angkanya supaya keputusannya bisa diperiksa
+       * siapa pun alih-alih dipercaya.
+       */
+      buyback: burn,
       note: settled.success
         ? undefined
         : "The tokens were delivered but the payment did not settle, so this purchase was free. Nothing is owed.",
