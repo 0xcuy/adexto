@@ -565,12 +565,10 @@ export default function HomePage() {
             Open Studio
             <ArrowRight className="w-4 h-4" />
           </Link>
-          <Link
-            href="/pitch"
-            className="text-sm font-semibold text-ink-soft hover:text-ink underline-offset-4 hover:underline transition-colors"
-          >
-            Investor &amp; grant memorandum
-          </Link>
+          {/* CTA sekunder "Investor & grant memorandum" DICABUT bersama rutenya.
+              /pitch kini di `src/app/_pitch/`, di luar routing, jadi tautan apa pun ke
+              sana akan 404 — dan 404 dari ajakan bertindak di halaman depan lebih buruk
+              daripada tidak ada ajakan sama sekali. "Open Studio" berdiri sendiri. */}
         </div>
       </section>
     </div>

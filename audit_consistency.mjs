@@ -463,7 +463,9 @@ console.log("\n── penyangkalan usang vs keadaan env sebenarnya ──");
     const { chromium } = await import("playwright");
     const browser = await chromium.launch();
     // `/governance` dicabut: halamannya dihapus, dan memeriksa rute 404 selalu lulus.
-    const routes = ["/", "/studio", "/swap", "/explorer", "/docs", "/pitch"];
+    // /pitch dicabut dari routing (dipindah ke src/app/_pitch/), jadi memindainya akan
+    // membaca halaman 404 alih-alih isinya.
+    const routes = ["/", "/studio", "/swap", "/explorer", "/docs"];
     for (const route of routes) {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
       try {

@@ -87,7 +87,7 @@ done
 # `/governance` DICABUT dari daftar ini karena halamannya dihapus — governance tidak
 # bisa dibuat berfungsi tanpa menambah permukaan admin yang protokol ini janjikan tidak
 # ada. Membiarkannya di sini membuat setiap deploy gagal atas 404 yang memang disengaja.
-for r in / /studio /swap /explorer /docs /pitch /whitepaper /security /agent/demo /x402; do
+for r in / /studio /swap /explorer /docs /whitepaper /security /agent/demo /x402; do
   code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
   printf '  %-13s HTTP %s\n' "$r" "$code"
   [ "$code" = "200" ] || fail=1
@@ -96,7 +96,13 @@ done
 # Rute yang HARUS hilang. Dulu tidak ada pemeriksaan ini, jadi halaman yang dicabut bisa
 # tetap tersaji dari image lama tanpa ada yang tahu — kebalikan dari masalah di atas dan
 # jauh lebih sulit terlihat.
-for r in /governance; do
+#
+# `/pitch` ikut ke daftar ini, dan alasannya beda dari /governance. Halamannya TIDAK
+# dihapus — sumbernya utuh di `src/app/_pitch/`, di luar routing karena awalan garis
+# bawah. Itu justru yang membuat pemeriksaan ini perlu: berkasnya masih ada, jadi satu
+# rename balik atau satu build dari image lama sudah cukup untuk menyajikannya kembali
+# tanpa ada yang sengaja memutuskan begitu.
+for r in /governance /pitch; do
   code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
   printf '  %-13s HTTP %s (diharapkan 404)\n' "$r" "$code"
   [ "$code" = "404" ] || fail=1

@@ -14,7 +14,6 @@ import { chromium } from 'playwright';
     '/explorer',
     '/agent/demo',
     '/x402',
-    '/pitch',
     '/whitepaper',
     '/docs',
   ];

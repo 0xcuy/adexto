@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Compass, ArrowDownUp, CloudLightning,
-  Award, ShieldCheck, Sparkles, Menu, X, Twitter, Github
+  ShieldCheck, Sparkles, Menu, X, Twitter, Github
 } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
@@ -48,7 +48,13 @@ export default function Navbar() {
     { href: "/swap", label: "Swap", icon: ArrowDownUp },
     { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
     { href: "/docs", label: "Docs", icon: ShieldCheck },
-    { href: "/pitch", label: "Deck", icon: Award },
+    /**
+     * Entri "Deck" ke /pitch DICABUT bersama rutenya.
+     *
+     * Halaman itu dipindahkan ke `src/app/_pitch/` — awalan garis bawah membuat Next
+     * mengeluarkan folder dari routing, jadi sumbernya utuh sementara alamatnya tidak
+     * ada. Tautan yang dibiarkan di sini akan menjadi 404 di navigasi utama.
+     */
   ];
 
   return (

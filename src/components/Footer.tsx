@@ -80,7 +80,8 @@ export default function Footer() {
             <h4 className="font-bold text-ink mb-3 uppercase tracking-wider text-xs">Architecture &amp; Trust</h4>
             <ul className="space-y-2 text-ink-soft">
               <li><Link href="/whitepaper" className="hover:text-accent transition-colors">Whitepaper &amp; Tokenomics</Link></li>
-              <li><Link href="/pitch" className="hover:text-accent transition-colors">VC Memorandum &amp; Grants</Link></li>
+              {/* Tautan "VC Memorandum & Grants" ke /pitch DICABUT bersama rutenya:
+                  halamannya kini di `src/app/_pitch/`, di luar routing. */}
               {/* Dua label ini menjanjikan lebih dari yang ada. Suite MCP belum
                   dibangun sama sekali, dan "Verifiable Compute" menyiratkan kami
                   memeriksa attestation — tidak. Halaman docs sekarang menyatakan
@@ -96,9 +97,7 @@ export default function Footer() {
                   Sebelumnya tautan berlabel "Deployed contract registry" menjatuhkan
                   pembaca ke tengah memorandum penggalangan dana, yang menuntut dia
                   melewati proyeksi pendapatan untuk mencapai tabel alamat. /docs adalah
-                  halaman status teknis; registry memang termasuk isinya.
-                  /pitch tetap tertaut di atas sebagai "VC Memorandum & Grants", yaitu
-                  namanya yang sebenarnya. */}
+                  halaman status teknis; registry memang termasuk isinya. */}
               <li><Link href="/docs" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
             </ul>
           </div>
