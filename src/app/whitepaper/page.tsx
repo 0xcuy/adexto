@@ -107,7 +107,8 @@ export default function WhitepaperPage() {
                 Coordinates the cross-chain buy path and the permissionless buyback burn. Routing x402 revenue
                 into the vault needs no transfer: a delivery is a buy, so it pays the buyback fee leg and the
                 vault grows on every fill. The endpoint then spends it to buy and burn once the vault outweighs
-                the gas to trigger it.
+                the gas to trigger it. The first burn destroyed 7.110759702852663544 $ADEXTO and supply fell by
+                exactly that amount.
               </span>
             </div>
           </div>

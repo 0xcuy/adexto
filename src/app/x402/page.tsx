@@ -379,6 +379,22 @@ export default function X402Page() {
             supervised. Each response reports the decision and the numbers behind it.
           </p>
           <p className="text-xs text-ink-soft leading-relaxed">
+            <strong className="text-ink">Supply has already fallen.</strong> The first buyback spent the vault in
+            full and destroyed{" "}
+            <span className="font-mono text-[11px]">7.110759702852663544 $ADEXTO</span>, taking total supply from{" "}
+            <span className="font-mono text-[11px]">999,999,925.84</span> to{" "}
+            <span className="font-mono text-[11px]">999,999,918.73</span>. The burn is permanent and readable on
+            chain:{" "}
+            <a
+              href="https://chainscan.0g.ai/tx/0x792023abdcf0ce1af431cb717a874e0344d1e3f8b84223aeddeaff008ab66bc5"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-[10px] text-accent hover:text-accent-strong break-all"
+            >
+              0x792023abdcf0ce1af431cb717a874e0344d1e3f8b84223aeddeaff008ab66bc5
+            </a>
+          </p>
+          <p className="text-xs text-ink-soft leading-relaxed">
             <strong className="text-ink">The two legs are not atomic, and that protects the buyer.</strong> Payment
             clears on Base while delivery happens on the target chain. Because the charge is only taken after a
             delivery succeeds, a failed fill costs the protocol and never the buyer.
