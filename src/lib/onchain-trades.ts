@@ -68,6 +68,15 @@ const DEFAULT_LOG_SPAN = 2_000;
  */
 const MAX_LOG_CALLS = 16;
 const CACHE_TTL_MS = 15_000;
+/**
+ * TTL terpisah untuk pembacaan yang GAGAL, dan alasannya bukan kerapian.
+ *
+ * Hasil gagal tetap harus di-cache, kalau tidak chain yang paling mahal dibaca justru
+ * yang dibaca paling sering. Tapi men-cache-nya selama 15 detik menahan pemulihan
+ * selama itu juga, padahal RPC yang pulih semestinya langsung terlihat. Lima detik
+ * cukup untuk memutus penghajaran tanpa membuat kegagalan terasa lekat.
+ */
+const FAILURE_CACHE_TTL_MS = 5_000;
 
 /** Sejauh mana pembacaan benar-benar menjangkau. Tanpa ini, terpotong tidak terlihat. */
 export interface SwapCoverage {
@@ -101,6 +110,8 @@ export interface SwapReadResult {
 
 interface CacheEntry {
   at: number;
+  /** Umur entri ini. Sukses dan gagal tidak berumur sama. */
+  ttl: number;
   result: SwapReadResult;
 }
 
@@ -177,9 +188,28 @@ export async function readOnChainSwaps(
 
   const key = `${chain.chainId}:${poolAddress.toLowerCase()}:${launchBlock ?? "nolaunch"}`;
   const hit = cache().get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+  if (hit && Date.now() - hit.at < hit.ttl) {
     return { trades: hit.result.trades.slice(0, limit), coverage: hit.result.coverage };
   }
+
+  /**
+   * SETIAP jalan keluar melewati sini, bukan hanya yang berhasil.
+   *
+   * Sebelumnya `cache().set` hanya ada di satu baris terakhir jalur sukses, jadi setiap
+   * jalan keluar lebih awal melewatinya — dan yang paling sering diambil justru jalan
+   * keluar itu. Terukur di produksi pada $CURB di Monad: 5 permintaan dalam 30 detik
+   * tanpa satu pun interaksi, masing-masing ~4.000ms, karena tiap permintaan mengulang
+   * 16 `getLogs` berurutan yang dijamin tidak menemukan apa pun dan dijamin tidak
+   * diingat. $ADEXTO di 0G pada halaman yang sama dijawab 38ms karena pembacaannya
+   * berhasil dan karena itu ter-cache.
+   *
+   * Jadi biayanya berbanding terbalik dengan kegunaannya: chain yang paling mahal
+   * dibaca adalah satu-satunya yang tidak pernah diingat.
+   */
+  const remember = (result: SwapReadResult, ttl: number): SwapReadResult => {
+    cache().set(key, { at: Date.now(), ttl, result });
+    return { trades: result.trades.slice(0, limit), coverage: result.coverage };
+  };
 
   try {
     const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
@@ -209,20 +239,56 @@ export async function readOnChainSwaps(
     let calls = 0;
     let reachedLaunch = false;
     let oldestScanned = latest;
+    let hitFloor = false;
 
-    while (to >= floor && calls < MAX_LOG_CALLS) {
-      const from = Math.max(floor, to - span + 1);
+    /**
+     * Petak ditembak BERBARENGAN dalam rombongan, bukan satu per satu.
+     *
+     * Berurutan, biayanya jumlah petak dikali latensi RPC — dan di Monad jumlah petaknya
+     * maksimal karena petaknya hanya 100 blok. Terukur: 16 panggilan berurutan = 4.500ms
+     * untuk satu pembacaan, sementara 0G menyelesaikan pembacaan yang sama dalam satu
+     * panggilan. Jadi chain dengan petak tersempit membayar latensi terbanyak, dan itu
+     * yang membuat halaman terasa berat sebelum chart muncul.
+     *
+     * Rombongan, bukan semuanya sekaligus, supaya keluar-lebih-awal tetap ada: begitu
+     * `limit` sudah terpenuhi, rombongan berikutnya tidak pernah ditembak. Pasar yang
+     * ramai karena itu tetap hanya memindai bagian terbaru.
+     *
+     * Delapan dipilih sejajar dengan batas 20 `getBlock` bersamaan yang sudah terbukti
+     * diterima RPC publik di berkas ini, dengan margin karena `getLogs` lebih berat.
+     */
+    const PARALLEL_LOG_CALLS = 8;
+
+    while (to >= floor && calls < MAX_LOG_CALLS && !hitFloor) {
+      const windows: Array<{ from: number; to: number }> = [];
+      while (windows.length < PARALLEL_LOG_CALLS && calls + windows.length < MAX_LOG_CALLS && to >= floor) {
+        const from = Math.max(floor, to - span + 1);
+        windows.push({ from, to });
+        if (from <= floor) {
+          hitFloor = true;
+          break;
+        }
+        to = from - 1;
+      }
+      if (windows.length === 0) break;
+
       // topic0 sebagai daftar = OR, jadi satu panggilan menangkap swap kurva maupun hook.
-      const batch = await provider.getLogs({
-        address: poolAddress,
-        fromBlock: from,
-        toBlock: to,
-        topics: [SWAP_TOPICS],
-      });
-      collected.unshift(...batch);
-      calls += 1;
-      oldestScanned = from;
-      if (from <= floor) {
+      const batches = await Promise.all(
+        windows.map((w) =>
+          provider.getLogs({ address: poolAddress, fromBlock: w.from, toBlock: w.to, topics: [SWAP_TOPICS] })
+        )
+      );
+      /**
+       * `windows` tersusun dari terbaru ke tertua, dan tiap batch di-`unshift` mengikuti
+       * urutan itu, sehingga yang tertua berakhir di depan dan `collected` tetap naik
+       * menurut blok. Urutan ini bukan kosmetik: `logs.slice(-limit)` di bawah mengambil
+       * yang TERBARU dari ekor, jadi urutan yang terbalik akan mengambil yang tertua.
+       */
+      for (const batch of batches) collected.unshift(...batch);
+      calls += windows.length;
+      oldestScanned = windows[windows.length - 1].from;
+
+      if (hitFloor) {
         // Hanya boleh disebut mencapai peluncuran kalau dasarnya MEMANG blok peluncuran.
         reachedLaunch = Boolean(launchBlock && launchBlock > 0);
         break;
@@ -230,11 +296,46 @@ export async function readOnChainSwaps(
       // Cukup ketika sudah memenuhi `limit`: sisanya akan dipangkas juga di bawah, jadi
       // memindainya hanya membebani RPC tanpa menambah satu pun baris yang tampil.
       if (collected.length >= limit) break;
-      to = from - 1;
     }
 
     const logs = collected;
     const truncated = !reachedLaunch;
+
+    /**
+     * Nol log adalah JAWABAN, bukan kegagalan — dan sebelum ini ia dilaporkan sebagai
+     * kegagalan yang salah pula.
+     *
+     * Tanpa log, tidak ada blok untuk diminta timestamp-nya, jadi jalurnya jatuh ke
+     * cabang `anchors.length === 0` di bawah dan mengembalikan "Node returned no block
+     * timestamps". Node-nya tidak melakukan kesalahan apa pun: tidak ada satu pun
+     * perdagangan di jendela yang terjangkau. Pesan itu menuduh RPC untuk keadaan yang
+     * sepenuhnya normal, dan itu yang tampil di `coverage.error` pada $CURB.
+     *
+     * Di Monad keadaan ini adalah keadaan BIASA, bukan pengecualian: petaknya 100 blok
+     * dan anggarannya 16 panggilan, jadi jendela yang terjangkau hanya 1.600 blok —
+     * sekitar delapan menit. Pasar yang perdagangan terakhirnya lebih tua dari itu akan
+     * selalu membaca nol, selamanya, dan itu benar. `truncated` yang menyatakannya.
+     *
+     * Karena itu jawaban dan bukan galat, ia di-cache dengan TTL sukses.
+     */
+    if (logs.length === 0) {
+      return remember(
+        {
+          trades: [],
+          coverage: {
+            fromBlock: oldestScanned,
+            toBlock: latest,
+            reachedLaunch,
+            truncated,
+            blocksScanned: Math.max(0, latest - oldestScanned + 1),
+            calls,
+            estimatedTimes: 0,
+            error: null,
+          },
+        },
+        CACHE_TTL_MS
+      );
+    }
 
     let decimals = 18;
     try {
@@ -313,10 +414,18 @@ export async function readOnChainSwaps(
      */
     const anchors = [...blockTimes.entries()].sort((a, b) => a[0] - b[0]);
     if (anchors.length === 0) {
-      return {
-        trades: [],
-        coverage: emptyCoverage("Node returned no block timestamps, so trade times are unknown."),
-      };
+      /**
+       * Sampai di sini berarti ada log tapi TIDAK SATU pun timestamp berhasil dibaca,
+       * sesudah tiga percobaan. Itu memang kegagalan RPC, dan sekarang pesannya hanya
+       * dipakai untuk keadaan itu — kasus nol log sudah keluar lebih dulu di atas.
+       */
+      return remember(
+        {
+          trades: [],
+          coverage: emptyCoverage("Node returned no block timestamps, so trade times are unknown."),
+        },
+        FAILURE_CACHE_TTL_MS
+      );
     }
     const estimateTime = (blockNumber: number): number => {
       const known = blockTimes.get(blockNumber);
@@ -409,8 +518,7 @@ export async function readOnChainSwaps(
         error: null,
       },
     };
-    cache().set(key, { at: Date.now(), result });
-    return { trades: result.trades.slice(0, limit), coverage: result.coverage };
+    return remember(result, CACHE_TTL_MS);
   } catch (error: any) {
     /**
      * Kegagalan RPC DILAPORKAN, tidak lagi menjadi array kosong.
@@ -423,7 +531,12 @@ export async function readOnChainSwaps(
      * ini, dan tidak ada yang bisa membedakannya dari kebenaran.
      */
     const message = String(error?.shortMessage ?? error?.message ?? error);
-    return { trades: [], coverage: emptyCoverage(message.slice(0, 200)) };
+    /**
+     * Kegagalan juga di-cache, dengan TTL pendek. RPC yang sedang menolak akan menolak
+     * permintaan berikutnya juga, jadi mengulanginya lima kali dalam tiga puluh detik
+     * hanya memindahkan beban tanpa mengubah jawaban.
+     */
+    return remember({ trades: [], coverage: emptyCoverage(message.slice(0, 200)) }, FAILURE_CACHE_TTL_MS);
   }
 }
 
