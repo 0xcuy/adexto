@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 4,
+  "listedMarkets": 3,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -84,13 +84,13 @@
     },
     {
       "symbol": "CURB",
-      "status": "live",
+      "status": "test",
       "chainId": 143,
       "factoryVersion": "0.11.0",
       "factory": "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
       "token": "0x8AB19c43Dc0b66240BF1404A6e78135C14836eE0",
       "curve": "0x3FaEd3c531875A78a75664eEb749BB71BDf1cEED",
-      "why": "The live $CURB market and the first launch on Monad, built for the Monad Metropolis hackathon. Listed at /token/curb?chain=143. Launched with an ERC-8004 agent bound at creation: agentId 10251, so the factory checked ownerOf(10251) against the deployer before it would mint. Read from chain: symbol CURB, name Curb Market, supply 1e9, agentBound true, virtualNative 173559.28438 MON. The name is literal, not decorative -- the Curb Exchange traded on the kerb outside the New York exchange before it became the AMEX, which is what a bonding curve with no deposit is."
+      "why": "The first launch on Monad, built for the Monad Metropolis hackathon and replaced by $PARCEL, which was recorded through the production UI instead of a local build. Its registry row was pulled once $PARCEL succeeded; the backup on the VPS is projects.json.before-curb-removal. So it is no longer listed on the site, but nothing was taken from it: the curve still holds its reserves, the market is still tradable directly against the curve, and the ticker stays claimed on this factory forever because symbolRegistry has no release function. Read from chain at the time it was delisted: symbol CURB, name Curb Market, supply 1e9, agentBound true with agentId 10251, virtualNative 173559.28438 MON, swapCount 5."
     },
     {
       "symbol": "PARCEL",
