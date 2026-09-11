@@ -1087,7 +1087,23 @@ await safely("klaim penghasilan creator", async () => {
 // Beberapa fill tambahan supaya chart dan trade feed tidak terlihat kosong.
 // Ini transaksi nyata lewat UI yang sama, bukan data tempelan.
 scene("8b) Beberapa fill tambahan agar chart terisi");
-for (const [i, amt] of ["0.004", "0.007"].entries()) {
+/**
+ * Nominal dua fill tambahan DITURUNKAN dari `BUY`, tidak lagi ditulis sebagai angka mati.
+ *
+ * Sebelumnya keduanya "0.004" dan "0.007" — ukuran 0G — dan itu melanggar peringatan yang
+ * sudah tertulis di konfigurasi chain di atas: 0G ~$0,19 sementara MON ~$0,023, jadi angka
+ * yang berarti $0,0008 di 0G hanya berarti $0,0001 di Monad. Dua fill penutup karena itu
+ * delapan kali lebih kecil dari yang dimaksud di Monad, sementara semua nominal lain sudah
+ * disetarakan dolar. Kelas bug yang sama dengan empat kerusakan senyap `IS_MAINNET` dulu:
+ * satu chain baru ditambahkan, tetapi angka yang tersebar tidak ikut pindah.
+ *
+ * Kelipatannya dipilih supaya 0G menghasilkan angka yang PERSIS sama seperti sebelumnya
+ * (0,004 dan 0,007), jadi rekaman 0G tidak berubah perilakunya sama sekali.
+ */
+const EXTRA_FILL_MULTIPLES = [1, 1.75];
+const EXTRA_FILLS = EXTRA_FILL_MULTIPLES.map((m) => String(Number((Number(BUY) * m).toFixed(8))));
+
+for (const [i, amt] of EXTRA_FILLS.entries()) {
   await safely(`fill tambahan ${i + 1}`, async () => {
     await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, { waitUntil: "domcontentloaded" });
     await beat(page, 1800);
