@@ -97,6 +97,10 @@ public/adexto_testnet_demo.mp4
 public/adexto_testnet_demo.webm
 public/adexto_mainnet_demo.mp4
 public/adexto_mainnet_demo.webm
+# Rekaman Monad punya nama keluaran sendiri supaya tidak menimpa rekaman 0G, jadi ia
+# butuh baris ignore-nya sendiri juga — pola di atas menyebut nama berkas secara harfiah.
+public/adexto_monad_demo.mp4
+public/adexto_monad_demo.webm
 public/demo-raw/
 
 # Artefak kompilasi kontrak. Dihasilkan ulang oleh

@@ -55,8 +55,24 @@ if (!PK) {
  *     SEBELUM menjalankan ini.
  *   - Nominal beli/jual adalah uang sungguhan. Bawaan DEMO_BUY diperkecil di mainnet.
  */
-const NET = (process.env.DEMO_NET || "testnet").toLowerCase();
-const CHAINS_BY_NET = {
+/**
+ * PILIHAN CHAIN DIPISAH DARI TINGKAT JARINGAN, dan pemisahan itu memperbaiki bug laten.
+ *
+ * Sebelumnya satu variabel `DEMO_NET` menjawab DUA pertanyaan berbeda: chain mana, dan
+ * apakah ini mainnet. Selama hanya ada 0G, keduanya kebetulan sejalan. Menambahkan Monad
+ * sebagai kunci ketiga akan membuat `IS_MAINNET` bernilai false untuk chain yang jelas
+ * mainnet, dan empat hal rusak DIAM-DIAM:
+ *
+ *   - `BUY` memakai nominal testnet, yaitu uang sungguhan 2,5x lebih besar
+ *   - `OUT_BASE` jadi "adexto_testnet_demo" dan MENIMPA rekaman testnet yang sudah bagus
+ *   - `ALL_CHAINS` memakai nama-nama testnet, jadi tombol chain di studio tidak cocok
+ *     dan perekaman DIBATALKAN di pemeriksaan target
+ *   - peringatan permanensi ticker tidak tercetak, di chain yang klaimnya juga permanen
+ *
+ * Jadi `mainnet` sekarang PROPERTI CHAIN, bukan kesimpulan dari nama kunci.
+ */
+const CHAIN_KEY = (process.env.DEMO_CHAIN || process.env.DEMO_NET || "testnet").toLowerCase();
+const CHAINS = {
   testnet: {
     chainId: 16602,
     key: "0G",
@@ -64,28 +80,62 @@ const CHAINS_BY_NET = {
     rpc: "https://evmrpc-testnet.0g.ai",
     explorer: "https://chainscan-galileo.0g.ai",
     sym: "0G",
+    mainnet: false,
+    out: "adexto_testnet_demo",
+    /**
+     * Nominal beli bawaan, disetarakan dalam DOLAR antar chain.
+     *
+     * Menyalin angka native dari satu chain ke chain lain akan mengubah ukuran
+     * perdagangan sebesar rasio harganya. 0G ~$0,19 dan MON ~$0,023, jadi "0.004" yang
+     * berarti $0,0008 di 0G akan berarti $0,0001 di Monad — dan sebaliknya angka Monad
+     * di 0G akan delapan kali lebih besar dari yang dimaksud.
+     */
+    buy: "0.01",
   },
-  mainnet: {
+  "0g": {
     chainId: 16661,
     key: "0G",
     name: "0G Mainnet",
     rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai",
     explorer: "https://chainscan.0g.ai",
     sym: "0G",
+    mainnet: true,
+    out: "adexto_mainnet_demo",
+    buy: "0.004",
+  },
+  monad: {
+    chainId: 143,
+    key: "Monad",
+    name: "Monad Mainnet",
+    rpc: process.env.MONAD_RPC_URL || "https://rpc.monad.xyz",
+    explorer: "https://monadscan.com",
+    sym: "MON",
+    mainnet: true,
+    // Nama keluaran sendiri: rekaman Monad tidak boleh menimpa rekaman 0G.
+    out: "adexto_monad_demo",
+    // 0,035 MON ~= $0,0008 pada MON $0,023, yaitu setara dolar dengan 0,004 0G.
+    buy: "0.035",
   },
 };
-const CHAIN = CHAINS_BY_NET[NET];
+// `mainnet` dipertahankan sebagai alias ke 0G supaya perintah lama di runbook tetap jalan.
+CHAINS.mainnet = CHAINS["0g"];
+
+const CHAIN = CHAINS[CHAIN_KEY];
 if (!CHAIN) {
-  console.error(`DEMO_NET tidak dikenal: "${NET}". Pakai "testnet" atau "mainnet".`);
+  console.error(
+    `DEMO_CHAIN tidak dikenal: "${CHAIN_KEY}". Pilihan: ${Object.keys(CHAINS).join(", ")}`
+  );
   process.exit(1);
 }
-const IS_MAINNET = NET === "mainnet";
+const IS_MAINNET = CHAIN.mainnet;
 /**
  * Tidak ada lagi DEMO_SEED. AdextoCurveFactory memakai bonding curve dengan reserve
  * virtual, jadi tidak ada setoran likuiditas — dan field seed-nya sudah tidak ada
  * di studio, sehingga mengisinya akan membuat perekaman macet.
  */
-const BUY = process.env.DEMO_BUY || (IS_MAINNET ? "0.004" : "0.01");
+// Bawaan diambil dari entri chain, yang menyetarakannya dalam dolar. Ditulis di satu
+// tempat bersama chain-nya, bukan sebagai ternary yang harus ikut tumbuh tiap chain baru.
+const BUY = process.env.DEMO_BUY || CHAIN.buy;
 const RUN = Math.floor(Math.random() * 900 + 100);
 const TICKER = process.env.DEMO_TICKER || `NOVA${RUN}`;
 const NAME = process.env.DEMO_NAME || "Nova Sentinel AI";
@@ -127,7 +177,7 @@ const RAW_DIR = path.join(process.cwd(), "public", "demo-raw");
  * Nama keluaran mengikuti jaringan, supaya rekaman mainnet tidak menimpa rekaman
  * testnet yang sudah bagus. Keduanya sudah ada di .gitignore lewat pola yang sama.
  */
-const OUT_BASE = IS_MAINNET ? "adexto_mainnet_demo" : "adexto_testnet_demo";
+const OUT_BASE = CHAIN.out;
 const OUT_MP4 = path.join(process.cwd(), "public", `${OUT_BASE}.mp4`);
 const OUT_WEBM = path.join(process.cwd(), "public", `${OUT_BASE}.webm`);
 
@@ -708,6 +758,67 @@ await beat(page, 900);
  * Konsekuensi yang disengaja: perekaman kini bisa berjalan tanpa pengawasan dari awal
  * sampai akhir, jadi tidak ada lagi jeda 5 menit yang bisa membatalkan rekaman.
  */
+
+/**
+ * Adegan 1d BARU: mencentang pengikatan identitas agent ERC-8004.
+ *
+ * KENAPA INI HARUS ADEGANNYA SENDIRI
+ *
+ * Pengikatan agent MATI secara bawaan di studio, dan itu keputusan yang benar untuk
+ * produk — mendaftarkan agent adalah transaksi terpisah terhadap registry yang bukan
+ * milik kami, jadi mewajibkannya akan membuat setiap peluncuran jadi dua transaksi.
+ * Tapi akibatnya perekam sebelumnya HANYA MENGGULIR MELEWATI bagian ini: videonya
+ * memperlihatkan formulirnya, lalu meluncurkan tanpa agent, sehingga fitur yang
+ * disebut di seluruh dokumentasi tidak pernah terlihat bekerja.
+ *
+ * KENAPA GAGALNYA HARUS MEMBATALKAN REKAMAN
+ *
+ * `AdextoFactory` menuntut `AGENT_REGISTRY.ownerOf(agentId) == msg.sender`. Kalau id-nya
+ * salah atau bukan milik penandatangan, `deployTrinity` REVERT — setelah gas terbakar,
+ * dan setelah ticker sempat diperiksa. Studio sudah memeriksa kepemilikan itu di klien
+ * dan menampilkan hasilnya sebagai petunjuk, jadi di sini kita menunggu petunjuk itu
+ * berbunyi "you own this agent" dan berhenti kalau tidak. Lebih murah membatalkan
+ * sebelum transaksi daripada menemukan revert setelah membayar.
+ *
+ * Id-nya per chain: agent yang sama punya id berbeda di setiap registry, jadi nilainya
+ * masuk lewat env alih-alih dihardcode. Di Monad, `10251` dimiliki deployer.
+ */
+const AGENT_ID = (process.env.DEMO_AGENT_ID || "").trim();
+if (AGENT_ID) {
+  scene(`1d) Ikat identitas agent ERC-8004 (#${AGENT_ID} di ${CHAIN.name})`);
+  await glidePanel(page, "BONDING CURVE", 620);
+  await beat(page, 1200);
+
+  const bindBox = page.locator('label:has-text("Bind an ERC-8004 agent identity") input[type="checkbox"]').first();
+  await bindBox.scrollIntoViewIfNeeded();
+  await beat(page, 900);
+  await bindBox.check();
+  await beat(page, 1400);
+
+  const idField = page.getByPlaceholder(`id on ${CHAIN.name}`).first();
+  await typeInto(page, idField, AGENT_ID);
+  await beat(page, 1200);
+
+  // Petunjuk kepemilikan dari studio, bukan asumsi kita. Timeout-nya longgar karena
+  // pemeriksaannya memanggil registry lewat RPC.
+  const owned = page.locator("text=/you own this agent/i").first();
+  try {
+    await owned.waitFor({ state: "visible", timeout: 45000 });
+    console.log(`  kepemilikan agent #${AGENT_ID}: TERKONFIRMASI oleh studio`);
+  } catch {
+    console.error(
+      `  kepemilikan agent #${AGENT_ID} TIDAK terkonfirmasi di ${CHAIN.name}.\n` +
+        `  deployTrinity akan revert "Factory: agent not owned by caller" setelah gas terbakar.\n` +
+        `  Rekaman dibatalkan sebelum transaksi apa pun dikirim.`
+    );
+    await ctx.close();
+    await browser.close();
+    process.exit(1);
+  }
+  await beat(page, 1600);
+  await glidePanel(page, "BONDING CURVE", -620);
+  await beat(page, 800);
+}
 
 scene(`2) Attestation lalu launch (transaksi ${CHAIN.name} nyata)`);
 const signBtn = page.getByRole("button", { name: "Sign attestation", exact: true });

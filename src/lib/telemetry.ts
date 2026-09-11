@@ -161,7 +161,11 @@ export function validateTrade(input: any): ValidationResult {
   return {
     ok: true,
     trade: {
-      id: `agent_${txHash.slice(2, 14)}_${type.toLowerCase()}`,
+      // Awalan id mengikuti sumbernya, supaya record on-chain tidak terbaca sebagai
+      // laporan agent saat seseorang menelusuri store-nya langsung.
+      id: `${
+        String(input.source || "").toLowerCase() === "onchain" && Number(input.blockNumber) > 0 ? "onchain" : "agent"
+      }_${txHash.slice(2, 14)}_${type.toLowerCase()}`,
       txHash,
       type: type as TradeType,
       symbol,
@@ -169,6 +173,24 @@ export function validateTrade(input: any): ValidationResult {
       amountNative,
       nativeSymbol: chain.nativeSymbol,
       priceNative: amountToken > 0 ? amountNative / amountToken : 0,
+      /**
+       * Harga spot SESUDAH trade, kalau pengirimnya menyertakannya.
+       *
+       * Sebelumnya field ini dijatuhkan di sini tanpa jejak, dan itu merugikan justru
+       * chart yang endpoint ini layani: komentar pada `TradeEvent.priceNativeAfter`
+       * menyatakan nilai itulah yang harus digambar sebuah grafik harga, karena ia naik
+       * pada setiap pembelian dan turun hanya pada penjualan. Tanpanya yang tergambar
+       * adalah harga EKSEKUSI, yang untuk pembelian duduk di atas harga kurva dan untuk
+       * penjualan di bawahnya — jadi satu pembelian lalu satu penjualan bisa terlihat
+       * seperti pergerakan yang tidak pernah terjadi.
+       *
+       * Nilainya tidak dihitung di sini, karena tidak bisa: ia berasal dari snapshot
+       * `nativeReserveAfter`/`tokenReserveAfter` di event `Swap` itu sendiri.
+       */
+      priceNativeAfter:
+        Number.isFinite(Number(input.priceNativeAfter)) && Number(input.priceNativeAfter) > 0
+          ? Number(input.priceNativeAfter)
+          : null,
       trader: /^0x[a-fA-F0-9]{40}$/.test(String(input.trader || "")) ? String(input.trader) : "unknown",
       timestamp: timestamp.toISOString(),
       blockNumber: Number.isFinite(Number(input.blockNumber)) ? Number(input.blockNumber) : null,
@@ -176,7 +198,28 @@ export function validateTrade(input: any): ValidationResult {
       teeAttestationRoot: /^0x[a-fA-F0-9]{64}$/.test(String(input.teeAttestationRoot || ""))
         ? String(input.teeAttestationRoot)
         : null,
-      source: "agent",
+      /**
+       * Label sumber tidak lagi dipaku ke "agent", dan alasannya bukan kenyamanan.
+       *
+       * Endpoint ini lahir untuk fill yang DILAPORKAN agent, yang memang tidak membawa
+       * snapshot reserve dan tidak bisa dibuktikan siapa pun. Sekarang jalur yang sama
+       * dipakai mengisi ulang perdagangan yang DIBACA DARI CHAIN, lengkap dengan
+       * `txHash` dan nomor bloknya — dan melabelinya "agent" membuat UI menyajikan swap
+       * yang bisa diperiksa siapa pun sebagai laporan yang harus dipercaya. Itu
+       * merendahkan bukti yang sudah ada, dan `LiveTradeFeed` memang melabeli baris
+       * berdasarkan field ini.
+       *
+       * "onchain" hanya diberikan kalau klaimnya punya dasar: harus ada nomor blok.
+       * Tanpa itu tidak ada yang bisa dibuka orang lain untuk memeriksanya, jadi ia
+       * tetap "agent". Penulisannya sendiri sudah dijaga oleh ADEXTO_TELEMETRY_SECRET,
+       * jadi yang dipercaya di sini adalah pemegang kunci itu — bukan sembarang pemanggil.
+       */
+      source:
+        String(input.source || "").toLowerCase() === "onchain" &&
+        Number.isFinite(Number(input.blockNumber)) &&
+        Number(input.blockNumber) > 0
+          ? "onchain"
+          : "agent",
     },
   };
 }

@@ -48,8 +48,30 @@ const REGISTRY_ABI = [
 ];
 
 const args = process.argv.slice(2);
-const chainKey = (args[args.indexOf("--chain") + 1] || "").toLowerCase();
+/**
+ * `indexOf` mengembalikan -1 kalau flagnya tidak ada, dan `args[-1 + 1]` adalah `args[0]`
+ * — yaitu argumen PERTAMA, apa pun itu. Jadi `--broadcast` tanpa `--symbol` akan membaca
+ * "--chain" sebagai simbol. Bug ini tidak terlihat selama satu-satunya pembaca adalah
+ * `--chain`, karena nilai sampahnya lalu gagal di pencarian NETWORKS.
+ */
+function argOf(flag) {
+  const i = args.indexOf(flag);
+  return i === -1 ? "" : (args[i + 1] || "").trim();
+}
+const chainKey = argOf("--chain").toLowerCase();
 const BROADCAST = args.includes("--broadcast");
+/**
+ * Identitas agent bisa MILIK SATU PASAR, bukan hanya milik protokol.
+ *
+ * Tanpa ini berkas registrasinya hardcoded ke ADEXTO — nama, deskripsi, dan endpoint
+ * x402-nya semua menyebut `adexto`. Mengikat token lain ke identitas itu berarti agent
+ * $CURB mengiklankan endpoint $ADEXTO, dan pembaca yang mengikuti endpoint itu membeli
+ * token yang salah.
+ *
+ * Kekeliruan itu PERMANEN: berkas registrasinya ditulis on-chain sebagai data URI.
+ */
+const SYMBOL = argOf("--symbol").toUpperCase();
+const MARKET = argOf("--market");
 const net = NETWORKS[chainKey];
 
 if (!net) {
@@ -92,17 +114,42 @@ if (code === "0x") {
  * TDX attestation declaration rather than verifying a quote, so asserting
  * "tee-attestation" would overstate it.
  */
+/**
+ * DESKRIPSI DI BAWAH DITULIS ULANG, dan alasannya adalah kelas kesalahan terburuk yang
+ * bisa dilakukan berkas ini.
+ *
+ * Versi lamanya berbunyi: "the agent's paid API answers an HTTP 402 challenge quoting its
+ * price and settlement vault. Settlement is not yet implemented: a signed voucher returns
+ * 501." Ketiga bagiannya sudah tidak benar — produknya bukan API inference berbayar
+ * melainkan pembelian lintas chain, penyelesaian EIP-3009 sudah hidup dan sudah
+ * memindahkan dana sungguhan, dan jalur voucher sudah dicabut.
+ *
+ * Yang membuatnya lebih berbahaya daripada klaim basi di halaman web: berkas ini ditulis
+ * ON-CHAIN sebagai data URI, jadi tidak ada penyuntingan yang bisa memperbaikinya setelah
+ * transaksinya masuk. Dan `audit_claims.mjs` tidak akan pernah menangkapnya, karena
+ * pemeriksa itu membaca teks yang DIRENDER di situs, bukan payload yang dikirim ke chain.
+ */
 function describeAgent(agentId) {
+  const sym = SYMBOL || "ADEXTO";
+  // Path kanonik. `/v1/x402/<simbol>` masih dilayani, tapi yang didokumentasikan di
+  // /x402 adalah bentuk `buy`, dan alamat yang ditulis permanen sebaiknya yang itu.
+  const x402 = `https://x402.adexto.xyz/v1/x402/buy/${sym.toLowerCase()}`;
+  const settlement =
+    "An unpaid request to the x402 endpoint is answered with HTTP 402 and a quote. Paying it means " +
+    "signing an EIP-3009 authorization for USDC on Base, which the token contract verifies itself, and " +
+    "the bonding curve sends the tokens straight to the payer's own address. Delivery is executed before " +
+    "the charge, so a failed fill costs the protocol rather than the buyer.";
   return buildRegistrationFile({
-    name: "ADEXTO Protocol Agent",
-    description:
-      "Autonomous market agent for tokens launched by ADEXTO. Each launch binds a token to an agent identity; " +
-      "the agent's paid API answers an HTTP 402 challenge quoting its price and settlement vault. " +
-      "Settlement is not yet implemented: a signed voucher returns 501.",
+    name: SYMBOL ? `${MARKET || `$${sym}`} Agent` : "ADEXTO Protocol Agent",
+    description: SYMBOL
+      ? `Market agent for $${sym}, a bonding-curve market launched through ADEXTO. The curve opens against a ` +
+        `virtual reserve, so it needs no liquidity deposit and is tradable from the first block. ${settlement}`
+      : `Autonomous market agent for tokens launched by ADEXTO. A launch may bind its token to an agent ` +
+        `identity in this registry. ${settlement}`,
     image: "https://adexto.xyz/logo.svg",
     services: [
       { name: "web", endpoint: "https://adexto.xyz" },
-      { name: "x402", endpoint: "https://x402.adexto.xyz/v1/x402/adexto", version: "v1" },
+      { name: "x402", endpoint: x402, version: "v1" },
     ],
     x402Support: true,
     chainId: net.chainId,
