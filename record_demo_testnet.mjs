@@ -547,12 +547,23 @@ async function generateEmblem(page) {
  * klik di adegan awal tidak berpengaruh pada adegan jual — justru adegan yang candle
  * merahnya paling ingin diperlihatkan.
  *
- * 15 detik dipilih dari data rekaman pertama. Jarak perdagangannya 0s, 24s, 50s, 76s, 91s;
- * pada 1s/5s/15s ketiganya sama-sama memberi tiap perdagangan bucket sendiri, tetapi bar
- * kosong di antaranya 87 / 14 / 2. Pada 60 detik tiga perdagangan menyatu dan penjualannya
- * tertelan sama sekali.
+ * 15 detik dulu dipilih dari data rekaman pertama. Jarak perdagangannya 0s, 24s, 50s, 76s,
+ * 91s; pada 1s/5s/15s ketiganya sama-sama memberi tiap perdagangan bucket sendiri, tetapi
+ * bar kosong di antaranya 87 / 14 / 2. Pada 60 detik tiga perdagangan menyatu dan
+ * penjualannya tertelan sama sekali. Angka-angka itu masih benar; yang berubah adalah apa
+ * yang harus dioptimalkan.
+ *
+ * Bawaannya sekarang 1, karena lebar candle tidak lagi ikut jumlah bar. Jendela chart
+ * dipatok `VISIBLE_SLOTS = 96`, jadi yang menentukan chart terlihat hidup atau kosong bukan
+ * lagi lebar barnya melainkan CACAH barnya. Terukur pada $CURB dengan lima fill: 130 bar di
+ * 1s, 10 bar di 15s, 4 bar di 60s. Hanya yang pertama mengisi pane; 15 detik menyisakan
+ * sekitar 90% pane kosong dan itulah tampilan yang dilaporkan sebagai chart kosong.
+ *
+ * Bar kosong di antara perdagangan bukan kerugian di sini: ia datar karena harga memang
+ * tidak bergerak ketika tidak ada yang trading, dan pada 1 detik arah tiap fill tetap
+ * terlihat sebagai candle-nya sendiri — yang justru gagal pada 60 detik.
  */
-const DEMO_TF = process.env.DEMO_TF || "15";
+const DEMO_TF = process.env.DEMO_TF || "1";
 
 /**
  * Menelusuri keempat chain, berakhir di chain target.
