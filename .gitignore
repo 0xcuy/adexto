@@ -140,6 +140,16 @@ ADEXTO-RUNBOOK.md
 # 64-hex, dan ketiganya hash transaksi yang sudah publik di Basescan dan chainscan.0g.ai
 # — memang dimaksudkan untuk dibuka siapa saja, jadi bukan kebocoran.
 METROPOLIS-RUNBOOK.md
+# Draf pembaruan progres hackathon. Sensitif secara STRATEGIS dengan alasan yang sama
+# seperti runbook di atas: ia memuat urutan pekerjaan yang belum selesai dan tiga klaim
+# yang sengaja TIDAK dibuat beserta alasannya. Tab Progress Updates sendiri privat bagi
+# tim, penyelenggara dan mentor, jadi menerbitkan drafnya di repo publik justru membuka
+# apa yang platformnya sendiri tutup.
+#
+# Angkanya bukan rahasia: semuanya hash transaksi dan gas yang bisa dibaca siapa saja di
+# monadscan, dan versi yang memang untuk publik sudah ada di README `adexto-monad`. Yang
+# tidak untuk publik adalah pembingkaiannya.
+docs/progress-update-*.md
 
 # Toolchain keamanan: dependensi pihak ketiga dan keluaran perkakas, bukan sumber.
 #
