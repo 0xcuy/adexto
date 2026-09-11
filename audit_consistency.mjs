@@ -1539,10 +1539,14 @@ console.log("\n── petak getLogs per chain vs yang diterima RPC sungguhan ─
  *    bucket perdagangan terakhir begitu tidak ada perdagangan di dalam jendela jam
  *    dinding, jadi `min()` selalu memilih `lastFilled` dan ekornya menjadi NOL. Terukur:
  *    satu jam sesudah fill terakhir, 20 candle menjadi 10.
- * 2. `YOUNG_MARKET_SLOTS` dulu 24 sementara `MIN_BARS_TO_FIT` 12. Begitu jumlah candle
- *    jatuh di bawah 12, chart beralih dari `fitContent()` ke jendela dipatok 24 slot —
- *    jadi 10 bar hanya mengisi 42% pane. Dua cacat itu bertemu: candle menyusut jumlahnya
- *    karena (1), lalu mengerut ke separuh pane karena (2).
+ * 2. Lebar bar dulu TURUNAN dari jumlah bar, karena ada dua mode zoom dengan ambang di
+ *    12: di bawahnya jendela dipatok, di atasnya `fitContent()` memeras seluruh riwayat
+ *    ke satu pane. Dua cacat itu bertemu: candle menyusut jumlahnya karena (1), lalu
+ *    berubah lebar karena (2). Efeknya juga terlihat antar-token pada waktu yang sama —
+ *    $ADEXTO 108 bar ~4px per bar, $CURB 4 bar ~38px per bar, kode dan setelan sama.
+ *    Sekarang jendela selalu selebar `VISIBLE_SLOTS`, jadi jumlah bar tidak lagi ikut
+ *    menentukan ukurannya. Yang dipatok di bawah: konstanta itu ada, `fitContent()`
+ *    tidak kembali, dan kedua jangkar menghasilkan jendela selebar sama.
  *
  * Diperiksa di tingkat sumber karena repo ini tidak punya runner tes TS dan `tsx` hanya
  * dependensi transitif, jadi penjaga yang memanggilnya akan lebih rapuh daripada yang
@@ -1569,13 +1573,53 @@ console.log("\n── jendela chart: bentuk tidak boleh berubah karena jam maju 
     );
   }
 
-  const slots = chart.match(/const YOUNG_MARKET_SLOTS = ([^;]+);/);
-  check("YOUNG_MARKET_SLOTS terbaca", Boolean(slots), slots ? slots[1].trim() : "pola berubah");
-  if (slots) {
+  const slots = chart.match(/const VISIBLE_SLOTS = (\d+);/);
+  check("VISIBLE_SLOTS terbaca", Boolean(slots), slots ? `${slots[1]} slot` : "pola berubah");
+
+  const usesFit = /\bfitContent\(\)/.test(chart.replace(/\/\*[\s\S]*?\*\//g, ""));
+  check(
+    "fitContent() tidak dipakai, jadi lebar bar tidak ikut jumlah bar",
+    !usesFit,
+    usesFit
+      ? "fitContent() memeras seluruh riwayat ke satu pane, jadi candle mengecil seiring riwayat bertambah dan berbeda antar-token"
+      : "jendela selalu selebar VISIBLE_SLOTS"
+  );
+
+  /**
+   * Diambil panggilan yang MENYEBUT `VISIBLE_SLOTS`, bukan yang pertama ditemukan.
+   *
+   * Ada panggilan `setVisibleLogicalRange` lain di berkas ini yang menyalin jendela chart
+   * harga ke pane osilator supaya kedua sumbu waktu sejajar. Versi pertama penjaga ini
+   * mengambil yang itu, mencocokkan `range` sebagai isinya, lalu melaporkan kedua jangkar
+   * hilang — gagal pada kode yang benar.
+   *
+   * Menuntut TEPAT SATU yang menyebut konstanta itu juga menjaga hal yang lebih penting:
+   * aturan lebar bar tinggal di satu tempat. Dua panggilan yang mengatur jendela berarti
+   * dua tempat bisa berbeda pendapat, dan itulah bentuk cacat yang baru saja dicabut.
+   */
+  const sizing = [...chart.matchAll(/setVisibleLogicalRange\(([\s\S]{0,320}?)\);/g)]
+    .map((m) => m[1])
+    .filter((body) => body.includes("VISIBLE_SLOTS"));
+  check(
+    "tepat satu panggilan menetapkan lebar jendela",
+    sizing.length === 1,
+    sizing.length === 1 ? "ditemukan" : `${sizing.length} panggilan menyebut VISIBLE_SLOTS`
+  );
+  if (sizing.length === 1) {
+    const range = [null, sizing[0]];
+    /**
+     * Kedua cabang harus selebar `VISIBLE_SLOTS`, kalau tidak ia kembali jadi dua mode:
+     * kiri 0 -> VISIBLE_SLOTS, kanan (len - VISIBLE_SLOTS) -> len. Yang berbeda hanya
+     * jangkarnya, dan itu tidak mengubah lebar bar.
+     */
+    const left = /\{\s*from:\s*0,\s*to:\s*VISIBLE_SLOTS\s*\}/.test(range[1]);
+    const right = /\{\s*from:\s*sorted\.length - VISIBLE_SLOTS,\s*to:\s*sorted\.length\s*\}/.test(range[1]);
     check(
-      "jumlah slot patokan = MIN_BARS_TO_FIT, jadi kedua aturan bertemu tanpa patahan",
-      /^MIN_BARS_TO_FIT$/.test(slots[1].trim()),
-      `YOUNG_MARKET_SLOTS = ${slots[1].trim()} — angka literal di sini berarti bar mengerut begitu ambang fit terlewat`
+      "kedua jangkar menghasilkan jendela selebar VISIBLE_SLOTS",
+      left && right,
+      left && right
+        ? "pasar muda menempel kiri, pasar panjang menempel kanan, lebar bar sama"
+        : `kiri=${left} kanan=${right} — lebar jendela berbeda antar cabang berarti ukuran candle melompat lagi`
     );
   }
 }
