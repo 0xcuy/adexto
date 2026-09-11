@@ -78,7 +78,25 @@ export async function GET(req: Request) {
       const stored = listTrades(symbol);
       if (stored.length > 0) {
         trades = stored;
-        source = stored[0].source === "genesis" ? "genesis" : "agent";
+        /**
+         * Label diambil dari APA YANG TERSIMPAN, bukan dipukul rata jadi "agent".
+         *
+         * Baris ini dulu `stored[0].source === "genesis" ? "genesis" : "agent"`, jadi
+         * setiap catatan yang bukan genesis dilaporkan sebagai laporan agent — termasuk
+         * `Swap` on-chain yang membawa `txHash` dan `blockNumber`-nya sendiri. Store
+         * sudah menyimpan `source: "onchain"` untuk catatan itu, dan UI tetap menulis
+         * "agent-reported fills" di bawah chart. Itu label yang lebih lemah daripada
+         * buktinya: perdagangannya bisa dibuka di explorer satu per satu.
+         *
+         * Yang dibaca dari store bukan berarti tidak on-chain. Store di sini adalah
+         * cache untuk riwayat yang `getLogs` tidak bisa dijangkau lagi — di Monad
+         * jendelanya hanya 1.600 blok — bukan sumber yang berbeda.
+         *
+         * Campuran diturunkan ke label TERLEMAH yang ada, bukan dinaikkan: satu catatan
+         * tanpa bukti membuat kumpulannya tidak bisa disebut seluruhnya on-chain.
+         */
+        const every = (s: TradeEvent["source"]) => stored.every((t) => t.source === s);
+        source = every("genesis") ? "genesis" : every("onchain") ? "onchain" : "agent";
       }
     }
 
