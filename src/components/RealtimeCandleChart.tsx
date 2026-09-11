@@ -114,8 +114,8 @@ const INTERVALS = [
    * menghasilkan satu bar dan "1y" satu bar juga.
    *
    * Pada pasar yang lebih muda dari satu bar, hasilnya memang satu candle. Itu aritmetika
-   * umur pasar, bukan kerusakan, dan `YOUNG_MARKET_SLOTS` sudah menangani tampilannya
-   * supaya satu bar tidak diregangkan selebar pane.
+   * umur pasar, bukan kerusakan, dan `VISIBLE_SLOTS` sudah menangani tampilannya supaya
+   * satu bar tidak diregangkan selebar pane.
    */
   { label: "1d", seconds: 86400 },
   { label: "1y", seconds: 31536000 },
@@ -133,33 +133,29 @@ const INTERVALS = [
 const DATE_ONLY_FROM_SECONDS = 86400;
 
 /**
- * Di bawah jumlah bar ini, jendela waktu DIPATOK dan tidak di-fit.
+ * Jumlah slot yang terlihat di pane, SAMA untuk setiap token dan setiap timeframe.
  *
- * `fitContent()` meregangkan bar yang ada ke seluruh lebar pane. Itu benar untuk
- * riwayat yang panjang, tapi dengan satu bar hasilnya satu candle selebar ratusan
- * piksel — pasar yang baru dua kali diperdagangkan terlihat seperti chart rusak.
- * 24 slot dipilih supaya satu bar menempati sekitar 1/24 lebar pane, yaitu lebar
- * candle yang wajar, dengan ruang kosong di kanannya seperti pasangan yang baru
- * listing di bursa mana pun.
+ * Lebar candle karena itu selalu `lebar pane / VISIBLE_SLOTS`, bukan turunan dari
+ * banyaknya bar yang kebetulan dimiliki sebuah pasar.
+ *
+ * Sebelum ini ada DUA mode dan chart melompat di antaranya pada bar ke-12: di bawah
+ * ambang jendela dipatok ke 12 slot, di atasnya `fitContent()` memeras seluruh riwayat
+ * ke satu pane. Akibatnya ukuran candle berbeda antar-token untuk alasan yang tidak
+ * ada hubungannya dengan setelan chart. Terukur berdampingan: $ADEXTO di 0G dengan 108
+ * bar di-fit menjadi ~4px per bar, sementara $CURB di Monad dengan 4 bar mendapat 1/12
+ * pane atau ~38px per bar — sepuluh kali lebih lebar, pada kode dan setelan yang persis
+ * sama. Setiap token baru lahir di mode gemuk lalu mengerut mendadak begitu bar ke-12
+ * terbentuk, tanpa ada yang mengubah apa pun.
+ *
+ * 96 dipilih untuk mereproduksi lebar bar yang sudah disetujui pada $ADEXTO di 1h,
+ * yaitu ~4-5px pada lebar pane terminal saat ini. Ia juga membuat pasar yang baru
+ * lahir tampil seperti listing baru di bursa mana pun: beberapa bar berukuran normal
+ * menempel di tepi kiri, sisanya ruang yang belum terisi — bukan satu balok raksasa.
+ *
+ * `fitContent()` sengaja tidak dipakai lagi. Riwayat lama tidak hilang: bar di luar
+ * jendela tetap ada di seri dan bisa digeser atau di-zoom seperti chart mana pun.
  */
-const MIN_BARS_TO_FIT = 12;
-/**
- * Jumlah slot saat jendela dipatok. HARUS sama dengan `MIN_BARS_TO_FIT`.
- *
- * Dulu 24 sementara ambangnya 12, dan selisih itu membuat lompatan yang terlihat: pada
- * 12 bar chart di-fit sehingga barnya mengisi seluruh pane, pada 11 bar chart dipatok ke
- * 24 slot sehingga bar yang jumlahnya hampir sama mendadak hanya mengisi 46% pane dengan
- * sisanya kosong. Satu bar hilang, setengah chart berubah.
- *
- * Dengan keduanya bernilai sama, kedua aturan bertemu tanpa patahan: tepat di 12 bar,
- * memaku ke 12 slot dan `fitContent()` menghasilkan tampilan yang identik. Di bawah itu
- * barnya menyusut secara wajar — 10 bar mengisi 83% pane, bukan 42%.
- *
- * Yang tetap dijaga adalah alasan patokan ini ada: `fitContent()` dengan satu bar
- * meregangkannya selebar pane. Pada 12 slot, satu bar mengambil 1/12 lebar, yaitu lebar
- * candle yang wajar.
- */
-const YOUNG_MARKET_SLOTS = MIN_BARS_TO_FIT;
+const VISIBLE_SLOTS = 96;
 
 /**
  * Lebar sumbu harga, dipatok sama untuk chart harga DAN kotak osilator.
@@ -949,25 +945,29 @@ export default function RealtimeCandleChart({
           const fitKey = `${symbol}:${chainId}:${interval}`;
           if (fittedFor.current !== fitKey) {
             /**
-             * Dua keluhan berlawanan harus dijawab SEKALIGUS, bukan bergantian.
+             * SATU aturan, bukan dua mode. Jendela selalu selebar `VISIBLE_SLOTS` slot,
+             * jadi lebar candle identik di semua token dan semua timeframe.
              *
-             * Semula tidak ada fit sama sekali dan barnya mengumpul di tepi kanan;
-             * itu diperbaiki dengan fitContent tanpa syarat, yang lalu melahirkan
-             * keluhan kebalikannya — satu bar diregangkan jadi candle raksasa.
-             * Ambangnya membuat keduanya benar: riwayat panjang tetap di-fit, pasar
-             * muda mendapat jendela logis tetap sehingga lebar candle-nya wajar.
-             */
-            /**
-             * `from: 0`, BUKAN `from: -3`.
+             * Yang berbeda hanya JANGKARNYA, dan itu bukan mode terpisah karena lebar
+             * jendelanya tetap sama:
              *
-             * Nilai negatif menyisakan slot kosong sebelum bar pertama, dan untuk token yang
-             * baru lahir itu salah secara faktual: tidak ada riwayat sebelum peluncuran, jadi
-             * ruang kosong di kiri menyiratkan ada harga yang tidak pernah ada. Bar pertama
-             * harus menempel di tepi kiri.
+             * - Pasar yang riwayatnya belum mengisi jendela dijangkarkan ke KIRI. Tidak
+             *   ada harga sebelum peluncuran, jadi ruang kosong harus jatuh di kanan.
+             *   `from: 0` dan bukan nilai negatif, karena slot kosong sebelum bar pertama
+             *   menyiratkan riwayat yang tidak pernah ada.
+             * - Pasar yang riwayatnya melebihi jendela dijangkarkan ke KANAN, supaya yang
+             *   terlihat lebih dulu adalah perdagangan terbaru. Bar yang lebih tua tetap
+             *   ada di seri dan bisa digeser ke kiri.
+             *
+             * Pada titik peralihan keduanya menghasilkan jendela yang sama persis, jadi
+             * tidak ada lompatan ukuran saat sebuah pasar tumbuh melewatinya.
              */
             const ts = chartRef.current?.timeScale();
-            if (sorted.length >= MIN_BARS_TO_FIT) ts?.fitContent();
-            else ts?.setVisibleLogicalRange({ from: 0, to: YOUNG_MARKET_SLOTS });
+            ts?.setVisibleLogicalRange(
+              sorted.length <= VISIBLE_SLOTS
+                ? { from: 0, to: VISIBLE_SLOTS }
+                : { from: sorted.length - VISIBLE_SLOTS, to: sorted.length }
+            );
             fittedFor.current = fitKey;
           }
         } else {

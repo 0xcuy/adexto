@@ -593,10 +593,14 @@ export function buildCandles(
    * membutuhkannya, yaitu pasar yang sedang sepi.
    *
    * Akibatnya bentuk chart berubah sendiri tanpa ada yang trading. Terukur pada seri
-   * $ADEXTO ini: satu jam setelah fill terakhir, 20 candle menjadi 10 — dan karena 10
-   * ada di bawah `MIN_BARS_TO_FIT`, chart beralih dari `fitContent()` ke jendela
-   * dipatok, sehingga barnya mengerut ke 42% kiri pane. Tidak ada perdagangan baru,
-   * tidak ada kode yang berjalan; hanya jam yang maju.
+   * $ADEXTO ini: satu jam setelah fill terakhir, 20 candle menjadi 10. Tidak ada
+   * perdagangan baru, tidak ada kode yang berjalan; hanya jam yang maju.
+   *
+   * Dulu itu juga MENGUBAH LEBAR candle, karena chart punya dua mode zoom dengan ambang
+   * di 12 bar dan 10 jatuh di bawahnya. Mode itu sudah dihapus — lebar bar sekarang
+   * dipatok lewat `VISIBLE_SLOTS`, jadi jumlah bar tidak lagi menentukan ukurannya.
+   * Batas ekor ini tetap diperlukan: bar datar yang terus bertambah masih menggeser
+   * data nyata keluar dari jendela dan masih membuat sumbu waktu bergerak sendiri.
    *
    * `Math.max(wallBucket, lastFilled)` menjaga kasus data yang MENDAHULUI jam server —
    * sequencer L2 yang berjalan sedikit cepat, dan devchain yang timestamp-nya jauh di
