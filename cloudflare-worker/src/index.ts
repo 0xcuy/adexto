@@ -69,6 +69,11 @@ export interface Env {
   /** Kunci bersama untuk relai di BASE_RPC. Tanpa ini relai menjawab 401. */
   RPC_RELAY_SECRET: string;
   OG_RPC: string;
+  /**
+   * RPC pengiriman untuk Monad. Opsional: kalau kosong, pasar Monad ditolak dengan
+   * alasan yang menyebut var mana yang belum diset, bukan dengan galat provider.
+   */
+  MONAD_RPC?: string;
   /** Asal registry dan harga. Satu asal, supaya tidak ada sumber kebenaran kedua. */
   ADEXTO_ORIGIN: string;
   /**
@@ -385,7 +390,46 @@ export default {
       payTo: env.X402_PAYEE,
     });
 
-    const ogProvider = new ethers.JsonRpcProvider(env.OG_RPC, market.chainId);
+    /**
+     * RPC pengiriman dipilih dari chainId PASAR, bukan satu endpoint untuk semuanya.
+     *
+     * Sebelumnya baris ini `new ethers.JsonRpcProvider(env.OG_RPC, market.chainId)`. Ia
+     * meneruskan chainId pasar dengan benar, tetapi URL-nya selalu 0G — jadi setiap pasar
+     * di luar 0G mati di titik ini dengan `network changed: 143 => 16661`. Bagi pembaca
+     * galat itu terlihat seperti kerusakan RPC, padahal artinya endpoint pengirimannya
+     * memang belum ada.
+     *
+     * Terukur pada $PARCEL di Monad: `GET /v1/x402/buy/parcel` menjawab 503 dengan pesan
+     * itu, sementara `/buy/adexto` menjawab 402 dengan benar — bukan karena ada yang
+     * istimewa pada $ADEXTO, tetapi karena ia satu-satunya pasar yang chain-nya kebetulan
+     * cocok dengan satu-satunya RPC yang dikonfigurasi.
+     *
+     * Chain tanpa RPC ditolak menyebut nama var-nya, supaya penyebabnya bisa dibaca tanpa
+     * membuka sumber ini.
+     */
+    const DELIVERY_RPC: Record<number, { url: string | undefined; envVar: string }> = {
+      16661: { url: env.OG_RPC, envVar: "OG_RPC" },
+      143: { url: env.MONAD_RPC, envVar: "MONAD_RPC" },
+    };
+    const delivery = DELIVERY_RPC[market.chainId];
+    if (!delivery?.url) {
+      return json(
+        {
+          error: "chain_not_served",
+          detail:
+            `$${market.symbol} trades on ${market.chainName} (chainId ${market.chainId}), and this gateway has no ` +
+            `delivery RPC for that chain. ` +
+            (delivery
+              ? `Set the ${delivery.envVar} worker var to serve it.`
+              : `Only 0G and Monad are wired; add the chain to DELIVERY_RPC to serve it.`) +
+            ` No payment was taken.`,
+          symbol: market.symbol,
+          chainId: market.chainId,
+        },
+        503
+      );
+    }
+    const ogProvider = new ethers.JsonRpcProvider(delivery.url, market.chainId);
     const curve = new ethers.Contract(market.poolAddress, CURVE_ABI, ogProvider);
 
     // Kutipan: USDC -> native pada harga hidup, dikurangi spread, lalu native -> token

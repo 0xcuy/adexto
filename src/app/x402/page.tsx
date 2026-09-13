@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { exampleMarket } from "@/lib/registry";
 import {
   ArrowRight,
   CheckCircle2,
@@ -43,7 +44,20 @@ import {
  * paling tidak layak menempati baris pertama. `workers.dev` tetap dilayani, jadi klien
  * lama tidak rusak.
  */
-const ENDPOINT = "https://x402.adexto.xyz/v1/x402/buy/adexto";
+/**
+ * Halaman ini DINAMIS supaya contoh endpoint-nya tidak bisa basi.
+ *
+ * Ticker contohnya dulu dipaku `.../buy/adexto`, dan itu salah dua kali. Pertama, ia
+ * mengajarkan alamat yang bisa mati: listing bisa dicabut — $CURB sudah dicabut — dan
+ * halaman ini akan tetap mencetak curl ke pasar yang menjawab `unknown_market`. Kedua, ia
+ * membuat pembaca menyimpulkan gerbangnya hanya melayani satu token, padahal simbolnya
+ * diselesaikan lewat `/api/pool` dan setiap pasar hidup punya endpoint sendiri.
+ *
+ * Perbaikannya harus dinamis untuk benar-benar berlaku: sebagai konstanta module ia
+ * dievaluasi sekali per proses server, dan sebagai halaman statis ia dibekukan saat build.
+ * Dua-duanya mengembalikan cacat yang sama, hanya lebih lambat terlihat.
+ */
+export const dynamic = "force-dynamic";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const PAYEE = "0x24268Fffc119ec5550F68e80D94476fD64daE967";
 
@@ -142,6 +156,15 @@ export const metadata = {
 };
 
 export default function X402Page() {
+  /**
+   * `exampleMarket()` memilih pasar Monad yang bisa diisi kalau ada, karena inti kaki x402
+   * adalah menjangkau pasar di chain yang gas-nya tidak dipegang pembeli. Halaman `/agent/demo`
+   * memanggil fungsi yang sama, jadi keduanya tidak bisa mendemokan pasar berbeda.
+   */
+  const example = exampleMarket();
+  const ENDPOINT = example
+    ? `https://x402.adexto.xyz/v1/x402/buy/${example.slug}`
+    : "https://x402.adexto.xyz/v1/x402/buy/<ticker>";
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Header */}

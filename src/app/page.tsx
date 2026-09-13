@@ -12,6 +12,7 @@ import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCirc
 import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 import ChainCardStack from "@/components/ChainCardStack";
+import AudienceGrid from "@/components/AudienceGrid";
 import PillarCards from "@/components/PillarCards";
 
 /**
@@ -185,6 +186,14 @@ export default function HomePage() {
         </dl>
       </section>
 
+      {/* Ditempatkan SESUDAH deret fakta dan SEBELUM perbandingan desain, dengan sengaja.
+          Deret fakta menjawab "berapa biayanya dan apa yang saya dapat"; seksi ini menjawab
+          "apakah ini untuk saya". Menaruhnya lebih dulu akan meminta pembaca mengenali
+          dirinya sebelum tahu apa yang ditawarkan, dan menaruhnya sesudah perbandingan
+          desain berarti ia datang setelah tiga seksi yang seluruhnya berbicara mekanika —
+          yaitu setelah pembaca non-teknis sudah pergi. */}
+      <AudienceGrid />
+
     {/* ── THE PROBLEM & THE SOLUTION (VC PERSPECTIVE) ────────────────────────── */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
         <div className="text-center max-w-3xl mx-auto mb-16">
@@ -346,14 +355,20 @@ export default function HomePage() {
                   Angka latensi lama ("sub-50ms" di pilar, "<35ms" di FAQ) sudah dibuang:
                   itu milik jaringan Cloudflare, bukan pengukuran kami, dan sekarang
                   angka yang disebut adalah bolak-balik yang benar-benar kami ukur. */}
+              {/* Judulnya dulu "Pay on Base, get the token on 0G", dan itu sudah tidak
+                  benar sejak gerbangnya jadi multi-chain. Worker dulu memegang SATU RPC
+                  pengiriman, jadi 0G bukan pilihan melainkan satu-satunya tujuan yang bisa
+                  diungkapkan — dan pasar Monad mati di pembuatan provider dengan
+                  `network changed: 143 => 16661`. Sekarang RPC dipilih dari chainId pasar,
+                  jadi menyebut satu chain di judul akan mengecilkan yang sudah berjalan. */}
               <h2 className="text-3xl sm:text-4xl font-semibold text-ink mb-4">
-                Pay on Base, get the token on 0G
+                Pay on Base, get the token on its own chain
               </h2>
               <p className="text-ink-soft text-sm leading-relaxed mb-6">
-                A market can only live on one chain, but a buyer&apos;s money does not have to. Ask for a
-                token and the endpoint answers HTTP 402 with a quote. Pay it with USDC on Base and the
-                curve on 0G sends the tokens straight to your address. No bridging, and no holding the
-                target chain&apos;s gas token.
+                A market lives on one chain, but a buyer&apos;s money does not have to. Ask for a token and
+                the endpoint answers HTTP 402 with a quote. Pay it with USDC on Base and the curve on the
+                market&apos;s own chain sends the tokens straight to your address. Live for markets on 0G and
+                Monad today. No bridging, and no holding the target chain&apos;s gas token.
               </p>
 
               <div className="space-y-3.5 text-xs sm:text-sm">

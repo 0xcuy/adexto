@@ -180,7 +180,14 @@ const PILLARS: Pillar[] = [
      * Dan klausa terakhirnya sudah lunas: loop buyback tersambung, berjalan otomatis di
      * ambang ekonomi, dan burn pertama menghancurkan 7,110759702852663544 $ADEXTO.
      */
-    footer: { label: "Settles on Base · delivers on 0G · burns supply", Icon: Globe },
+    /**
+     * Dulu "delivers on 0G", dan itu basi begitu gerbangnya jadi multi-chain. 0G bukan
+     * pilihan waktu itu melainkan satu-satunya tujuan yang bisa diungkapkan: worker
+     * memegang satu RPC pengiriman, jadi pasar Monad mati di pembuatan provider dengan
+     * `network changed: 143 => 16661`. RPC sekarang dipilih dari chainId pasar, jadi
+     * menyebut satu chain di sini akan mengecilkan apa yang sudah berjalan.
+     */
+    footer: { label: "Settles on Base · delivers on the market's chain · burns supply", Icon: Globe },
   },
 ];
 

@@ -304,6 +304,34 @@ export function marketKey(chainId: number, symbol: string): string {
   return `${chainId}:${symbol.toUpperCase()}`;
 }
 
+/**
+ * The market a protocol page should use as its worked example.
+ *
+ * Documentation pages used to name a ticker directly: `/x402` printed a curl against
+ * `buy/adexto` and the demo page carried `DEMO_MARKET = "adexto"`. Both are the same defect
+ * that already bit this project once — a listing can be pulled, and $CURB was, so a
+ * hardcoded ticker becomes a page teaching an endpoint that answers `unknown_market`.
+ * Reading it from the registry means the example cannot outlive the market it names.
+ *
+ * Preference order, and each step is deliberate:
+ *
+ *   1. `poolLive`, because an example that cannot be filled teaches the wrong lesson.
+ *   2. Monad, because the x402 leg's whole point is reaching a market on a chain the buyer
+ *      holds no gas for, and Monad is where that is being demonstrated. A 0G example makes
+ *      the cross-chain claim look like a same-chain convenience.
+ *   3. Newest, so the example follows the market most likely to still be interesting.
+ *
+ * Returns null when nothing is tradable. Callers must render that state rather than
+ * substituting a ticker, which is how the hardcoded values got there in the first place.
+ */
+export function exampleMarket(): ProjectRecord | null {
+  const tradable = listProjects().filter((p) => p.poolLive && p.poolAddress);
+  if (tradable.length === 0) return null;
+  const monad = tradable.filter((p) => p.chainId === 143);
+  const pool = monad.length > 0 ? monad : tradable;
+  return pool.reduce((best, p) => ((p.blockNumber ?? 0) > (best.blockNumber ?? 0) ? p : best), pool[0]);
+}
+
 /** Curated entries first so a custom launch can never shadow them. */
 export function listProjects(): ProjectRecord[] {
   const seenMarket = new Set<string>();

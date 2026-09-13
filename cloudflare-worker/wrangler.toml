@@ -69,6 +69,15 @@ BASE_RPC = "https://adexto.xyz/api/rpc/base"
 # Diuji, bukan disalin dari dokumentasi: `evmrpc-mainnet.0g.ai` tidak menjawab sama
 # sekali, dan `rpc.ankr.com/0g` menuntut kunci. Yang ini balas chainId 0x4115 = 16661.
 OG_RPC = "https://evmrpc.0g.ai"
+# RPC pengiriman Monad. Sampai ini ada, SETIAP pasar Monad mati di pembuatan provider
+# dengan `network changed: 143 => 16661` — galat yang terbaca seperti RPC rusak padahal
+# artinya endpointnya tidak pernah dikonfigurasi. Terukur pada $PARCEL.
+#
+# Menyetel ini membuat penemuan berfungsi: `GET /v1/x402/buy/parcel` menjawab 402 dengan
+# kutipan sungguhan. Ia TIDAK membuat pengiriman berfungsi — itu menuntut MON di dompet
+# relayer, dan tanpa saldo permintaan berbayar ditolak `out_of_inventory` SEBELUM
+# pembayaran diambil, jadi tidak ada dana yang tertahan.
+MONAD_RPC = "https://rpc.monad.xyz"
 # Satu asal untuk registry pasar DAN harga, supaya tidak ada sumber kebenaran kedua.
 ADEXTO_ORIGIN = "https://adexto.xyz"
 # Kelipatan biaya gas yang harus tersedia di vault buyback sebelum burn dijalankan.
