@@ -327,10 +327,30 @@ export async function applySwap(
     logIndex: args.meta.logIndex,
   });
 
-  // Volume dicatat dalam native di KEDUA arah: `amountIn` adalah native pada pembelian
-  // tetapi token pada penjualan, jadi memakainya begitu saja akan menjumlahkan dua satuan
-  // berbeda menjadi satu angka tak bermakna.
-  const volumeNative = args.isBuy ? args.amountIn : args.amountOut;
+  /**
+   * Volume dicatat dalam native di KEDUA arah, dan KOTOR di kedua arah.
+   *
+   * Bagian pertama jelas: `amountIn` adalah native pada pembelian tetapi token pada
+   * penjualan, jadi memakainya begitu saja akan menjumlahkan dua satuan berbeda menjadi
+   * satu angka tak bermakna.
+   *
+   * Bagian kedua yang halus. Pada penjualan, `amountOut` adalah native yang benar-benar
+   * sampai ke penjual — SESUDAH fee dipotong — sedangkan `buy()` di kontrak menghitung
+   * `msg.value`, yang kotor. Memakai `amountOut` apa adanya membuat perdagangan berukuran
+   * sama tercatat sebagai dua volume berbeda tergantung arahnya, dan indexer lalu
+   * melaporkan volume lebih kecil daripada `totalVolumeNative` milik kurva.
+   *
+   * Kontraknya sendiri pernah salah di titik ini dan sudah dibetulkan — lihat komentar di
+   * `AdextoCurve.sol` pada `totalVolumeNative += leaving + depthFee`. Rumus di bawah
+   * merakit ulang `leaving + depthFee` dari field event.
+   *
+   * Bisa diperiksa tanpa mempercayai penjelasan ini: kaki protokol 10 bps dipungut atas
+   * volume KOTOR, jadi `totalVolumeNative / 1000` di chain sama dengan
+   * `totalProtocolFees`. Dicocokkan di kedua pasar Monad.
+   */
+  const volumeNative = args.isBuy
+    ? args.amountIn
+    : args.amountOut + args.depthFee + args.creatorFee + args.treasuryFee + args.protocolFee;
   const totalDepthFees = curve.totalDepthFees + args.depthFee;
 
   context.Curve.set({
