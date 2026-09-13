@@ -102,6 +102,12 @@ public/adexto_mainnet_demo.webm
 public/adexto_monad_demo.mp4
 public/adexto_monad_demo.webm
 public/demo-raw/
+# Rekaman x402 juga bernama sendiri, alasan sama: ia tidak boleh menimpa rekaman peluncuran,
+# karena keduanya membuktikan hal yang berbeda — satu peluncuran tanpa setoran, satu
+# pembelian lintas chain berbayar.
+public/adexto_x402_demo.mp4
+public/adexto_x402_demo.webm
+public/demo-raw-x402/
 
 # Artefak kompilasi kontrak. Dihasilkan ulang oleh
 # `node scripts/compile-contracts.mjs --via-ir`.

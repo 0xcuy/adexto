@@ -91,13 +91,43 @@ console.log(`pasar     : $${SYMBOL} · ${market.poolAddress} · chain ${chain.ch
 console.log(`swapCount : ${swapCount}  (jumlah yang harus ditemukan)`);
 console.log(`target    : ${TARGET}`);
 
-// Titik mulai: blok peluncuran kalau registry tahu, kalau tidak mundur dari kepala.
-let from = Number(market.blockNumber) > 0 ? Number(market.blockNumber) : latest - chain.span * 40;
-console.log(`memindai  : ${from} -> ${latest} dalam petak ${chain.span} blok\n`);
+/**
+ * Jendela pemindaian bisa DIBATASI, dan tanpa itu skrip ini punya masa kedaluwarsa.
+ *
+ * Bawaannya mulai dari blok peluncuran, yang benar pada hari peluncuran dan makin mahal
+ * setiap blok sesudahnya: di Monad petaknya 100 blok, jadi biayanya `(kepala - peluncuran)
+ * / 100` panggilan BERURUTAN. Terukur pada $PARCEL dua hari setelah lahir — 608.927 blok
+ * jaraknya, yaitu 6.090 panggilan, dan prosesnya mati kena batas waktu sebelum selesai.
+ *
+ * `--from-block` menyelesaikannya tanpa menaikkan anggaran: perdagangan yang sudah
+ * tersimpan tidak perlu ditemukan ulang, karena endpoint telemetry menolak duplikat
+ * berdasarkan `txHash` + `type`. Jadi untuk mengejar fill baru, pindai jendela sempit di
+ * sekitarnya saja.
+ *
+ * `--to-block` ada supaya sebuah jendela bisa ditutup dua sisinya, yang membuat pengejaran
+ * satu fill tertentu berbiaya tetap alih-alih tumbuh mengikuti kepala rantai.
+ */
+const fromArg = Number(argOf("--from-block"));
+const toArg = Number(argOf("--to-block"));
+let from = Number.isFinite(fromArg) && fromArg > 0
+  ? fromArg
+  : Number(market.blockNumber) > 0
+    ? Number(market.blockNumber)
+    : latest - chain.span * 40;
+const scanTo = Number.isFinite(toArg) && toArg > 0 ? Math.min(toArg, latest) : latest;
+const calls = Math.ceil((scanTo - from + 1) / chain.span);
+console.log(`memindai  : ${from} -> ${scanTo} dalam petak ${chain.span} blok (${calls} panggilan)`);
+if (calls > 400) {
+  console.log(
+    `  PERINGATAN: ${calls} panggilan berurutan kemungkinan kena batas waktu.\n` +
+      `  Persempit dengan --from-block, lalu andalkan dedup txHash di sisi server.`
+  );
+}
+console.log();
 
 const found = [];
-for (let lo = from; lo <= latest && found.length < swapCount; lo += chain.span) {
-  const hi = Math.min(lo + chain.span - 1, latest);
+for (let lo = from; lo <= scanTo && found.length < swapCount; lo += chain.span) {
+  const hi = Math.min(lo + chain.span - 1, scanTo);
   try {
     const logs = await curve.queryFilter(curve.filters.Swap(), lo, hi);
     for (const l of logs) found.push(l);

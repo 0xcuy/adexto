@@ -74,30 +74,56 @@ export async function GET(req: Request) {
       if (trades.length > 0) source = "onchain";
     }
 
-    if (trades.length === 0) {
-      const stored = listTrades(symbol);
-      if (stored.length > 0) {
-        trades = stored;
-        /**
-         * Label diambil dari APA YANG TERSIMPAN, bukan dipukul rata jadi "agent".
-         *
-         * Baris ini dulu `stored[0].source === "genesis" ? "genesis" : "agent"`, jadi
-         * setiap catatan yang bukan genesis dilaporkan sebagai laporan agent — termasuk
-         * `Swap` on-chain yang membawa `txHash` dan `blockNumber`-nya sendiri. Store
-         * sudah menyimpan `source: "onchain"` untuk catatan itu, dan UI tetap menulis
-         * "agent-reported fills" di bawah chart. Itu label yang lebih lemah daripada
-         * buktinya: perdagangannya bisa dibuka di explorer satu per satu.
-         *
-         * Yang dibaca dari store bukan berarti tidak on-chain. Store di sini adalah
-         * cache untuk riwayat yang `getLogs` tidak bisa dijangkau lagi — di Monad
-         * jendelanya hanya 1.600 blok — bukan sumber yang berbeda.
-         *
-         * Campuran diturunkan ke label TERLEMAH yang ada, bukan dinaikkan: satu catatan
-         * tanpa bukti membuat kumpulannya tidak bisa disebut seluruhnya on-chain.
-         */
-        const every = (s: TradeEvent["source"]) => stored.every((t) => t.source === s);
-        source = every("genesis") ? "genesis" : every("onchain") ? "onchain" : "agent";
+    /**
+     * Store dan pemindaian on-chain DIGABUNG, tidak lagi saling menggantikan.
+     *
+     * Sebelumnya store hanya dipakai kalau pemindaian menemukan NOL. Akibatnya riwayat
+     * memburuk tepat ketika pasar diperdagangkan: begitu ada satu fill di dalam jendela
+     * log, satu fill itu MENGGANTIKAN seluruh riwayat tersimpan.
+     *
+     * Terukur pada $PARCEL: 7 fill tersimpan, lalu sebuah pembelian x402 mendarat, dan
+     * endpoint mulai melaporkan `fills=1`. Chart-nya jadi lebih buruk sesudah ada
+     * perdagangan — kebalikan dari yang seharusnya, dan gejalanya persis seperti backfill
+     * yang gagal padahal backfill-nya berhasil.
+     *
+     * Keduanya memang menjawab pertanyaan berbeda dan itu sebabnya keduanya dibutuhkan:
+     * pemindaian memberi yang PALING BARU tetapi hanya sejauh jendela log — 1.600 blok di
+     * Monad, sekitar delapan menit — sementara store memberi yang PALING PANJANG tetapi
+     * hanya sejauh yang pernah diisi. Digabung, riwayatnya utuh dan ujungnya tetap segar.
+     *
+     * Dedup memakai `txHash` + `type`, kunci yang sama dengan `appendTrade`, jadi sebuah
+     * perdagangan yang ada di dua sumber dihitung sekali. Yang dari CHAIN dimenangkan pada
+     * tabrakan: ia dibaca langsung dari event, bukan disalin.
+     */
+    const stored = listTrades(symbol);
+    if (stored.length > 0) {
+      const seen = new Set(trades.map((t) => `${t.txHash}:${t.type}`));
+      const extra = stored.filter((t) => !seen.has(`${t.txHash}:${t.type}`));
+      if (extra.length > 0) {
+        trades = [...trades, ...extra].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
       }
+    }
+
+    /**
+     * Label dihitung dari himpunan yang BENAR-BENAR dikembalikan, sesudah penggabungan.
+     *
+     * Dua versi sebelumnya salah dengan cara berlawanan. Yang pertama memukul rata semua
+     * catatan store menjadi "agent", jadi `Swap` on-chain yang membawa `txHash` dan
+     * `blockNumber` sendiri dilaporkan sebagai laporan yang harus dipercaya — label lebih
+     * lemah daripada buktinya. Yang kedua menghitungnya dari `stored` saja, jadi begitu
+     * pemindaian menemukan sesuatu, satu catatan tak-terbukti di store bisa lolos di bawah
+     * label "onchain" milik pemindaian.
+     *
+     * Yang dibaca dari store bukan berarti tidak on-chain: store adalah cache untuk riwayat
+     * yang `getLogs` tidak lagi menjangkau, bukan sumber yang berbeda. Yang menentukan
+     * adalah apakah tiap catatan membawa buktinya sendiri.
+     *
+     * Campuran diturunkan ke label TERLEMAH yang ada, bukan dinaikkan: satu catatan tanpa
+     * bukti membuat kumpulannya tidak bisa disebut seluruhnya on-chain.
+     */
+    if (trades.length > 0) {
+      const every = (s: TradeEvent["source"]) => trades.every((t) => t.source === s);
+      source = every("genesis") ? "genesis" : every("onchain") ? "onchain" : "agent";
     }
 
     const fallbackPrice = project?.priceNative ?? 0;
