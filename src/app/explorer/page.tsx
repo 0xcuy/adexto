@@ -397,8 +397,15 @@ export default function ExplorerPage() {
                         Swap <Lock className="w-3 h-3" />
                       </span>
                     )}
+                    {/* Tautan ini dulu `https://x402.adexto.xyz` telanjang — akar gerbang,
+                        tanpa pasar. Karena worker dulu memakai `|| "ADEXTO"` sebagai simbol
+                        bawaan, akar itu menjawab 402 berisi kutipan $ADEXTO. Jadi SETIAP
+                        kartu di halaman ini, token apa pun, mengarah ke tagihan untuk
+                        ADEXTO. Bawaannya sudah dicabut di worker dan tautannya sekarang
+                        menyebut pasarnya sendiri; kalau salah satu regresi, yang lain
+                        membuatnya terlihat sebagai galat alih-alih token yang salah. */}
                     <a
-                      href="https://x402.adexto.xyz"
+                      href={`https://x402.adexto.xyz/v1/x402/buy/${p.slug}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-accent hover:text-ink flex items-center gap-1 hover:underline"

@@ -352,7 +352,42 @@ export default {
     }
 
     const parts = url.pathname.split("/").filter(Boolean);
-    const symbol = (url.searchParams.get("symbol") || parts[parts.length - 1] || "ADEXTO").toUpperCase();
+    /**
+     * TIDAK ADA lagi ticker bawaan, dan penghapusannya memperbaiki cacat yang terlihat.
+     *
+     * Baris ini dulu berakhir `|| "ADEXTO"`, jadi permintaan yang tidak menyebut pasar
+     * mana pun tetap dijawab 402 berisi kutipan $ADEXTO — bukan galat, melainkan tagihan
+     * yang tampak sah untuk token yang tidak pernah diminta. `GET https://x402.adexto.xyz/`
+     * mengembalikan `symbol=ADEXTO`, dan karena `/explorer` menaut ke akar itu dari SETIAP
+     * kartu token, setiap token di situs terlihat menjual ADEXTO.
+     *
+     * Bawaan diam-diam pada endpoint pembayaran adalah kelas cacat yang salah untuk
+     * dimaafkan: pemanggil yang salah menulis path akan menandatangani otorisasi untuk
+     * pasar yang bukan tujuannya. Sekarang ketiadaan simbol dijawab 400 beserta bentuk
+     * path yang benar.
+     *
+     * Segmen `buy` juga ditolak sebagai ticker. Dengan garis miring di akhir,
+     * `/v1/x402/buy/` membuat segmen terakhirnya `buy`, dan itu dilaporkan sebagai
+     * `unknown_market: BUY` — pesan yang menyalahkan pasar padahal simbolnya yang hilang.
+     */
+    const RESERVED_SEGMENTS = new Set(["v1", "x402", "buy"]);
+    const fromPath = parts[parts.length - 1] ?? "";
+    const raw = (url.searchParams.get("symbol") || (RESERVED_SEGMENTS.has(fromPath.toLowerCase()) ? "" : fromPath)).trim();
+    if (!raw) {
+      return json(
+        {
+          error: "symbol_required",
+          detail:
+            "Name the market you want to buy. This gateway has no default: quoting one would let a " +
+            "mistyped path bill you for a token you never asked for.",
+          usage: `${url.origin}/v1/x402/buy/<ticker>`,
+          example: `${url.origin}/v1/x402/buy/parcel`,
+          markets: `${env.ADEXTO_ORIGIN || "https://adexto.xyz"}/api/graphql`,
+        },
+        400
+      );
+    }
+    const symbol = raw.toUpperCase();
     const recipient = url.searchParams.get("to") || "";
 
     const origin = env.ADEXTO_ORIGIN || "https://adexto.xyz";
