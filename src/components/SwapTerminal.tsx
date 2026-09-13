@@ -161,9 +161,24 @@ export default function SwapTerminal() {
         (requestedChainId ? byQuery.find((m) => m.chainId === requestedChainId) : undefined) ??
         byQuery.find((m) => m.tradable) ??
         byQuery[0];
-      const initial = pinned ?? markets.find((m) => m.tradable) ?? markets[0];
+      /**
+       * TANPA `?token=`, TIDAK ADA yang dipilih. Pembeli yang memilih.
+       *
+       * Baris ini dulu jatuh ke `markets.find((m) => m.tradable) ?? markets[0]`, jadi
+       * membuka `/swap` telanjang memuat panel trading yang sudah terisi sebuah pasar —
+       * lengkap dengan harga, biaya, dan tombol beli — yang dipilih semata karena ia
+       * kebetulan berada di urutan pertama registry. Urutan itu berubah setiap kali ada
+       * peluncuran baru, jadi "token bawaan" halaman ini berpindah sendiri tanpa keputusan
+       * siapa pun: $PARCEL menempatinya begitu ia diluncurkan.
+       *
+       * Pada halaman yang mengirim transaksi, itu jenis bawaan yang salah. Ia menaruh
+       * order yang bisa dikirim di depan orang yang belum menyatakan ingin membeli apa,
+       * dan satu klik yang salah tempat sudah cukup. Tautan yang MEMANG menyebut pasar
+       * (`?token=`) tetap dihormati di atas — yang dicabut hanya menebak.
+       */
       preselectDone.current = true;
-      setSelectedKey(initial.marketKey);
+      if (!pinned) return;
+      setSelectedKey(pinned.marketKey);
       // Filter DIBIARKAN "all". Memaksanya ke chain market terpilih akan
       // menyembunyikan market chain lain dari daftar tanpa alasan, dan "All chains"
       // bersama market mana pun memang tidak bertentangan.
@@ -176,9 +191,17 @@ export default function SwapTerminal() {
     // terlihat seperti "ganti chain tidak berpengaruh". Sekarang kalau chain punya
     // market, pindah ke market chain itu; kalau tidak ada, kosongkan pilihan agar
     // seluruh panel jujur menyatakan tidak ada market.
-    if (selectedKey && visibleMarkets.some((m) => m.marketKey === selectedKey)) return;
-    const next = visibleMarkets.find((m) => m.tradable) ?? visibleMarkets[0] ?? null;
-    setSelectedKey(next ? next.marketKey : null);
+    if (!selectedKey) return;
+    if (visibleMarkets.some((m) => m.marketKey === selectedKey)) return;
+    /**
+     * Pilihan DIKOSONGKAN, tidak dipindahkan ke pasar lain.
+     *
+     * Dulu di sini `visibleMarkets.find((m) => m.tradable) ?? visibleMarkets[0]`, jadi
+     * mengganti filter chain menukar token yang siap dibeli dengan token yang berbeda.
+     * Yang ingin dicegah cacat aslinya adalah panel yang TERTINGGAL pada pasar chain
+     * sebelumnya; mengosongkannya sudah cukup untuk itu, dan tidak perlu memilihkan.
+     */
+    setSelectedKey(null);
   }, [markets, visibleMarkets, requestedSymbol, requestedChainId, selectedKey, chainFilter]);
 
   const selected = useMemo(
@@ -304,6 +327,20 @@ export default function SwapTerminal() {
           )}
 
           <div className="mt-4" />
+
+          {/* Belum ada pasar yang dipilih, dan sejak halaman ini berhenti menebak, itu
+              keadaan NORMAL saat `/swap` dibuka telanjang. Tanpa kalimat ini kartu hanya
+              memperlihatkan pemilih di atas ruang kosong, yang terbaca seperti gagal
+              memuat alih-alih menunggu keputusan. */}
+          {!loading && markets.length > 0 && !selected && (
+            <div className="mb-4 rounded-2xl border border-line bg-white p-4">
+              <p className="text-xs leading-relaxed text-ink-soft">
+                <span className="font-semibold text-ink">Pick a market to trade.</span> Every launch has its own
+                curve on its own chain, so the price, the depth and the asset you pay with all come from the
+                market you choose. There is no shared pool, and nothing is selected for you.
+              </p>
+            </div>
+          )}
 
           {/* Registry benar-benar kosong — penyebabnya BUKAN filter, jadi jangan
               tawarkan "Show all chains" yang sama kosongnya. Sebelum ini keadaan

@@ -324,12 +324,61 @@ export function marketKey(chainId: number, symbol: string): string {
  * Returns null when nothing is tradable. Callers must render that state rather than
  * substituting a ticker, which is how the hardcoded values got there in the first place.
  */
-export function exampleMarket(): ProjectRecord | null {
+export function exampleMarkets(): ProjectRecord[] {
   const tradable = listProjects().filter((p) => p.poolLive && p.poolAddress);
-  if (tradable.length === 0) return null;
-  const monad = tradable.filter((p) => p.chainId === 143);
-  const pool = monad.length > 0 ? monad : tradable;
-  return pool.reduce((best, p) => ((p.blockNumber ?? 0) > (best.blockNumber ?? 0) ? p : best), pool[0]);
+  if (tradable.length === 0) return [];
+
+  /**
+   * TEPAT SATU pasar per chain, dan di dalam sebuah chain token protokol menang.
+   *
+   * Fungsi ini menyempit tiga kali sebelum sampai di bentuk ini, dan tiap versi memindahkan
+   * cacatnya alih-alih menghapusnya:
+   *
+   *   1. Satu pasar saja, Monad diutamakan. `/x402` dan `/agent/demo` jadi hanya
+   *      memperlihatkan satu chain, sehingga protokol empat chain terbaca seperti produk
+   *      satu chain.
+   *   2. Satu per chain, ambil yang terbaru. Memperbaiki (1), tetapi "terbaru" membuang
+   *      $ADEXTO dari halaman x402 semata karena $ADT diluncurkan sesudahnya di chain yang
+   *      sama — pemilihan yang tidak ada hubungannya dengan kegunaan sebagai contoh.
+   *   3. Semua pasar. Tidak ada lagi yang terbuang, tetapi contoh berhenti menjadi contoh:
+   *      dokumentasi yang mencetak setiap pasar sedang menjadi daftar pasar, dan
+   *      `/explorer` sudah memegang peran itu.
+   *
+   * Yang berlaku sekarang: satu per chain supaya bentuk lintas-chain-nya terlihat, dan di
+   * dalam chain token protokol dipilih lebih dulu. `PROTOCOL_SYMBOLS` sudah ada untuk alasan
+   * lain — mencegah penyerobotan ticker — jadi memakainya di sini tidak menambah satu pun
+   * nama yang dipaku. Token protokol memang contoh yang lebih baik: ia yang paling mungkin
+   * masih ada tahun depan, dan pembaca mengenalinya dari nama produknya.
+   *
+   * Urutan chainId naik, yang menempatkan Monad (143) sebelum 0G (16661). Itu aturan stabil,
+   * bukan favorit yang ditulis tangan — konsekuensinya chain dengan id lebih kecil akan
+   * memimpin kalau kelak ditambahkan, dan itu diterima karena alternatifnya adalah daftar
+   * prioritas yang harus dirawat.
+   */
+  const byChain = new Map<number, ProjectRecord[]>();
+  for (const p of tradable) {
+    if (!byChain.has(p.chainId)) byChain.set(p.chainId, []);
+    byChain.get(p.chainId)!.push(p);
+  }
+  return [...byChain.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, group]) => {
+      const protocolToken = group.find((p) => PROTOCOL_SYMBOLS.has(p.symbol.toUpperCase()));
+      return (
+        protocolToken ??
+        group.reduce((best, p) => ((p.blockNumber ?? 0) > (best.blockNumber ?? 0) ? p : best), group[0])
+      );
+    });
+}
+
+/**
+ * Satu pasar, untuk tempat yang benar-benar hanya punya ruang untuk satu.
+ *
+ * Dibangun di atas `exampleMarkets()` supaya tidak ada aturan pemilihan kedua yang bisa
+ * menyimpang darinya.
+ */
+export function exampleMarket(): ProjectRecord | null {
+  return exampleMarkets()[0] ?? null;
 }
 
 /** Curated entries first so a custom launch can never shadow them. */

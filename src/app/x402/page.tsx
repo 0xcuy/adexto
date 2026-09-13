@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exampleMarket } from "@/lib/registry";
+import { exampleMarkets } from "@/lib/registry";
 import {
   ArrowRight,
   CheckCircle2,
@@ -157,13 +157,20 @@ export const metadata = {
 
 export default function X402Page() {
   /**
-   * `exampleMarket()` memilih pasar Monad yang bisa diisi kalau ada, karena inti kaki x402
-   * adalah menjangkau pasar di chain yang gas-nya tidak dipegang pembeli. Halaman `/agent/demo`
-   * memanggil fungsi yang sama, jadi keduanya tidak bisa mendemokan pasar berbeda.
+   * SATU contoh per chain, bukan satu contoh saja.
+   *
+   * Versi sebelumnya mencetak satu endpoint dan mengutamakan Monad. Itu memperbaiki masalah
+   * ticker yang dipaku tetapi menciptakan masalah lain: halaman yang menjelaskan gerbang
+   * lintas-chain hanya memperlihatkan satu chain, sehingga bentuk sebenarnya — endpoint yang
+   * sama, pasar berbeda, chain berbeda — justru tidak terlihat di halaman yang gunanya
+   * menjelaskan itu.
+   *
+   * `exampleMarkets()` mengelompokkan per chain dan mengambil yang terbaru dari masing-masing,
+   * jadi daftar ini mengikuti registry dan tidak perlu ada chain favorit.
    */
-  const example = exampleMarket();
-  const ENDPOINT = example
-    ? `https://x402.adexto.xyz/v1/x402/buy/${example.slug}`
+  const examples = exampleMarkets();
+  const ENDPOINT = examples[0]
+    ? `https://x402.adexto.xyz/v1/x402/buy/${examples[0].slug}`
     : "https://x402.adexto.xyz/v1/x402/buy/<ticker>";
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
@@ -198,9 +205,31 @@ export default function X402Page() {
           A plain <code className="text-accent">GET</code> returns the terms. Nothing is charged, no wallet is
           needed, and the response is the same one a machine would read before deciding to buy.
         </p>
+        {/* Setiap pasar hidup punya endpoint sendiri, jadi semuanya dicetak. Satu baris
+            curl akan membuat pembaca menyimpulkan gerbangnya menjual satu token — dan
+            kesimpulan itu memang pernah benar-benar terjadi, karena akar gerbang dulu
+            menjawab dengan kutipan token bawaan. */}
         <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
-          <div className="whitespace-pre">curl {ENDPOINT}</div>
+          {examples.length > 0 ? (
+            examples.map((m) => (
+              <div key={`${m.chainId}:${m.symbol}`} className="whitespace-pre">
+                curl https://x402.adexto.xyz/v1/x402/buy/{m.slug}
+                <span className="text-ink-faint">
+                  {"  # $"}
+                  {m.symbol} on {m.chainLabel}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="whitespace-pre">curl {ENDPOINT}</div>
+          )}
         </div>
+        <p className="text-xs text-ink-soft leading-relaxed">
+          The path names the market, and there is no default: a request that names none is refused with{" "}
+          <code className="text-accent">400 symbol_required</code> rather than quoting a token you did not ask
+          for. Every market above answers on the same gateway, and each one settles on Base while delivering on
+          its own chain.
+        </p>
         <p className="text-xs text-ink-soft leading-relaxed">
           Add <code className="text-accent">?to=0x…</code> to have the tokens delivered somewhere other than the
           signing address. Omit it and the recipient is whoever signed the payment, which is the only party

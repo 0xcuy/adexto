@@ -79,10 +79,32 @@ const GATEWAY = "https://x402.adexto.xyz/v1/x402/buy";
  * tangan dompet dan itu tidak bisa dilakukan tombol tanpa wallet. Supaya klaim "sudah
  * hidup" tetap bisa diperiksa, dua hash pembelian sungguhan disebut apa adanya.
  */
-const PROOF = {
-  usdc: "0x65a79f7b35fb755aee92da2bb11703df1045955188df352ab4dcfc9b18a62190",
-  buy: "0x7a1583a34e7abd49347b2686bf7c63cf0344f39ec565d85df73ffb502e6d7daf",
-};
+const PROOF = [
+  {
+    label: "$ADEXTO on 0G",
+    paid: "0.02 USDC",
+    settle: "https://basescan.org/tx/0x65a79f7b35fb755aee92da2bb11703df1045955188df352ab4dcfc9b18a62190",
+    deliver: "https://chainscan.0g.ai/tx/0x7a1583a34e7abd49347b2686bf7c63cf0344f39ec565d85df73ffb502e6d7daf",
+  },
+  /**
+   * Kaki Monad ditambahkan karena ia membuktikan hal yang TIDAK dibuktikan kaki 0G.
+   *
+   * Sampai gerbangnya multi-chain, pengiriman hanya bisa mendarat di 0G — bukan pilihan,
+   * melainkan satu-satunya tujuan yang bisa diungkapkan, karena Worker memegang satu RPC.
+   * Jadi baris 0G membuktikan pembayaran lintas chain berhasil; baris Monad membuktikan
+   * tujuannya bisa lebih dari satu.
+   *
+   * Keduanya dipertahankan, bukan diganti: mengganti akan menghapus rekaman bahwa jalur ini
+   * pernah bekerja sebelum jadi multi-chain, dan itu bagian dari alasan kenapa ia bisa
+   * dipercaya sekarang.
+   */
+  {
+    label: "$PARCEL on Monad",
+    paid: "0.10 USDC",
+    settle: "https://basescan.org/tx/0xfb744ca03aa5e755c297e7f1c088407dd55786023334f53d6cad10fb1b78f5da",
+    deliver: "https://monadscan.com/tx/0x2b9540f8bc2f34030d23d83b4ae7d96e5d687c8780a12d1cb2643677aaf21e08",
+  },
+];
 
 interface Attempt {
   status: number;
@@ -92,8 +114,28 @@ interface Attempt {
   url: string;
 }
 
-export default function X402Demo({ market }: { market: string }) {
-  const route = market;
+export interface DemoMarket {
+  slug: string;
+  symbol: string;
+  chainLabel: string;
+  chainId: number;
+}
+
+export default function X402Demo({ markets }: { markets: DemoMarket[] }) {
+  /**
+   * Pasar yang didemokan DIPILIH pengunjung, tidak lagi satu yang diteruskan.
+   *
+   * Halaman ini melewati dua bentuk yang sama-sama terlalu sempit: ticker yang dipaku di
+   * berkas ini, lalu satu pasar dari server yang mengutamakan Monad. Keduanya membuat
+   * halaman yang gunanya memperlihatkan pembelian LINTAS chain hanya memperlihatkan satu
+   * chain — jadi hal yang paling ingin ditunjukkan justru tidak pernah terlihat.
+   *
+   * Berpindah pasar juga MENGOSONGKAN hasil sebelumnya. Membiarkannya berarti jawaban dari
+   * satu chain terbaca sebagai jawaban chain lain, dan seluruh gunanya halaman ini adalah
+   * status HTTP yang benar-benar baru saja terjadi.
+   */
+  const [selected, setSelected] = useState(markets[0]);
+  const route = selected.slug;
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -160,32 +202,77 @@ export default function X402Demo({ market }: { market: string }) {
             signature that a button cannot produce on its own.
           </p>
           <p>
-            So that the claim can be checked rather than taken: one real purchase paid{" "}
-            <a
-              className="font-mono text-accent hover:underline"
-              href={`https://basescan.org/tx/${PROOF.usdc}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              0.02 USDC on Base
-            </a>{" "}
-            and received{" "}
-            <a
-              className="font-mono text-accent hover:underline"
-              href={`https://chainscan.0g.ai/tx/${PROOF.buy}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              $ADEXTO on 0G
-            </a>
-            . Nothing on this page is simulated — if the request fails, you will see the failure.
+            So that the claim can be checked rather than taken, these purchases really happened — one per
+            destination chain, each a single request:
           </p>
+          <ul className="space-y-1.5">
+            {PROOF.map((p) => (
+              <li key={p.label} className="flex flex-wrap items-center gap-x-1.5">
+                <a
+                  className="font-mono text-accent hover:underline"
+                  href={p.settle}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  paid {p.paid} on Base
+                </a>
+                <span className="text-ink-faint">→</span>
+                <a
+                  className="font-mono text-accent hover:underline"
+                  href={p.deliver}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  received {p.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p>Nothing on this page is simulated — if the request fails, you will see the failure.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: route picker */}
         <div className="lg:col-span-5 space-y-4">
+          {/* Pemilih pasar. Ada di sini karena satu gerbang melayani semuanya, dan itu
+              justru poin yang paling mudah hilang kalau halaman ini hanya menawarkan satu
+              tombol: pembaca akan menyimpulkan endpoint-nya milik satu token. Chain-nya
+              disebut di tiap pilihan supaya jelas jawabannya datang dari chain berbeda,
+              bukan dari daftar ticker yang kebetulan panjang. */}
+          {markets.length > 1 && (
+            <div className="card p-5 space-y-3">
+              <h2 className="text-[10px] uppercase tracking-wider text-ink-faint font-bold">
+                Pick a market — one gateway serves all of them
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {markets.map((m) => {
+                  const active = m.slug === selected.slug;
+                  return (
+                    <button
+                      key={`${m.chainId}:${m.symbol}`}
+                      type="button"
+                      onClick={() => {
+                        if (active) return;
+                        setSelected(m);
+                        // Hasil lama dibuang: ia milik chain lain.
+                        setAttempt(null);
+                        setFailure(null);
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-left text-[11px] transition-colors ${
+                        active
+                          ? "border-accent bg-accent/10 text-ink"
+                          : "border-line bg-white text-ink-soft hover:border-line-strong hover:text-ink"
+                      }`}
+                    >
+                      <span className="block font-semibold">${m.symbol}</span>
+                      <span className="block text-ink-faint">{m.chainLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="card p-5 space-y-3">
             <h2 className="text-[10px] uppercase tracking-wider text-ink-faint font-bold">How the quote is built</h2>
             {/* Dulu di sini ada tiga kelas harga tetap yang ditulis di halaman ini,
@@ -233,7 +320,7 @@ export default function X402Demo({ market }: { market: string }) {
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" /> Quote a ${market.toUpperCase()} buy
+                <Play className="w-4 h-4" /> Quote a ${selected.symbol} buy
               </>
             )}
           </button>
