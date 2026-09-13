@@ -1,0 +1,252 @@
+"""
+Pengikatan ERC-8004 yang tercatat oleh event `AgentBound`.
+
+Entity terpisah, bukan langsung ditulis ke `Project`, karena factory memancarkan
+`AgentBound` SEBELUM `TrinityProjectDeployed`. Saat handler-nya berjalan, `Project` belum
+ada, dan menulis Project separuh jadi di sana akan melanggar field non-null miliknya. Jadi
+pengikatannya disimpan di sini lebih dulu lalu digabungkan oleh handler peluncuran yang
+berjalan setelahnya di transaksi yang sama.
+
+Berguna sendiri juga: bisa dikueri untuk menemukan setiap token yang terikat ke satu agent.
+"""
+type AgentBinding {
+  "Alamat token, huruf kecil — sama dengan Project.id."
+  id: ID!
+  token: String!
+  agentId: BigInt!
+  agentRegistry: String!
+  "Pemilik agent saat peluncuran, sebagaimana diverifikasi factory lewat `ownerOf`."
+  ownerAtLaunch: String!
+  boundAtBlock: BigInt!
+  boundAtTx: String!
+}
+
+"""
+Satu peluncuran.
+"""
+type Project {
+  "Alamat token, huruf kecil."
+  id: ID!
+  token: String!
+  curve: Curve!
+  creator: String! @index
+  name: String!
+  symbol: String! @index
+  "Supply dalam satuan utuh seperti yang dikirim ke factory."
+  initialSupply: BigInt!
+  "Token yang benar-benar masuk kurva. Sama dengan seluruh supply ter-mint."
+  curveTokens: BigInt!
+  "Root penyimpanan 0G DA dari metadata launch. Bukan attestation hardware."
+  metadataRoot: String!
+
+  """
+  Apakah peluncuran ini mengikat identitas agent ERC-8004.
+
+  BACA FIELD INI DULU, JANGAN `agentId`. Agent id 0 adalah agent nyata yang dimiliki
+  seseorang di keempat mainnet, jadi `agentId == 0` TIDAK bisa berarti "tanpa agent" —
+  kontraknya pernah salah tepat di titik ini dan diperbaiki sebelum di-broadcast.
+  """
+  agentBound: Boolean!
+  "Agent id ERC-8004. Hanya berarti bila `agentBound` true."
+  agentId: BigInt
+  "Identity Registry tempat `agentId` hidup. Null bila tidak terikat."
+  agentRegistry: String
+  """
+  Pemilik agent PADA SAAT peluncuran. Kepemilikan agent bisa berpindah setelahnya — yang
+  tidak bisa berpindah adalah pengikatannya ke token ini.
+  """
+  agentOwnerAtLaunch: String
+
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  createdAtTx: String!
+}
+
+type Curve {
+  "Alamat kurva, huruf kecil."
+  id: ID!
+  project: Project
+  "Dari peluncuran. Reserve pembuka yang tidak pernah berupa uang nyata."
+  virtualNative: BigInt!
+  "Token yang dimuat ke kurva saat inisialisasi (T)."
+  curveTokens: BigInt!
+  """
+  Harga pembukaan: native UTUH per token UTUH, satuan yang SAMA dengan `spotPriceNative`
+  dan `floorPriceNative`.
+
+  Diturunkan, tidak disalin dari `CurveInitialized.openingPrice`. Parameter event itu nilai
+  mentah kontrak — wei per 1e18-token — dan menyalinnya akan menaruh tiga field harga dalam
+  dua satuan berbeda yang selisihnya 1e18, dengan nama yang sama-sama berakhiran
+  `PriceNative`.
+  """
+  openingPriceNative: BigDecimal!
+
+  "virtualNative + native nyata. Diambil dari nativeReserveAfter swap terakhir."
+  reserveNative: BigInt!
+  "curveTokens - tokensSold. Diambil dari tokenReserveAfter swap terakhir."
+  reserveToken: BigInt!
+  tokensSold: BigInt!
+  "reserveNative / reserveToken. Inilah harga spot yang dipakai UI."
+  spotPriceNative: BigDecimal!
+
+  """
+  VERSION kontrak kurva ini. Selalu "0.11.0" di indexer ini, karena generasi 0.10.0 di
+  Monad tidak punya satu pun peluncuran. Field-nya dipertahankan supaya skema tetap cocok
+  dengan subgraph yang melayani chain lain.
+  """
+  curveVersion: String!
+
+  depthFeeBps: BigInt!
+  creatorFeeBps: BigInt!
+  treasuryBuybackBps: BigInt!
+  """
+  Kaki protokol, dipungut DI ATAS total yang dikonfigurasi creator — bukan diambil dari
+  dalamnya.
+  """
+  protocolFeeBps: BigInt!
+
+  "Fee depth yang mengendap di kurva. Inilah yang mengangkat lantai harga."
+  totalDepthFees: BigInt!
+  totalCreatorFees: BigInt!
+  totalTreasuryFees: BigInt!
+  totalCreatorFeesClaimed: BigInt!
+  """
+  Fee protokol yang pernah dipungut kurva ini.
+
+  TIDAK ikut mengangkat lantai harga, dan itu pembeda yang paling mudah salah: irisan depth
+  mengendap di kurva sehingga lantainya naik, sedangkan irisan protokol MENINGGALKAN kurva.
+  Menjumlahkan keduanya ke `totalDepthFees` akan melaporkan lantai yang lebih tinggi
+  daripada yang bisa dibayar kurva.
+  """
+  totalProtocolFees: BigInt!
+  totalProtocolFeesClaimed: BigInt!
+  volumeNative: BigInt!
+  swapCount: BigInt!
+  buyCount: BigInt!
+  sellCount: BigInt!
+  tokensBurned: BigInt!
+  """
+  Harga terendah yang bisa dicapai kurva, yaitu saat setiap token beredar dijual kembali:
+  (virtualNative + totalDepthFees) / curveTokens. Naik monoton seiring volume, dan itu
+  properti yang membedakan kurva ini.
+  """
+  floorPriceNative: BigDecimal!
+
+  initialized: Boolean!
+  createdAtBlock: BigInt!
+  lastSwapTimestamp: BigInt
+
+  swaps: [Swap!]! @derivedFrom(field: "curve")
+  buybacks: [BuybackBurn!]! @derivedFrom(field: "curve")
+  dayData: [CurveDayData!]! @derivedFrom(field: "curve")
+  creatorFeeClaims: [CreatorFeeClaim!]! @derivedFrom(field: "curve")
+  protocolFeeClaims: [ProtocolFeeClaim!]! @derivedFrom(field: "curve")
+}
+
+type Swap {
+  "txHash-logIndex."
+  id: ID!
+  curve: Curve!
+  project: Project
+  trader: String! @index
+  recipient: String!
+  "true = native masuk, token keluar."
+  isBuy: Boolean!
+  amountIn: BigInt!
+  amountOut: BigInt!
+  depthFee: BigInt!
+  creatorFee: BigInt!
+  treasuryFee: BigInt!
+  "Kaki protokol untuk fill ini."
+  protocolFee: BigInt!
+  "Reserve sesudah perdagangan, langsung dari event. Tanpa eth_call."
+  reserveNativeAfter: BigInt!
+  reserveTokenAfter: BigInt!
+  "Harga sesudah perdagangan. Inilah bahan lilin grafik."
+  priceNativeAfter: BigDecimal!
+  blockNumber: BigInt!
+  timestamp: BigInt! @index
+  txHash: String!
+  logIndex: BigInt!
+}
+
+type BuybackBurn {
+  id: ID!
+  curve: Curve!
+  "Native dari vault buyback yang dibelanjakan di kurva."
+  amountInNative: BigInt!
+  "Token yang dibeli lalu dibakar, sehingga supply benar-benar berkurang."
+  tokensBurned: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+type CreatorFeeClaim {
+  id: ID!
+  curve: Curve!
+  to: String!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+"""
+Penarikan fee protokol dari sebuah kurva.
+
+`to` dan `caller` dicatat keduanya, dan itu bukan kelebihan: `claimProtocolFees()` tanpa
+izin, jadi siapa pun boleh memicunya dan keduanya bisa berbeda. Menyimpan keduanya adalah
+satu-satunya cara memperlihatkan bahwa tujuannya tidak bisa dibajak oleh pemanggilnya.
+"""
+type ProtocolFeeClaim {
+  id: ID!
+  curve: Curve!
+  "Tujuan immutable yang tertulis di kontrak."
+  to: String!
+  "Siapa yang memicu penarikan. Boleh siapa saja."
+  caller: String!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+"""
+Agregat harian per kurva.
+
+Ada supaya klien bisa menampilkan volume 24 jam dan rentang harga tanpa memindai setiap
+swap — itu justru pekerjaan indexer. `open`/`high`/`low`/`close` memakai harga sesudah swap,
+jadi lilinnya konsisten dengan apa yang benar-benar terjadi di kurva.
+"""
+type CurveDayData {
+  "curveAddress-dayStartTimestamp."
+  id: ID!
+  curve: Curve!
+  dayStartTimestamp: BigInt! @index
+  volumeNative: BigInt!
+  swapCount: BigInt!
+  openPriceNative: BigDecimal!
+  highPriceNative: BigDecimal!
+  lowPriceNative: BigDecimal!
+  closePriceNative: BigDecimal!
+  depthFees: BigInt!
+  creatorFees: BigInt!
+  treasuryFees: BigInt!
+  protocolFees: BigInt!
+}
+
+type GlobalStats {
+  "Selalu 'global'."
+  id: ID!
+  totalProjects: BigInt!
+  totalCurves: BigInt!
+  totalSwaps: BigInt!
+  totalVolumeNative: BigInt!
+  totalDepthFees: BigInt!
+  totalCreatorFees: BigInt!
+  totalTreasuryFees: BigInt!
+  totalProtocolFees: BigInt!
+  totalTokensBurned: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}

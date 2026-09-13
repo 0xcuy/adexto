@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    // Tanpa `types`: tidak ada global Node yang dipakai handler, jadi mencantumkannya
+    // hanya menambah dependensi yang bisa hilang dan menggagalkan typecheck.
+    "types": [],
+    "strict": true,
+    // `exactOptionalPropertyTypes` sengaja dimatikan. Entity hasil codegen menuliskan
+    // field opsionalnya sebagai `T | undefined` yang WAJIB ada, jadi menyalakan flag ini
+    // akan menolak `agentId: undefined` — satu-satunya cara menyatakan "tanpa agent".
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts", "envio-env.d.ts"]
+}

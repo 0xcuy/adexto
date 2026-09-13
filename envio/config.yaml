@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+#
+# Envio HyperIndex — AdextoFactory 0.11.0 dan kurvanya di Monad mainnet.
+#
+# KENAPA INDEXER TERPISAH, BUKAN MENAMBAH JARINGAN KE SUBGRAPH
+#
+# The Graph tidak melayani Monad. Diperiksa terhadap `graphprotocol/networks-registry`:
+# `monad` terdaftar TANPA dukungan Subgraphs — hanya Firehose dan Substreams — jadi Studio
+# tidak bisa menerimanya berapa kali pun dicoba. Pilihannya menjalankan Graph Node sendiri
+# untuk Monad, atau memakai indexer yang memang melayaninya. Yang kedua tidak menuntut kami
+# memelihara puluhan GB state chain.
+#
+# Yang membuat ini bukan sekadar pemindahan: pemindaian langsung di Monad terbatas pada
+# jendela `eth_getLogs` 100 blok, jadi terminal hanya bisa melihat sekitar delapan menit ke
+# belakang dan riwayat perdagangan harus dipersistensi lewat store telemetry supaya bertahan.
+# Indexer menghapus alasan store itu ada.
+#
+# HYPERSYNC, BUKAN RPC
+#
+# Sumber data utamanya HyperSync, dan Monad mainnet didukung — diprobe langsung, bukan
+# dibaca dari tabel: `GET https://143.hypersync.xyz/height` menjawab 200 dengan tinggi yang
+# cocok dengan kepala rantai. Karena itu `rpc` di bawah hanya FALLBACK. Menaruh RPC sebagai
+# sumber utama akan mengembalikan justru batas yang indexer ini ada untuk menghapus.
+name: adexto-monad
+description: Bonding-curve launches, swaps, buyback burns and ERC-8004 bindings on Monad mainnet.
+
+# `Bytes` sebagai string hex 0x, dan alamat huruf kecil di mana pun.
+#
+# Skema ini memakai alamat huruf kecil sebagai `id` entity, sama seperti subgraph yang
+# digantikannya, supaya kueri yang sudah ada tidak perlu tahu perbedaan casing. Menyetelnya
+# di sini menghapus setiap `.toLowerCase()` di handler — dan satu yang terlupa adalah cara
+# yang bagus untuk membuat dua baris entity bagi satu kontrak.
+address_format: lowercase
+
+# `block_fields` TIDAK disebut di sini dengan sengaja. `number`, `timestamp` dan `hash`
+# selalu terpilih — menyebut `timestamp` justru ditolak parser sebagai varian tak dikenal,
+# karena daftar ini hanya untuk field TAMBAHAN. Setiap entity di skema ini bertanda waktu,
+# dan semuanya terlayani tanpa satu baris pun di sini.
+field_selection:
+  transaction_fields:
+    - hash
+    # `from` dibutuhkan hanya oleh `ProtocolFeeClaim.caller`, dan itu bukan kelebihan:
+    # `claimProtocolFees()` tanpa izin, jadi pemanggil dan tujuan bisa berbeda. Menyimpan
+    # keduanya adalah satu-satunya cara memperlihatkan tujuannya tidak bisa dibajak.
+    - from
+
+contracts:
+  - name: AdextoFactory
+    abi_file_path: ./abis/AdextoFactory.json
+    events:
+      # `TrinityProjectCreated` SENGAJA tidak diindeks. Ia dipancarkan di jalur yang sama
+      # dengan `TrinityProjectDeployed` tetapi hanya membawa sebagian field, jadi
+      # mengindeksnya berarti dua sumber untuk satu peluncuran dan tidak ada yang bisa
+      # dijelaskan tentang mana yang menang.
+      - event: TrinityProjectDeployed
+      - event: AgentBound
+
+  - name: AdextoCurve
+    abi_file_path: ./abis/AdextoCurve.json
+    # TANPA `address`: setiap kurva dibuat factory, jadi alamatnya tidak diketahui saat
+    # berkas ini ditulis. `indexer.contractRegister` mendaftarkannya saat peluncuran.
+    events:
+      - event: CurveInitialized
+      - event: Swap
+      - event: AutoBuybackExecuted
+      - event: CreatorFeesClaimed
+      - event: ProtocolFeesClaimed
+      # `TreasuryFeeCollected` tidak diindeks: nilainya sudah dibawa `Swap.treasuryFee`
+      # pada fill yang sama, jadi ia akan menghitung ganda irisan yang sama.
+
+chains:
+  - id: 143
+    # Blok deployment factory, dari `build/deployments.json`, bukan 0.
+    #
+    # HyperSync akan melompat sendiri ke blok pertama yang berisi data kalau diberi 0, jadi
+    # ini bukan soal kecepatan — ini soal pernyataan. Angka ini menjadikan "riwayat penuh"
+    # sesuatu yang bisa diperiksa terhadap chain: tidak ada peluncuran yang bisa ada sebelum
+    # factory-nya ada.
+    start_block: 102583076
+    rpc:
+      - url: https://rpc.monad.xyz
+        for: fallback
+    contracts:
+      - name: AdextoFactory
+        address: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3"
+      - name: AdextoCurve
+        # Didaftarkan dinamis. Generasi 0.10.0 di Monad
+        # (0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) DIABAIKAN dengan sengaja:
+        # `totalProjectsCount()` di sana nol, jadi tidak ada satu pun kurva untuk diindeks,
+        # dan `Swap`-nya bertanda tangan berbeda sehingga menambahkannya berarti ABI dan
+        # handler kedua yang menjaga nol baris data.

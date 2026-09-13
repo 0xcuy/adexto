@@ -1,0 +1,22 @@
+{
+  "name": "adexto-envio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Envio HyperIndex indexer for AdextoFactory 0.11.0 and its curves on Monad mainnet.",
+  "//type": "Required. Envio auto-loads src/handlers through tsx with a dynamic import(). Without this field the .ts files resolve as CommonJS, tsx falls back to require(), and loading them alongside the ESM 'envio' package they import fails with ERR_REQUIRE_CYCLE_MODULE — no handler registers and the indexer syncs zero events without reporting a cause.",
+  "type": "module",
+  "scripts": {
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "start": "envio start",
+    "stop": "envio stop",
+    "local-docker-up": "envio local docker up",
+    "local-docker-down": "envio local docker down"
+  },
+  "dependencies": {
+    "envio": "^3.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

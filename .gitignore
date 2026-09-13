@@ -25,6 +25,22 @@
 /subgraph/node_modules/
 /subgraph/build/
 
+# Envio workspace (Monad indexer). Same reason as the subgraph block above: the
+# root-anchored /node_modules rule does not reach a nested one.
+#
+#   node_modules/    -> npm install
+#   .envio/          -> envio codegen (has its own .gitignore for types.d.ts, but the
+#                       directory is regenerated wholesale, so ignore it here too)
+#   envio-env.d.ts   -> envio codegen; a one-line /// <reference> into .envio
+#   logs/            -> local run output, written because LOG_STRATEGY=file-only
+#
+# `config.yaml`, `schema.graphql`, `src/` and `abis/` ARE committed -- they are the
+# indexer. `.env` there is already covered by the .env rules further down.
+/envio/node_modules/
+/envio/.envio/
+/envio/envio-env.d.ts
+/envio/logs/
+
 # Production & Environment Variables (NEVER COMMIT SENSITIVE SECRETS)
 .env
 .env*.local
