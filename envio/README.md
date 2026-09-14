@@ -33,7 +33,36 @@ deployed, divided by Monad's 100-block window, is about 19,200 `eth_getLogs` cal
 HyperSync requires a free API token (`ENVIO_API_TOKEN`). Without it the indexer stops on
 the first fetch — it does not silently fall back to RPC.
 
-## Run it
+## Query it without installing anything
+
+The indexer is live, and its data is readable anonymously:
+
+```bash
+curl -s -X POST https://adexto.xyz/api/indexer/graphql \
+  -H 'content-type: application/json' \
+  -d '{"query":"{ Curve { id swapCount volumeNative totalProtocolFees } Swap_aggregate { aggregate { count } } }"}'
+```
+
+`GET` the same URL for the entity list, the live sync position, and a copy-paste query.
+Introspection is enabled, so any GraphQL client can explore the schema.
+
+**Read-only is enforced by Hasura's permission system, not by the proxy.** Unauthenticated
+requests map to a role holding `select` permissions only, so the schema exposed to the public
+has no mutation root at all — a `mutation` fails with `no mutations exist` rather than being
+pattern-matched away. Hasura itself is never exposed: `/v1/metadata` and `/v2/query` can
+change schemas and run raw SQL, and neither is reachable through this route.
+
+One query worth running, because it checks our numbers against the chain without trusting us:
+
+```
+totalVolumeNative() / 1000 == totalProtocolFees
+```
+
+The protocol leg is 10 bps of gross volume, so those two must agree on every curve. Call
+`swapCount()` on either curve address and compare it with `swapCount` above while you are
+there.
+
+## Run your own copy
 
 ```bash
 npm install
@@ -43,6 +72,11 @@ npx envio start
 ```
 
 GraphQL lands on `http://localhost:8080/v1/graphql` (admin secret `testing`).
+
+For the production shape — indexer, Postgres and Hasura as long-running services with no
+published ports — see `docker-compose.yml` in this directory. It is deliberately separate from
+the site's compose file: the site rebuilds on every code change, while the indexer has to stay
+up and track the chain head.
 
 ## What the schema is careful about
 

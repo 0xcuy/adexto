@@ -51,6 +51,18 @@ services:
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:?HASURA_GRAPHQL_ADMIN_SECRET wajib diset}
       HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,webhook-log,websocket-log
       HASURA_GRAPHQL_NO_OF_RETRIES: "10"
+      # Permintaan TANPA autentikasi dipetakan ke role `public`.
+      #
+      # Ini yang membuat endpoint anonim mungkin, dan yang penting adalah SIAPA yang
+      # menegakkan aturannya: Envio sudah membuat izin `pg_create_select_permission` untuk
+      # role `public` di setiap tabel yang dilacaknya — select saja, tanpa insert, update
+      # atau delete. Jadi read-only ditegakkan sistem izin Hasura, bukan oleh proxy yang
+      # mencocokkan string "mutation" di badan permintaan. Proxy semacam itu selalu bisa
+      # dilewati; role yang tidak punya izin tulis tidak bisa.
+      #
+      # Tanpa baris ini Hasura menolak setiap permintaan tanpa admin secret, dan endpoint
+      # publiknya hanya akan membalas access-denied.
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
     ports:
       # Terikat ke LOOPBACK, bukan 0.0.0.0.
       #
@@ -88,6 +100,20 @@ services:
       ENVIO_PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
       HASURA_GRAPHQL_ENDPOINT: http://envio-hasura:8080/v1/metadata
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      # Batas baris untuk role `public`, dipasang indexer saat ia membuat izinnya.
+      #
+      # Bawaannya TIDAK ADA batas, dan tanpa batas satu permintaan anonim bisa meminta
+      # seluruh tabel sekaligus. 1.000 jauh di atas kebutuhan nyata — pasar teramai di sini
+      # punya 12 swap — sementara tetap menutup pembacaan tak berbatas.
+      ENVIO_HASURA_RESPONSE_LIMIT: "1000"
+      # Agregat dibuka untuk setiap entity: `Swap_aggregate { aggregate { count } }` adalah
+      # cara termurah bagi orang lain memeriksa jumlah kami terhadap `swapCount()` di chain,
+      # dan menutupnya berarti angka kami hanya bisa dipercaya, bukan diperiksa.
+      #
+      # Bentuknya ARRAY JSON nama entity, bukan boolean. `"true"` diterima parser sebagai
+      # string satu elemen lalu ditolak, dan kegagalannya diam: izin tetap dibuat tanpa
+      # agregat, jadi `Swap_aggregate` hilang dari skema publik tanpa satu pun pesan galat.
+      ENVIO_HASURA_PUBLIC_AGGREGATE: '["Project","Curve","Swap","BuybackBurn","CreatorFeeClaim","ProtocolFeeClaim","AgentBinding","CurveDayData","GlobalStats"]'
     networks:
       - adexto-network
 
