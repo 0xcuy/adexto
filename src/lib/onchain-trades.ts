@@ -78,25 +78,33 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
 const DEFAULT_LOG_SPAN = 2_000;
 
 /**
- * Endpoint yang dipakai untuk MEMBACA, yang belum tentu sama dengan yang ada di config chain.
+ * TIDAK ADA penimpaan endpoint berkunci untuk pembacaan log, dan ketiadaannya disengaja.
  *
- * `chain.rpcUrl` harus tetap berupa URL publik tanpa kunci: nilainya ikut ke bundel peramban,
- * jadi menaruh endpoint berkunci di sana sama dengan menerbitkan kuncinya. Pembacaan sisi
- * server tidak punya batasan itu, dan di situlah endpoint berkunci berguna — kuota sendiri
- * alih-alih endpoint bersama, dan rate limit yang tidak dibagi dengan seluruh jaringan.
+ * Berkas ini sempat memuat `rpcUrlForReads()` yang memakai `ALCHEMY_MONAD_RPC` bila diset,
+ * dengan alasan yang terdengar benar: kuota sendiri, bukan endpoint bersama. Lalu diukur,
+ * dan alasan itu ternyata salah arah.
  *
- * Variabelnya TANPA awalan `NEXT_PUBLIC_` dengan sengaja. Di peramban `process.env` untuk
- * nama seperti itu tidak ada isinya, jadi cabang ini tidak pernah aktif di sisi klien dan
- * kuncinya tidak bisa bocor lewat bundel — bukan karena kami berhati-hati memanggilnya di
- * tempat yang benar, melainkan karena nilainya memang tidak ada di sana.
+ * Endpoint Alchemy BERKUNCI di paket Free membatasi `eth_getLogs` pada 10 BLOK:
+ *
+ *   "Under the Free tier plan, you can make eth_getLogs requests with up to a 10 block
+ *    range. Upgrade to PAYG for expanded block range."
+ *
+ * Sepuluh. Sementara endpoint Alchemy bersama di `rpc1.monad.xyz` menerima >=20.000.000 blok
+ * per panggilan. Jadi menyetel variabel itu akan mengecilkan petak dari 500.000 menjadi 10 —
+ * sepuluh kali LEBIH BURUK daripada `rpc.monad.xyz` yang batasnya 100, dan riwayat
+ * perdagangan Monad akan lebih rusak daripada sebelum seluruh pekerjaan ini.
+ *
+ * Latensinya juga lebih buruk, bukan lebih baik: `eth_getBalance` median 159 ms lewat
+ * endpoint berkunci Free vs 53 ms lewat yang bersama, tujuh sampel masing-masing.
+ *
+ * Karena itu penimpaannya dicabut, bukan cuma dibiarkan tidak dipakai. Sebuah variabel env
+ * yang ADA tetapi berbahaya untuk diset adalah jebakan: orang berikutnya yang membaca
+ * "pakai kuota sendiri" akan menyetelnya, dan yang rusak — riwayat perdagangan yang
+ * memendek — tidak akan menunjuk ke sini.
+ *
+ * Kalau paketnya naik ke PAYG, ukur ulang petaknya lebih dulu, lalu kembalikan penimpaannya
+ * bersama angka hasil ukuran itu. Jangan mengembalikannya karena paketnya berubah nama.
  */
-function rpcUrlForReads(chain: ChainInfo): string {
-  if (chain.chainId === 143) {
-    const keyed = process.env.ALCHEMY_MONAD_RPC;
-    if (keyed && /^https?:\/\//.test(keyed)) return keyed;
-  }
-  return chain.rpcUrl;
-}
 
 /**
  * Anggaran panggilan `getLogs` per pembacaan.
@@ -257,7 +265,7 @@ export async function readOnChainSwaps(
   };
 
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrlForReads(chain));
+    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const latest = await provider.getBlockNumber();
