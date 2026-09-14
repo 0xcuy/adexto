@@ -49,9 +49,54 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
   16661: 500_000, // 0G mainnet
   8453: 2_000, // Base — diukur 2026-09-09; sebelumnya 10.000
   42161: 500_000, // Arbitrum
-  143: 100, // Monad
+  /**
+   * Monad NAIK dari 100 ke 500.000, dan yang berubah bukan Monad — penyedianya.
+   *
+   * Angka 100 adalah batas `rpc.monad.xyz`, yang dilayani QuickNode. Monad mainnet punya
+   * beberapa penyedia di URL berbeda, dan batasnya berbeda satu sampai empat orde besaran.
+   * Diukur langsung dengan menaikkan rentang sampai ditolak lalu binary search:
+   *
+   *   rpc.monad.xyz   QuickNode          100 blok   "eth_getLogs is limited to a 100 range"
+   *   rpc3.monad.xyz  Ankr             ~968 blok    "Block range is too large"
+   *   rpc2.monad.xyz  Goldsky       ~20.000 blok    "getLogs request exceeded max allowed range"
+   *   rpc1.monad.xyz  Alchemy    >=1.000.000 blok   diterima
+   *
+   * Situs ini sekarang membaca Monad lewat Alchemy (lihat `rpcUrl` di
+   * `src/config/contracts.ts`), jadi jendela yang bisa dijangkau bukan lagi sepuluh menit.
+   * Terukur pada $PARCEL: riwayat penuh sejak blok peluncuran adalah 763.423 blok, dan
+   * Alchemy menjawabnya dalam SATU panggilan 824 ms. Lewat QuickNode rentang yang sama
+   * menuntut 7.635 panggilan berurutan — sekitar delapan menit pada 15 rps, untuk satu pasar.
+   *
+   * 500.000 dan bukan 1.000.000 dengan sengaja. Batas terukurnya lebih tinggi, tetapi Base
+   * sudah membuktikan angka-angka ini bisa diperketat penyedia tanpa pemberitahuan: ia turun
+   * dari 10.000 ke 2.000 dalam hitungan hari, dan yang menemukannya adalah penjaga di
+   * `audit_consistency.mjs`, bukan sebuah pengumuman. Margin ini membuat pengetatan menjadi
+   * lebih lambat, bukan menjadi riwayat perdagangan yang kosong.
+   */
+  143: 500_000, // Monad via Alchemy — diukur 2026-09-14; QuickNode hanya menerima 100
 };
 const DEFAULT_LOG_SPAN = 2_000;
+
+/**
+ * Endpoint yang dipakai untuk MEMBACA, yang belum tentu sama dengan yang ada di config chain.
+ *
+ * `chain.rpcUrl` harus tetap berupa URL publik tanpa kunci: nilainya ikut ke bundel peramban,
+ * jadi menaruh endpoint berkunci di sana sama dengan menerbitkan kuncinya. Pembacaan sisi
+ * server tidak punya batasan itu, dan di situlah endpoint berkunci berguna — kuota sendiri
+ * alih-alih endpoint bersama, dan rate limit yang tidak dibagi dengan seluruh jaringan.
+ *
+ * Variabelnya TANPA awalan `NEXT_PUBLIC_` dengan sengaja. Di peramban `process.env` untuk
+ * nama seperti itu tidak ada isinya, jadi cabang ini tidak pernah aktif di sisi klien dan
+ * kuncinya tidak bisa bocor lewat bundel — bukan karena kami berhati-hati memanggilnya di
+ * tempat yang benar, melainkan karena nilainya memang tidak ada di sana.
+ */
+function rpcUrlForReads(chain: ChainInfo): string {
+  if (chain.chainId === 143) {
+    const keyed = process.env.ALCHEMY_MONAD_RPC;
+    if (keyed && /^https?:\/\//.test(keyed)) return keyed;
+  }
+  return chain.rpcUrl;
+}
 
 /**
  * Anggaran panggilan `getLogs` per pembacaan.
@@ -212,7 +257,7 @@ export async function readOnChainSwaps(
   };
 
   try {
-    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+    const provider = new ethers.JsonRpcProvider(rpcUrlForReads(chain));
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const latest = await provider.getBlockNumber();

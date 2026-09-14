@@ -62,11 +62,54 @@ const readme = readFileSync("README.md", "utf8");
 const manifest = readFileSync("subgraph/subgraph.yaml", "utf8");
 const subgraphPkg = JSON.parse(readFileSync("subgraph/package.json", "utf8"));
 
+/**
+ * URL RPC DIBACA dari `src/config/contracts.ts`, tidak diulang di sini.
+ *
+ * Tabel ini dulu memuat URL-nya sendiri, dan itu membuat penjaga mengukur hal yang salah
+ * tanpa terlihat salah. Terjadi persis begitu: pembacaan Monad dipindah ke Alchemy dan
+ * petaknya dinaikkan ke 500.000, lalu penjaga ini melaporkan penolakan — karena ia masih
+ * menanyakannya ke `rpc.monad.xyz`, penyedia yang batasnya 100 blok. Yang gagal bukan
+ * kodenya, melainkan penjaganya, dan bentuk kegagalannya adalah dua sumber kebenaran untuk
+ * satu URL.
+ *
+ * Membaca dari sumber yang sama dengan yang dipakai aplikasi mengubah arti pemeriksaan
+ * petak: ia sekarang menguji pasangan (endpoint yang benar-benar dipakai, petak yang
+ * diklaim), yang memang satu-satunya pasangan yang berarti.
+ */
+const contractsSrc = readFileSync("src/config/contracts.ts", "utf8");
+function rpcFromConfig(chainId, fallback) {
+  // `chainId: N` lalu `rpcUrl: "..."` PERTAMA sesudahnya. Blok-bloknya memuat komentar
+  // berkurung, jadi mencocokkan seluruh objek akan rapuh; mencocokkan urutan dua field
+  // tidak.
+  const m = contractsSrc.match(
+    new RegExp(`chainId:\\s*${chainId}\\b[\\s\\S]*?rpcUrl:\\s*"([^"]+)"`)
+  );
+  return m ? m[1] : fallback;
+}
+
 const CHAINS = {
-  16661: { key: "0G", rpc: env.OG_RPC_URL || "https://evmrpc.0g.ai", factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_0G" },
-  8453: { key: "Base", rpc: "https://mainnet.base.org", factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_BASE" },
-  42161: { key: "Arbitrum", rpc: "https://arb1.arbitrum.io/rpc", factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM" },
-  143: { key: "Monad", rpc: "https://rpc.monad.xyz", factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_MONAD" },
+  16661: {
+    key: "0G",
+    // 0G tetap boleh ditimpa env: RPC publiknya pruned dan mesin berbeda memakai endpoint
+    // berbeda. Yang lain tidak punya alasan seperti itu.
+    rpc: env.OG_RPC_URL || rpcFromConfig(16661, "https://evmrpc.0g.ai"),
+    factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_0G",
+  },
+  8453: {
+    key: "Base",
+    rpc: rpcFromConfig(8453, "https://mainnet.base.org"),
+    factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_BASE",
+  },
+  42161: {
+    key: "Arbitrum",
+    rpc: rpcFromConfig(42161, "https://arb1.arbitrum.io/rpc"),
+    factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM",
+  },
+  143: {
+    key: "Monad",
+    rpc: rpcFromConfig(143, "https://rpc1.monad.xyz"),
+    factoryEnv: "NEXT_PUBLIC_CURVE_FACTORY_MONAD",
+  },
 };
 
 function providerFor(chainId) {

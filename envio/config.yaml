@@ -77,8 +77,19 @@ chains:
     # sesuatu yang bisa diperiksa terhadap chain: tidak ada peluncuran yang bisa ada sebelum
     # factory-nya ada.
     start_block: 102583076
+    # Fallback DIPINDAH dari rpc.monad.xyz ke Alchemy, dan itu yang membuatnya benar-benar
+    # menjadi fallback.
+    #
+    # Sebelumnya jaring ini ada di atas kertas saja. Diukur: rpc.monad.xyz (QuickNode)
+    # menerima 100 blok per `eth_getLogs`, jadi menyusul 1,93 juta blok riwayat lewat jalur
+    # itu menuntut ~19.200 panggilan berurutan — sekitar enam jam. Sebuah jaring yang butuh
+    # enam jam bukan jaring; ia hanya cara lain untuk gagal.
+    #
+    # Alchemy menerima >=1.000.000 blok per panggilan, terukur dengan menaikkan rentang
+    # sampai ditolak. Riwayat yang sama karena itu jatuh ke satuan panggilan, bukan puluhan
+    # ribu. Sekarang HyperSync yang mati benar-benar bisa digantikan sementara oleh RPC.
     rpc:
-      - url: https://rpc.monad.xyz
+      - url: https://rpc1.monad.xyz
         for: fallback
     contracts:
       - name: AdextoFactory

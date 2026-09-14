@@ -153,7 +153,35 @@ export const ADEXTO_CONTRACTS = {
     chainId: 143,
     chainName: "Monad Mainnet",
     nativeSymbol: "MON",
-    rpcUrl: "https://rpc.monad.xyz",
+    /**
+     * Monad dibaca lewat ALCHEMY, bukan lewat `rpc.monad.xyz`.
+     *
+     * Monad mainnet dilayani beberapa penyedia di URL berbeda, dan batas `eth_getLogs`
+     * mereka berbeda sampai empat orde besaran. Diukur langsung, bukan disalin dari
+     * dokumentasi — dengan menaikkan rentang sampai ditolak lalu binary search:
+     *
+     *   rpc.monad.xyz   QuickNode          100 blok
+     *   rpc3.monad.xyz  Ankr             ~968 blok
+     *   rpc2.monad.xyz  Goldsky       ~20.000 blok
+     *   rpc1.monad.xyz  Alchemy    >=1.000.000 blok
+     *
+     * Batas 100 blok itulah yang membentuk hampir setiap masalah Monad di proyek ini:
+     * dengan anggaran 16 panggilan, riwayat yang terjangkau hanya 1.600 blok — sekitar
+     * sepuluh menit — sehingga perdagangan menghilang dari chart begitu jendelanya lewat,
+     * dan sebuah pasar tidak bisa melihat peluncurannya sendiri.
+     *
+     * Lewat Alchemy riwayat penuh $PARCEL, 763.423 blok, dijawab dalam SATU panggilan
+     * 824 ms. Rentang yang sama lewat QuickNode menuntut 7.635 panggilan berurutan.
+     *
+     * Bahwa ini benar-benar Alchemy diperiksa, bukan dipercaya dari tabel dokumen Monad:
+     * endpoint-nya mengenali `alchemy_getTokenBalances` — yang dijawab "Method not found"
+     * oleh `rpc.monad.xyz` — dan membalas dengan header `x-alchemy-trace-id`.
+     *
+     * URL PUBLIK tanpa kunci, jadi aman ikut ke bundel peramban. Pembacaan sisi server
+     * lebih memilih `ALCHEMY_MONAD_RPC` bila diset, supaya kuota kami sendiri yang dipakai
+     * dan bukan endpoint bersama; lihat `rpcUrlForReads` di `src/lib/onchain-trades.ts`.
+     */
+    rpcUrl: "https://rpc1.monad.xyz",
     /**
      * Dulu `monadvision.com`, dan itu membalas HTTP 403 — bukan cuma dari satu IP,
      * tapi juga dengan User-Agent peramban sungguhan. Akibatnya setiap tautan
