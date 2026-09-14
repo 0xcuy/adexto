@@ -3,6 +3,7 @@ import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps, buildCandles, type SwapCoverage } from "@/lib/onchain-trades";
 import { appendTrade, authorizeTelemetryWrite, listTrades, validateTrade, type TradeEvent } from "@/lib/telemetry";
+import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 
 /**
  * GET  — trade history for a symbol. Prefers real `Swap` events read from the
@@ -58,7 +59,59 @@ export async function GET(req: Request) {
     let source: "onchain" | "agent" | "genesis" | "empty" = "empty";
     let coverage: SwapCoverage | null = null;
 
-    if (project?.poolAddress && project.poolLive) {
+    /**
+     * INDEXER LEBIH DULU untuk chain yang diindeks, lalu pemindaian RPC sebagai jaring.
+     *
+     * Urutan ini yang menutup lubang, bukan penggabungannya. Pemindaian RPC di Monad hanya
+     * menjangkau 1.600 blok — 16 panggilan dikali petak 100 blok, sekitar sepuluh menit —
+     * jadi perdagangan menghilang dari chart begitu jendelanya lewat. Terukur pada
+     * $PARCEL: kurvanya melaporkan `swapCount() = 12` sementara endpoint ini melaporkan 7,
+     * dan sepuluh menit sebelumnya 10. Riwayat yang tampil tergantung kapan halaman dibuka.
+     *
+     * Indexer tidak punya jendela: ia menyimpan setiap `Swap` sejak blok peluncuran. Jadi
+     * kalau ia menjawab, jawabannya sudah lengkap dan pemindaian RPC tidak menambah apa pun
+     * — pemindaian itu tetap dijalankan hanya bila indexer TIDAK melayani chain ini, atau
+     * gagal dihubungi.
+     *
+     * `envioError` disimpan dan diteruskan ke respons: indexer yang mati lalu diam-diam
+     * diganti sumber yang lebih sempit adalah tepat jenis kemunduran yang tidak boleh
+     * tampil sebagai keadaan normal.
+     */
+    let indexerBlock: number | null = null;
+    let envioError: string | null = null;
+
+    if (project?.poolAddress && project.poolLive && envioServes(project.chainId)) {
+      const fromIndexer = await readEnvioSwaps(
+        project.poolAddress,
+        symbol,
+        chain.nativeSymbol,
+        chain.chainId,
+        400
+      );
+      envioError = fromIndexer.error;
+      indexerBlock = fromIndexer.syncedToBlock;
+      if (fromIndexer.trades.length > 0) {
+        trades = fromIndexer.trades;
+        source = "onchain";
+        coverage = {
+          // Indexer mulai dari blok peluncuran, jadi riwayatnya memang utuh — bukan
+          // perkiraan, dan bukan "sejauh jendela sempat menjangkau".
+          fromBlock: project.blockNumber ?? null,
+          toBlock: fromIndexer.syncedToBlock,
+          reachedLaunch: true,
+          truncated: fromIndexer.totalSwaps > fromIndexer.trades.length,
+          // Nol, dan itu harfiah: jalur ini tidak memindai satu blok pun lewat RPC. Field
+          // ini mengukur biaya pembacaan, dan biaya pembacaan dari indexer adalah nol
+          // panggilan `getLogs` — yang justru intinya.
+          blocksScanned: 0,
+          calls: 0,
+          estimatedTimes: 0,
+          error: null,
+        };
+      }
+    }
+
+    if (trades.length === 0 && project?.poolAddress && project.poolLive) {
       /**
        * `project.blockNumber` diteruskan sebagai DASAR penelusuran log.
        *
@@ -194,6 +247,19 @@ export async function GET(req: Request) {
        * bisa dipakai untuk mengatakannya.
        */
       coverage,
+      /**
+       * Dari mana riwayat ini benar-benar datang, dan sejauh mana indexernya sudah menyusul.
+       *
+       * Dilaporkan karena tiga keadaan yang sangat berbeda sebelumnya terkirim dalam bentuk
+       * yang sama persis: riwayat lengkap dari indexer, riwayat sepuluh menit dari
+       * pemindaian RPC, dan riwayat tersimpan yang berhenti kapan pun terakhir kali ada
+       * yang menjalankan skrip backfill. Klien lalu menggambar ketiganya seolah setara.
+       */
+      history: {
+        indexer: envioServes(project?.chainId) ? (envioError ? "error" : "envio") : "not-indexed",
+        indexerBlock,
+        indexerError: envioError,
+      },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

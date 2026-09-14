@@ -1,0 +1,22 @@
+# `.env` DIKECUALIKAN dari konteks build, dan itu bukan kerapian — itu pencegahan
+# kebocoran. `Dockerfile` memakai `COPY . .`, jadi tanpa baris ini ENVIO_API_TOKEN
+# terpanggang ke dalam layer image dan ikut ke mana pun image itu dikirim. Rahasia
+# diteruskan lewat `environment:` di docker-compose.yml, yang dibaca dari host saat
+# container dinyalakan dan tidak pernah menjadi bagian image.
+.env
+.env.*
+
+# Dependensi dipasang di dalam image lewat `npm ci`; menyalin node_modules dari host
+# berisiko membawa biner native untuk platform yang salah.
+node_modules
+
+# Keluaran codegen dan log lokal. Codegen dijalankan ulang di dalam image.
+.envio
+envio-env.d.ts
+logs
+
+# Berkas sementara dan artefak lokal yang tidak dibutuhkan runtime.
+*.tmp.mjs
+docker-compose.yml
+Dockerfile
+README.md

@@ -1,0 +1,104 @@
+# Indexer Monad sebagai layanan produksi.
+#
+# Berkas TERPISAH dari docker-compose.yml di akar, dan itu disengaja: siklus hidupnya
+# berbeda. Situs di-build ulang tiap kali kodenya berubah, sementara indexer harus terus
+# hidup dan menyusul kepala rantai — mem-bundle keduanya berarti setiap deploy situs
+# menjatuhkan indexer dan memulai sync dari checkpoint lagi.
+#
+# TIDAK ADA port yang dipublikasikan. Yang membaca indexer ini adalah container web, dan ia
+# berada di jaringan yang sama, jadi ia memanggil `http://envio-hasura:8080` langsung.
+# Menerbitkan Hasura ke internet berarti menerbitkan konsol admin beserta seluruh basis
+# datanya; kalau nanti endpoint publik dibutuhkan untuk juri, yang diterbitkan harus role
+# anonim di belakang reverse proxy, bukan port ini.
+services:
+  envio-postgres:
+    image: postgres:18.3
+    container_name: envio-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${ENVIO_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:?ENVIO_POSTGRES_PASSWORD wajib diset}
+      POSTGRES_DB: ${ENVIO_PG_DATABASE:-envio-dev}
+    volumes:
+      # Dipasang di `/var/lib/postgresql`, BUKAN di `.../data`.
+      #
+      # Postgres 18 memindahkan direktori datanya ke subdirektori dan menolak start kalau
+      # mount jatuh tepat di bekas lokasi lama: "This is usually the result of upgrading the
+      # Docker image without upgrading the underlying database". Yang gagal bukan datanya,
+      # melainkan letak mount-nya, dan pesannya menunjuk ke arah yang salah.
+      - envio-pgdata:/var/lib/postgresql
+    # Indexer memulai ulang sendiri kalau database belum siap, tapi healthcheck membuat
+    # `depends_on` di bawah berarti sesuatu — tanpa itu urutannya hanya "container sudah
+    # dibuat", bukan "Postgres sudah menerima koneksi".
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ENVIO_PG_USER:-postgres} -d ${ENVIO_PG_DATABASE:-envio-dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - adexto-network
+
+  envio-hasura:
+    image: hasura/graphql-engine:v2.43.0
+    container_name: envio-hasura
+    restart: always
+    depends_on:
+      envio-postgres:
+        condition: service_healthy
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${ENVIO_PG_USER:-postgres}:${ENVIO_POSTGRES_PASSWORD}@envio-postgres:5432/${ENVIO_PG_DATABASE:-envio-dev}
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:?HASURA_GRAPHQL_ADMIN_SECRET wajib diset}
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,webhook-log,websocket-log
+      HASURA_GRAPHQL_NO_OF_RETRIES: "10"
+    ports:
+      # Terikat ke LOOPBACK, bukan 0.0.0.0.
+      #
+      # Container web memanggil `http://envio-hasura:8080` lewat jaringan Docker dan tidak
+      # membutuhkan baris ini sama sekali. Yang membutuhkannya adalah dua hal lain: pengujian
+      # dari mesin pengembang, dan verifikasi dari shell VPS sesudah deploy. Mengikatnya ke
+      # 127.0.0.1 memenuhi keduanya tanpa menerbitkan basis data ke internet — `docker
+      # compose` memang MENEMBUS firewall host kalau alamatnya dibiarkan 0.0.0.0, dan itu
+      # kelas kesalahan yang tidak terlihat sampai ada yang memindai portnya.
+      - "127.0.0.1:8080:8080"
+    networks:
+      - adexto-network
+
+  envio-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: envio-indexer
+    restart: always
+    depends_on:
+      envio-postgres:
+        condition: service_healthy
+    environment:
+      # HyperSync menolak setiap query tanpa ini, dan indexer BERHENTI di fetch pertama
+      # alih-alih turun ke RPC. `rpc.for: fallback` di config.yaml menutup HyperSync yang
+      # jawabannya buruk, bukan yang tidak pernah lolos autentikasi.
+      ENVIO_API_TOKEN: ${ENVIO_API_TOKEN:?ENVIO_API_TOKEN wajib diset}
+      # Menyetel ENVIO_PG_HOST membuat CLI menyimpulkan database dikelola dari luar,
+      # sehingga ia TIDAK mencoba menyalakan container Postgres sendiri. Itu justru yang
+      # diinginkan di sini: Postgres-nya sudah ada di compose ini.
+      ENVIO_PG_HOST: envio-postgres
+      ENVIO_PG_PORT: "5432"
+      ENVIO_PG_USER: ${ENVIO_PG_USER:-postgres}
+      ENVIO_POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD}
+      ENVIO_PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
+      HASURA_GRAPHQL_ENDPOINT: http://envio-hasura:8080/v1/metadata
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+    networks:
+      - adexto-network
+
+volumes:
+  envio-pgdata:
+
+networks:
+  adexto-network:
+    # `external` dan bernama, mengikuti pola yang sama seperti subgraph/docker-compose.yml:
+    # container web ikut jaringan ini, jadi ia bisa memanggil `http://envio-hasura:8080`
+    # tanpa satu pun port terbuka ke internet. Nama yang dihasilkan compose akan bergantung
+    # pada nama direktori, yang berbeda antara lokal dan VPS.
+    external: true
+    name: adexto-net
