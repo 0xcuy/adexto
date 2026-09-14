@@ -1544,9 +1544,17 @@ console.log("\n── petak getLogs per chain vs yang diterima RPC sungguhan ─
  *    ke satu pane. Dua cacat itu bertemu: candle menyusut jumlahnya karena (1), lalu
  *    berubah lebar karena (2). Efeknya juga terlihat antar-token pada waktu yang sama —
  *    $ADEXTO 108 bar ~4px per bar, $CURB 4 bar ~38px per bar, kode dan setelan sama.
- *    Sekarang jendela selalu selebar `VISIBLE_SLOTS`, jadi jumlah bar tidak lagi ikut
- *    menentukan ukurannya. Yang dipatok di bawah: konstanta itu ada, `fitContent()`
- *    tidak kembali, dan kedua jangkar menghasilkan jendela selebar sama.
+ *    Lebar bar sekarang DIPILIH dalam piksel (`BAR_SPACING`) dan jumlah slot diturunkan
+ *    darinya, jadi jumlah bar tidak lagi menentukan ukurannya.
+ * 3. Tiga cacat lain yang bertemu di gejala yang sama, "candle terlalu kecil", dan
+ *    masing-masing dipatok di bawah:
+ *    - `toLineData` melewati bar warmup, jadi seri RSI lebih pendek dari seri candle dan
+ *      kotak osilator MENIMPA lebar bar chart harga lewat sinkronisasi rentang logis
+ *      dua arah. Lebar candle karena itu ditentukan panjang seri RSI, bukan setelan chart.
+ *    - bucket kosong di antara perdagangan diisi semuanya, jadi pasar yang berdagang dalam
+ *      rombongan tampil 94% garis datar.
+ *    - tepi kanan dijangkarkan ke bar terakhir, yang pada pasar sepi berisi bar datar saja
+ *      sehingga chart-nya kosong sama sekali.
  *
  * Diperiksa di tingkat sumber karena repo ini tidak punya runner tes TS dan `tsx` hanya
  * dependensi transitif, jadi penjaga yang memanggilnya akan lebih rapuh daripada yang
@@ -1573,8 +1581,21 @@ console.log("\n── jendela chart: bentuk tidak boleh berubah karena jam maju 
     );
   }
 
-  const slots = chart.match(/const VISIBLE_SLOTS = (\d+);/);
-  check("VISIBLE_SLOTS terbaca", Boolean(slots), slots ? `${slots[1]} slot` : "pola berubah");
+  const spacing = chart.match(/const BAR_SPACING = (\d+);/);
+  check(
+    "BAR_SPACING terbaca — lebar bar DIPILIH dalam piksel",
+    Boolean(spacing),
+    spacing ? `${spacing[1]}px per bar` : "pola berubah"
+  );
+
+  const derivesSlots = /Math\.round\(\s*drawable\s*\/\s*BAR_SPACING\s*\)/.test(chart);
+  check(
+    "jumlah slot diturunkan dari BAR_SPACING, bukan angka slot tetap",
+    derivesSlots,
+    derivesSlots
+      ? "slots = lebar area gambar / BAR_SPACING"
+      : "jumlah slot tetap membuat lebar bar jadi fungsi lebar pane, bukan angka yang dipilih"
+  );
 
   const usesFit = /\bfitContent\(\)/.test(chart.replace(/\/\*[\s\S]*?\*\//g, ""));
   check(
@@ -1582,46 +1603,115 @@ console.log("\n── jendela chart: bentuk tidak boleh berubah karena jam maju 
     !usesFit,
     usesFit
       ? "fitContent() memeras seluruh riwayat ke satu pane, jadi candle mengecil seiring riwayat bertambah dan berbeda antar-token"
-      : "jendela selalu selebar VISIBLE_SLOTS"
+      : "lebar jendela dihitung dari BAR_SPACING"
   );
 
   /**
-   * Diambil panggilan yang MENYEBUT `VISIBLE_SLOTS`, bukan yang pertama ditemukan.
+   * Tepi kanan HARUS dijangkarkan ke bar terakhir yang punya volume.
+   *
+   * Menjangkar ke bar terakhir apa adanya gagal pada pasar yang sedang sepi: ekor bar datar
+   * sesudah perdagangan terakhir bisa mengisi seluruh jendela, dan chart-nya menjadi kosong
+   * sama sekali. Terukur pada $ADEXTO 1h — satu garis lurus, nol candle terlihat — dan itu
+   * baru muncul setelah kotak osilator berhenti menimpa rentangnya, jadi cacat ini
+   * tersembunyi di balik cacat lain selama ini.
+   */
+  const volumeAnchor = /volume > 0/.test(chart) && /lastTraded/.test(chart);
+  check(
+    "tepi kanan dijangkarkan ke bar terakhir yang ADA VOLUME",
+    volumeAnchor,
+    volumeAnchor
+      ? "jendela tidak pernah berisi bar datar saja"
+      : "menjangkar ke ujung seri membuat pasar yang sepi tampil sebagai chart kosong"
+  );
+
+  /**
+   * Diambil panggilan yang MENYEBUT `used`, bukan yang pertama ditemukan.
    *
    * Ada panggilan `setVisibleLogicalRange` lain di berkas ini yang menyalin jendela chart
-   * harga ke pane osilator supaya kedua sumbu waktu sejajar. Versi pertama penjaga ini
-   * mengambil yang itu, mencocokkan `range` sebagai isinya, lalu melaporkan kedua jangkar
-   * hilang — gagal pada kode yang benar.
+   * harga ke kotak osilator supaya kedua sumbu waktu sejajar. Versi pertama penjaga ini
+   * mengambil yang itu lalu melaporkan kedua jangkar hilang — gagal pada kode yang benar.
    *
-   * Menuntut TEPAT SATU yang menyebut konstanta itu juga menjaga hal yang lebih penting:
-   * aturan lebar bar tinggal di satu tempat. Dua panggilan yang mengatur jendela berarti
-   * dua tempat bisa berbeda pendapat, dan itulah bentuk cacat yang baru saja dicabut.
+   * Menuntut TEPAT SATU juga menjaga hal yang lebih penting: aturan lebar bar tinggal di
+   * satu tempat. Dua panggilan yang mengatur jendela berarti dua tempat bisa berbeda
+   * pendapat, dan itulah bentuk cacat yang dicabut.
    */
   const sizing = [...chart.matchAll(/setVisibleLogicalRange\(([\s\S]{0,320}?)\);/g)]
     .map((m) => m[1])
-    .filter((body) => body.includes("VISIBLE_SLOTS"));
+    .filter((body) => /\bused\b/.test(body));
   check(
     "tepat satu panggilan menetapkan lebar jendela",
     sizing.length === 1,
-    sizing.length === 1 ? "ditemukan" : `${sizing.length} panggilan menyebut VISIBLE_SLOTS`
+    sizing.length === 1 ? "ditemukan" : `${sizing.length} panggilan menetapkan lebar jendela`
   );
   if (sizing.length === 1) {
-    const range = [null, sizing[0]];
-    /**
-     * Kedua cabang harus selebar `VISIBLE_SLOTS`, kalau tidak ia kembali jadi dua mode:
-     * kiri 0 -> VISIBLE_SLOTS, kanan (len - VISIBLE_SLOTS) -> len. Yang berbeda hanya
-     * jangkarnya, dan itu tidak mengubah lebar bar.
-     */
-    const left = /\{\s*from:\s*0,\s*to:\s*VISIBLE_SLOTS\s*\}/.test(range[1]);
-    const right = /\{\s*from:\s*sorted\.length - VISIBLE_SLOTS,\s*to:\s*sorted\.length\s*\}/.test(range[1]);
+    // Kedua cabang harus selebar `used`, kalau tidak ia kembali jadi dua mode dan ukuran
+    // candle melompat saat sebuah pasar tumbuh melewati ambangnya. Yang berbeda hanya
+    // jangkarnya, dan itu tidak mengubah lebar bar.
+    const left = /\{\s*from:\s*0,\s*to:\s*used\s*\}/.test(sizing[0]);
+    const right = /\{\s*from:\s*anchor - used,\s*to:\s*anchor\s*\}/.test(sizing[0]);
     check(
-      "kedua jangkar menghasilkan jendela selebar VISIBLE_SLOTS",
+      "kedua jangkar menghasilkan jendela selebar sama",
       left && right,
       left && right
         ? "pasar muda menempel kiri, pasar panjang menempel kanan, lebar bar sama"
         : `kiri=${left} kanan=${right} — lebar jendela berbeda antar cabang berarti ukuran candle melompat lagi`
     );
   }
+
+  /**
+   * Bar datar di antara dua perdagangan HARUS dibatasi.
+   *
+   * Tanpa batas ini sebuah pasar yang berdagang dalam rombongan tampil sebagai garis datar
+   * dengan beberapa candle terhimpit di dalamnya. Terukur pada $PARCEL: 49 bar dengan 3
+   * berisi pada 15 menit, 64 dengan 3 pada 1 jam. Chart yang 94% bar kosong tidak
+   * menyampaikan apa pun, dan itu terbaca sebagai candle yang terlalu kecil.
+   */
+  const gapCap = trades.match(/const MAX_GAP_BARS = (\d+);/);
+  const gapUsed = /emptyRun > MAX_GAP_BARS/.test(trades);
+  check(
+    "bar datar antar-perdagangan dibatasi",
+    Boolean(gapCap) && gapUsed,
+    gapCap && gapUsed
+      ? `maksimum ${gapCap[1]} bar datar per jeda, jeda tetap terlihat`
+      : "mengisi setiap bucket kosong membuat pasar yang berdagang dalam rombongan jadi garis datar"
+  );
+
+  /**
+   * Seri indikator HARUS sepanjang seri candle.
+   *
+   * Ini yang membuat lebar candle tidak pernah bisa dikendalikan. `toLineData` dulu
+   * melewati bar warmup, jadi RSI 14 pada 140 candle menghasilkan 126 titik dan indeks 0
+   * osilator adalah bar ke-14 harga. Sinkronisasi sumbu waktu kedua kotak memakai RENTANG
+   * LOGIS dan arahnya dua-duanya, jadi rentang 126-bar milik osilator didorong ke chart
+   * harga. Terukur dari instrumen di browser: chart harga meminta 64 slot dan menggambar
+   * 125,67 bar pada barSpacing 6,0158 — bawaan pustaka, bukan yang disetel.
+   */
+  const indicators = readFileSync("src/lib/indicators.ts", "utf8");
+  const whitespace = /out\.push\(\{\s*time:\s*candles\[i\]\.time\s*\}\)/.test(indicators);
+  check(
+    "toLineData memancarkan whitespace untuk bar warmup",
+    whitespace,
+    whitespace
+      ? "seri indikator sepanjang seri candle, jadi rentang logis berarti sama di kedua kotak"
+      : "seri indikator lebih pendek membuat kotak osilator menimpa lebar bar chart harga dan menggeser crosshair"
+  );
+
+  /**
+   * Penyelarasan awal kedua sumbu waktu harus SATU ARAH: osilator mengikuti harga.
+   *
+   * Kalau kedua langganan dipasang lebih dulu, panggilan penyelarasan itu memantul kembali
+   * lewat langganan arah sebaliknya dan menimpa rentang yang baru diminta chart harga.
+   */
+  const syncOrder = chart.match(
+    /getVisibleLogicalRange\(\);[\s\S]{0,200}?setVisibleLogicalRange\(current\);[\s\S]{0,120}?linkFrom\(price, osc\);[\s\S]{0,60}?linkFrom\(osc, price\);/
+  );
+  check(
+    "penyelarasan awal berjalan sebelum langganan dipasang",
+    Boolean(syncOrder),
+    syncOrder
+      ? "osilator mengikuti harga, bukan sebaliknya"
+      : "langganan dipasang lebih dulu membuat penyelarasan memantul dan menimpa lebar bar"
+  );
 }
 
 // ── dua sulihan diam-diam yang keduanya merender angka salah sebagai fakta ──
