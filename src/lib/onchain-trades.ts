@@ -723,15 +723,42 @@ export function buildCandles(
   const tailCeiling = Math.max(wallBucket, lastFilled);
   const endBucket = Math.min(tailCeiling, lastFilled + maxTrailing * bucketSeconds);
 
+  /**
+   * Bar datar DI ANTARA dua perdagangan DIBATASI, tidak lagi diisi penuh.
+   *
+   * Celah di tengah tetap ditampilkan — jeda adalah fakta tentang waktu dan menghapusnya
+   * sama sekali akan membuat dua fill yang berjarak sepuluh jam terlihat berdampingan.
+   * Yang dibuang hanya PENGULANGANNYA: setelah beberapa bar, bar datar berikutnya tidak
+   * menambah satu pun informasi baru dan hanya memakan tempat.
+   *
+   * Terukur di $PARCEL, yang berdagang dalam tiga rombongan terpisah: pada 15 menit
+   * hasilnya 49 bar dengan hanya 3 yang berisi — 46 bar datar, 94% chart. Pada 1 jam 61
+   * dari 64. Chart yang 94% garis datar tidak menyampaikan apa pun, dan itulah yang
+   * membuat candle-nya terlihat sesobek: tiga bar nyata terhimpit di antara puluhan bar
+   * kosong.
+   *
+   * Empat dipilih karena masih jelas terbaca sebagai jeda, dan karena bar terakhir dari
+   * jeda tetap membawa `close` yang benar sehingga harga pembuka rombongan berikutnya
+   * bersambung ke harga yang memang berlaku sebelumnya.
+   *
+   * Yang TIDAK dilakukan: memampatkan sumbu waktu. Label tiap bar tetap waktu aslinya,
+   * jadi lompatannya terlihat pada sumbu — bukan disembunyikan.
+   */
+  const MAX_GAP_BARS = 4;
+  let emptyRun = 0;
+
   for (let bucket = filledBuckets[0]; bucket <= endBucket; bucket += bucketSeconds) {
     const fills = byBucket.get(bucket);
     if (!fills || fills.length === 0) {
       // A gap after trading has begun is genuine: the price did not move because
       // nobody traded. Flat is the truth here.
       if (last <= 0) continue;
+      emptyRun += 1;
+      if (emptyRun > MAX_GAP_BARS) continue;
       candles.push({ time: bucket, open: last, high: last, low: last, close: last, volume: 0 });
       continue;
     }
+    emptyRun = 0;
     const prices = fills.map((f) => f.price);
     const open = last > 0 ? last : prices[0];
     const close = prices[prices.length - 1];

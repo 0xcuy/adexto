@@ -114,7 +114,7 @@ const INTERVALS = [
    * menghasilkan satu bar dan "1y" satu bar juga.
    *
    * Pada pasar yang lebih muda dari satu bar, hasilnya memang satu candle. Itu aritmetika
-   * umur pasar, bukan kerusakan, dan `VISIBLE_SLOTS` sudah menangani tampilannya supaya
+   * umur pasar, bukan kerusakan, dan `BAR_SPACING` sudah menangani tampilannya supaya
    * satu bar tidak diregangkan selebar pane.
    */
   { label: "1d", seconds: 86400 },
@@ -133,10 +133,12 @@ const INTERVALS = [
 const DATE_ONLY_FROM_SECONDS = 86400;
 
 /**
- * Jumlah slot yang terlihat di pane, SAMA untuk setiap token dan setiap timeframe.
+ * Lebar satu bar dalam PIKSEL, sama untuk setiap token dan setiap timeframe.
  *
- * Lebar candle karena itu selalu `lebar pane / VISIBLE_SLOTS`, bukan turunan dari
- * banyaknya bar yang kebetulan dimiliki sebuah pasar.
+ * Dinyatakan sebagai piksel dan bukan sebagai jumlah slot, jadi lebar candle tidak lagi
+ * bergantung pada lebar pane maupun pada banyaknya bar yang kebetulan dimiliki sebuah
+ * pasar. Sebelumnya 96 slot per pane, yang terukur menjadi 6,9px per bar — di bawah lebar
+ * bar terminal rujukan mana pun, dan itulah keluhan candle terlalu kecil.
  *
  * Sebelum ini ada DUA mode dan chart melompat di antaranya pada bar ke-12: di bawah
  * ambang jendela dipatok ke 12 slot, di atasnya `fitContent()` memeras seluruh riwayat
@@ -155,7 +157,7 @@ const DATE_ONLY_FROM_SECONDS = 86400;
  * `fitContent()` sengaja tidak dipakai lagi. Riwayat lama tidak hilang: bar di luar
  * jendela tetap ada di seri dan bisa digeser atau di-zoom seperti chart mana pun.
  */
-const VISIBLE_SLOTS = 96;
+const BAR_SPACING = 12;
 
 /**
  * Lebar sumbu harga, dipatok sama untuk chart harga DAN kotak osilator.
@@ -696,10 +698,19 @@ export default function RealtimeCandleChart({
         }
       });
     if (price) {
-      linkFrom(price, osc);
-      linkFrom(osc, price);
+      /**
+       * Penyelarasan awal dijalankan SEBELUM langganan dipasang, dan arahnya satu arah:
+       * osilator mengikuti harga.
+       *
+       * Sebelumnya kedua langganan dipasang lebih dulu, lalu
+       * `osc.setVisibleLogicalRange(current)` dipanggil di luar penjaga `syncingRef` —
+       * sehingga panggilan itu memantul kembali ke chart harga lewat `linkFrom(osc, price)`
+       * dan menimpa rentang yang baru saja diminta chart harga.
+       */
       const current = price.timeScale().getVisibleLogicalRange();
       if (current) osc.timeScale().setVisibleLogicalRange(current);
+      linkFrom(price, osc);
+      linkFrom(osc, price);
     }
 
     const handleResize = () => {
@@ -759,8 +770,15 @@ export default function RealtimeCandleChart({
     const ohlc: Ohlc[] = candles;
     const ind = computeIndicators(ohlc);
 
-    const addOverlay = (color: string, data: Array<{ time: number; value: number }>, style = LineStyle.Solid) => {
-      if (data.length === 0) return null;
+    const addOverlay = (
+      color: string,
+      data: Array<{ time: number; value?: number }>,
+      style = LineStyle.Solid
+    ) => {
+      // Dilewati kalau tidak ada SATU pun titik bernilai, bukan kalau arraynya kosong:
+      // `toLineData` kini memancarkan whitespace untuk bar warmup, jadi panjangnya selalu
+      // sama dengan jumlah candle dan `length === 0` tidak pernah benar lagi.
+      if (!data.some((d) => d.value !== undefined)) return null;
       const s = chart.addSeries(LineSeries, {
         color,
         lineWidth: 1,
@@ -827,11 +845,18 @@ export default function RealtimeCandleChart({
           idx
         );
         hist.setData(
-          histData.map((d) => ({
-            time: d.time as any,
-            value: d.value,
-            color: d.value >= 0 ? "rgba(16,185,129,0.55)" : "rgba(244,63,94,0.55)",
-          })) as any
+          histData.map((d) =>
+            // Titik whitespace (bar warmup) diteruskan tanpa `value` dan tanpa warna.
+            // Memberinya 0 akan menggambar batang nol yang terbaca sebagai "MACD memang
+            // nol di sini", padahal artinya belum bisa dihitung.
+            d.value === undefined
+              ? { time: d.time as any }
+              : {
+                  time: d.time as any,
+                  value: d.value,
+                  color: d.value >= 0 ? "rgba(16,185,129,0.55)" : "rgba(244,63,94,0.55)",
+                }
+          ) as any
         );
         const macdLine = osc.addSeries(
           LineSeries,
@@ -945,8 +970,8 @@ export default function RealtimeCandleChart({
           const fitKey = `${symbol}:${chainId}:${interval}`;
           if (fittedFor.current !== fitKey) {
             /**
-             * SATU aturan, bukan dua mode. Jendela selalu selebar `VISIBLE_SLOTS` slot,
-             * jadi lebar candle identik di semua token dan semua timeframe.
+             * SATU aturan, bukan dua mode. Jendela selalu selebar `slots`, yang dihitung
+             * dari `BAR_SPACING`, jadi lebarnya identik di semua token dan timeframe.
              *
              * Yang berbeda hanya JANGKARNYA, dan itu bukan mode terpisah karena lebar
              * jendelanya tetap sama:
@@ -962,12 +987,67 @@ export default function RealtimeCandleChart({
              * Pada titik peralihan keduanya menghasilkan jendela yang sama persis, jadi
              * tidak ada lompatan ukuran saat sebuah pasar tumbuh melewatinya.
              */
-            const ts = chartRef.current?.timeScale();
-            ts?.setVisibleLogicalRange(
-              sorted.length <= VISIBLE_SLOTS
-                ? { from: 0, to: VISIBLE_SLOTS }
-                : { from: sorted.length - VISIBLE_SLOTS, to: sorted.length }
+            /**
+             * Jumlah slot diturunkan dari LEBAR PIKSEL yang dipilih, dan tepi kanan
+             * dijangkarkan ke bar terakhir yang PUNYA VOLUME.
+             *
+             * Dua hal yang keduanya terukur, bukan preferensi:
+             *
+             * - `timeScale.barSpacing` tidak bisa dipakai untuk ini. Terukur dari
+             *   instrumen di browser: chart berakhir pada 6,0158 (bawaan pustaka)
+             *   walaupun 12 yang disetel, karena rentang logis yang menang. Jadi lebar
+             *   bar dikendalikan lewat jumlah slot: `lebar area gambar / BAR_SPACING`.
+             *
+             * - Menjangkar ke bar TERAKHIR salah pada pasar yang sedang sepi. Ekor bar
+             *   datar sesudah perdagangan terakhir memang ada (dibatasi di
+             *   `buildCandles`), jadi jendela yang berakhir di bar terakhir bisa berisi
+             *   bar datar saja. Terukur: $ADEXTO di 1h menjadi chart kosong sama sekali,
+             *   satu garis lurus tanpa satu pun candle terlihat.
+             *
+             * Karena itu tepi kanannya bar berisi terakhir ditambah sedikit ruang, jadi
+             * jeda terbaru tetap kelihatan tanpa mengusir datanya keluar layar.
+             */
+            const drawable = Math.max(
+              120,
+              (containerRef.current?.clientWidth ?? 600) - PRICE_AXIS_WIDTH
             );
+            const slots = Math.max(8, Math.round(drawable / BAR_SPACING));
+
+            let lastTraded = -1;
+            for (let i = sorted.length - 1; i >= 0; i--) {
+              if (sorted[i].volume > 0) {
+                lastTraded = i;
+                break;
+              }
+            }
+            // Tanpa satu pun bar bervolume, tidak ada yang bisa dijangkarkan; pakai ujung
+            // seri apa adanya.
+            const anchor =
+              lastTraded < 0
+                ? sorted.length
+                : Math.min(sorted.length, lastTraded + 1 + Math.ceil(slots * 0.15));
+
+            /**
+             * Jendela DIPERSEMPIT ke datanya kalau barnya lebih sedikit dari slot yang
+             * tersedia, jadi lebar bar punya BATAS BAWAH, bukan nilai tetap.
+             *
+             * Memakai seluruh `slots` pada pasar yang barnya sedikit menyisakan pane
+             * hampir kosong: terukur pada $PARCEL 15 menit, 12 bar di dalam 63 slot berarti
+             * 81% pane kosong dengan candle menempel di tepi kiri. Itu terbaca sebagai
+             * chart rusak, bukan sebagai pasar muda.
+             *
+             * `MIN_SLOTS` menjaga ujung sebaliknya: satu pasar dengan dua bar tidak boleh
+             * menjadi dua balok selebar setengah pane. Jadi lebar bar bergerak di antara
+             * `BAR_SPACING` (riwayat panjang) dan `lebar / MIN_SLOTS` (riwayat pendek), dan
+             * tidak pernah lebih kecil dari yang pertama — yang justru keluhannya.
+             */
+            const MIN_SLOTS = 16;
+            const used = Math.max(MIN_SLOTS, Math.min(slots, Math.ceil(anchor * 1.25)));
+            chartRef.current
+              ?.timeScale()
+              .setVisibleLogicalRange(
+                anchor <= used ? { from: 0, to: used } : { from: anchor - used, to: anchor }
+              );
             fittedFor.current = fitKey;
           }
         } else {

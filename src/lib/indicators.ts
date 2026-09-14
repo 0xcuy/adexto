@@ -233,12 +233,38 @@ export function computeIndicators(candles: Ohlc[]): IndicatorSet {
  * shape lightweight-charts wants. Dropping rather than zero-filling is deliberate:
  * a zero would be drawn as a real datapoint at the bottom of the scale.
  */
-export function toLineData(candles: Ohlc[], series: Series): Array<{ time: number; value: number }> {
-  const out: Array<{ time: number; value: number }> = [];
-  for (let i = 0; i < candles.length && i < series.length; i++) {
-    const v = series[i];
-    if (v === null || !Number.isFinite(v)) continue;
-    out.push({ time: candles[i].time, value: v });
+/**
+ * Bar warmup dipancarkan sebagai WHITESPACE, bukan dilewati.
+ *
+ * `{ time }` tanpa `value` adalah titik whitespace di lightweight-charts: ia memesan satu
+ * indeks tanpa menggambar apa pun. Versi sebelumnya `continue` pada bar warmup, jadi seri
+ * indikator lebih pendek daripada seri candle — dan itu merusak dua hal yang keduanya
+ * tidak menimbulkan galat:
+ *
+ *   - Indeks logisnya bergeser. RSI 14 pada 140 candle menghasilkan 126 titik, jadi indeks
+ *     0 osilator adalah bar ke-14 harga. Sinkronisasi sumbu waktu kedua kotak memakai
+ *     RENTANG LOGIS, sehingga crosshair di satu kotak menunjuk bar berbeda di kotak lain —
+ *     persis kesalahan yang sinkronisasi itu ada untuk mencegah.
+ *   - Kotak osilator MENIMPA lebar bar chart harga. Sinkronisasinya dua arah, jadi rentang
+ *     126-bar milik osilator didorong ke chart harga. Terukur dari instrumen di browser:
+ *     chart harga meminta 64 slot dan berakhir menggambar 125,67 bar pada `barSpacing`
+ *     6,0158 — nilai bawaan pustaka, bukan yang disetel. Artinya lebar candle selama ini
+ *     ditentukan panjang seri RSI, bukan setelan chart mana pun.
+ *
+ * Dengan whitespace kedua seri punya panjang dan ruang indeks yang sama persis.
+ */
+export function toLineData(
+  candles: Ohlc[],
+  series: Series
+): Array<{ time: number; value?: number }> {
+  const out: Array<{ time: number; value?: number }> = [];
+  for (let i = 0; i < candles.length; i++) {
+    const v = i < series.length ? series[i] : null;
+    if (v === null || v === undefined || !Number.isFinite(v)) {
+      out.push({ time: candles[i].time });
+      continue;
+    }
+    out.push({ time: candles[i].time, value: v as number });
   }
   return out;
 }
