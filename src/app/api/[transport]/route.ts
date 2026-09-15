@@ -44,6 +44,9 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { resolveChainOrDefault } from "@/lib/chains";
+import { readOnChainSwaps } from "@/lib/onchain-trades";
+import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -57,11 +60,6 @@ import { listProjects, type ProjectRecord } from "@/lib/registry";
 const GATEWAY = ADEXTO_CONTRACTS.edgeX402Gateway.replace(/\/$/, "");
 /** Hanya untuk menyebut endpoint publik di dalam jawaban, bukan untuk memanggil apa pun. */
 const SITE = "https://adexto.xyz";
-const INDEXER = process.env.ENVIO_GRAPHQL_URL ?? "";
-const INDEXER_SECRET = process.env.ENVIO_HASURA_SECRET ?? "";
-
-/** Chain yang diindeks Envio. Menanyakan chain lain ke indexer itu akan bohong. */
-const INDEXED_CHAINS = new Set([143]);
 
 const jsonResult = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -141,7 +139,7 @@ const mcp = createMcpHandler(
             curve: p.poolAddress,
             tradable: p.poolLive && Boolean(p.poolAddress),
             priceNative: p.priceNative,
-            indexedHistory: INDEXED_CHAINS.has(Number(p.chainId)),
+            historySource: envioServes(p.chainId) ? "indexer" : "rpc-logs",
           })),
           note:
             "Pay with USDC on Base; the curve on the market's own chain sends the tokens straight to your address. " +
@@ -155,7 +153,7 @@ const mcp = createMcpHandler(
       {
         title: "One market in detail",
         description:
-          "Full detail for a single market: chain, curve address, supply, current price in the chain's native asset, and whether its trade history is indexed. Free.",
+          "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
         inputSchema: { symbol: SYMBOL },
       },
       async ({ symbol }) => {
@@ -187,7 +185,11 @@ const mcp = createMcpHandler(
           creator: found.creator,
           launchTx: found.txHash,
           launchBlock: found.blockNumber,
-          indexedHistory: INDEXED_CHAINS.has(Number(found.chainId)),
+          /**
+           * Sumbernya, bukan klaim kelengkapan. Lengkap atau tidak hanya diketahui SESUDAH
+           * dibaca — `trade_history` yang menyatakannya per panggilan lewat `complete`.
+           */
+          historySource: envioServes(found.chainId) ? "indexer" : "rpc-logs",
           buyResource: `${GATEWAY}/v1/x402/buy/${found.slug}`,
         });
       }
@@ -317,16 +319,47 @@ const mcp = createMcpHandler(
       }
     );
 
-    // ── FREE: history, from the indexer ───────────────────────────────────────
+    // ── FREE: history ─────────────────────────────────────────────────────────
+    /**
+     * KELENGKAPAN DIUKUR, BUKAN DIASUMSIKAN DARI CHAIN.
+     *
+     * Versi pertama alat ini MENOLAK setiap chain selain Monad, dengan alasan yang ditulis
+     * di dalam pesan galatnya sendiri: "pemindaian RPC di chain ini hanya menjangkau jendela
+     * pendek". Alasan itu salah untuk 0G, dan angkanya sudah ada di repo ini sejak awal.
+     *
+     * Petak `eth_getLogs` 0G adalah 500.000 blok dengan anggaran 16 panggilan, sedangkan
+     * jarak dari blok peluncuran $ADEXTO ke kepala rantai 715.692 blok. Jadi riwayat penuh
+     * 0G terjangkau dalam DUA panggilan, dan produksi memang sudah menyajikannya:
+     * `reachedLaunch: true`, `truncated: false`, `calls: 2`, 20 fill untuk $ADEXTO dan 1
+     * untuk $ADT. Alat ini menolak data yang sudah dipajang halaman token di sebelahnya.
+     *
+     * Yang sebenarnya ingin dicegah tetap benar: riwayat terpotong tidak boleh terlihat
+     * seperti pasar yang tidak pernah diperdagangkan. Tapi penjaganya bukan daftar chain —
+     * penjaganya `coverage.reachedLaunch`, yang menyatakan penelusuran berhenti karena
+     * riwayatnya HABIS, bukan karena anggarannya habis. Base masih akan dilaporkan tidak
+     * lengkap kalau memang tidak lengkap: petaknya 2.000 blok, jadi 16 panggilan hanya
+     * menjangkau 32.000 blok.
+     *
+     * Keduanya memakai pustaka yang SAMA dengan yang dipakai terminal token
+     * (`readEnvioSwaps`, `readOnChainSwaps`). Versi pertama menyalin ulang kueri GraphQL
+     * Envio ke dalam berkas ini — persis "definisi kedua" yang dijanjikan tidak akan dibuat
+     * di komentar kepala berkas. Sekarang tidak ada kueri swap di sini sama sekali.
+     */
     server.registerTool(
       "trade_history",
       {
-        title: "Every swap on a market, from the indexer",
+        title: "Every swap on a market, and how complete the answer is",
         description:
-          "Full trade history for a market since its launch block, read from our Envio HyperIndex — not from an RPC log scan, so it has no lookback window. Free. Currently indexed for Monad only; other chains report that plainly instead of returning a shortened history that looks complete.",
+          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
         inputSchema: {
           symbol: SYMBOL,
-          limit: z.number().int().min(1).max(200).optional().describe("Rows to return, newest first. Default 50."),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(400)
+            .optional()
+            .describe("Rows to return, newest first. Default 50, maximum 400."),
         },
       },
       async ({ symbol, limit }) => {
@@ -336,54 +369,123 @@ const mcp = createMcpHandler(
         if (!market) {
           return jsonResult({ error: "unknown_market", symbol: want, known: projects.map((p) => p.symbol) });
         }
-        if (!INDEXED_CHAINS.has(Number(market.chainId))) {
-          return jsonResult({
-            error: "not_indexed",
-            symbol: want,
-            chainId: market.chainId,
-            detail:
-              "This chain has no indexer. Returning a partial history here would be worse than refusing: an RPC scan on this chain reaches only a short window and looks identical to a market that has never traded.",
-          });
-        }
-        if (!market.poolAddress) {
+        if (!market.poolAddress || !market.poolLive) {
           return jsonResult({
             error: "no_curve",
             symbol: want,
-            detail: "This market is registered but has no curve address, so it has no swaps to report.",
+            detail: "This market has no live curve, so there are no swaps to report.",
           });
         }
-        if (!INDEXER) {
-          return jsonResult({ error: "indexer_unavailable", detail: "The indexer endpoint is not configured." });
+
+        const rows = Math.min(400, Math.max(1, Number(limit ?? 50)));
+        const chain = resolveChainOrDefault(market.chainId);
+        const shape = (t: {
+          txHash: string;
+          type: string;
+          amountToken: number;
+          amountNative: number;
+          priceNative: number;
+          priceNativeAfter?: number | null;
+          trader: string;
+          timestamp: string;
+          blockNumber: number | null;
+        }) => ({
+          txHash: t.txHash,
+          side: t.type,
+          amountToken: t.amountToken,
+          amountNative: t.amountNative,
+          nativeSymbol: chain.nativeSymbol,
+          /** Yang benar-benar dibayar atau diterima, fee termasuk. Bukan harga pasar. */
+          executionPriceNative: t.priceNative,
+          /** Harga spot kurva sesudah fill ini. Ini yang harus diplot sebagai harga. */
+          spotPriceAfter: t.priceNativeAfter ?? null,
+          trader: t.trader,
+          timestamp: t.timestamp,
+          blockNumber: t.blockNumber,
+        });
+
+        // 1. Indexer lebih dulu bila ia melayani chain ini: lengkap sejak blok peluncuran
+        //    tanpa satu pun panggilan `getLogs`.
+        if (envioServes(market.chainId)) {
+          const fromIndexer = await readEnvioSwaps(
+            market.poolAddress,
+            want,
+            chain.nativeSymbol,
+            market.chainId,
+            rows
+          );
+          if (fromIndexer.trades.length > 0) {
+            return jsonResult({
+              symbol: want,
+              chainId: market.chainId,
+              chain: market.chainLabel,
+              curve: market.poolAddress,
+              source: "envio-hyperindex",
+              complete: true,
+              completeBecause:
+                "The indexer stores every Swap since the factory's launch block, so this is the whole history rather than a window.",
+              totalSwaps: fromIndexer.totalSwaps,
+              returned: fromIndexer.trades.length,
+              indexerSyncedToBlock: fromIndexer.syncedToBlock,
+              swaps: fromIndexer.trades.map(shape),
+              publicEndpoint: `${SITE}/api/indexer/graphql`,
+            });
+          }
+          /**
+           * Indexer yang gagal TIDAK mengembalikan daftar kosong: ia menyerahkan giliran ke
+           * pemindaian di bawah, dan galatnya tetap dilaporkan. Indexer mati yang diam-diam
+           * diganti sumber lebih sempit adalah tepat jenis kemunduran yang tidak boleh
+           * tampil seperti keadaan normal.
+           */
+          if (fromIndexer.error) {
+            const read = await readOnChainSwaps(chain, market.poolAddress, want, rows, market.blockNumber);
+            return jsonResult({
+              symbol: want,
+              chainId: market.chainId,
+              chain: market.chainLabel,
+              curve: market.poolAddress,
+              source: "rpc-logs",
+              indexerError: fromIndexer.error,
+              degraded: true,
+              complete: read.coverage.reachedLaunch,
+              coverage: read.coverage,
+              returned: read.trades.length,
+              swaps: read.trades.map(shape),
+            });
+          }
         }
 
-        const rows = Math.min(200, Math.max(1, Number(limit ?? 50)));
-        const headers: Record<string, string> = { "content-type": "application/json" };
-        if (INDEXER_SECRET) headers["x-hasura-admin-secret"] = INDEXER_SECRET;
-        const r = await passthrough(INDEXER, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query: `query H($curve: String!, $limit: Int!) {
-              Swap(where: { curve_id: { _eq: $curve } }, order_by: [{ blockNumber: desc }, { logIndex: desc }], limit: $limit) {
-                txHash isBuy amountIn amountOut priceNativeAfter trader timestamp blockNumber
-              }
-              Curve(where: { id: { _eq: $curve } }) { swapCount volumeNative floorPriceNative spotPriceNative }
-            }`,
-            // Alamat di-lowercase: indexer memakai `address_format: lowercase`, sementara
-            // registry menyimpan alamat ber-checksum. Tanpa ini kecocokannya nol dan
-            // gejalanya sama dengan pasar yang belum pernah diperdagangkan.
-            variables: { curve: String(market.poolAddress).toLowerCase(), limit: rows },
-          }),
-        });
-        const data = (r.body as any)?.data;
+        // 2. Pemindaian log. Untuk sebagian chain ini menjangkau blok peluncuran dan karena
+        //    itu LENGKAP; untuk yang lain tidak, dan jawabannya menyatakan yang mana.
+        const read = await readOnChainSwaps(chain, market.poolAddress, want, rows, market.blockNumber);
+        if (read.coverage.error) {
+          return jsonResult({
+            error: "read_failed",
+            symbol: want,
+            chainId: market.chainId,
+            detail: read.coverage.error,
+            note: "This is an RPC failure, not an empty market. The two are reported separately on purpose.",
+          });
+        }
         return jsonResult({
           symbol: want,
           chainId: market.chainId,
+          chain: market.chainLabel,
           curve: market.poolAddress,
-          source: "envio-hyperindex",
-          curveState: data?.Curve?.[0] ?? null,
-          swaps: data?.Swap ?? [],
-          publicEndpoint: `${SITE}/api/indexer/graphql`,
+          source: "rpc-logs",
+          complete: read.coverage.reachedLaunch,
+          ...(read.coverage.reachedLaunch
+            ? {
+                completeBecause: `The scan reached the launch block ${market.blockNumber}, and the curve was created in the same transaction as the token, so no swap can exist before it.`,
+              }
+            : {
+                incompleteBecause:
+                  "The scan ran out of its call budget before reaching the launch block, so older swaps exist that are not listed here. Treat an empty or short list as 'not seen', not as 'never traded'.",
+              }),
+          launchBlock: market.blockNumber,
+          coverage: read.coverage,
+          returned: read.trades.length,
+          swaps: read.trades.map(shape),
         });
       }
     );

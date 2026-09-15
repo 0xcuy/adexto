@@ -33,7 +33,7 @@ const TOOLS: { name: string; cost: string; what: string }[] = [
   {
     name: "list_markets",
     cost: "Free",
-    what: "Every tradable market, with its chain, curve address and whether its history is indexed. Start here.",
+    what: "Every tradable market, with its chain, curve address and which read path serves its history. Start here.",
   },
   {
     name: "get_market",
@@ -58,7 +58,7 @@ const TOOLS: { name: string; cost: string; what: string }[] = [
   {
     name: "trade_history",
     cost: "Free",
-    what: "Every swap on a market since its launch block, read from our indexer rather than an RPC log scan. Monad only.",
+    what: "Every swap on a market, newest first, with an explicit statement of whether the answer reaches the launch block.",
   },
 ];
 
@@ -225,11 +225,17 @@ export default function McpPage() {
         </p>
         <div className="flex items-start gap-3 rounded-2xl border border-line bg-white p-4">
           <Terminal className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+          {/* Kalimat lama: "Trade history is Monad only." Itu salah, dan salahnya bukan
+              soal kata — alatnya memang menolak 0G padahal riwayat 0G lengkap dan sudah
+              dipajang halaman token. Penjaganya sekarang jangkauan yang terukur, bukan
+              daftar chain. */}
           <p className="text-xs leading-relaxed text-ink-soft">
-            <strong className="text-ink">Trade history is Monad only.</strong> That chain has an indexer behind
-            it; the others do not. Asked about a market on an unindexed chain,{" "}
-            <code className="text-accent">trade_history</code> says so instead of returning a shortened list — a
-            partial history looks exactly like a market that has never traded.
+            <strong className="text-ink">History states its own reach.</strong> Monad is served by an indexer,
+            which has no lookback window. The other chains are served by a log scan, and how far it got is
+            reported on every call: <code className="text-accent">complete</code> is true only when the scan
+            reached the market&apos;s launch block, and since the curve is created in the same transaction as the
+            token, nothing can exist before it. When it is false the answer says so, because a short list must
+            never be mistaken for a market that has never traded.
           </p>
         </div>
       </div>
