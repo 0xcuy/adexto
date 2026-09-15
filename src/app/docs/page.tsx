@@ -111,10 +111,12 @@ export default async function DocsPage() {
             <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is deployed to Subgraph Studio for Base and Arbitrum One at {STUDIO_VERSION ?? "no version configured"}, both synced past the factory&apos;s start block with no indexing errors. This site is now wired to read them, and the registry remains the primary source with the indexer additive — so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. No data comes from The Graph for the three live markets either, and the reason is narrower than it looks: two are on 0G and one is on Monad, and Studio serves neither chain. 0G is absent from The Graph&apos;s networks registry, and Monad is listed there without Subgraphs support — Firehose and Substreams only. Monad is indexed anyway, by Envio HyperIndex rather than a subgraph: full history from the factory&apos;s deploy block, 1.93M blocks in under 45 seconds, checked figure by figure against what the curve contracts store. 0G is still read straight from RPC logs.</p>
           </div>
 
-          {/* Amber di kartu ini dulu menempatkan Cloudflare x402 sederet dengan
-              "Planned: cross-chain routing" di bawah, padahal yang satu berjalan dan
-              yang lain belum ada. Warna peringatan kini hanya dipakai untuk yang
-              memang belum berjalan. */}
+          {/* Kartu ini dulu berwarna amber, sederet dengan sebuah kartu "Planned:
+              cross-chain routing" — jadi yang berjalan dan yang belum ada memakai warna
+              peringatan yang sama. Warnanya diperbaiki lebih dulu; kartu "Planned"-nya
+              kemudian dicabut seluruhnya, dan alasannya ada di komentar di bawah kartu
+              buyback. Setelah itu tidak ada lagi kartu amber di daftar ini, yang memang
+              seharusnya: setiap baris di sini menyatakan sesuatu yang berjalan. */}
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
             <p className="text-ink-soft">Sells a cross-chain buy. An unpaid request is answered with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain sends the tokens to your own address. Settlement is by EIP-3009, so USDC itself checks the signature and no new contract has to be trusted.</p>
@@ -157,36 +159,34 @@ export default async function DocsPage() {
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-white border border-warn/30 space-y-1.5">
-            <strong className="text-warn block font-bold text-sm">Planned: cross-chain &amp; aggregator routing</strong>
-            {/* 1inch dipindahkan ke sini. Sebelumnya "1inch Fusion & AMM Routing"
-                terdaftar sebagai lapisan infrastruktur yang berjalan, padahal string
-                "1inch" tidak ada di kontrak, skrip, maupun kode aplikasi mana pun —
-                hanya di halaman ini. World ID pernah singgah di daftar ini, lalu naik
-                ke "live" saat gerbangnya menyala, dan sekarang hilang dari halaman
-                sepenuhnya karena gerbangnya dicabut — bukan turun lagi ke "planned",
-                sebab tidak ada rencana memasangnya kembali. */}
-            {/* Klaim lintas-chain dicabut, bukan diperhalus. Alasannya struktural dan
-                ada di paragraf di bawah: buyback memindahkan nilai antar dua bucket di
-                DALAM satu kontrak, jadi tidak ada nilai yang bisa dikirim ke chain lain
-                tanpa menambah fungsi penarikan — justru fungsi yang halaman ini
-                janjikan tidak ada. Revisi-revisi sebelumnya salah karena mencampur
-                "penyedianya tidak menyediakan" dengan "kami belum memakai": yang benar
-                cuma yang kedua, dan sekarang tidak ada satu pun yang diklaim. */}
-            <p className="text-ink-soft">
-              Cross-chain treasury routing is not part of this protocol. A buyback moves value between two buckets
-              inside one contract — out of the buyback balance and into the curve reserve — so nothing leaves the
-              contract and there is no path that could send it to another chain. Adding one would mean adding the
-              withdrawal function this design promises does not exist. Aggregator routing (1inch Fusion) is designed
-              for but not integrated.
-            </p>
-            <p className="text-ink-soft">
-              The same immutability is what makes the rest checkable:{" "}
-              <code className="text-accent">_mint</code> is called once in the constructor, and there is no mint
-              function, no minter role, no <code className="text-accent">owner()</code> and no proxy — so the supply
-              and the absent withdrawal path can both be read straight off the contract.
-            </p>
-          </div>
+          {/* KARTU "Planned: cross-chain & aggregator routing" DICABUT SELURUHNYA.
+              Isinya tiga hal, dan ketiganya tidak layak menempati ruang di sini.
+
+              1. "Aggregator routing (1inch Fusion) is designed for but not integrated."
+                 String "1inch" tidak ada di satu pun kontrak, skrip, atau berkas
+                 aplikasi — HANYA di halaman ini. Jadi ia mengiklankan rencana yang tidak
+                 punya jejak di mana pun, bentuk kesalahan yang sama dengan empat kartu
+                 alat MCP yang sudah dihapus dari halaman ini.
+
+              2. "Cross-chain treasury routing is not part of this protocol…" Alasannya
+                 benar dan bagus — buyback memindahkan nilai antar dua bucket di DALAM
+                 satu kontrak, jadi mengirimkannya ke chain lain menuntut fungsi
+                 penarikan yang justru dijanjikan tidak ada. Tapi ini JAWABAN ATAS
+                 PERTANYAAN YANG TIDAK PERNAH DIAJUKAN halaman ini: CCIP nol kemunculan
+                 di seluruh situs. Yang bisa menimbulkan pertanyaan itu adalah
+                 `AdextoCCIPReceiver.sol` dan `AdextoCCIPTreasuryRouter.sol` di repo,
+                 dan pembaca repo dijawab di repo — bukan lewat kartu peringatan di
+                 halaman produk. Alasannya disimpan di runbook supaya tidak hilang.
+
+              3. Klaim `_mint` sekali di konstruktor, tanpa mint function, tanpa
+                 `owner()`, tanpa proxy. Ini nyata dan berharga — dan sudah dinyatakan di
+                 TIGA tempat lain: paragraf multi-chain di halaman ini sendiri
+                 (`AdextoToken has none — _mint runs…`), /security, dan deret jaminan di
+                 halaman depan. Jadi menghapusnya di sini tidak menghilangkan satu pun
+                 klaim, hanya satu pengulangan.
+
+              Kalau suatu hari routing agregator benar-benar dipasang, kartunya boleh
+              kembali — tapi sesudah kodenya ada, bukan sebelum. */}
         </div>
       </div>
 
