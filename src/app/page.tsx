@@ -8,8 +8,8 @@ import StackMarquee from "@/components/StackMarquee";
 /* Cpu, Layers, Coins, TrendingUp, Lock dan Globe dibuang dari sini: keenamnya hanya
    dipakai empat kartu pilar, yang sekarang tinggal di PillarCards.tsx bersama
    ikon-ikonnya. */
-import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCircle, HelpCircle } from "lucide-react";
-import { LAUNCH_BADGE, LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCircle, HelpCircle, Coins } from "lucide-react";
+import { launchCosts, launchCostRange, formatUsd } from "@/lib/launch-cost";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 import ChainCardStack from "@/components/ChainCardStack";
 import AudienceGrid from "@/components/AudienceGrid";
@@ -22,7 +22,18 @@ import PillarCards from "@/components/PillarCards";
  */
 const ABI_FILES = ["AdextoFactory", "AdextoCurve", "AdextoToken"] as const;
 
-export default function HomePage() {
+/**
+ * Server component, dan sekarang `async` karena biaya launch dibaca hidup.
+ *
+ * Angkanya harga gas dikali harga token native, dan keduanya bergerak — harga gas tiap
+ * blok. Menuliskannya tangan berarti mengulang pola yang sudah gagal berkali-kali di
+ * repo ini: benar saat ditulis, salah beberapa hari kemudian, tanpa ada yang memberi
+ * tahu. `launchCosts()` membaca keempat chain berbarengan dan menandai chain yang RPC-nya
+ * tidak menjawab sebagai tidak-hidup alih-alih menampilkan perkiraan.
+ */
+export default async function HomePage() {
+  const costs = await launchCosts();
+  const costRange = launchCostRange(costs);
   return (
     <div className="flex flex-col items-center justify-center relative">
       {/* ── HERO ────────────────────────────────────────────────────────────────
@@ -168,20 +179,34 @@ export default function HomePage() {
             <dd className="text-[11px] text-ink-soft mt-0.5">nothing to unlock or dump</dd>
           </div>
           <div>
-            {/* Kolom ini sudah dua kali menyesatkan, ke dua arah berbeda.
-                Mula-mula "Mainnet Ready" hijau bersebelahan dengan "4 Chains
-                Active", yang terbaca sebagai "perdagangan sudah jalan". Lalu
-                dikoreksi menjadi "launch factory pending broadcast" — benar
-                waktu itu, dan basi begitu factory-nya benar-benar dikirim.
-                Sekarang factory 0.10.0 hidup di keempat mainnet DAN belum ada
-                satu pun token diluncurkan. Keduanya dinyatakan, karena
-                menyebut hanya yang pertama akan menyiratkan pasar yang belum
-                ada. */}
-            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Deployment</dt>
-            <dd className="mt-1.5 text-lg font-semibold text-ink">Launching live</dd>
-            <dd className="text-[11px] text-ink-soft mt-0.5">
-              {LAUNCH_BADGE} · {LAUNCH_CLAUSE}
-            </dd>
+            {/* Kolom ini sudah tiga kali menyesatkan, dan yang terakhir bukan karena
+                salah fakta.
+
+                Mula-mula "Mainnet Ready" hijau bersebelahan dengan "4 Chains Active",
+                yang terbaca sebagai "perdagangan sudah jalan". Lalu dikoreksi menjadi
+                "launch factory pending broadcast" — benar waktu itu, dan basi begitu
+                factory-nya benar-benar dikirim. Lalu "Launching live · broadcast to 4
+                mainnets · $ADEXTO is live on 0G with its entire supply in the curve":
+                setiap kata benar.
+
+                Tetap dicabut, karena isinya salah JENIS. Tiga kolom di sebelahnya
+                menjawab "apa yang saya dapat kalau memakai ini"; kolom ini menjawab
+                "sejauh mana proyeknya sudah jadi", dan menyebut satu ticker di deret
+                fakta membuat halaman layanan terbaca seperti halaman jualan token —
+                pembaca menyimpulkan produknya adalah $ADEXTO, bukan kemampuan
+                meluncurkan pasarnya sendiri.
+
+                Penggantinya adalah kemampuan yang tidak dimiliki launchpad lain dan
+                yang didapat setiap pasar baru TANPA pekerjaan tambahan: gerbang x402
+                dan alat MCP menyelesaikan ticker lewat registry yang sama
+                (`/api/pool`, tanpa allowlist, tanpa gerbang curated), jadi keduanya
+                menjawab pasar baru pada permintaan pertama.
+
+                Status peluncuran tidak hilang dari situs — `/docs` memang halaman
+                untuk itu, dan LAUNCH_CLAUSE masih dipakai di sana. */}
+            <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Reachable by machines</dt>
+            <dd className="mt-1.5 text-lg font-semibold text-ink">x402 + MCP</dd>
+            <dd className="text-[11px] text-ink-soft mt-0.5">from the launch transaction, no listing step</dd>
           </div>
         </dl>
       </section>
@@ -192,6 +217,168 @@ export default function HomePage() {
           dirinya sebelum tahu apa yang ditawarkan, dan menaruhnya sesudah perbandingan
           desain berarti ia datang setelah tiga seksi yang seluruhnya berbicara mekanika —
           yaitu setelah pembaca non-teknis sudah pergi. */}
+      {/* ── WHAT YOU GET, AND WHAT IT COSTS ────────────────────────────────────
+          Seksi ini ada karena deret fakta di atas menjawab "gas only" tanpa satu pun
+          angka, dan itu meninggalkan pertanyaan yang paling ingin dijawab pembaca:
+          gas only itu berapa. Jawabannya juga bukan satu angka — antar chain ia
+          berbeda dua orde besaran, dan yang membuatnya berbeda bukan kontraknya
+          melainkan harga gas dikali harga token native.
+
+          Ditaruh SEBELUM AudienceGrid: pembaca tidak bisa mengenali dirinya sebagai
+          calon pengguna sampai ia tahu apa yang didapat dan berapa bayarnya.
+
+          KENAPA ADA KOLOM "OPT-IN" DAN BUKAN SEMUANYA DITULIS "INCLUDED"
+
+          Karena pengikatan agent memang TIDAK otomatis, dan menuliskannya sebagai
+          otomatis akan mengulang kesalahan yang baru saja dibersihkan dari /docs —
+          empat kartu alat MCP yang tidak ada di repo mana pun. Di Studio,
+          `agentBinding.enabled` bawaannya `false`, dan menyalakannya menuntut id
+          ERC-8004 yang sudah dimiliki pemanggil, diperiksa kepemilikannya on-chain
+          per chain. Yang otomatis hanyalah satu `address immutable agentIdentity` di
+          token, dan bawaannya alamat dompet creator sendiri.
+
+          Jadi "token langsung punya AI agent" tidak ditulis di sini. Yang ditulis
+          adalah apa yang benar-benar terjadi. */}
+      <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
+        <div className="max-w-3xl mb-10">
+          <p className="kicker mb-3">
+            <Coins className="w-3.5 h-3.5" /> What a launch gets you
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">
+            One transaction, and the market is open to people and to machines
+          </h2>
+          <p className="text-ink-soft text-sm sm:text-base mt-3 leading-relaxed">
+            There is no launch fee. <code className="text-accent">deployTrinity</code> is not{" "}
+            <code className="text-accent">payable</code>, so the contract cannot take one even if we wanted it
+            to — you pay the chain&apos;s gas and nothing else, in that chain&apos;s own token.
+            {costRange ? (
+              <>
+                {" "}
+                Right now that runs from{" "}
+                <strong className="text-ink">{formatUsd(costRange.min.costUsd as number)}</strong> on{" "}
+                {costRange.min.chainName} to{" "}
+                <strong className="text-ink">{formatUsd(costRange.max.costUsd as number)}</strong> on{" "}
+                {costRange.max.chainName}.
+              </>
+            ) : null}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Biaya per chain, dihitung saat render. */}
+          <div className="glass-panel rounded-2xl border border-line p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 className="w-4 h-4 text-ok" />
+              <h3 className="font-bold text-ink text-sm uppercase tracking-wider">Cost to open a market</h3>
+            </div>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="pb-2 pr-3 font-bold text-ink uppercase tracking-wider text-[10px]">Chain</th>
+                  <th className="pb-2 pr-3 font-bold text-ink uppercase tracking-wider text-[10px]">Gas</th>
+                  <th className="pb-2 font-bold text-ink uppercase tracking-wider text-[10px]">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costs.map((c) => (
+                  <tr key={c.chainKey} className="border-b border-line/60 last:border-0">
+                    <td className="py-2.5 pr-3 text-ink font-medium whitespace-nowrap">{c.chainName}</td>
+                    <td className="py-2.5 pr-3 text-ink-soft whitespace-nowrap" data-numeric>
+                      {c.gasUnits.toLocaleString("en-US")}
+                    </td>
+                    <td className="py-2.5 whitespace-nowrap" data-numeric>
+                      {/* Chain yang harga gasnya tidak terbaca menyatakan itu, bukan
+                          menampilkan angka yang dikarang. */}
+                      {c.live ? (
+                        <>
+                          <span className="text-ink font-semibold">{formatUsd(c.costUsd as number)}</span>{" "}
+                          <span className="text-ink-faint">
+                            ({(c.costNative as number) < 0.001
+                              ? (c.costNative as number).toExponential(2)
+                              : (c.costNative as number).toFixed(4)}{" "}
+                            {c.nativeSymbol})
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-ink-faint">gas price unavailable</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[11px] text-ink-faint mt-4 leading-relaxed">
+              Gas units measured against the deployed factory; the price is read live at page load. No liquidity
+              deposit is required and none is possible — 100% of supply enters the curve at genesis.
+            </p>
+          </div>
+
+          {/* Apa yang ikut, dan apa yang tidak. */}
+          <div className="glass-panel rounded-2xl border border-line p-6 space-y-5">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 className="w-4 h-4 text-ok" />
+                <h3 className="font-bold text-ink text-sm uppercase tracking-wider">Included, no extra step</h3>
+              </div>
+              <ul className="space-y-2.5 text-xs text-ink-soft leading-relaxed">
+                <li>
+                  <strong className="text-ink">A market that trades immediately.</strong> The curve is the
+                  permanent venue — no graduation step, no external pool to seed, no owner and no withdrawal
+                  function anywhere on the path.
+                </li>
+                <li>
+                  <strong className="text-ink">0.10% of every swap, to you, forever.</strong> Immutable at
+                  deployment, with no setter and no admin. You hold zero tokens, so there is nothing to unlock
+                  and nothing to dump.
+                </li>
+                <li>
+                  <strong className="text-ink">An x402 endpoint.</strong> A buyer holding only USDC on Base can
+                  take a position without bridging and without ever holding your chain&apos;s gas token. The
+                  gateway resolves your ticker through the same registry the site uses — there is no listing
+                  step and no allowlist.
+                </li>
+                <li>
+                  <strong className="text-ink">MCP tools.</strong> Your market appears in{" "}
+                  <code className="text-accent">list_markets</code>,{" "}
+                  <code className="text-accent">quote_buy</code> and{" "}
+                  <code className="text-accent">trade_history</code> on the same request, so an agent can find
+                  and buy it without a human pasting a URL first.
+                </li>
+                <li>
+                  <strong className="text-ink">A trading terminal.</strong> Candles, indicators and a live trade
+                  feed, built for markets that are minutes old rather than months.
+                </li>
+              </ul>
+            </div>
+            {/* Kolom ini yang membuat kolom di atasnya bisa dipercaya. Daftar "included"
+                tanpa daftar "opt-in" di sebelahnya adalah daftar yang menyembunyikan
+                sesuatu. */}
+            <div className="pt-4 border-t border-line">
+              <div className="flex items-center gap-2 mb-3">
+                <HelpCircle className="w-4 h-4 text-ink-faint" />
+                <h3 className="font-bold text-ink text-sm uppercase tracking-wider">Opt-in, and stated plainly</h3>
+              </div>
+              <ul className="space-y-2.5 text-xs text-ink-soft leading-relaxed">
+                <li>
+                  <strong className="text-ink">ERC-8004 agent binding is off by default.</strong> Turning it on
+                  requires an agent id you already own, and ownership is checked on-chain on every chain you
+                  launch to. Every token does carry one immutable agent address — by default your own wallet —
+                  which gates the treasury buyback call.
+                </li>
+                <li>
+                  <strong className="text-ink">No trading bot runs on your behalf.</strong> 0G Compute is used
+                  for launch artwork and the assistant on this site, not for a strategy that trades your market.
+                </li>
+                <li>
+                  <strong className="text-ink">Indexed history is Monad today.</strong> Other chains are served
+                  by a log scan that states, on every call, whether it reached your launch block.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <AudienceGrid />
 
     {/* ── THE PROBLEM & THE SOLUTION (VC PERSPECTIVE) ────────────────────────── */}

@@ -75,19 +75,48 @@ const PILLARS: Pillar[] = [
     no: "01",
     letter: "A",
     Icon: Cpu,
-    title: "Autonomous Agent",
-    subtitle: "0G Compute · TeeML",
+    // Judul dulu "Autonomous Agent" dengan subjudul "0G Compute · TeeML". Isi kartunya
+    // sudah dikoreksi karena tidak ada agent yang berjalan — tapi membiarkan judulnya
+    // berbunyi "Autonomous" membuat koreksinya sia-sia. Judul dibaca lebih sering
+    // daripada isi, dan itu persis alasan empat kartu alat MCP di /docs tetap
+    // menyesatkan meski ada spanduk peringatan di atasnya.
+    //
+    // Huruf "A" tetap dipertahankan karena keempat kartu mengeja A-DEX-T-O. Yang
+    // diubah adalah apa yang diklaim huruf itu: identitas agent memang benar-benar ada
+    // dan `immutable` di setiap token, sementara otonominya tidak ada.
+    title: "Agent Identity",
+    subtitle: "ERC-8004 · immutable, opt-in",
     // Kartu ini sudah dua kali salah. Mula-mula: "hardware-isolated AMD SEV-SNP
     // enclaves" dengan lencana "Hardware Attested", tanpa satu pun pemeriksaan. Lalu
     // klaim TEE-nya dihapus seluruhnya, dan itu juga salah \u2014 router 0G memang
     // menyatakan attestation per model. Hardware-nya juga bukan SEV-SNP: router
     // berkata Intel TDX, diverifikasi lewat dstack. Halaman /docs membaca deklarasi
     // itu langsung dari router saat render, dan /api/tee menyajikannya mentah.
+    // Koreksi ketiga, dan yang ini soal KATA KERJA, bukan hardware.
+    //
+    // Bunyinya dulu "The agent runs on 0G Compute". Diperiksa: tidak ada agent yang
+    // berjalan per token. `agentModel` dan `agentPersona` di registry hanyalah string
+    // tersimpan, bawaannya "Autonomous 24/7 quant market maker and liquidity
+    // rebalancer.", dan tidak ada satu pun jalur kode yang mengeksekusinya — tidak ada
+    // layanan agent di docker-compose, dan `scripts/agent-autonomous-runner.ts` tidak
+    // terpasang. Yang benar-benar memanggil router 0G adalah `/api/generate-logo` dan
+    // `/api/chat`.
+    //
+    // `agentIdentity` yang dikirim Studio juga bukan agent: argumen keempat
+    // `deployTrinity` diisi `address`, yaitu dompet creator sendiri. Ia menjaga
+    // `executeTreasuryBuyback`, bukan memperdagangkan apa pun.
+    //
+    // Ini bentuk kesalahan yang sama dengan empat kartu alat MCP yang dihapus dari
+    // /docs: kalimat bergaya sistem yang berjalan, untuk sesuatu yang tidak berjalan.
+    // Attestation-nya tetap disebut karena router memang menyatakannya dan kami membaca
+    // deklarasi itu — yang dicabut hanya kata "runs".
     body: (
       <>
-        Each token is bound to an agent address at launch. The agent runs on 0G Compute, whose router reports
-        Intel TDX attestation via dstack for every model we call. We read that declaration rather than assert
-        it — but we do not verify the raw quote ourselves.
+        Every token records one immutable agent address at launch, which gates the treasury buyback and can
+        never be reassigned. Binding a registered ERC-8004 identity is optional and checked on-chain. The 0G
+        Compute calls this site makes — launch artwork and the assistant — go to a router that reports Intel TDX
+        attestation via dstack; we read that declaration rather than assert it, and we do not verify the raw
+        quote ourselves.
       </>
     ),
     footer: { label: "See the live attestation table", Icon: ShieldCheck, href: "/docs" },
