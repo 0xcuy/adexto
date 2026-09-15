@@ -1,6 +1,8 @@
 import Link from "next/link";
 import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
-import { ShieldCheck, Cpu, Database, Zap, Lock, Terminal, Layers, Sparkles, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
+// `Zap` dan `Lock` dibuang bersama empat kartu MCP fiktif yang memakainya. `Database` dan
+// `Sparkles` sudah tidak terpakai sebelum itu, dan ikut dibuang di kesempatan yang sama.
+import { ShieldCheck, Cpu, Terminal, Layers, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
 import { agentAttestation } from "@/lib/og-attestation";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
 import { STUDIO_VERSION } from "@/config/subgraph";
@@ -236,34 +238,81 @@ export default async function DocsPage() {
         </div>
       </div>
 
-      {/* Delapan kartu di bawah sebelumnya mengapung tanpa judul seksi, sementara
-          semua seksi lain punya kicker + judul. Hierarkinya jadi timpang. */}
+      {/* Seksi ini dulu berjudul "Planned MCP surface" dan memuat empat kartu:
+          EVIDIQ Signet, Sentinel, Helm, dan Aegis & Notary. Keempatnya DICABUT, dan
+          bukan karena gaya.
+
+          Nama fungsinya tidak ada di repo ini — itu sudah tercatat. Yang baru
+          diperiksa: keempatnya juga TIDAK ADA di EVIDIQ. Pencarian
+          `signet_generate_brand`, `sentinel_verify_calldata`, `helm_register_cron`
+          dan `notary_anchor_receipt` di /home/cucu/Coder/EVIDIQ/ mengembalikan nol
+          berkas. MCP EVIDIQ yang sungguhan menyajikan sepuluh alat dengan nama yang
+          sama sekali lain: verify_agent, check_endpoint_trust, verify_identity,
+          attest_trust_report, batch_verify, core_capabilities, estimate_cost,
+          get_evidiq_skill, how_to_install, verify_core_report.
+
+          Jadi kartu-kartu itu bukan roadmap yang belum sampai. Kartu itu fiksi yang
+          memakai nama produk lain, ditulis dalam gaya API yang berjalan — lengkap
+          dengan tanda tangan fungsi yang bisa disalin — di halaman yang tugasnya
+          menyatakan apa yang sudah jadi. Spanduk peringatan tidak memperbaikinya:
+          empat kartu terperinci melawan satu paragraf peringatan, dan yang diingat
+          pembaca adalah kartunya.
+
+          Kartu Aegis & Notary bahkan sudah berisi ralat atas dirinya sendiri
+          (`0x8a3c…ee7D` disebut kunci enclave, padahal dompet deployer biasa).
+          Sebuah kartu yang isi utamanya adalah pembatalan klaimnya sendiri lebih baik
+          dihapus daripada dirawat.
+
+          Yang menggantikannya di bawah adalah permukaan MCP yang BENAR-BENAR jalan. */}
       <div className="mb-5 mt-2">
-        <div className="kicker">Planned MCP surface</div>
+        <div className="kicker">MCP surface</div>
         <h2 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
-          Specified, not shipped
+          Shipped, and callable today
         </h2>
-        {/* Judul lama: "What each component actually does" — dan kata "actually"
-            membuatnya lebih buruk, karena keempat tool di bawah TIDAK ADA. Pencarian
-            untuk `signet_generate_brand`, `sentinel_verify_calldata`,
-            `helm_register_cron` dan `notary_anchor_receipt` di seluruh repo hanya
-            menemukan halaman ini. Tanda tangan fungsinya ditulis dalam gaya yang
-            sama seperti API yang berjalan, jadi seorang pembaca akan mencoba
-            memanggilnya.
-            Kartunya tidak dihapus — desainnya masih menjadi arah yang dituju — tapi
-            seksinya sekarang menyatakan statusnya di judul dan di spanduk. */}
-        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-warn/30 bg-warn/10 p-4">
-          <ShieldCheck className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-          {/* Kalimat "No MCP server ships in this repository" DICABUT karena sudah tidak
-              benar: `src/app/api/[transport]/route.ts` menyajikan enam alat di /api/mcp.
-              Keempat kartu di bawah tetap belum ada, jadi peringatannya tetap — tapi
-              peringatan yang memuat satu klaim salah membuat pembaca meragukan sisanya. */}
+        <p className="mt-3 text-sm text-ink-soft leading-relaxed">
+          One MCP server runs in this repository, at{" "}
+          <code className="text-accent">/api/mcp</code>. It wraps the x402 cross-chain buy: an agent can list
+          every market, price one, read its full trade history, and pay for a position with USDC on Base while
+          the bonding curve delivers on the market&apos;s own chain. Streamable HTTP, no auth, no API key.
+        </p>
+      </div>
+
+      <div className="card p-5 space-y-4 mb-12">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
+            <Terminal className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="font-bold text-ink text-base">adexto-x402</h3>
+            <span className="text-xs font-mono text-ink-soft font-bold">Six tools, five of them free</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <tbody>
+              {[
+                ["list_markets", "free", "Every tradable market, its chain and curve address"],
+                ["get_market", "free", "One market in detail, with the resource URL that quotes it"],
+                ["quote_buy", "free", "The HTTP 402 challenge, without spending anything"],
+                ["how_to_pay", "free", "Challenge to settled buy, step by step"],
+                ["buy_token", "0.10 USDC on Base", "Settles on Base; the curve delivers on its own chain"],
+                ["trade_history", "free", "Every swap, stating whether it reaches the launch block"],
+              ].map(([name, cost, what]) => (
+                <tr key={name} className="border-b border-line/60 align-top last:border-0">
+                  <td className="py-2 pr-4 font-mono text-accent font-bold whitespace-nowrap">{name}</td>
+                  <td className="py-2 pr-4 text-ink-soft whitespace-nowrap">{cost}</td>
+                  <td className="py-2 text-ink-soft leading-relaxed">{what}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-start gap-3 rounded-2xl border border-line bg-white p-4">
+          <ShieldCheck className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed text-ink-soft">
-            <strong className="text-ink">None of the four tools below exist yet.</strong> The function names are
-            design sketches, not callable endpoints. They are kept here because they are the intended surface,
-            and removing them would hide where the project is heading — but do not build against them. An MCP
-            server does ship in this repository, and it is a different surface: six tools wrapping the x402
-            cross-chain buy, documented on the{" "}
+            No signing, settlement or payment verification happens in the MCP server. It forwards to the x402
+            gateway, the market registry and the indexer, and the 402 an agent receives is the gateway&apos;s own
+            challenge passed through untouched. Full documentation, including the client config, is on the{" "}
             <Link href="/mcp" className="text-accent hover:underline font-medium">
               MCP server page
             </Link>
@@ -272,90 +321,6 @@ export default async function DocsPage() {
         </div>
       </div>
 
-      {/* Grid of MCP tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        {/* Signet */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <Zap className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">EVIDIQ Signet MCP</h3>
-              <span className="text-xs font-mono text-ink-soft font-bold">Deterministic Branding Generator</span>
-            </div>
-          </div>
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            Generates pixel-perfect SVG logos, favicon sets, and OpenGraph social cards directly in memory without GPU overhead. Stores generated hashes permanently onto 0G Storage.
-          </p>
-          <div className="p-3 rounded-lg bg-white border border-line font-mono text-xs text-accent font-bold">
-            signet_generate_brand({`{ name: "Adexto", palette: "cyber" }`})
-          </div>
-        </div>
-
-        {/* Sentinel */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">EVIDIQ Sentinel MCP</h3>
-              <span className="text-xs font-mono text-ink-soft font-bold">On-Chain Transaction Firewall</span>
-            </div>
-          </div>
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            Inspects every raw calldata payload before the agent signs it. Rejects unbounded token approvals, flash-loan vulnerabilities, and prompt injection drain attacks.
-          </p>
-          <div className="p-3 rounded-lg bg-white border border-line font-mono text-xs text-accent font-bold">
-            sentinel_verify_calldata({`{ target: "0xCurve...", value: 0 }`})
-          </div>
-        </div>
-
-        {/* Helm */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <Cpu className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">EVIDIQ Helm MCP</h3>
-              <span className="text-xs font-mono text-ink-soft font-bold">Decentralized Autonomous Scheduler</span>
-            </div>
-          </div>
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            Provides reliable 24/7 cron intervals inside 0G TEE without relying on centralized crontabs. Automatically triggers liquidity rebalancing and treasury buybacks.
-          </p>
-          <div className="p-3 rounded-lg bg-white border border-line font-mono text-xs text-accent font-bold">
-            helm_register_cron({`{ interval: "15m", action: "rebalance_curve" }`})
-          </div>
-        </div>
-
-        {/* Aegis & Notary */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-ok/10 text-ok flex items-center justify-center border border-ok/30">
-              <Lock className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">EVIDIQ Aegis &amp; Notary</h3>
-              <span className="text-xs font-mono text-ink-soft font-bold">EIP-191 Cryptographic Receipts</span>
-            </div>
-          </div>
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            {/* `0x8a3c…ee7D` disebut "the agent's enclave key". Itu alamat DOMPET
-                DEPLOYER proyek ini — sebuah EOA biasa yang kunci privatnya ada di
-                mesin pengembang. Menyebutnya kunci enclave adalah pernyataan palsu
-                tentang di mana kunci itu berada. */}
-            Would sign each agent decision and anchor the receipt to 0G DA. Nothing is signed this way today,
-            and the address this card used to attribute to secure hardware is in fact the project deployer
-            wallet — an ordinary EOA whose key sits on a developer machine.
-          </p>
-          <div className="p-3 rounded-lg bg-white border border-line font-mono text-xs text-ok font-bold">
-            notary_anchor_receipt({`{ root: "0xa793...", chain: "0g-mainnet" }`})
-          </div>
-        </div>
-      </div>
 
       {/* ── ADVANCED PROTOCOL SPECIFICATIONS ────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
