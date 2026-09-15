@@ -66,9 +66,25 @@ export const LAUNCH_BADGE = "broadcast to 4 mainnets";
  */
 export const LAUNCH_CLAUSE = "$ADEXTO is live on 0G with its entire supply in the curve";
 
-/** Kalimat utuh, untuk footer dan blok penjelas. */
+/**
+ * Kalimat utuh, untuk footer dan blok penjelas.
+ *
+ * TANPA TICKER, dan itu aturan keras di sini karena kalimat ini dirender di FOOTER —
+ * yaitu di setiap halaman, termasuk halaman depan. Bunyinya dulu menyebut "$ADEXTO
+ * launched on 0G", dan akibatnya sama dengan kolom fakta yang sudah dicabut dari halaman
+ * depan: satu ticker di permukaan sesempit ini membuat seluruh situs terbaca seperti
+ * jualan koin itu, bukan layanan untuk membuka pasar sendiri.
+ *
+ * Yang dinyatakan sekarang lebih kuat justru karena tidak menyebut satu pasar: factory-nya
+ * hidup di keempat mainnet, dan pasar yang lahir darinya sudah diperdagangkan. Keduanya
+ * tetap bisa diperiksa, dan kalimatnya tidak perlu disunting setiap ada peluncuran baru.
+ *
+ * `LAUNCH_CLAUSE` di atas MASIH menyebut ticker, dan itu dibiarkan: ia hanya dipakai di
+ * /docs dan `VerifiedDeploymentCard`, tempat pembaca memang datang untuk memeriksa satu
+ * penerbitan tertentu.
+ */
 export const LAUNCH_SENTENCE =
-  "The curve factory is live on all four mainnets. $ADEXTO launched on 0G, with 100% of its supply in the curve and no liquidity deposit.";
+  "The curve factory is live on all four mainnets, and markets launched through it are already trading — 100% of each supply inside the curve, with no liquidity deposit anywhere.";
 
 /**
  * Judul dan penjelasan untuk keadaan kosong (registry, daftar market, pemilih).

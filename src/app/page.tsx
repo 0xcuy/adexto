@@ -8,7 +8,20 @@ import StackMarquee from "@/components/StackMarquee";
 /* Cpu, Layers, Coins, TrendingUp, Lock dan Globe dibuang dari sini: keenamnya hanya
    dipakai empat kartu pilar, yang sekarang tinggal di PillarCards.tsx bersama
    ikon-ikonnya. */
-import { ShieldCheck, ArrowRight, CheckCircle2, Code2, CloudLightning, AlertCircle, HelpCircle, Coins } from "lucide-react";
+import {
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  Code2,
+  CloudLightning,
+  AlertCircle,
+  HelpCircle,
+  Coins,
+  Layers,
+  CandlestickChart,
+  MessagesSquare,
+  Bot,
+} from "lucide-react";
 import { launchCosts, launchCostRange, formatUsd } from "@/lib/launch-cost";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 import ChainCardStack from "@/components/ChainCardStack";
@@ -77,9 +90,31 @@ export default async function HomePage() {
           ADEXTO Protocol v{CURVE_FACTORY_GENERATION.version}
         </p>
 
+        {/* Judul lama: "Launch an AI agent token with no liquidity deposit. Gas only."
+            Dua cacat, dan keduanya mahal.
+
+            Pertama, "AI agent token" tidak ada backing-nya. Sesi yang menghapus empat
+            kartu alat MCP fiktif dari /docs dan mencabut "The agent runs on 0G Compute"
+            dari kartu pilar meninggalkan judul ini sebagai SATU-SATUNYA tempat di situs
+            yang masih mengklaimnya.
+
+            Kedua — dan ini yang lebih merugikan — "no liquidity deposit / gas only"
+            adalah FITUR, dan fitur yang hanya berarti bagi orang yang sudah tahu
+            launchpad lain menuntut setoran. Pembaca yang belum tahu itu tidak mendapat
+            apa pun dari kalimat tersebut, dan pembaca yang sudah tahu memfilekan kita
+            sebagai launchpad lain.
+
+            Yang benar-benar membedakan tidak pernah muncul di layar pertama: pasarnya
+            dibuka sebagai VENUE, bukan halaman token. Ada terminal dengan candle 1 detik
+            sampai 1 tahun, RSI, MACD, Bollinger, VWAP, order book dan trade feed; ada
+            agent yang tahu kurvanya sendiri; dan ada harga yang bisa dibayar mesin dari
+            chain lain. Semuanya sudah berjalan, dan semuanya dulu terkubur di scroll
+            kelima.
+
+            Biaya dan penghasilan tidak hilang — keduanya pindah ke subjudul, tempat
+            angka memang bekerja lebih baik daripada di judul. */}
         <h1 className="text-[2.5rem] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.06] text-ink mb-6">
-          Launch an AI agent token with no liquidity deposit.{" "}
-          <span className="gradient-text">Gas only.</span>
+          Open a market, <span className="gradient-text">not just a token.</span>
         </h1>
 
         {/* Ditulis ulang MANFAAT-DULU, dan alasannya bisa diukur, bukan selera.
@@ -108,10 +143,16 @@ export default async function HomePage() {
             Yang di kalimat ini TETAP 0.10%, dan itu bukan kelalaian: kaki protokol
             ditambahkan DI ATAS total yang dikonfigurasi creator, bukan dipotong dari
             bagiannya. Jadi penghasilan creator tidak berubah sedikit pun. */}
+        {/* Tiga kalimat pendek, dan urutannya disengaja: apa yang terjadi, apa yang kamu
+            dapat, lalu kenapa pembeli boleh percaya. Tidak ada jargon di kalimat pertama.
+
+            Kalimat kedua yang menggantikan seluruh cerita "AI agent": ia menyebut EMPAT
+            hal yang benar-benar dibuka tiap launch — terminal, agent, harga lintas chain,
+            alat mesin — tanpa satu pun mengklaim ada bot yang memperdagangkan pasarnya. */}
         <p className="mx-auto mb-9 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
-          Launching costs gas and nothing else. You earn <span data-numeric>0.10%</span> of every trade, for
-          as long as the market lives. And buyers can see there is nothing in your wallet to dump — all supply
-          enters the curve at launch.
+          One transaction, gas only, no liquidity deposit. It opens as a working venue: live candles, an order
+          book, an agent that answers for it, and a price any machine can pay from another chain. You hold none
+          of the supply, and <span data-numeric>0.10%</span> of every trade is yours for as long as it trades.
         </p>
 
         <div className="flex flex-col items-center justify-center gap-5 sm:flex-row xl:justify-start">
@@ -122,11 +163,18 @@ export default async function HomePage() {
             Open Studio
             <ArrowRight className="w-4 h-4" />
           </Link>
+          {/* Tautan bukti menunjuk /explorer, BUKAN satu halaman token.
+              Menyebut satu ticker di landing page adalah kesalahan yang sama dengan kolom
+              fakta "$ADEXTO is live on 0G" yang baru dicabut: halaman layanan langsung
+              terbaca sebagai jualan token, dan pembaca menyimpulkan produknya adalah
+              koin itu. /explorer memperlihatkan pasar apa pun yang hidup, jadi ia juga
+              tidak perlu disunting setiap ada peluncuran baru. */}
           <Link
-            href="/docs"
-            className="text-sm font-semibold text-ink-soft hover:text-ink underline-offset-4 hover:underline transition-colors"
+            href="/explorer"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-[15px] border border-line text-ink hover:border-accent hover:text-accent transition-colors"
           >
-            Read the deployed contracts
+            See a live market
+            <ArrowRight className="w-4 h-4" />
           </Link>
             </div>
           </div>
@@ -211,6 +259,117 @@ export default async function HomePage() {
         </dl>
       </section>
 
+      {/* ── WHAT YOUR MARKET OPENS WITH ─────────────────────────────────────────
+          Seksi ini yang membuat halaman ini bukan halaman launchpad.
+
+          Tanpa ia, satu-satunya hal yang dijanjikan situs ini adalah token yang lebih
+          murah diluncurkan — dan itu perlombaan yang tidak layak dimenangkan. Yang
+          sudah dibangun jauh lebih besar dari itu, dan seluruhnya terkubur di scroll
+          kelima sampai sekarang: terminalnya, agent per-pasar, harga yang bisa dibayar
+          mesin dari chain lain, dan alat MCP.
+
+          DITULIS SEBAGAI HASIL, BUKAN SPESIFIKASI. Ini halaman jualan; daftar fitur
+          bernada robot adalah cara tercepat kehilangan pembaca yang bukan engineer.
+          Nama indikator tetap disebut karena trader memang mencarinya, tetapi kalimat
+          pembuka tiap kartu berbicara tentang apa yang didapat.
+
+          TIDAK ADA SATU PUN TICKER DI SINI, dan itu aturan keras untuk seluruh halaman.
+          Menyebut satu koin membuat halaman layanan terbaca sebagai jualan koin itu —
+          kesalahan yang sama dengan kolom fakta "$ADEXTO is live on 0G" yang dicabut di
+          atas. Bukti hidup ditaut lewat /explorer, yang memperlihatkan pasar apa pun
+          yang ada dan tidak perlu disunting setiap ada peluncuran baru.
+
+          Ditempatkan SEBELUM tabel biaya: nilai lebih dulu, harga sesudahnya. */}
+      <section className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
+        <div className="max-w-3xl mb-12">
+          <p className="kicker mb-3">
+            <Layers className="w-3.5 h-3.5" /> What your market opens with
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-ink">
+            A launchpad hands you a token page. This hands you a venue.
+          </h2>
+          <p className="text-ink-soft text-sm sm:text-base mt-3 leading-relaxed">
+            Four things arrive with the launch transaction. None of them is a roadmap item, and none of them
+            needs a listing, an application, or a word from us.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 1. Terminal. Nilai terbesar yang paling lama tersembunyi. */}
+          <div className="card card-hover p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
+                <CandlestickChart className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-ink text-base">A trading terminal, not a token page</h3>
+            </div>
+            <p className="text-sm text-ink-soft leading-relaxed">
+              Your market is tradable in a real terminal from the first block: candles from one second to one
+              year, RSI, MACD, Bollinger and VWAP, a live order book and a running trade feed. Built for a market
+              that is minutes old rather than months.
+            </p>
+          </div>
+
+          {/* 2. Agent per pasar. Nyata: prompt sistemnya membawa alamat kurva dan fee. */}
+          <div className="card card-hover p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
+                <MessagesSquare className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-ink text-base">An agent that answers for it</h3>
+            </div>
+            <p className="text-sm text-ink-soft leading-relaxed">
+              Every market comes with an agent a holder can ask about the curve, the fee split or the depth. It
+              knows its own token and curve because it is bound to them, and it runs on 0G Compute rather than a
+              scripted FAQ.
+            </p>
+          </div>
+
+          {/* 3. x402. Sudah settle dengan dana nyata, jadi ditulis sebagai kemampuan. */}
+          <div className="card card-hover p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
+                <CloudLightning className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-ink text-base">A price anyone can pay from another chain</h3>
+            </div>
+            <p className="text-sm text-ink-soft leading-relaxed">
+              A buyer holding only USDC on Base can take a position in your market without bridging, and without
+              ever holding your chain&apos;s gas token. They pay over plain HTTP; the curve delivers straight to
+              their own address.
+            </p>
+          </div>
+
+          {/* 4. MCP. Pembelinya mesin, dan itu sisi pasar yang belum dilayani siapa pun. */}
+          <div className="card card-hover p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
+                <Bot className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-ink text-base">Buyers that are machines, not just people</h3>
+            </div>
+            <p className="text-sm text-ink-soft leading-relaxed">
+              AI agents can find your market, price it and buy it on their own — it appears to any connected
+              agent the moment it launches. There is no listing step, because the agent tools and the site read
+              the same registry.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
+          <p className="text-sm text-ink-soft leading-relaxed">
+            Every line above is one click away — open a live market and trade it yourself.
+          </p>
+          <Link
+            href="/explorer"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline underline-offset-4 whitespace-nowrap"
+          >
+            See a live market
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* Ditempatkan SESUDAH deret fakta dan SEBELUM perbandingan desain, dengan sengaja.
           Deret fakta menjawab "berapa biayanya dan apa yang saya dapat"; seksi ini menjawab
           "apakah ini untuk saya". Menaruhnya lebih dulu akan meminta pembaca mengenali
@@ -241,16 +400,21 @@ export default async function HomePage() {
           adalah apa yang benar-benar terjadi. */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-line">
         <div className="max-w-3xl mb-10">
+          {/* Kicker dan judul dipersempit menjadi HARGA saja. Sebelumnya keduanya
+              berbunyi "What a launch gets you" / "the market is open to people and to
+              machines", dan itu kini tumpang tindih dengan seksi di atasnya yang memang
+              bertugas menjawab pertanyaan itu. Dua seksi berurutan yang menjanjikan
+              jawaban sama membuat pembaca mengira ia sudah membaca yang ini. */}
           <p className="kicker mb-3">
-            <Coins className="w-3.5 h-3.5" /> What a launch gets you
+            <Coins className="w-3.5 h-3.5" /> What it costs
           </p>
           <h2 className="text-3xl sm:text-4xl font-semibold text-ink">
-            One transaction, and the market is open to people and to machines
+            No launch fee, and the contract could not take one
           </h2>
           <p className="text-ink-soft text-sm sm:text-base mt-3 leading-relaxed">
-            There is no launch fee. <code className="text-accent">deployTrinity</code> is not{" "}
-            <code className="text-accent">payable</code>, so the contract cannot take one even if we wanted it
-            to — you pay the chain&apos;s gas and nothing else, in that chain&apos;s own token.
+            <code className="text-accent">deployTrinity</code> is not{" "}
+            <code className="text-accent">payable</code>, so there is no fee to add later — you pay the
+            chain&apos;s gas and nothing else, in that chain&apos;s own token.
             {costRange ? (
               <>
                 {" "}
@@ -752,12 +916,16 @@ export default async function HomePage() {
           yang baru untuk diputuskan. Memo VC pindah ke tautan sekunder di sini
           dan ke kolom footer, tempat pembaca yang memang mencarinya akan lihat. */}
       <section className="w-full max-w-3xl mx-auto px-4 py-24 text-center">
+        {/* Penutup lama menjual PENERBITAN: "Ready to launch?" lalu kalimat tentang tiga
+            kontrak yang ter-deploy per chain. Itu menutup halaman dengan kalimat paling
+            teknis di seluruh halaman, dan mengulangi frame launchpad tepat di tempat
+            pembaca memutuskan. Sekarang ia menutup dengan hasilnya. */}
         <h2 className="text-3xl sm:text-4xl font-semibold text-ink tracking-tight mb-4">
-          Ready to launch?
+          Open your market
         </h2>
         <p className="text-ink-soft text-sm sm:text-base max-w-xl mx-auto mb-9 leading-relaxed">
-          A token, its own bonding curve and its agent binding deploy in one transaction per chain. You pay
-          gas and nothing else.
+          One transaction and it is trading — with its terminal, its agent, and a price the rest of the internet
+          can pay. Gas only, and you keep 0.10% of every trade for as long as it lives.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
           <Link
