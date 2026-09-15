@@ -254,11 +254,20 @@ export default async function DocsPage() {
             seksinya sekarang menyatakan statusnya di judul dan di spanduk. */}
         <div className="mt-4 flex items-start gap-3 rounded-2xl border border-warn/30 bg-warn/10 p-4">
           <ShieldCheck className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+          {/* Kalimat "No MCP server ships in this repository" DICABUT karena sudah tidak
+              benar: `src/app/api/[transport]/route.ts` menyajikan enam alat di /api/mcp.
+              Keempat kartu di bawah tetap belum ada, jadi peringatannya tetap — tapi
+              peringatan yang memuat satu klaim salah membuat pembaca meragukan sisanya. */}
           <p className="text-xs leading-relaxed text-ink-soft">
-            <strong className="text-ink">None of the four tools below exist yet.</strong> No MCP server ships in
-            this repository and the function names are design sketches, not callable endpoints. They are kept
-            here because they are the intended surface, and removing them would hide where the project is
-            heading — but do not build against them.
+            <strong className="text-ink">None of the four tools below exist yet.</strong> The function names are
+            design sketches, not callable endpoints. They are kept here because they are the intended surface,
+            and removing them would hide where the project is heading — but do not build against them. An MCP
+            server does ship in this repository, and it is a different surface: six tools wrapping the x402
+            cross-chain buy, documented on the{" "}
+            <Link href="/mcp" className="text-accent hover:underline font-medium">
+              MCP server page
+            </Link>
+            .
           </p>
         </div>
       </div>

@@ -37,7 +37,14 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
 // routing, jadi memindainya hanya akan mengambil teks halaman 404 dan LULUS secara palsu.
 // Yang menjaga agar ia tetap tersembunyi adalah pemeriksaan 404 terbalik di
 // scripts/deploy-vps.sh, bukan daftar rute ini — pola yang sama dipakai untuk /governance.
-const ROUTES = "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402".split(",");
+/**
+ * `/mcp` masuk daftar bersama `/x402`.
+ *
+ * Keduanya halaman referensi integrasi, dan keduanya penuh istilah teknis campur — bentuk
+ * teks yang paling mudah kebobolan kalimat Indonesia. Halaman publik yang tidak ada di
+ * daftar ini sama saja dengan tidak dijaga: penjaganya lulus tanpa pernah membukanya.
+ */
+const ROUTES = "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp".split(",");
 
 /**
  * Frasa terlarang, masing-masing dengan alasannya. Alasan ikut dicetak supaya

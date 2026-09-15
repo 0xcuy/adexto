@@ -73,6 +73,14 @@ export default function Footer() {
                   spesifikasinya; yang lain tidak punya petunjuk bahwa tautan itu soal
                   membeli token lintas chain. */}
               <li><Link href="/x402" className="hover:text-accent transition-colors">x402 cross-chain buys</Link></li>
+              {/* Menunjuk /mcp, BUKAN /api/mcp. Endpointnya JSON-RPC: dibuka di browser ia
+                  menjawab galat, jadi tautan footer ke sana akan terasa seperti tautan rusak.
+                  Halaman /mcp yang menyebut URL-nya untuk disalin.
+
+                  Labelnya menyebut siapa pemakainya. "MCP server" sendirian hanya berarti
+                  sesuatu bagi orang yang sudah tahu protokolnya, sama seperti alasan tautan
+                  di atas tidak diberi nama "x402" saja. */}
+              <li><Link href="/mcp" className="hover:text-accent transition-colors">MCP server for agents</Link></li>
             </ul>
           </div>
 
