@@ -435,36 +435,36 @@ export default async function HomePage() {
               <CheckCircle2 className="w-4 h-4 text-ok" />
               <h3 className="font-bold text-ink text-sm uppercase tracking-wider">Cost to open a market</h3>
             </div>
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="pb-2 pr-3 font-bold text-ink uppercase tracking-wider text-[10px]">Chain</th>
-                  <th className="pb-2 pr-3 font-bold text-ink uppercase tracking-wider text-[10px]">Gas</th>
-                  <th className="pb-2 font-bold text-ink uppercase tracking-wider text-[10px]">Cost</th>
-                </tr>
-              </thead>
+            {/* DUA KOLOM DICABUT: satuan gas, dan jumlah dalam token native.
+                Keduanya membuat tabel ini berhenti menjual.
+
+                Jumlah native tampil sebagai `1.97e-5 ETH` dan `6.32e-5 ETH` — notasi
+                ilmiah, di halaman depan. Tidak ada pembeli yang membaca itu sebagai
+                "murah"; ia membacanya sebagai sesuatu yang perlu dihitung dulu. Satu-
+                satunya pembaca yang diuntungkan justru yang sudah tahu harga ETH, dan
+                ia tidak butuh diyakinkan.
+
+                Satuan gas dicabut dengan alasan sejenis: `3.150.718` tidak berarti apa
+                pun tanpa harga gas di sebelahnya, jadi ia hanya menambah kolom angka
+                yang harus dilewati untuk mencapai satu-satunya angka yang menjawab
+                pertanyaan pembaca.
+
+                Yang hilang dari keduanya adalah KREDIBILITAS, bukan informasi — dan itu
+                dipindahkan ke catatan kaki, tempat ia bekerja tanpa mengaburkan harganya.
+                Angka lengkapnya tetap ada di runbook dan tetap dihitung `launch-cost.ts`;
+                yang berubah hanya apa yang dipajang. */}
+            <table className="w-full text-left text-sm">
               <tbody>
                 {costs.map((c) => (
                   <tr key={c.chainKey} className="border-b border-line/60 last:border-0">
-                    <td className="py-2.5 pr-3 text-ink font-medium whitespace-nowrap">{c.chainName}</td>
-                    <td className="py-2.5 pr-3 text-ink-soft whitespace-nowrap" data-numeric>
-                      {c.gasUnits.toLocaleString("en-US")}
-                    </td>
-                    <td className="py-2.5 whitespace-nowrap" data-numeric>
+                    <td className="py-3 pr-3 text-ink font-medium whitespace-nowrap">{c.chainName}</td>
+                    <td className="py-3 text-right whitespace-nowrap" data-numeric>
                       {/* Chain yang harga gasnya tidak terbaca menyatakan itu, bukan
                           menampilkan angka yang dikarang. */}
                       {c.live ? (
-                        <>
-                          <span className="text-ink font-semibold">{formatUsd(c.costUsd as number)}</span>{" "}
-                          <span className="text-ink-faint">
-                            ({(c.costNative as number) < 0.001
-                              ? (c.costNative as number).toExponential(2)
-                              : (c.costNative as number).toFixed(4)}{" "}
-                            {c.nativeSymbol})
-                          </span>
-                        </>
+                        <span className="text-ink font-semibold">{formatUsd(c.costUsd as number)}</span>
                       ) : (
-                        <span className="text-ink-faint">gas price unavailable</span>
+                        <span className="text-ink-faint text-xs">gas price unavailable</span>
                       )}
                     </td>
                   </tr>
@@ -472,8 +472,9 @@ export default async function HomePage() {
               </tbody>
             </table>
             <p className="text-[11px] text-ink-faint mt-4 leading-relaxed">
-              Gas units measured against the deployed factory; the price is read live at page load. No liquidity
-              deposit is required and none is possible — 100% of supply enters the curve at genesis.
+              Paid in each chain&apos;s own gas token, never in stablecoin. Measured against the deployed factory
+              and priced at page load, so these move with the market. No liquidity deposit is required and none is
+              possible — 100% of supply enters the curve at genesis.
             </p>
           </div>
 

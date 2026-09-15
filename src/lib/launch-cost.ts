@@ -143,9 +143,15 @@ export function launchCostRange(costs: LaunchCost[]): { min: LaunchCost; max: La
   };
 }
 
-/** Dolar bernilai sangat kecil: $0.00 akan terbaca seperti gratis, dan itu bukan faktanya. */
+/**
+ * Dolar bernilai sangat kecil: `$0.00` akan terbaca seperti gratis, dan itu bukan faktanya.
+ *
+ * EMPAT DESIMAL SERAGAM di bawah $1, bukan presisi yang berubah menurut besarnya. Versi
+ * sebelumnya memakai 4 desimal di bawah $0.01 dan 3 desimal di atasnya, sehingga satu
+ * kolom memuat `$0.0024`, `$0.048`, `$0.153`, `$0.0071` — titik desimalnya tidak sejajar
+ * dan kolomnya terbaca seperti salah render. Nol di ekor lebih murah daripada itu.
+ */
 export function formatUsd(value: number): string {
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  if (value < 1) return `$${value.toFixed(3)}`;
+  if (value < 1) return `$${value.toFixed(4)}`;
   return `$${value.toFixed(2)}`;
 }
