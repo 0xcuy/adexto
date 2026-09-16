@@ -12,6 +12,7 @@
  *   2. the FIRST known chain name that appears in the label — the primary chain
  *   3. null (caller decides; never silently defaults to a wrong chain)
  */
+import { JsonRpcProvider } from "ethers";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 
 export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Devchain";
@@ -410,4 +411,45 @@ export function inputAssetsFor(chain: ChainInfo): string[] {
 
 export function toHexChainId(chainId: number): string {
   return `0x${chainId.toString(16)}`;
+}
+
+/**
+ * Provider baca untuk sisi server, dengan penggabungan JSON-RPC DIMATIKAN.
+ *
+ * KENAPA INI ADA, dan ini diukur bukan diduga
+ *
+ * `new ethers.JsonRpcProvider(url)` menggabungkan panggilan yang berdekatan menjadi satu
+ * larik JSON-RPC. Setiap `Promise.all` dari beberapa `eth_call` — pola yang dipakai
+ * `readPoolState`, pembacaan kutipan, dan jalur konfirmasi peluncuran — karena itu menjadi
+ * SATU permintaan berisi lima panggilan.
+ *
+ * Diukur langsung ke `https://mainnet.base.org`:
+ *
+ *   5 permintaan tunggal berurutan   -> kelimanya HTTP 200, semuanya berhasil
+ *   1 batch berisi 5 panggilan       -> HTTP 200, tetapi SETIAP entri berisi
+ *                                       {"code":-32016,"message":"over rate limit"}
+ *   ethers apa adanya                -> gagal: "missing revert data"
+ *   ethers batchMaxCount: 1          -> berhasil
+ *
+ * Base menghitung satu batch sebagai lima permintaan terhadap batas burst-nya, dan ethers
+ * menerjemahkan jawaban rate-limit itu menjadi "missing revert data". Itu bagian yang
+ * paling merugikan: pemanggil menyimpulkan KONTRAKNYA salah. `/api/pool` melaporkan
+ * `tradable: false` dengan alasan "the address recorded for this market does not expose a
+ * tradable swap interface" untuk kurva yang sehat sepenuhnya, dan gerbang x402 menolak
+ * pembayaran dengan `409 market_not_tradable`. Terukur pada $BLOOP: gagal 7 dari 8
+ * permintaan, sementara $PARCEL di Monad dan $WOMBO di Arbitrum lulus 8 dari 8 — jadi
+ * gejalanya juga tampak seperti masalah satu pasar, bukan masalah satu penyedia RPC.
+ *
+ * Worker x402 sudah menyetel `batchMaxCount: 1` sejak lama, dengan alasan berbeda: relai
+ * kami menolak batch karena batch bisa menyelundupkan metode di luar daftar izin. Jadi
+ * pengetahuan ini sudah ada di repo — hanya belum sampai ke pembacaan sisi server.
+ *
+ * `staticNetwork` ikut disetel supaya tidak ada `eth_chainId` tambahan pada setiap
+ * provider baru; chainId-nya sudah kita ketahui dari config.
+ */
+export function readProvider(chain: ChainInfo): JsonRpcProvider {
+  return new JsonRpcProvider(chain.rpcUrl, chain.chainId, {
+    staticNetwork: true,
+    batchMaxCount: 1,
+  });
 }

@@ -10,6 +10,7 @@
  */
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
+import { readProvider } from "@/lib/chains";
 import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ADEXTO_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
 import type { TradeEvent } from "@/lib/telemetry";
 
@@ -265,7 +266,7 @@ export async function readOnChainSwaps(
   };
 
   try {
-    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+    const provider = readProvider(chain);
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const latest = await provider.getBlockNumber();

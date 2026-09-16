@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { keccak256, toHex } from "viem";
 import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
-import { resolveChain, resolveChainOrDefault, CHAIN_LIST } from "@/lib/chains";
+import { resolveChain, resolveChainOrDefault, CHAIN_LIST, readProvider } from "@/lib/chains";
 import {
   checkSymbolAvailable,
   creatorQuota,
@@ -639,7 +639,7 @@ async function handleConfirm(body: any) {
     return NextResponse.json({ error: availability.reason, code: "SYMBOL_UNAVAILABLE" }, { status: 409 });
   }
 
-  const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+  const provider = readProvider(chain);
   const receipt = await provider.getTransactionReceipt(txHash);
   if (!receipt) {
     return NextResponse.json(

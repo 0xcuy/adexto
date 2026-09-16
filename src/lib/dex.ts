@@ -19,7 +19,7 @@
  */
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
-import { toHexChainId } from "@/lib/chains";
+import { toHexChainId, readProvider } from "@/lib/chains";
 
 export const SOVEREIGN_HOOK_ABI = [
   "function initialized() view returns (bool)",
@@ -322,7 +322,7 @@ export interface Quote {
 export async function readPoolState(chain: ChainInfo, poolAddress: string): Promise<PoolState | null> {
   if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return null;
   try {
-    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+    const provider = readProvider(chain);
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
     const [initialized, tokenAddress, reserves, lpFeeBps, treasuryBuybackBps] = await Promise.all([
@@ -508,7 +508,7 @@ export async function readFactoryGeneration(chain: ChainInfo): Promise<FactoryGe
   const empty: FactoryGeneration = { version: null, protocolFeeBps: 0, protocolTreasury: null };
   if (!chain.curveFactoryAddress) return empty;
   try {
-    const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+    const provider = readProvider(chain);
     const factory = new ethers.Contract(chain.curveFactoryAddress, CURVE_FACTORY_ABI, provider);
     const version = await factory.VERSION().catch(() => null);
     // Dipisah dari VERSION dengan sengaja: factory 0.10.0 menjawab VERSION tetapi
