@@ -125,14 +125,28 @@ const b64 = (o: unknown) =>
   typeof btoa === "function" ? btoa(JSON.stringify(o)) : Buffer.from(JSON.stringify(o), "utf8").toString("base64");
 
 /**
- * Provider Base lewat relai kami, dengan kunci bersama di header.
+ * Provider untuk chain APA PUN, dengan kunci relai dipasang hanya bila endpointnya milik
+ * kami sendiri.
  *
- * `new JsonRpcProvider(url)` tidak bisa menambah header, jadi FetchRequest dipakai.
- * Tanpa header itu relai menjawab 401 dan setiap pembayaran gagal.
+ * Dulu fungsi ini khusus Base (`baseProviderVia`) dan chainId-nya dipaku 8453, sementara
+ * jalur pengiriman membuat providernya sendiri dengan `new ethers.JsonRpcProvider(url)`
+ * polos. Itu benar selama pengiriman hanya menyentuh RPC publik — 0G dan Monad tidak
+ * menuntut autentikasi. Begitu Base dan Arbitrum ditambahkan ke `DELIVERY_RPC`, keduanya
+ * menunjuk relai BERKUNCI, dan provider tanpa header itu langsung dijawab 401: gerbang
+ * berhenti dengan `quote_unavailable` untuk kedua pasar baru. Terukur, bukan diperkirakan.
+ *
+ * KUNCI HANYA DIKIRIM KE ASAL KAMI SENDIRI, dan itu bukan kehati-hatian berlebih.
+ * Memasangnya tanpa syarat berarti kunci relai ikut terkirim ke setiap RPC publik yang
+ * dipakai jalur pengiriman — 0G, Monad, dan siapa pun yang ditambahkan nanti. Kunci itu
+ * satu-satunya yang menjaga relai dari dipakai sebagai RPC gratis atas tagihan kami, jadi
+ * ia hanya boleh melintas ke host yang memang memintanya.
  */
-function baseProviderVia(env: Env): ethers.JsonRpcProvider {
-  const fr = new ethers.FetchRequest(env.BASE_RPC);
-  if (env.RPC_RELAY_SECRET) fr.setHeader("x-relay-key", env.RPC_RELAY_SECRET);
+function providerVia(env: Env, url: string, chainId: number): ethers.JsonRpcProvider {
+  const fr = new ethers.FetchRequest(url);
+  const origin = env.ADEXTO_ORIGIN || "https://adexto.xyz";
+  if (env.RPC_RELAY_SECRET && url.startsWith(origin)) {
+    fr.setHeader("x-relay-key", env.RPC_RELAY_SECRET);
+  }
   /**
    * `batchMaxCount: 1` bukan penyetelan kinerja.
    *
@@ -141,8 +155,17 @@ function baseProviderVia(env: Env): ethers.JsonRpcProvider {
    * menyelundupkan metode yang tidak ada di daftar izin. Tanpa baris ini setiap
    * pembayaran gagal dengan "batched requests are not relayed". Yang dilonggarkan
    * kliennya, bukan penjaganya.
+   *
+   * Diterapkan ke SEMUA chain, bukan hanya yang lewat relai: RPC publik tidak peduli
+   * soal batch, jadi biayanya beberapa permintaan tambahan — dan imbalannya satu
+   * perilaku klien alih-alih dua yang harus diingat mana untuk chain mana.
    */
-  return new ethers.JsonRpcProvider(fr, 8453, { staticNetwork: true, batchMaxCount: 1 });
+  return new ethers.JsonRpcProvider(fr, chainId, { staticNetwork: true, batchMaxCount: 1 });
+}
+
+/** Base khusus, dipakai jalur verifikasi dan settlement pembayaran. */
+function baseProviderVia(env: Env): ethers.JsonRpcProvider {
+  return providerVia(env, env.BASE_RPC, 8453);
 }
 
 const CURVE_ABI = [
@@ -494,7 +517,9 @@ export default {
         503
       );
     }
-    const ogProvider = new ethers.JsonRpcProvider(delivery.url, market.chainId);
+    // `providerVia`, bukan `new JsonRpcProvider(url)`: Base dan Arbitrum menunjuk relai
+    // berkunci, dan provider tanpa header `x-relay-key` dijawab 401.
+    const ogProvider = providerVia(env, delivery.url, market.chainId);
     const curve = new ethers.Contract(market.poolAddress, CURVE_ABI, ogProvider);
 
     // Kutipan: USDC -> native pada harga hidup, dikurangi spread, lalu native -> token
@@ -529,8 +554,37 @@ export default {
     } catch (e: any) {
       return json({ error: "inventory_unknown", detail: String(e?.message).slice(0, 140) }, 503);
     }
-    // Sisakan ruang gas: eksekusi `buy` juga dibayar dari saldo yang sama.
-    const gasHeadroom = ethers.parseEther("0.05");
+    /**
+     * Ruang gas DIHITUNG dari harga gas chainnya, bukan satu angka untuk semua chain.
+     *
+     * Baris ini dulu `ethers.parseEther("0.05")` — 0,05 token native, di chain mana pun.
+     * Itu masuk akal selama gerbang hanya melayani 0G dan Monad, di mana 0,05 native
+     * bernilai satu sen atau kurang. Begitu Base dan Arbitrum masuk, angka yang sama
+     * menjadi 0,05 ETH, yaitu SEKITAR $120 yang harus mengendap sebelum satu fill $0,10
+     * boleh jalan. Akibatnya terbaca aneh dan itu yang membongkarnya: kutipan melaporkan
+     * `remainingBuys: 7` dan `inStock: false` pada saat yang sama — persediaan cukup untuk
+     * tujuh pembelian, tetapi ditolak.
+     *
+     * Ini bentuk kesalahan yang sama dengan `LOOKBACK_BLOCKS = 45_000` yang dulu dipakai
+     * untuk keempat chain: sebuah konstanta yang benar di satu chain dan salah beberapa
+     * orde besaran di chain lain, tanpa satu pun galat yang menunjuk ke sana.
+     *
+     * `buy` di kurva terukur sekitar 99.000 gas di 0G. 150.000 memberi margin untuk jalur
+     * yang lebih panjang, dan dikali tiga supaya harga gas boleh naik tiga kali lipat
+     * antara kutipan dan eksekusi tanpa fill-nya gagal di tengah.
+     */
+    const BUY_GAS_UNITS = 150_000n;
+    const GAS_SAFETY_MULTIPLE = 3n;
+    let gasHeadroom: bigint;
+    try {
+      const fee = await ogProvider.getFeeData();
+      const gasPrice = fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
+      gasHeadroom = gasPrice * BUY_GAS_UNITS * GAS_SAFETY_MULTIPLE;
+    } catch {
+      // Harga gas tidak terbaca: pakai satu persen nilai pembelian sebagai cadangan.
+      // Proporsional terhadap ukuran order, jadi ia tidak pernah menjadi $120 lagi.
+      gasHeadroom = nativeIn / 100n;
+    }
     const inStock = inventory >= nativeIn + gasHeadroom;
 
     const quote = {
