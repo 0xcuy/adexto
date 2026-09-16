@@ -41,14 +41,63 @@ const LOGO_PX = 256;
  * tidak dilarang, dan sebuah logo dengan teks berantakan lebih buruk daripada logo
  * tanpa teks.
  */
-function defaultPrompt(tokenName?: string, tokenSymbol?: string): string {
-  const name = tokenName?.trim() || "an autonomous agent";
-  const symbol = tokenSymbol?.trim() ? ` (${tokenSymbol.trim()})` : "";
+/**
+ * Prompt sekarang meminta MASKOT, bukan "geometric glyph".
+ *
+ * KENAPA DIGANTI, dan ini terbaca di keluarannya
+ *
+ * Versi sebelumnya meminta "one single centred geometric glyph … no gradients, no
+ * photorealism". Model gambar menuruti itu secara harfiah: hasilnya bentuk datar abstrak
+ * yang berkali-kali keluar menyerupai satu huruf — sebuah "P" untuk $PARCEL — sehingga
+ * logo hasil model tidak bisa dibedakan dari SVG cadangan yang memang menggambar inisial
+ * ticker. Dua jalur yang berbeda menghasilkan gambar yang sama; yang mahal jadi sia-sia.
+ *
+ * Ia juga menyebut setiap token "an autonomous AI agent token" tanpa memandang isinya,
+ * jadi prompt untuk token kucing dan token protokol DeFi identik kecuali namanya. Nama
+ * saja bukan petunjuk visual yang cukup: model tidak tahu "Wombo" itu wombat.
+ *
+ * KENAPA `subject` DIPISAH DARI `tokenName`
+ *
+ * Karena itu satu-satunya cara model tahu APA yang digambar. `tokenName` menamai
+ * pasarnya; `subject` menggambarkan wujudnya. Tanpa `subject` prompt tetap jalan dan
+ * jatuh ke lencana abstrak — perilaku lama — jadi pemanggil yang sudah ada tidak rusak.
+ *
+ * YANG TETAP DIPERTAHANKAN, dan semuanya karena alasan terukur:
+ *   - larangan teks, sebab model gambar menuliskan huruf yang rusak dan logo dengan teks
+ *     berantakan lebih buruk daripada tanpa teks sama sekali;
+ *   - latar terang, sebab situsnya cream — palet gelap membuat logo bertabrakan dengan
+ *     halaman yang memuatnya;
+ *   - "flat vector", sebab keluarannya dipatok 256 px dan dirender 48–64 px, ukuran di
+ *     mana bayangan dan tekstur hanya menjadi bubur.
+ */
+function defaultPrompt(tokenName?: string, tokenSymbol?: string, subject?: string): string {
+  const name = tokenName?.trim() || "a community token";
+  const symbol = tokenSymbol?.trim() ? ` ($${tokenSymbol.trim().toUpperCase()})` : "";
+  const what = subject?.trim();
+
+  const shared =
+    `Flat vector illustration, thick clean outlines, bold flat colour fills, no gradients, ` +
+    `no drop shadows, no photorealism, no 3D. Centred, filling the frame, generous even ` +
+    `margins, plain very light cream background. Absolutely no text, no letters, no ` +
+    `numbers, no watermark, no signature.`;
+
+  if (what) {
+    // Maskot: wajah/tokoh dipusatkan, gaya sticker — bentuk yang memang dipakai token meme.
+    return (
+      `Cute bold mascot logo of ${what}, the character for ${name}${symbol}. ` +
+      `Simple friendly face, expressive eyes, chunky rounded shapes, sticker-style emblem, ` +
+      `single character only on a plain background, no scenery, no props. ` +
+      shared
+    );
+  }
+
+  // Tanpa subjek: lencana abstrak, tapi disuruh membentuk simbol — bukan "satu glyph",
+  // sebab kata itulah yang menghasilkan huruf.
   return (
-    `Minimalist flat vector emblem for ${name}${symbol}, an autonomous AI agent token. ` +
-    `One single centred geometric glyph, deep violet on a plain light background, ` +
-    `generous margins, crisp edges, no gradients, no photorealism, no drop shadows. ` +
-    `Absolutely no text, no letters, no numbers, no watermark.`
+    `Flat vector emblem for ${name}${symbol}. A simple memorable abstract symbol built from ` +
+    `two or three overlapping rounded shapes, deep violet and warm cream, reading clearly at ` +
+    `small size. Not a letterform, not a monogram, not an alphabet character. ` +
+    shared
   );
 }
 
@@ -124,9 +173,15 @@ export async function POST(req: Request) {
     const parsed = await req.json().catch(() => ({}));
     tokenSymbol = typeof parsed.tokenSymbol === "string" ? parsed.tokenSymbol : undefined;
     const tokenName = typeof parsed.tokenName === "string" ? parsed.tokenName : undefined;
+    /**
+     * `subject` menggambarkan WUJUD yang digambar — "a chubby blue blob sea creature",
+     * "a round wombat". Opsional: tanpa itu prompt jatuh ke lencana abstrak, sehingga
+     * pemanggil lama berperilaku persis seperti sebelumnya.
+     */
+    const subject = typeof parsed.subject === "string" ? parsed.subject : undefined;
     prompt = typeof parsed.prompt === "string" && parsed.prompt.trim()
       ? parsed.prompt.trim()
-      : defaultPrompt(tokenName, tokenSymbol);
+      : defaultPrompt(tokenName, tokenSymbol, subject);
 
     if (!OG_API_KEY) {
       return fallback(prompt, tokenSymbol, "OG_ROUTER_API_KEY is not set on the server, so no model was called.");

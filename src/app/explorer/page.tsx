@@ -157,6 +157,35 @@ export default function ExplorerPage() {
     [projects, category, chainFilter, search]
   );
 
+  /**
+   * Tab kategori DITURUNKAN dari pasar yang benar-benar ada, tidak dipaku.
+   *
+   * Daftarnya dulu literal `["all", "defi", "trading", "security"]`, dan itu bukan cuma
+   * kaku — ia bisa MENYEMBUNYIKAN pasar. `/api/deploy` menerima `category` apa pun dan
+   * hanya jatuh ke `"defi"` bila kosong, jadi sebuah pasar berkategori `meme` tidak akan
+   * cocok dengan satu tab pun dan hanya muncul di "all". Pemiliknya tidak punya cara
+   * mengetahui kenapa, sebab tidak ada galat di mana pun — pasarnya cuma tidak ada di
+   * tempat orang mencarinya.
+   *
+   * Sebaliknya, dua dari tiga tab lama juga tidak dipakai pasar mana pun, jadi pembaca
+   * mengklik `security` lalu menemukan daftar kosong dan menyimpulkan indexnya rusak.
+   *
+   * Diturunkan dari data, keduanya selesai sekaligus: tab yang ada persis tab yang punya
+   * isi, dan kategori baru muncul sendiri tanpa berkas ini disentuh.
+   */
+  const categories = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const p of projects) {
+      const key = (p.category || "").toLowerCase().trim();
+      if (key) seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    // Terbanyak lebih dulu, lalu alfabetis, supaya urutannya stabil antar-render.
+    const sorted = [...seen.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([k]) => k);
+    return ["all", ...sorted];
+  }, [projects]);
+
   const tradableCount = projects.filter((p) => p.tradable).length;
 
   return (
@@ -199,7 +228,7 @@ export default function ExplorerPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6 font-mono text-xs">
         <div className="flex items-center gap-2 flex-wrap">
-          {["all", "defi", "trading", "security"].map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
