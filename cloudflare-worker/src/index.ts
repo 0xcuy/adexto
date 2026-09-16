@@ -74,6 +74,15 @@ export interface Env {
    * alasan yang menyebut var mana yang belum diset, bukan dengan galat provider.
    */
   MONAD_RPC?: string;
+  /**
+   * RPC pengiriman untuk Arbitrum One. Opsional, sama seperti Monad.
+   *
+   * Menunjuk relai `/api/rpc/arbitrum` di situs, bukan RPC publik: alasannya identik
+   * dengan BASE_RPC di atas, dan `arbitrum-one-rpc.publicnode.com` khususnya menolak
+   * pencarian receipt dengan 403 SESUDAH transaksi tersiar — bentuk kegagalan terburuk
+   * bagi jalur yang memindahkan dana.
+   */
+  ARBITRUM_RPC?: string;
   /** Asal registry dan harga. Satu asal, supaya tidak ada sumber kebenaran kedua. */
   ADEXTO_ORIGIN: string;
   /**
@@ -445,6 +454,27 @@ export default {
     const DELIVERY_RPC: Record<number, { url: string | undefined; envVar: string }> = {
       16661: { url: env.OG_RPC, envVar: "OG_RPC" },
       143: { url: env.MONAD_RPC, envVar: "MONAD_RPC" },
+      /**
+       * Base memakai `BASE_RPC`, RELAI YANG SAMA dengan jalur settlement.
+       *
+       * Tidak ada endpoint kedua yang perlu dikonfigurasi: relai itu sudah terbukti
+       * menjawab dari dalam Worker ini, karena setiap pembayaran sudah melewatinya untuk
+       * memverifikasi otorisasi USDC. Menambahkan RPC Base terpisah untuk pengiriman
+       * berarti dua endpoint yang bisa menyimpang, dan yang jarang dipakai adalah yang
+       * akan diam-diam rusak.
+       *
+       * Base juga kasus paling sederhana yang dilayani gerbang ini: pembeli membayar USDC
+       * di Base dan menerima tokennya di Base, jadi tidak ada chain yang disilang sama
+       * sekali. Yang tetap sama adalah ia tidak perlu memegang ETH untuk gas.
+       */
+      8453: { url: env.BASE_RPC, envVar: "BASE_RPC" },
+      /**
+       * Arbitrum lewat relai sendiri, bukan RPC publik langsung.
+       *
+       * Alasannya sama dengan Base — IP egress Cloudflare dibatasi penyedia RPC — dan
+       * relai `/api/rpc/[chain]` di situs kini melayani keduanya dari satu implementasi.
+       */
+      42161: { url: env.ARBITRUM_RPC, envVar: "ARBITRUM_RPC" },
     };
     const delivery = DELIVERY_RPC[market.chainId];
     if (!delivery?.url) {
