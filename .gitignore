@@ -195,3 +195,6 @@ crytic-export/
 build/security/
 build/forge-out/
 build/forge-cache/
+
+# Dek presentasi: PDF dan PNG adalah hasil render, sumbernya public/founder-house/index.html
+deck/

@@ -44,7 +44,10 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
  * teks yang paling mudah kebobolan kalimat Indonesia. Halaman publik yang tidak ada di
  * daftar ini sama saja dengan tidak dijaga: penjaganya lulus tanpa pernah membukanya.
  */
-const ROUTES = "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp".split(",");
+const ROUTES =
+  "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/founder-house/index.html".split(
+    ","
+  );
 
 /**
  * Frasa terlarang, masing-masing dengan alasannya. Alasan ikut dicetak supaya

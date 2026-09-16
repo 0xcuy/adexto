@@ -50,6 +50,19 @@ export function middleware(req: NextRequest) {
     swap: "/swap",
     explorer: "/explorer",
     docs: "/docs",
+    /**
+     * `day2` -> dek presentasi statis untuk 0G Atlas Founder House.
+     *
+     * Menunjuk BERKAS di `public/`, bukan rute Next, karena dek itu satu berkas HTML yang
+     * juga dirender jadi PDF oleh headless Chrome. Halaman React akan menambah hidrasi dan
+     * CSS bersama yang harus dijinakkan ulang saat dicetak, untuk nol keuntungan — dek ini
+     * tidak punya state dan tidak memanggil satu pun API.
+     *
+     * Hanya `/` yang di-rewrite. Aset di sebelahnya — PDF yang diunduh tombol di dek —
+     * diminta lewat jalur absolut `/founder-house/...` dan lolos dari cabang ini apa adanya,
+     * jadi tidak ada aturan kedua yang perlu ditulis untuknya.
+     */
+    day2: "/founder-house/index.html",
   };
 
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
