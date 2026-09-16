@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 3,
+  "listedMarkets": 5,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -101,6 +101,26 @@
       "token": "0xC0B02176D37C1a64A6B493335115dB5D6D645E1F",
       "curve": "0x36F2E236Bd37830BbF52c1248DeE28770C8F4eCb",
       "why": "The live $PARCEL market, launched through the production UI at adexto.xyz rather than a local build, which is why it appears in the production registry -- see the demo recording procedure. Second launch on Monad. Listed at /token/parcel?chain=143. ERC-8004 agent bound at creation: agentId 10251, checked by the factory against AGENT_REGISTRY 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432 before it would mint. Read from chain: symbol PARCEL, name Parcel Market, supply 1e9, agentBound true, virtualNative 174888.464882 MON, swapCount 5, creator fees accrued and claimed to zero during the run. A parcel is a bounded lot a city is divided into and sold whole, which is the same shape as a curve position: one defined unit, priced as a whole, with no deposit to enter it."
+    },
+    {
+      "symbol": "BLOOP",
+      "status": "live",
+      "chainId": 8453,
+      "factoryVersion": "0.11.0",
+      "factory": "0x216E7880D64D94335B583c539802d3e61958d4A2",
+      "token": "0xC980987be6fF737E55e65Bb67Cdd2F231Aa0fa6B",
+      "curve": "0xdEC37908476Ba7C159fBd28C687b7dE43079E4E4",
+      "why": "First market on Base. Meme category, opened to give the factory a live market on every mainnet it is deployed to. Launch metadata anchored to 0G DA."
+    },
+    {
+      "symbol": "WOMBO",
+      "status": "live",
+      "chainId": 42161,
+      "factoryVersion": "0.11.0",
+      "factory": "0xE17f1027FC5f294327D701829baeD9d6519e922C",
+      "token": "0x84737C90Ef1D4318b4835cdC27e3F0989f4831d4",
+      "curve": "0xB71A0bAfF60795DEde0C7f89F6AD095f7186C712",
+      "why": "First market on Arbitrum One. Its registration was recovered by hand: the launch broadcast succeeded but the RPC refused the receipt lookup, so the txHash and attestation root were read back from the TrinityProjectDeployed event rather than regenerated."
     }
   ]
 }
