@@ -139,7 +139,33 @@ export const ADEXTO_CONTRACTS = {
     chainId: 8453,
     chainName: "Base Mainnet",
     nativeSymbol: "ETH",
-    rpcUrl: "https://mainnet.base.org",
+    /**
+     * `base-rpc.publicnode.com`, BUKAN `mainnet.base.org`. Selisihnya seratus kali.
+     *
+     * Diukur dari mesin ini, sebelas `eth_call` tanpa penggabungan — beban yang persis sama
+     * dengan satu `readPoolState`:
+     *
+     *   base-rpc.publicnode.com         208 ms   ok
+     *   base.drpc.org                   299 ms   ok
+     *   mainnet.base.org             21.377 ms   ok, tetapi dua puluh satu detik
+     *   base.llamarpc.com                       525
+     *   1rpc.io/base                            410 Gone
+     *   base.blockpi.network                    521
+     *
+     * `mainnet.base.org` membatasi laju per permintaan, jadi begitu penggabungan JSON-RPC
+     * dimatikan (lihat `readProvider` di lib/chains.ts) setiap panggilan mengantre di
+     * backoff ethers. Terukur di produksi: `/api/pool?symbol=BLOOP` menjawab benar tetapi
+     * rata-rata 36 detik, dengan puncak 56 detik.
+     *
+     * PENTING — INI BUKAN URL YANG SAMA DENGAN YANG DIPAKAI RELAI.
+     *
+     * `src/app/api/rpc/[chain]/route.ts` tetap mengutamakan `mainnet.base.org`, dan itu
+     * benar: relai dipanggil dari Worker Cloudflare, dan dari IP egress Cloudflare
+     * publicnode justru menjawab `-32005 rate limit` sementara mainnet.base.org melayani.
+     * Endpoint terbaik berbeda menurut siapa yang menelepon, jadi keduanya sengaja tidak
+     * disatukan.
+     */
+    rpcUrl: "https://base-rpc.publicnode.com",
     blockExplorer: "https://basescan.org",
     factoryAddress: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
     curveFactoryAddress: CURVE_FACTORY.base,
