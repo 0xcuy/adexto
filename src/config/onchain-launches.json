@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 5,
+  "listedMarkets": 6,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -121,6 +121,16 @@
       "token": "0x84737C90Ef1D4318b4835cdC27e3F0989f4831d4",
       "curve": "0xB71A0bAfF60795DEde0C7f89F6AD095f7186C712",
       "why": "First market on Arbitrum One. Its registration was recovered by hand: the launch broadcast succeeded but the RPC refused the receipt lookup, so the txHash and attestation root were read back from the TrinityProjectDeployed event rather than regenerated."
+    },
+    {
+      "symbol": "ZEEBO",
+      "status": "live",
+      "chainId": 16661,
+      "factoryVersion": "0.11.0",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "token": "0x36Eb56AF0ad34e8F39774E53ee681298E1848721",
+      "curve": "0xBCdDE7f6071da3fc33f959F6A8B919dd921af49A",
+      "why": "Launched on camera for the 0G Atlas Founder House demo recording, on 0G mainnet so the same market could then be bought by an external agent over x402 -- the gateway resolves through the production registry, so a local-only launch could not have been bought. Five manual swaps from the web UI, then one buy from the x402 relayer at block 44560323."
     }
   ]
 }

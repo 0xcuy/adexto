@@ -1179,6 +1179,146 @@ await safely("chat agent token", async () => {
   await beat(page, 6500);
 });
 
+/**
+ * ── 11 & 12. AGENT LUAR MEMBELI PASAR INI, LALU KEMBALI KE TERMINAL ─────────
+ *
+ * Dijaga `DEMO_OPENCLAW=1` dan bawaannya MATI, jadi setiap pemakaian skrip ini yang sudah
+ * ada berperilaku sama persis seperti sebelumnya. Menambah adegan ke perekam yang sudah
+ * terbukti lebih murah daripada menulis perekam kedua: satu take, satu berkas video, dan
+ * tidak ada dua alur yang bisa menyimpang.
+ *
+ * KENAPA ADEGAN INI DITARUH PALING AKHIR
+ *
+ * Kalimat terkuat di seluruh demo adalah "pasar ini belum ada sembilan puluh detik lalu",
+ * dan kalimat itu hanya berarti kalau penonton sudah melihat pasarnya lahir di adegan 2-3.
+ * Menaruh OpenClaw lebih awal membuang bagian itu.
+ *
+ * BEDANYA DENGAN ADEGAN 10, dan ini harus jelas di narasi: adegan 10 adalah agent MILIK
+ * pasar ini yang menjawab pertanyaan tentang dirinya. Adegan 11 adalah agent LUAR yang
+ * belum pernah melihat pasar ini dan membelinya. Dua hal berbeda, dan menyebut keduanya
+ * "agent" tanpa membedakan akan membuat penonton mengira ia menonton hal yang sama dua kali.
+ */
+if (process.env.DEMO_OPENCLAW === "1") {
+  const OC_URL = process.env.OPENCLAW_URL || "http://127.0.0.1:18789";
+  const OC_TOKEN = (() => {
+    try {
+      return fs.readFileSync("/tmp/oc_token.txt", "utf8").trim();
+    } catch {
+      return "";
+    }
+  })();
+
+  // Reserve SEBELUM agent membeli. Dipakai adegan 12 untuk menunggu bukti pembelian
+  // benar-benar mendarat di kurva, bukan menunggu durasi tetap lalu berharap.
+  const [natBefore] = await pool.getReserves();
+
+  scene("11) AGENT LUAR — OpenClaw di 0G Compute membeli pasar yang baru dibuat");
+  await safely("openclaw beli lewat MCP", async () => {
+    await page.goto(OC_TOKEN ? `${OC_URL}/#token=${OC_TOKEN}` : OC_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    await beat(page, 3500);
+
+    // Spanduk update dan sesi proyek lain dibuang: rekaman yang dipakai sebagai bukti
+    // tidak boleh memuat pekerjaan orang lain di layar.
+    for (const sel of ['button[aria-label*="ismiss" i]', 'button[aria-label*="lose" i]']) {
+      try {
+        const b = page.locator(sel).first();
+        if ((await b.count()) > 0 && (await b.isVisible())) {
+          await b.click({ timeout: 3000 });
+          break;
+        }
+      } catch {}
+    }
+    try {
+      const fresh = page.locator("text=/^\\+?\\s*New session$/i").first();
+      if ((await fresh.count()) > 0) {
+        await fresh.click({ timeout: 5000 });
+        await beat(page, 2200);
+      }
+    } catch {}
+
+    // Selektor UI pihak lain dicoba sebagai DAFTAR. Satu selektor yang dipaku akan pecah
+    // di rilis OpenClaw berikutnya tanpa peringatan, dan kegagalannya muncul sebagai
+    // rekaman cacat di pagi hari ia dibutuhkan.
+    const CANDIDATES = [
+      'textarea[placeholder*="essage" i]',
+      'textarea[placeholder*="sk" i]',
+      'div[contenteditable="true"]',
+      "textarea",
+    ];
+    let box = null;
+    for (const sel of CANDIDATES) {
+      const el = page.locator(sel).last();
+      if ((await el.count()) > 0 && (await el.isVisible().catch(() => false))) {
+        box = el;
+        break;
+      }
+    }
+    if (!box) throw new Error("kotak masukan OpenClaw tidak ditemukan");
+
+    await box.click();
+    await beat(page, 500);
+    // Diketik, bukan di-fill: yang ditonton harus terlihat seperti orang mengetik.
+    await box.type(
+      `Using only your adexto tools: list the markets, pick $${TICKER}, quote it, then ` +
+        `execute the purchase. Report the delivery transaction hash and state honestly ` +
+        `whose wallet signed the payment.`,
+      { delay: 16 }
+    );
+    await beat(page, 800);
+    await page.keyboard.press("Enter");
+
+    /**
+     * Ditunggu sampai agent BERHENTI, bukan sampai sebuah hash muncul.
+     *
+     * Hash pertama yang tampil berasal dari panel hasil alat, bukan jawaban akhir — versi
+     * sebelumnya berhenti di situ dan rekaman terputus di tengah pembelian. Dan kata
+     * penanda sibuknya berganti-ganti antar keadaan, jadi keempatnya dicocokkan sekaligus:
+     * satu kata saja sudah cukup untuk membuat ini gagal lagi.
+     */
+    const deadline = Date.now() + 300000;
+    let sawHash = false;
+    while (Date.now() < deadline) {
+      const st = await page
+        .evaluate(() => ({
+          text: document.body.innerText,
+          busy: /Assistant is (responding|working|thinking|typing)/i.test(document.body.innerText),
+        }))
+        .catch(() => ({ text: "", busy: true }));
+      if (/0x[a-fA-F0-9]{64}/.test(st.text)) sawHash = true;
+      if (sawHash && !st.busy) break;
+      await page.waitForTimeout(2500);
+    }
+    // Tahan: pengakuan siapa yang menandatangani ada di jawaban akhir, dan itu yang
+    // paling penting terbaca di rekaman.
+    await beat(page, 7000);
+  });
+
+  scene("12) PENUTUP — trade agent masuk di feed terminal, hash cocok");
+  await safely("hash agent muncul di terminal", async () => {
+    // Ditunggu di CHAIN, bukan di UI: kalau reserve belum berubah, feed-nya tidak akan
+    // pernah menampilkannya dan menunggu di UI hanya menghasilkan tenggat yang habis.
+    for (let i = 0; i < 40; i++) {
+      const [natNow] = await pool.getReserves();
+      if (natNow > natBefore) break;
+      await page.waitForTimeout(1500);
+    }
+    await page.goto(`${BASE}/token/${TICKER.toLowerCase()}?chain=${CHAIN.chainId}&tf=${DEMO_TF}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await beat(page, 4000);
+    await page.evaluate(() => {
+      const feed = [...document.querySelectorAll("*")].find(
+        (el) => /TRADE FEED/i.test(el.textContent || "") && el.children.length < 12
+      );
+      (feed ?? document.body).scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    await beat(page, 5500);
+  });
+}
+
 const [nat, tok] = await pool.getReserves();
 console.log(`\nreserve akhir: ${ethers.formatEther(nat)} ${CHAIN.sym} / ${fmt(tok)} ${TICKER}`);
 console.log(`page errors  : ${pageErrors.length}`);
