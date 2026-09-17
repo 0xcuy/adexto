@@ -40,7 +40,9 @@
  *      content with the original body, because an agent that cannot tell "you must pay" from
  *      "this market does not exist" will retry the wrong one forever.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createMcpHandler } from "mcp-handler";
+import { ethers } from "ethers";
 import { z } from "zod";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
@@ -60,6 +62,44 @@ import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 const GATEWAY = ADEXTO_CONTRACTS.edgeX402Gateway.replace(/\/$/, "");
 /** Hanya untuk menyebut endpoint publik di dalam jawaban, bukan untuk memanggil apa pun. */
 const SITE = "https://adexto.xyz";
+
+/**
+ * Header per-permintaan, dibawa ke dalam callback alat.
+ *
+ * `registerTool` tidak menerima `Request`, jadi tanpa ini sebuah alat tidak punya cara
+ * mengetahui siapa yang memanggilnya. Dipakai HANYA oleh `pay_and_buy`, satu-satunya alat
+ * yang membelanjakan uang, supaya ia bisa menolak pemanggil yang tidak membawa kunci.
+ *
+ * `AsyncLocalStorage` dan bukan variabel modul: variabel modul akan bocor antar permintaan
+ * yang tumpang tindih, dan yang bocor di sini adalah izin membelanjakan.
+ */
+const requestContext = new AsyncLocalStorage<{ agentKey: string | null }>();
+
+/** Kunci yang harus dibawa pemanggil untuk memakai alat berbayar. Kosong = alat mati. */
+const AGENT_DEMO_KEY = process.env.AGENT_DEMO_KEY ?? "";
+/** Kunci penanda tangan. Sama dengan yang sudah dipakai jalur peluncuran di server ini. */
+const SIGNER_KEY = process.env.PRIVATE_KEY || process.env.OG_PRIVATE_KEY || "";
+
+/**
+ * Batas keras untuk `pay_and_buy`. Bukan saran — diperiksa terhadap kutipan gerbang, dan
+ * satu ketidakcocokan membatalkan pembelian.
+ *
+ * Ini yang membuat alat itu aman diberikan kepada sebuah LLM. Agent tidak memilih penerima,
+ * tidak memilih aset, dan tidak memilih jumlah; ketiganya dibaca dari kutipan gerbang lalu
+ * dicocokkan dengan konstanta di bawah. Yang bisa dilakukan agent — bahkan agent yang
+ * sepenuhnya dibajak lewat prompt injection — hanyalah membeli salah satu pasar KAMI
+ * SENDIRI dengan maksimum 0,20 USDC, dan uangnya hanya bisa mendarat di treasury kami.
+ */
+const PAY_LIMITS = {
+  /** USDC di Base. Aset lain ditolak. */
+  asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase(),
+  network: "base",
+  /** Treasury protokol, dari `X402_PAYEE` di worker. TIDAK PERNAH dari masukan agent. */
+  payTo: "0x24268Fffc119ec5550F68e80D94476fD64daE967".toLowerCase(),
+  /** 0,20 USDC dalam satuan terkecil. Harga gerbang 0,10; ini memberi ruang satu kenaikan. */
+  maxAtomic: 200_000n,
+  chainId: 8453,
+} as const;
 
 const jsonResult = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -319,6 +359,182 @@ const mcp = createMcpHandler(
       }
     );
 
+    // ── PAID, AND GATED: the agent signs through us ────────────────────────────
+    /**
+     * KENAPA ALAT INI ADA, DAN APA YANG IA BUKAN
+     *
+     * `buy_token` menuntut `xPayment`, yaitu otorisasi EIP-3009 yang sudah ditandatangani.
+     * Sebuah LLM tidak bisa menandatangani apa pun, jadi tanpa alat ini seorang agent bisa
+     * menemukan pasar, menghargainya, membaca riwayatnya, dan berhenti tepat sebelum
+     * membeli. Alat ini menutup langkah terakhir itu.
+     *
+     * YANG HARUS DINYATAKAN JUJUR: ini BUKAN "agent dengan dompet sendiri". Yang menandatangani
+     * adalah kunci operator di server ini. Jadi klaim yang benar adalah "agent memutuskan apa
+     * yang dibeli dan mengeksekusi pembeliannya", bukan "agent membayar dari dananya sendiri".
+     * Deskripsi alat di bawah menyatakannya, supaya model itu sendiri tidak salah menyebutnya.
+     *
+     * KENAPA AMAN MEMBERIKAN INI KEPADA SEBUAH LLM
+     *
+     * Agent tidak memilih penerima, aset, maupun jumlah. Ketiganya dibaca dari kutipan
+     * gerbang lalu DICOCOKKAN dengan konstanta `PAY_LIMITS`, dan satu ketidakcocokan
+     * membatalkan. Alamat pengiriman juga tidak diekspos: token selalu dikirim ke
+     * penanda tangan. Jadi kemampuan maksimum agent — termasuk agent yang sepenuhnya
+     * dibajak prompt injection — adalah membeli salah satu pasar kami sendiri dengan
+     * maksimum 0,20 USDC, dengan uang yang hanya bisa mendarat di treasury kami.
+     *
+     * KENAPA BERKUNCI HEADER
+     *
+     * Endpoint MCP ini publik dan anonim. Tanpa gerbang, siapa pun di internet bisa
+     * menghabiskan saldo USDC kami satu panggilan demi satu panggilan. Kuncinya dibawa
+     * sebagai HEADER, bukan argumen alat: argumen alat terlihat oleh model, dan yang
+     * terlihat model bisa ikut tercetak di transkrip.
+     */
+    server.registerTool(
+      "pay_and_buy",
+      {
+        title: "Execute a buy end to end (operator-signed, capped)",
+        description:
+          "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, network, recipient or amount does not match the hard-coded limits. Delivery always goes to the signer.",
+        inputSchema: { symbol: SYMBOL },
+      },
+      async ({ symbol }) => {
+        const ctx = requestContext.getStore();
+        if (!AGENT_DEMO_KEY) {
+          return jsonResult({
+            error: "not_configured",
+            detail: "AGENT_DEMO_KEY is not set on this server, so the paid tool is switched off.",
+          });
+        }
+        if (!ctx?.agentKey || ctx.agentKey !== AGENT_DEMO_KEY) {
+          return jsonResult({
+            error: "not_authorised",
+            detail:
+              "This tool spends real money and requires the agent key in the x-agent-key header. Every other tool on this server is free and open; use quote_buy to price a market instead.",
+          });
+        }
+        if (!SIGNER_KEY) {
+          return jsonResult({ error: "no_signer", detail: "No signing key is configured on this server." });
+        }
+
+        const want = String(symbol).toUpperCase();
+        const market = registryProjects().find((p) => String(p.symbol).toUpperCase() === want);
+        if (!market) {
+          return jsonResult({ error: "unknown_market", symbol: want, known: registryProjects().map((p) => p.symbol) });
+        }
+
+        // 1. Tantangan diambil dari GERBANG, bukan dibangun di sini. Yang ditandatangani
+        //    harus berasal dari pihak yang akan memverifikasinya.
+        const slug = market.slug;
+        const challenge = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}`);
+        if (challenge.status !== 402) {
+          return jsonResult({
+            error: "no_challenge",
+            httpStatus: challenge.status,
+            detail: "The gateway did not answer with a payment challenge, so there is nothing to sign.",
+            body: challenge.body,
+          });
+        }
+        const accept = (challenge.body as any)?.accepts?.[0];
+        if (!accept) {
+          return jsonResult({ error: "no_accepts", detail: "The challenge carried no payment terms." });
+        }
+
+        // 2. Batas diperiksa SEBELUM menandatangani. Tanda tangan yang sudah keluar tidak
+        //    bisa ditarik kembali, jadi setiap pemeriksaan harus mendahuluinya.
+        const amount = BigInt(String(accept.maxAmountRequired ?? "0"));
+        const checks: string[] = [];
+        if (String(accept.network).toLowerCase() !== PAY_LIMITS.network) checks.push(`network ${accept.network}`);
+        if (String(accept.asset).toLowerCase() !== PAY_LIMITS.asset) checks.push(`asset ${accept.asset}`);
+        if (String(accept.payTo).toLowerCase() !== PAY_LIMITS.payTo) checks.push(`payTo ${accept.payTo}`);
+        if (amount <= 0n || amount > PAY_LIMITS.maxAtomic) checks.push(`amount ${amount}`);
+        if (checks.length > 0) {
+          return jsonResult({
+            error: "refused_by_limits",
+            detail: `The quote does not match this tool's hard limits, so nothing was signed. Mismatched: ${checks.join(", ")}.`,
+            limits: {
+              network: PAY_LIMITS.network,
+              asset: PAY_LIMITS.asset,
+              payTo: PAY_LIMITS.payTo,
+              maxAtomic: PAY_LIMITS.maxAtomic.toString(),
+            },
+          });
+        }
+
+        // 3. Tanda tangan. Nonce acak; `validBefore` pendek supaya otorisasi yang tidak
+        //    terpakai tidak menganggur lama sebagai izin yang masih hidup.
+        const wallet = new ethers.Wallet(SIGNER_KEY);
+        const authorization = {
+          from: wallet.address,
+          to: accept.payTo as string,
+          value: amount,
+          validAfter: 0n,
+          validBefore: BigInt(Math.floor(Date.now() / 1000) + 600),
+          nonce: ethers.hexlify(ethers.randomBytes(32)),
+        };
+        const signature = await wallet.signTypedData(
+          {
+            name: accept.extra?.name ?? "USD Coin",
+            version: accept.extra?.version ?? "2",
+            chainId: PAY_LIMITS.chainId,
+            verifyingContract: accept.asset as string,
+          },
+          {
+            TransferWithAuthorization: [
+              { name: "from", type: "address" },
+              { name: "to", type: "address" },
+              { name: "value", type: "uint256" },
+              { name: "validAfter", type: "uint256" },
+              { name: "validBefore", type: "uint256" },
+              { name: "nonce", type: "bytes32" },
+            ],
+          },
+          authorization
+        );
+
+        const header = Buffer.from(
+          JSON.stringify({
+            x402Version: 2,
+            scheme: "exact",
+            network: PAY_LIMITS.network,
+            payload: {
+              signature,
+              authorization: {
+                from: authorization.from,
+                to: authorization.to,
+                value: authorization.value.toString(),
+                validAfter: authorization.validAfter.toString(),
+                validBefore: authorization.validBefore.toString(),
+                nonce: authorization.nonce,
+              },
+            },
+          }),
+          "utf8"
+        ).toString("base64");
+
+        // 4. Bayar. Status gerbang diteruskan apa adanya, termasuk 503 out_of_inventory —
+        //    agent harus bisa membedakan "tidak ada stok" dari "pembelian gagal".
+        const paid = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "X-PAYMENT": header },
+        });
+        const body = paid.body as any;
+        return jsonResult({
+          symbol: want,
+          chain: market.chainLabel,
+          httpStatus: paid.status,
+          settled: paid.status === 200 && body?.settlement?.success === true,
+          paidBy: wallet.address,
+          signedBy: "operator wallet on the ADEXTO server, not a wallet held by the agent",
+          amountUsdc: (Number(amount) / 1e6).toFixed(2),
+          delivery: body?.delivery ?? null,
+          settlement: body?.settlement ?? null,
+          buyback: body?.buyback ?? null,
+          ...(paid.status !== 200 ? { gatewayError: body } : {}),
+          terminal: `${SITE}/token/${slug}?chain=${market.chainId}`,
+        });
+      }
+    );
+
     // ── FREE: history ─────────────────────────────────────────────────────────
     /**
      * KELENGKAPAN DIUKUR, BUKAN DIASUMSIKAN DARI CHAIN.
@@ -546,7 +762,16 @@ async function handler(request: Request): Promise<Response> {
 
   // Badan sudah dikonsumsi oleh `.text()`, jadi permintaannya dirakit ulang dengan isi yang
   // sama. Header ikut apa adanya agar `X-PAYMENT`, accept dan content-length tetap utuh.
-  return mcp(new Request(request.url, { method: "POST", headers: request.headers, body: raw }));
+  const rebuilt = new Request(request.url, { method: "POST", headers: request.headers, body: raw });
+
+  /**
+   * Kunci agent dibaca DI SINI dan dibawa lewat AsyncLocalStorage.
+   *
+   * Callback `registerTool` tidak menerima `Request`, jadi ini satu-satunya tempat header
+   * itu masih terlihat. Hanya `pay_and_buy` yang membacanya; alat lainnya gratis dan tidak
+   * peduli siapa pemanggilnya.
+   */
+  return requestContext.run({ agentKey: request.headers.get("x-agent-key") }, () => mcp(rebuilt));
 }
 
 export { handler as GET, handler as POST, handler as DELETE };
