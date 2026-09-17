@@ -198,3 +198,6 @@ build/forge-cache/
 
 # Dek presentasi: PDF dan PNG adalah hasil render, sumbernya public/founder-house/index.html
 deck/
+
+# Rekaman demo: hasil render, sumbernya record_openclaw_demo.mjs
+demo-out/
