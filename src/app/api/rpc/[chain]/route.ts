@@ -84,24 +84,46 @@ const ALLOWED = new Set([
  * Catatan "IP egress Cloudflare dibatasi penyedia RPC publik" itu benar, dan ia alasan
  * `BASE_RPC` menunjuk relai ini alih-alih menunjuk publicnode langsung. Tetapi upstream
  * relai dipanggil dari VPS kami, BUKAN dari Cloudflare. Jadi alasan itu berlaku pada hop
- * Worker→relai, dan pernah dipakai untuk memutuskan hop relai→upstream — hop yang
- * berbeda. Dari VPS, publicnode melayani `eth_call` pada 208 ms terhadap 21.377 ms milik
- * `mainnet.base.org`, dan angka itu sudah ada di runbook sejak lama.
+ * Worker→relai, lalu pernah dipakai untuk memutuskan hop relai→upstream — hop yang
+ * berbeda.
  *
- * Yang ditolak publicnode adalah permintaan ARSIP, dan daftar izin di bawah tidak memuat
- * `eth_getLogs` sama sekali. Kalaupun ia menolak sebuah pencarian receipt dengan 403,
- * lingkaran di bawah meneruskan ke upstream berikutnya karena `!res.ok` memang dicoba
- * ulang — jadi jalur uang tetap punya jaring.
+ * URUTANNYA DARI PENGUKURAN, DAN PENGUKURANNYA SUDAH BERUBAH SEKALI
+ *
+ * Percobaan pertama menaruh publicnode di depan, dengan dasar angka 208 ms yang tercatat
+ * di runbook. Itu memperbaiki sebagian — 3 dari 5 kutipan berhasil, terbaik 1,5 detik —
+ * lalu diukur ulang dan ternyata publicnode sudah tidak seperti itu lagi.
+ *
+ * 15 `eth_call` sah berurutan dari VPS, ke `totalSupply()` token $BLOOP:
+ *
+ *   base.drpc.org             15/15 berhasil   0 rate limit    198 ms
+ *   base-rpc.publicnode.com   12/15 berhasil   0 rate limit  3.617 ms
+ *   mainnet.base.org           5/15 berhasil  10 rate limit    337 ms
+ *
+ * Jadi `mainnet.base.org` cepat tetapi menolak dua dari tiga permintaan, publicnode
+ * menjawab tetapi kini 3,6 detik, dan drpc melayani semuanya pada 198 ms. Ini kali ketiga
+ * dalam satu hari sebuah konstanta penyedia basi: petak Base turun 10.000→2.000, petak 0G
+ * 2.000.000→100.000, dan sekarang latensi publicnode. **Ukur ulang sebelum mempercayai
+ * urutan ini; jangan warisi angkanya.**
+ *
+ * drpc juga melayani `eth_getTransactionReceipt` untuk transaksi di kedalaman ~223.000
+ * blok — justru permintaan arsip yang ditolak publicnode dengan 403, yaitu kegagalan #1
+ * di runbook. Jadi menaruhnya di depan memperbaiki kutipan DAN memperkuat jalur receipt.
+ *
+ * Daftar izin di bawah tidak memuat `eth_getLogs`, jadi batas `getLogs` drpc pada paket
+ * gratis tidak pernah tersentuh di jalur ini. Dan kalau upstream mana pun menjawab
+ * non-2xx, lingkaran di bawah meneruskan ke berikutnya karena `!res.ok` dicoba ulang.
  *
  * `broadcast` DIPERTAHANKAN di `mainnet.base.org` dan sengaja tidak ikut diubah.
  * `eth_sendRawTransaction` hanya pernah menemui satu upstream, jadi mengubahnya berarti
  * mengubah perilaku jalur uang tanpa pengukuran yang menuntutnya. Yang diperbaiki di sini
- * adalah kutipan, dan kutipan tidak menyiarkan apa pun.
+ * adalah kutipan, dan kutipan tidak menyiarkan apa pun. Rate limit yang diukur di atas
+ * menyangkut volume `eth_call` satu kutipan, bukan satu siaran tunggal.
  */
 const UPSTREAMS: Record<string, { chainId: number; urls: string[]; broadcast: string }> = {
   base: {
     chainId: 8453,
-    urls: ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base.drpc.org"],
+    // Diukur 2026-09-21 dari VPS. Lihat tabel di atas sebelum menyusun ulang.
+    urls: ["https://base.drpc.org", "https://base-rpc.publicnode.com", "https://mainnet.base.org"],
     broadcast: "https://mainnet.base.org",
   },
   arbitrum: {
