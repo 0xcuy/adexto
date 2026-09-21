@@ -453,3 +453,56 @@ export function readProvider(chain: ChainInfo): JsonRpcProvider {
     batchMaxCount: 1,
   });
 }
+
+/**
+ * Endpoint khusus untuk BACA LOG, per chain. Kosong berarti pakai `rpcUrl`.
+ *
+ * KENAPA INI TERPISAH, dan ini diukur dari VPS bukan dari laptop.
+ *
+ * `rpcUrl` Base menunjuk `base-rpc.publicnode.com` karena ia seratus kali lebih cepat
+ * untuk `eth_call`: sebelas `eth_call` tanpa batch selesai 208 ms di sana melawan 21.377 ms
+ * di `mainnet.base.org`. Itu keputusan yang benar untuk `readPoolState` dan masih berlaku.
+ *
+ * Yang tidak ikut diperiksa saat itu: publicnode MENOLAK `eth_getLogs` sama sekali.
+ *
+ *   HTTP 403  -32602  "Archive requests require a personal token"
+ *
+ * Bukan soal lebar rentang — 2.000 blok pun ditolak, dan penolakannya tidak bergantung
+ * pada span. Jadi riwayat perdagangan Base di produksi mengembalikan nol baris dengan
+ * `error: "server response 403 Forbidden"`, sementara `/api/pool` dan kutipan x402 di chain
+ * yang sama berjalan mulus. Satu penyedia bisa bagus untuk satu metode dan mati untuk
+ * metode lain, dan konstanta yang dipilih dengan mengukur SATU metode akan diam-diam
+ * mematikan yang lain.
+ *
+ * Diukur dari VPS, satu alamat kurva, rentang 2.000 blok:
+ *
+ *   base-rpc.publicnode.com   HTTP 403  butuh token arsip
+ *   base.drpc.org             HTTP 400  ditolak walau 1.999 blok
+ *   mainnet.base.org          HTTP 200  393-494 ms
+ *   1rpc.io/base              maksimal 50 blok
+ *   base.llamarpc.com         HTTP 525
+ *   base.blockpi.network      HTTP 521
+ *
+ * Jadi Base punya tiga endpoint untuk tiga pemanggil berbeda, dan itu disengaja:
+ * publicnode untuk `eth_call` sisi server, `mainnet.base.org` untuk baca log sisi server,
+ * dan relai di `src/app/api/rpc/[chain]/route.ts` untuk Worker Cloudflare. Menyatukannya
+ * menjadi satu konstanta pasti salah untuk salah satu dari ketiganya.
+ *
+ * `LOG_SPAN_BY_CHAIN[8453] = 2_000` di `onchain-trades.ts` cocok dengan batas yang
+ * diumumkan endpoint ini: "eth_getLogs is limited to a 2,000 range".
+ */
+const LOG_READ_RPC: Partial<Record<ChainKey, string>> = {
+  Base: "https://mainnet.base.org",
+};
+
+/**
+ * Provider untuk `eth_getLogs`. Sama dengan `readProvider` kecuali chain yang endpoint
+ * baca-cepatnya tidak melayani log — lihat `LOG_READ_RPC`.
+ */
+export function logReadProvider(chain: ChainInfo): JsonRpcProvider {
+  const url = LOG_READ_RPC[chain.key] ?? chain.rpcUrl;
+  return new JsonRpcProvider(url, chain.chainId, {
+    staticNetwork: true,
+    batchMaxCount: 1,
+  });
+}

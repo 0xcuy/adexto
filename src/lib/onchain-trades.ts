@@ -10,7 +10,7 @@
  */
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
-import { readProvider } from "@/lib/chains";
+import { logReadProvider, readProvider } from "@/lib/chains";
 import { SOVEREIGN_HOOK_ABI, SOVEREIGN_CURVE_ABI, ADEXTO_CURVE_ABI, ERC20_ABI } from "@/lib/dex";
 import type { TradeEvent } from "@/lib/telemetry";
 
@@ -299,10 +299,24 @@ export async function readOnChainSwaps(
   };
 
   try {
+    /**
+     * `logReadProvider`, BUKAN `readProvider`, dan bedanya bukan gaya.
+     *
+     * Berkas ini membaca riwayat dari blok peluncuran, jadi setiap `eth_getLogs` di sini
+     * adalah kueri arsip. `rpcUrl` Base menunjuk `base-rpc.publicnode.com` karena ia 100x
+     * lebih cepat untuk `eth_call`, dan endpoint itu MENOLAK kueri arsip dengan
+     * 403 "Archive requests require a personal token". Terukur: jendela 2.000 blok pada
+     * kedalaman 0 dan 2.000 lolos, pada kedalaman 10.000 ke atas ditolak. Riwayat $BLOOP
+     * ada di kedalaman 219.568, jadi riwayat perdagangan Base selalu kosong di sana.
+     *
+     * Semua `eth_call` di bawah — `decimals`, dan pembacaan kurva — tetap lewat
+     * `readProvider`, karena di situlah keunggulan 208 ms vs 21.377 ms itu berlaku.
+     */
     const provider = readProvider(chain);
+    const logRpc = logReadProvider(chain);
     const pool = new ethers.Contract(poolAddress, SOVEREIGN_CURVE_ABI, provider);
 
-    const latest = await provider.getBlockNumber();
+    const latest = await logRpc.getBlockNumber();
     const span = LOG_SPAN_BY_CHAIN[chain.chainId] ?? DEFAULT_LOG_SPAN;
 
     /**
@@ -362,7 +376,7 @@ export async function readOnChainSwaps(
       // topic0 sebagai daftar = OR, jadi satu panggilan menangkap swap kurva maupun hook.
       const batches = await Promise.all(
         windows.map((w) =>
-          provider.getLogs({ address: poolAddress, fromBlock: w.from, toBlock: w.to, topics: [SWAP_TOPICS] })
+          logRpc.getLogs({ address: poolAddress, fromBlock: w.from, toBlock: w.to, topics: [SWAP_TOPICS] })
         )
       );
       /**
@@ -473,7 +487,8 @@ export async function readOnChainSwaps(
         await Promise.all(
           missing.slice(i, i + BLOCK_BATCH).map(async (blockNumber) => {
             try {
-              const block = await provider.getBlock(blockNumber);
+              // Juga kueri arsip: blok ini seumur log yang baru dibaca, bukan blok terbaru.
+              const block = await logRpc.getBlock(blockNumber);
               if (block) blockTimes.set(blockNumber, Number(block.timestamp));
             } catch {
               // dicoba lagi di putaran berikutnya

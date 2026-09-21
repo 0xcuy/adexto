@@ -117,6 +117,46 @@ function providerFor(chainId) {
   return new ethers.JsonRpcProvider(c.rpc, chainId, { staticNetwork: true });
 }
 
+/**
+ * Endpoint baca-log, dibaca dari `LOG_READ_RPC` di `src/lib/chains.ts`.
+ *
+ * Dibaca dari sumber, bukan disalin, karena kalau penjaga ini memegang salinannya sendiri
+ * maka ia akan tetap hijau tepat pada saat aplikasi diarahkan ke endpoint yang salah —
+ * yaitu satu-satunya saat penjaga ini ada gunanya.
+ */
+const chainsSrc = readFileSync("src/lib/chains.ts", "utf8");
+function logRpcFromConfig(chainKey, fallback) {
+  const table = chainsSrc.match(/const LOG_READ_RPC[^=]*=\s*\{([\s\S]*?)\};/);
+  if (!table) return fallback;
+  // Baris yang di-comment HARUS dibuang dulu. Tanpa ini, entri yang dinonaktifkan dengan
+  // `// Base: "..."` tetap terbaca sebagai aktif, dan penjaga ini akan menguji endpoint yang
+  // tidak lagi dipakai aplikasi — persis kebutaan yang sedang diperbaiki, satu tingkat naik.
+  // Ditemukan dengan mencoba melepas entri Base untuk menguji penjaganya: ia tetap hijau.
+  const live = table[1]
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+    .join("\n");
+  const m = live.match(new RegExp(`\\b${chainKey}:\\s*"([^"]+)"`));
+  return m ? m[1] : fallback;
+}
+function logProviderFor(chainId) {
+  const c = CHAINS[chainId];
+  return new ethers.JsonRpcProvider(logRpcFromConfig(c.key, c.rpc), chainId, {
+    staticNetwork: true,
+  });
+}
+
+/**
+ * Blok penyebaran factory 0.11.0 per chain — kedalaman TERDALAM yang bisa diminta aplikasi,
+ * karena `readOnChainSwaps` selalu menelusuri balik ke blok peluncuran pasar.
+ */
+const FACTORY_START_BLOCK = {
+  16661: 43704079,
+  8453: 50971523,
+  42161: 502476317,
+  143: 102583076,
+};
+
 /** Kumpulkan berkas sumber yang teksnya terlihat pengguna. */
 function sourceFiles() {
   const out = [];
@@ -1547,21 +1587,44 @@ console.log("\n── petak getLogs per chain vs yang diterima RPC sungguhan ─
         continue;
       }
       try {
-        const p = providerFor(chainId);
+        /**
+         * Diuji pada KEDALAMAN yang benar-benar dibaca aplikasi, bukan pada jendela terbaru.
+         *
+         * Versi pertama menguji `head - span + 1 .. head` dan LOLOS untuk Base sementara
+         * riwayat perdagangan Base di produksi mengembalikan nol baris. Sebabnya: penolakan
+         * `base-rpc.publicnode.com` bukan tentang LEBAR rentang melainkan KEDALAMANNYA —
+         * 403 "Archive requests require a personal token". Terukur, jendela 2.000 blok:
+         * kedalaman 0 lolos, kedalaman 2.000 lolos, kedalaman 10.000 ke atas ditolak.
+         * Jendela terbaru adalah tepat satu-satunya jendela yang bekerja, jadi penjaga itu
+         * menguji kasus yang tidak pernah gagal.
+         *
+         * `readOnChainSwaps` selalu menelusuri balik ke blok peluncuran pasar, jadi
+         * kedalaman terdalam yang bisa diminta aplikasi adalah blok penyebaran factory
+         * 0.11.0. Itu yang dipakai di sini.
+         *
+         * Alamat mati dan topic mustahil DIPERTAHANKAN: hasilnya pasti kosong, jadi batas
+         * jumlah hasil (20.000 di 0G) tidak pernah ikut mengaburkan jawaban, dan tesnya
+         * tidak bergantung pasar mana yang sedang hidup.
+         */
+        const p = logProviderFor(chainId);
         const head = await p.getBlockNumber();
-        // Alamat mati: hasilnya pasti kosong, jadi yang diuji murni apakah RENTANGNYA
-        // diterima — tidak bergantung pasar mana yang sedang hidup di chain itu.
+        const deepest = FACTORY_START_BLOCK[chainId] ?? Math.max(0, head - span * 16);
+        const from = Math.max(0, deepest);
+        const to = Math.min(head, from + span - 1);
         await p.getLogs({
           address: "0x000000000000000000000000000000000000dEaD",
-          fromBlock: Math.max(0, head - span + 1),
-          toBlock: head,
+          fromBlock: from,
+          toBlock: to,
           topics: [["0x" + "ab".repeat(32)]],
         });
-        ok(`${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima`, `kepala blok ${head}`);
+        ok(
+          `${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima pada kedalaman arsip`,
+          `blok ${from}-${to}, kedalaman ${(head - to).toLocaleString("en-US")} dari kepala ${head}`
+        );
       } catch (e) {
         const msg = String(e?.error?.message ?? e?.shortMessage ?? e?.message ?? e).slice(0, 70);
         check(
-          `${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima`,
+          `${c.key}: rentang ${span.toLocaleString("en-US")} blok diterima pada kedalaman arsip`,
           false,
           `DITOLAK: ${msg} — riwayat perdagangan di chain ini akan tampil kosong`
         );
