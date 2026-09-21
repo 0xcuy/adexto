@@ -32,8 +32,11 @@ import type { TradeEvent } from "@/lib/telemetry";
  *    perdagangan" — kegagalan yang tidak bisa dibedakan dari pasar yang benar-benar
  *    kosong.
  *
- * Nilai di bawah diberi margin dari yang terukur lolos: 0G dan Arbitrum lolos sampai
- * 2.000.000, Monad hanya sampai 100.
+ * Nilai di bawah diberi margin dari yang terukur lolos. Angka itu bergerak: Arbitrum masih
+ * lolos sampai 2.000.000, tetapi 0G — yang dulu juga lolos 2.000.000 — sekarang keras di
+ * 100.000, dan Monad bergantung penyedia (100 di QuickNode, >=1.000.000 di Alchemy). Setiap
+ * entri di bawah menyebutkan kapan ia diukur, karena tanggalnya yang menentukan apakah
+ * angkanya masih layak dipercaya.
  *
  * Base TURUN dari 10.000 ke 2.000 dalam hitungan hari, dan itu bukan catatan sepele —
  * itu justru buktinya kenapa angka-angka ini tidak boleh dipercaya tanpa diperiksa.
@@ -47,7 +50,37 @@ import type { TradeEvent } from "@/lib/telemetry";
  * di keempat RPC yang diuji kecuali Monad.
  */
 const LOG_SPAN_BY_CHAIN: Record<number, number> = {
-  16661: 500_000, // 0G mainnet
+  /**
+   * 0G TURUN dari 500.000 ke 90.000, dan ini kejadian kedua dari pola yang sama.
+   *
+   * `evmrpc.0g.ai` sekarang menolak rentang di atas 100.000 blok dengan
+   * "query exceeds max block range 100000". Sebelumnya rentang 2.000.000 lolos — itu yang
+   * dicatat di komentar di atas — jadi 500.000 dulu benar dan sekarang tidak. Persis seperti
+   * Base yang turun dari 10.000 ke 2.000: tidak ada pemberitahuan, tidak ada perubahan di
+   * repo ini, dan yang menemukannya penjaga di `audit_consistency.mjs`.
+   *
+   * Diukur dengan filter seperti yang dipakai aplikasi (satu alamat kurva + topic Swap),
+   * pada kepala blok 44.891.902:
+   *
+   *   200.000 blok   DITOLAK  "query exceeds max block range 100000"
+   *   100.000 blok   diterima
+   *    90.000 blok   diterima
+   *
+   * Ada batas KEDUA yang terpisah dan mudah tertukar dengan yang ini: maksimal 20.000 hasil
+   * per panggilan. Kueri tanpa filter kena batas itu bahkan pada 10.000 blok. Kueri di berkas
+   * ini selalu difilter per alamat kurva, jadi yang menentukan adalah batas rentang — tetapi
+   * siapa pun yang mengukur ulang tanpa filter akan mengira ceilingnya jauh lebih rendah.
+   *
+   * 90.000 dan bukan 50.000 dengan sengaja, walau marginnya jadi tipis. Anggarannya 16
+   * panggilan, jadi 90.000 menjangkau 1.440.000 blok ke belakang dan $ADEXTO — pasar 0G
+   * tertua yang masih terdaftar, 1.187.794 blok dari kepala saat diukur — tetap terjangkau.
+   * Pada 50.000 jangkauannya 800.000 blok dan riwayat pasar itu hilang tanpa satu pun galat.
+   * Jadi margin di sini ditukar dengan cakupan, secara sadar, dan penjaga di
+   * `audit_consistency.mjs` yang menanggung risikonya: ia menguji rentang ini ke RPC sungguhan
+   * pada setiap kali dijalankan, memakai alamat mati supaya batas 20.000 hasil tidak ikut
+   * mengaburkan hasilnya.
+   */
+  16661: 90_000, // 0G mainnet — diukur 2026-09-18; ceiling keras 100.000
   8453: 2_000, // Base — diukur 2026-09-09; sebelumnya 10.000
   42161: 500_000, // Arbitrum
   /**
