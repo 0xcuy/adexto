@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 // 0G Compute Official Mainnet Router Endpoint
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
@@ -10,12 +11,35 @@ const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1"
  */
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
 
+/**
+ * Batas laju, karena endpoint ini membelanjakan uang tanpa autentikasi.
+ *
+ * Setiap permintaan memanggil 0G Router yang berbayar. Sebelum ini tidak ada batas apa pun,
+ * jadi satu loop `curl` bisa menghabiskan kuota dan gejalanya "agent chat mati", bukan "kami
+ * dikuras". 20 per 5 menit longgar untuk percakapan manusia — satu tanya-jawab jarang lebih
+ * dari beberapa permintaan — dan sempit untuk skrip.
+ */
+const CHAT_LIMIT = 20;
+const CHAT_WINDOW_MS = 5 * 60 * 1000;
+
 export async function POST(req: Request) {
   try {
     if (!OG_API_KEY) {
       return NextResponse.json(
         { error: "Agent chat is not configured: OG_ROUTER_API_KEY is missing on the server." },
         { status: 503 }
+      );
+    }
+    // Diperiksa SEBELUM body dibaca dan sebelum model dipanggil: yang dibatasi adalah biaya,
+    // dan biaya itu keluar di panggilan hilir, bukan di parsing.
+    const gate = rateLimit(`chat:${clientIp(req)}`, CHAT_LIMIT, CHAT_WINDOW_MS);
+    if (!gate.ok) {
+      return NextResponse.json(
+        {
+          error: "Too many requests. This endpoint calls a paid model, so it is rate limited.",
+          retryAfter: gate.retryAfter,
+        },
+        { status: 429, headers: rateLimitHeaders(gate) }
       );
     }
     const { messages, model, systemPrompt, chain, temperature } = await req.json();

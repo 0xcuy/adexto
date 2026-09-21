@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
@@ -165,11 +166,41 @@ function fallback(prompt: string, tokenSymbol: string | undefined, note: string)
   return NextResponse.json(body);
 }
 
+/**
+ * Lebih ketat daripada `/api/chat`, dan sengaja.
+ *
+ * Pembuatan gambar jauh lebih mahal per panggilan daripada satu penyelesaian teks, dan
+ * pemakaian nyatanya jauh lebih jarang: seorang creator membuat logo beberapa kali saat
+ * meluncurkan satu pasar, bukan puluhan kali per menit. 8 per 10 menit tidak akan pernah
+ * disentuh orang yang sedang memakai studio.
+ */
+const LOGO_LIMIT = 8;
+const LOGO_WINDOW_MS = 10 * 60 * 1000;
+
 export async function POST(req: Request) {
   let prompt = "";
   let tokenSymbol: string | undefined;
 
   try {
+    /**
+     * Dibatasi SEBELUM model dipanggil, dan jawabannya 429 — bukan `fallback()`.
+     *
+     * `fallback()` mengembalikan HTTP 200 dengan logo cadangan, yang benar ketika model
+     * tidak dikonfigurasi atau gagal: pemanggilnya tetap dapat gambar. Tetapi untuk batas
+     * laju, 200 akan menyembunyikan penolakannya — pemanggil tidak tahu harus mundur, dan
+     * sebuah skrip akan terus memukul dengan kecepatan penuh. Yang dibedakan di sini adalah
+     * "kami tidak bisa menggambar" versus "kamu terlalu cepat".
+     */
+    const gate = rateLimit(`logo:${clientIp(req)}`, LOGO_LIMIT, LOGO_WINDOW_MS);
+    if (!gate.ok) {
+      return NextResponse.json(
+        {
+          error: "Too many logo requests. Image generation is billed per call, so it is rate limited.",
+          retryAfter: gate.retryAfter,
+        },
+        { status: 429, headers: rateLimitHeaders(gate) }
+      );
+    }
     const parsed = await req.json().catch(() => ({}));
     tokenSymbol = typeof parsed.tokenSymbol === "string" ? parsed.tokenSymbol : undefined;
     const tokenName = typeof parsed.tokenName === "string" ? parsed.tokenName : undefined;

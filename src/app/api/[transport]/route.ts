@@ -49,6 +49,7 @@ import { listProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
+import { rateLimit, secretEquals } from "@/lib/rate-limit";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -77,8 +78,39 @@ const requestContext = new AsyncLocalStorage<{ agentKey: string | null }>();
 
 /** Kunci yang harus dibawa pemanggil untuk memakai alat berbayar. Kosong = alat mati. */
 const AGENT_DEMO_KEY = process.env.AGENT_DEMO_KEY ?? "";
-/** Kunci penanda tangan. Sama dengan yang sudah dipakai jalur peluncuran di server ini. */
-const SIGNER_KEY = process.env.PRIVATE_KEY || process.env.OG_PRIVATE_KEY || "";
+/**
+ * Kunci penanda tangan untuk `pay_and_buy`, dan ia SENGAJA TIDAK jatuh ke kunci deployer.
+ *
+ * Dulu baris ini `process.env.PRIVATE_KEY || process.env.OG_PRIVATE_KEY`, yaitu kunci
+ * deployer. Itu bertentangan dengan keputusan yang sudah diambil untuk relayer x402: relayer
+ * memakai operator terpisah `0xDe1f…C627` justru supaya blast radius-nya kecil, dan kunci
+ * deployer sengaja tidak pernah ditaruh di Worker. Endpoint ini publik dan anonim kecuali
+ * satu header, jadi ia adalah permukaan yang LEBIH terbuka daripada Worker, dan ia memegang
+ * kunci yang lebih berharga.
+ *
+ * Apa yang sebenarnya bisa hilang: batas keras di bawah mengikat APA yang ditandatangani,
+ * jadi bahkan kunci yang bocor hanya bisa menandatangani otorisasi EIP-3009 USDC ke treasury
+ * kami sendiri. Yang tidak diikatnya adalah BERAPA KALI. Jadi kerugian maksimumnya adalah
+ * seluruh saldo USDC dompet penanda tangan, terkuras 0,20 sekali jalan. Dengan kunci deployer
+ * itu berarti saldo USDC dompet yang juga `creator` pasar-pasar hidup dan pemilik setiap
+ * agent ERC-8004 kami. Dengan dompet khusus, kerugiannya adalah isi dompet itu saja.
+ *
+ * FAIL-CLOSED. Tanpa `AGENT_DEMO_PRIVATE_KEY`, alat ini membalas `no_signer` dan tidak
+ * menandatangani apa pun. Mati lebih baik daripada hidup dengan kunci yang salah, dan
+ * cadangan diam-diam ke kunci deployer adalah persis cara masalah ini ada sejak awal.
+ */
+const SIGNER_KEY = process.env.AGENT_DEMO_PRIVATE_KEY ?? "";
+/**
+ * Batas JUMLAH panggilan, pelengkap `PAY_LIMITS` yang membatasi besarnya.
+ *
+ * `PAY_LIMITS` memastikan satu pembelian tidak bisa lebih dari 0,20 USDC dan uangnya hanya
+ * bisa ke treasury kami. Ia tidak berkata apa pun soal seribu pembelian berturut-turut.
+ * Dibatasi secara GLOBAL, bukan per IP: yang dijaga di sini adalah saldo dompet, dan saldo
+ * itu satu untuk semua pemanggil — pembatasan per IP akan dilewati begitu saja dengan
+ * berpindah IP.
+ */
+const PAY_CALL_LIMIT = 10;
+const PAY_CALL_WINDOW_MS = 60 * 60 * 1000;
 
 /**
  * Batas keras untuk `pay_and_buy`. Bukan saran — diperiksa terhadap kutipan gerbang, dan
@@ -405,7 +437,10 @@ const mcp = createMcpHandler(
             detail: "AGENT_DEMO_KEY is not set on this server, so the paid tool is switched off.",
           });
         }
-        if (!ctx?.agentKey || ctx.agentKey !== AGENT_DEMO_KEY) {
+        // `secretEquals`, bukan `!==`: yang terakhir keluar pada karakter pertama yang beda,
+        // jadi lama jawabannya membocorkan panjang prefiks yang benar. Lewat HTTP itu nyaris
+        // tak bisa dieksploitasi, tapi biaya memperbaikinya nol.
+        if (!ctx?.agentKey || !secretEquals(ctx.agentKey, AGENT_DEMO_KEY)) {
           return jsonResult({
             error: "not_authorised",
             detail:
@@ -413,7 +448,26 @@ const mcp = createMcpHandler(
           });
         }
         if (!SIGNER_KEY) {
-          return jsonResult({ error: "no_signer", detail: "No signing key is configured on this server." });
+          return jsonResult({
+            error: "no_signer",
+            detail:
+              "AGENT_DEMO_PRIVATE_KEY is not set on this server. This tool deliberately does not fall back to the deployer key, so it stays off until a dedicated signing wallet is configured.",
+          });
+        }
+        /**
+         * Batas dihitung SESUDAH kunci diperiksa, dan itu urutan yang disengaja.
+         *
+         * Kalau dihitung lebih dulu, pemanggil anonim tanpa kunci bisa menghabiskan kuota
+         * jam itu dan mengunci pemakai yang sah — pembatas laju yang berubah menjadi alat
+         * denial-of-service terhadap pemiliknya sendiri.
+         */
+        const payGate = rateLimit("pay_and_buy", PAY_CALL_LIMIT, PAY_CALL_WINDOW_MS);
+        if (!payGate.ok) {
+          return jsonResult({
+            error: "rate_limited",
+            retryAfterSeconds: payGate.retryAfter,
+            detail: `This tool is capped at ${PAY_CALL_LIMIT} purchases per hour across all callers, because the per-purchase limit bounds the size of a buy and not the number of them.`,
+          });
         }
 
         const want = String(symbol).toUpperCase();
