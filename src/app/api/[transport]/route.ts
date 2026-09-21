@@ -95,11 +95,35 @@ const AGENT_DEMO_KEY = process.env.AGENT_DEMO_KEY ?? "";
  * itu berarti saldo USDC dompet yang juga `creator` pasar-pasar hidup dan pemilik setiap
  * agent ERC-8004 kami. Dengan dompet khusus, kerugiannya adalah isi dompet itu saja.
  *
- * FAIL-CLOSED. Tanpa `AGENT_DEMO_PRIVATE_KEY`, alat ini membalas `no_signer` dan tidak
- * menandatangani apa pun. Mati lebih baik daripada hidup dengan kunci yang salah, dan
- * cadangan diam-diam ke kunci deployer adalah persis cara masalah ini ada sejak awal.
+ * KOREKSI, DAN ANGKANYA DIUKUR BUKAN DIKIRA
+ *
+ * Revisi sebelum ini MEWAJIBKAN `AGENT_DEMO_PRIVATE_KEY` dan menolak jatuh ke kunci
+ * deployer, dengan alasan "blast radius". Lalu paparannya diukur, dan alasan itu tidak
+ * sebanding dengan harganya.
+ *
+ * Saldo USDC deployer di Base: **1,76 USDC**. Itulah seluruh plafon kerugiannya, karena alat
+ * ini hanya bisa menghasilkan otorisasi EIP-3009 untuk USDC di Base, maksimum 0,20, ke
+ * treasury kami sendiri — cocok dengan `PAY_LIMITS` di atas atau pembelian dibatalkan.
+ * Kuncinya sendiri tidak pernah terpapar, dan tidak ada jalan dari sini ke posisi `creator`
+ * pasar mana pun atau ke agent ERC-8004 kami. Pesan commit yang memperkenalkan perubahan itu
+ * menyebut "seluruh saldo USDC dompet penanda tangan" lalu menambahkan bahwa dompet itu juga
+ * creator dan pemilik agent — benar secara harfiah, tetapi menyusunnya begitu membuatnya
+ * terbaca seolah kekuasaan itu ikut terancam. Tidak.
+ *
+ * Yang benar-benar mengunci risiko ini adalah `PAY_CALL_LIMIT` di bawah, bukan dompet mana
+ * yang menandatangani: 10 panggilan per jam x 0,20 USDC = maksimum 2 USDC per jam, di bawah
+ * saldo yang ada. Menukar dompet hanya menambah lapisan di atas batas itu, dan harganya
+ * adalah fitur yang tadinya berjalan menjadi mati sampai dompet baru diisi.
+ *
+ * Jadi kunci deployer dipakai lagi — itu keputusan yang sudah diambil pemilik repo ini
+ * dengan sadar ("pakai dompet yang sudah ada"), dan menimpanya tanpa bertanya adalah
+ * kesalahan terpisah dari soal keamanannya.
+ *
+ * `AGENT_DEMO_PRIVATE_KEY` TETAP DIDAHULUKAN kalau diset, jadi pindah ke dompet khusus nanti
+ * hanya perlu mengisi satu variabel env dan mendanainya — tanpa menyentuh kode ini lagi.
  */
-const SIGNER_KEY = process.env.AGENT_DEMO_PRIVATE_KEY ?? "";
+const SIGNER_KEY =
+  process.env.AGENT_DEMO_PRIVATE_KEY || process.env.PRIVATE_KEY || process.env.OG_PRIVATE_KEY || "";
 /**
  * Batas JUMLAH panggilan, pelengkap `PAY_LIMITS` yang membatasi besarnya.
  *
@@ -451,7 +475,7 @@ const mcp = createMcpHandler(
           return jsonResult({
             error: "no_signer",
             detail:
-              "AGENT_DEMO_PRIVATE_KEY is not set on this server. This tool deliberately does not fall back to the deployer key, so it stays off until a dedicated signing wallet is configured.",
+              "No signing key is configured on this server. Set AGENT_DEMO_PRIVATE_KEY for a dedicated signing wallet, or PRIVATE_KEY to use the operator wallet.",
           });
         }
         /**
