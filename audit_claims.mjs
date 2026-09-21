@@ -45,7 +45,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
  * daftar ini sama saja dengan tidak dijaga: penjaganya lulus tanpa pernah membukanya.
  */
 const ROUTES =
-  "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/founder-house/index.html".split(
+  "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/recognition,/founder-house/index.html".split(
     ","
   );
 
