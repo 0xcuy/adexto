@@ -1,0 +1,351 @@
+{
+  "_README": [
+    "DIHASILKAN oleh scripts/docs-facts.mjs. Jangan sunting tangan.",
+    "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
+    "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
+  ],
+  "generatedAt": "2026-09-21T15:33:40.845Z",
+  "site": "https://adexto.xyz",
+  "chains": [
+    {
+      "chainId": 16661,
+      "name": "0G Mainnet",
+      "nativeSymbol": "0G",
+      "explorer": "https://chainscan.0g.ai",
+      "rpcUrl": "https://evmrpc.0g.ai",
+      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
+      "factoryVersion": "0.11.0",
+      "factoryBytecodeBytes": 21281,
+      "factoryBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8"
+    },
+    {
+      "chainId": 8453,
+      "name": "Base Mainnet",
+      "nativeSymbol": "ETH",
+      "explorer": "https://basescan.org",
+      "rpcUrl": "https://base-rpc.publicnode.com",
+      "factory": "0x216E7880D64D94335B583c539802d3e61958d4A2",
+      "factoryVersion": "0.11.0",
+      "factoryBytecodeBytes": 21281,
+      "factoryBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8"
+    },
+    {
+      "chainId": 42161,
+      "name": "Arbitrum One",
+      "nativeSymbol": "ETH",
+      "explorer": "https://arbiscan.io",
+      "rpcUrl": "https://arb1.arbitrum.io/rpc",
+      "factory": "0xE17f1027FC5f294327D701829baeD9d6519e922C",
+      "factoryVersion": "0.11.0",
+      "factoryBytecodeBytes": 21281,
+      "factoryBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8"
+    },
+    {
+      "chainId": 143,
+      "name": "Monad Mainnet",
+      "nativeSymbol": "MON",
+      "explorer": "https://monadscan.com",
+      "rpcUrl": "https://rpc1.monad.xyz",
+      "factory": "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
+      "factoryVersion": "0.11.0",
+      "factoryBytecodeBytes": 21281,
+      "factoryBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8"
+    }
+  ],
+  "bytecode": {
+    "identicalAcrossChains": true,
+    "bytes": 21281,
+    "keccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8"
+  },
+  "fees": {
+    "maxTotalBps": 500,
+    "protocolBps": 10,
+    "antiSnipeBlocks": 5
+  },
+  "markets": [
+    {
+      "symbol": "ZEEBO",
+      "name": "Zeebo",
+      "slug": "zeebo",
+      "chainId": 16661,
+      "chainKey": "0G",
+      "nativeSymbol": "0G",
+      "token": "0x36Eb56AF0ad34e8F39774E53ee681298E1848721",
+      "curve": "0xBCdDE7f6071da3fc33f959F6A8B919dd921af49A",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 44560074
+    },
+    {
+      "symbol": "WOMBO",
+      "name": "Wombo",
+      "slug": "wombo",
+      "chainId": 42161,
+      "chainKey": "Arbitrum",
+      "nativeSymbol": "ETH",
+      "token": "0x84737C90Ef1D4318b4835cdC27e3F0989f4831d4",
+      "curve": "0xB71A0bAfF60795DEde0C7f89F6AD095f7186C712",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 505650908
+    },
+    {
+      "symbol": "BLOOP",
+      "name": "Bloop",
+      "slug": "bloop",
+      "chainId": 8453,
+      "chainKey": "Base",
+      "nativeSymbol": "ETH",
+      "token": "0xC980987be6fF737E55e65Bb67Cdd2F231Aa0fa6B",
+      "curve": "0xdEC37908476Ba7C159fBd28C687b7dE43079E4E4",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 51372549
+    },
+    {
+      "symbol": "PARCEL",
+      "name": "Parcel Market",
+      "slug": "parcel",
+      "chainId": 143,
+      "chainKey": "Monad",
+      "nativeSymbol": "MON",
+      "token": "0xC0B02176D37C1a64A6B493335115dB5D6D645E1F",
+      "curve": "0x36F2E236Bd37830BbF52c1248DeE28770C8F4eCb",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 103878638
+    },
+    {
+      "symbol": "ADT",
+      "name": "ADEXTO Protocol",
+      "slug": "adt",
+      "chainId": 16661,
+      "chainKey": "0G",
+      "nativeSymbol": "0G",
+      "token": "0x27F3117679680e0a85951BF4a1ca44Bd67D1E5a5",
+      "curve": "0x75148E905a31F7f5dD2f3Fe8fea4588a08ebF966",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 43706589
+    },
+    {
+      "symbol": "ADEXTO",
+      "name": "ADEXTO",
+      "slug": "adexto",
+      "chainId": 16661,
+      "chainKey": "0G",
+      "nativeSymbol": "0G",
+      "token": "0xA1358C17004469C7CA5365AbafD294F9b2c11DF7",
+      "curve": "0xc80e0659D2Fc29e62605C9DF6182a85372652B60",
+      "depthFeeBps": 15,
+      "buybackBps": 5,
+      "launchBlock": 43706550
+    }
+  ],
+  "mcp": {
+    "endpoint": "https://adexto.xyz/api/mcp",
+    "tools": [
+      {
+        "name": "list_markets",
+        "title": "List every tradable ADEXTO market",
+        "description": "Every bonding-curve market this gateway can sell, across all chains it serves, with its ticker, chain, curve address and whether it is currently tradable. Free. Start here: the buy tools require a ticker and deliberately have no default.",
+        "args": []
+      },
+      {
+        "name": "get_market",
+        "title": "One market in detail",
+        "description": "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
+        "args": [
+          "symbol"
+        ]
+      },
+      {
+        "name": "quote_buy",
+        "title": "Quote a cross-chain buy without paying",
+        "description": "Reads the gateway's HTTP 402 challenge for a market and returns the quote and payment requirements without spending anything. The challenge carries the exact amount, the asset, the payTo address and the EIP-3009 domain, so an agent can decide before it signs. Free. This is the tool to call before buy_token.",
+        "args": [
+          "symbol",
+          "to"
+        ]
+      },
+      {
+        "name": "how_to_pay",
+        "title": "How to pay this gateway",
+        "description": "The exact steps to turn a 402 challenge into a settled cross-chain buy: what to sign, which chain settles, and which header carries the payment. Free. Read this if you have never paid an x402 endpoint before.",
+        "args": []
+      },
+      {
+        "name": "buy_token",
+        "title": "Buy a market cross-chain with USDC on Base",
+        "description": "Executes the buy. Called without xPayment it returns the HTTP 402 challenge, which is the correct first response and not an error. Called with a signed x402 payload in xPayment it settles on Base and the curve on the destination chain sends the tokens straight to `to`. You never need native gas on the destination chain and never need to bridge.",
+        "args": [
+          "symbol",
+          "to",
+          "xPayment"
+        ]
+      },
+      {
+        "name": "pay_and_buy",
+        "title": "Execute a buy end to end (operator-signed, capped)",
+        "description": "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, ne",
+        "args": [
+          "symbol"
+        ]
+      },
+      {
+        "name": "trade_history",
+        "title": "Every swap on a market, and how complete the answer is",
+        "description": "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
+        "args": [
+          "symbol",
+          "limit"
+        ]
+      }
+    ]
+  },
+  "x402": {
+    "gateway": "https://x402.adexto.xyz",
+    "example": {
+      "httpStatus": 402,
+      "wwwAuthenticate": "x402 realm=\"adexto-buy-zeebo\"",
+      "x402Version": 2,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "base",
+          "maxAmountRequired": "100000",
+          "resource": "https://x402.adexto.xyz/v1/x402/buy/zeebo",
+          "description": "Buy $ZEEBO on 0G Mainnet with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
+          "mimeType": "application/json",
+          "payTo": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
+          "maxTimeoutSeconds": 300,
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "extra": {
+            "name": "USD Coin",
+            "version": "2",
+            "transferMethod": "eip3009"
+          }
+        }
+      ],
+      "quoteShape": [
+        "symbol",
+        "token",
+        "curve",
+        "chainId",
+        "chain",
+        "payWith",
+        "deliver",
+        "rate",
+        "inventory"
+      ]
+    }
+  },
+  "nativePrices": {
+    "USDC": 1,
+    "USDT": 1,
+    "ETH": 2732.02,
+    "0G": 0.231671,
+    "A0GI": 0.231671,
+    "MON": 0.02579585,
+    "ARB": 0.231915,
+    "cbBTC": 85876
+  },
+  "analysers": [
+    {
+      "id": "solc",
+      "tool": "solc 0.8.26 (via-IR, optimizer 200)",
+      "status": "clean",
+      "counts": {
+        "errors": 0,
+        "warnings": 0
+      },
+      "launchPathCounts": null
+    },
+    {
+      "id": "forge-fuzz",
+      "tool": "forge",
+      "status": "clean",
+      "counts": {
+        "passed": 21,
+        "failed": 0
+      },
+      "launchPathCounts": null
+    },
+    {
+      "id": "forge-invariant",
+      "tool": "forge",
+      "status": "clean",
+      "counts": {
+        "passed": 4,
+        "failed": 0
+      },
+      "launchPathCounts": null
+    },
+    {
+      "id": "slither",
+      "tool": "slither",
+      "status": "triaged",
+      "counts": {
+        "total": 77,
+        "Medium": 36,
+        "Low": 28,
+        "Informational": 8,
+        "Optimization": 5
+      },
+      "launchPathCounts": {
+        "Medium": 17,
+        "Low": 15,
+        "Informational": 6
+      }
+    },
+    {
+      "id": "aderyn",
+      "tool": "aderyn",
+      "status": "triaged",
+      "counts": {
+        "highKinds": 4,
+        "highInstances": 39,
+        "lowKinds": 13,
+        "lowInstances": 87
+      },
+      "launchPathCounts": {
+        "HighInstances": 27
+      }
+    },
+    {
+      "id": "solhint",
+      "tool": "solhint",
+      "status": "clean",
+      "counts": {
+        "errors": 0,
+        "warnings": 909
+      },
+      "launchPathCounts": null
+    },
+    {
+      "id": "semgrep",
+      "tool": "semgrep",
+      "status": "clean",
+      "counts": {
+        "findings": 0,
+        "filesScanned": 12,
+        "configErrors": 0
+      },
+      "launchPathCounts": null
+    },
+    {
+      "id": "echidna",
+      "tool": "echidna (docker)",
+      "status": "clean",
+      "counts": {
+        "properties": 4,
+        "failed": 0,
+        "totalCalls": 50161,
+        "uniqueInstructions": 7252
+      },
+      "launchPathCounts": null
+    }
+  ],
+  "analysersScannedAt": "2026-09-21T10:35:12.880Z",
+  "analysersCommit": "c14c62446e4ee4ce0e56a9e31d1edeb0603dbb6a"
+}

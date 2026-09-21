@@ -1,0 +1,821 @@
+{
+  "pages": {
+    "mcp": {
+      "title": "MCP server for AI agents",
+      "lede": "The ADEXTO Model Context Protocol server allows automated agents to inspect bonding-curve markets and request purchases through an operator-controlled signing proxy. All analytical tools are public and unauthenticated, while purchase execution is restricted to a single authenticated tool governed by strict spending limits.",
+      "sections": [
+        {
+          "heading": "Client Configuration",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The ADEXTO MCP server is accessible at `https://adexto.xyz/api/mcp` over standard HTTP transports. Connecting an agent requires adding the endpoint to the client configuration, which enables market discovery without requiring account creation or authentication tokens for read operations."
+            },
+            {
+              "type": "code",
+              "lang": "json",
+              "code": "{\n  \"mcpServers\": {\n    \"adexto\": {\n      \"url\": \"https://adexto.xyz/api/mcp\"\n    }\n  }\n}"
+            },
+            {
+              "type": "p",
+              "text": "The tools exposed by this endpoint are listed in the table below."
+            },
+            {
+              "type": "factsTable",
+              "table": "mcpTools"
+            }
+          ]
+        },
+        {
+          "heading": "Access Tiers and Tool Scope",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The interface separates market inspection from capital expenditure. All read-oriented tools are free, public, and operate without an account, an API key, or a funded balance. General requests to inspect market state or read trading histories proceed without credentials."
+            },
+            {
+              "type": "p",
+              "text": "The single exception is the `pay_and_buy` tool, which is the only tool gated by authentication and capable of spending money. Requests to the remaining tools require no key or identity verification."
+            }
+          ]
+        },
+        {
+          "heading": "Key Custody and Purchase Execution",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The agent does not hold private keys or control a spending wallet. When an agent decides to purchase tokens, it invokes the `pay_and_buy` tool, which requests that the server sign the transaction using the operator's private key stored on the server."
+            },
+            {
+              "type": "p",
+              "text": "Because the signing key is maintained on the server, the agent decides to execute a purchase, but the server executes the purchase rather than the agent paying from its own funds."
+            },
+            {
+              "type": "p",
+              "text": "The delivery address is never exposed or configurable by the agent because tokens always go directly to the signer address on the target curve. This prevents the agent from routing purchases to arbitrary recipient addresses."
+            }
+          ]
+        },
+        {
+          "heading": "Gateway Verification and Guard Rails",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Calls to the `pay_and_buy` tool require an `x-agent-key` header to authenticate against the server. If this header is missing or invalid, the server rejects the request immediately."
+            },
+            {
+              "type": "p",
+              "text": "When executing a purchase, the server retrieves the HTTP 402 challenge from the gateway at `https://x402.adexto.xyz`. The server reads every term from the challenge response and compares it against hard-coded limits before signing the payment."
+            },
+            {
+              "type": "p",
+              "text": "Capital risk is bounded along two distinct dimensions. The per-purchase cap bounds the size of any single transaction, while the per-hour call cap bounds invocation frequency rather than transaction size."
+            },
+            {
+              "type": "note",
+              "text": "If any payment parameter returned in the gateway HTTP 402 challenge exceeds the hard-coded limits, or if the hourly call cap is reached, the server rejects the call before signing or spending funds."
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:42:57.628Z"
+    },
+    "trading": {
+      "title": "Trading a market",
+      "lede": "The ADEXTO bonding curve operates as a permanent trading venue that prices tokens against a virtual native reserve using a constant-product invariant. Because the protocol contains no graduation step or migration routine, token purchases and sales execute directly against the curve contract throughout the token lifecycle.",
+      "sections": [
+        {
+          "heading": "Constant Product Invariant and Permanent Curve Liquidity",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The curve manages token pricing through a constant-product invariant evaluated against a virtual native currency reserve. This mechanism provides continuous on-chain pricing across trades, while each transaction incurs price impact dictated by the current reserve depth."
+            },
+            {
+              "type": "p",
+              "text": "Many conventional launchpad models establish an arbitrary graduation target that halts trading and moves liquidity into an external automated market maker. The ADEXTO curve excludes graduation steps and migration routines entirely, leaving the curve contract as the permanent trading venue for the asset."
+            },
+            {
+              "type": "note",
+              "text": "Because the protocol has no migration function, reserve assets remain permanently locked inside the curve contract, but liquidity is never consolidated automatically into third-party pools."
+            }
+          ]
+        },
+        {
+          "heading": "Execution Symmetry and Slippage Controls",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Selling tokens follows the exact same contract path as purchasing them. To exit a position, a user first grants an allowance to the curve contract through a standard ERC-20 approval transaction, and then executes the sell function against the identical curve contract."
+            },
+            {
+              "type": "p",
+              "text": "Every trade execution function requires a slippage limit such as `minTokensOut` alongside an execution `deadline` timestamp. These parameters revert the transaction if price impact breaches the user's limit or if network congestion delays inclusion past the specified block timestamp."
+            },
+            {
+              "type": "list",
+              "items": [
+                "The seller issues an ERC-20 approval granting the curve contract permission to transfer the specified token quantity.",
+                "The seller executes the sell transaction against the curve contract, supplying a minimum output threshold to enforce slippage protection.",
+                "The curve contract verifies the Unix timestamp deadline to ensure that delayed transactions revert rather than executing against stale reserve balances."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Authoritative Fee Inspection via totalFeeBps",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Integrators must inspect the active swap fee by reading the `totalFeeBps` view function directly from the curve contract rather than summing individual fee legs off-chain. While the protocol specifies component parameters such as a `protocolBps` of 10 basis points, manually aggregating separate components risks computing incorrect rates during transient phases."
+            },
+            {
+              "type": "p",
+              "text": "During early trading blocks governed by the `antiSnipeBlocks` parameter of 5 blocks, dynamic fee calculations alter the effective rate. The contract enforces an absolute ceiling where `maxTotalBps` is 500 basis points, and calling `totalFeeBps` retrieves the exact on-chain fee evaluated for the current block."
+            },
+            {
+              "type": "factsTable",
+              "table": "feeLegs"
+            },
+            {
+              "type": "note",
+              "text": "Aggregating fee values off-chain rather than calling `totalFeeBps` can lead to transaction reverts if parameter changes occur between quote calculation and block execution."
+            }
+          ]
+        },
+        {
+          "heading": "Token Standard and External AMM Coexistence",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The token deployed by the curve factory is a standard ERC-20 implementation without owner privileges, pause switches, or address blacklists. The contract executes transfers according to the standard token specification without administrative overrides."
+            },
+            {
+              "type": "p",
+              "text": "Because the token contract lacks restrictive controls, any market participant can permissionlessly pair the token with other assets on an external AMM. A secondary external market can exist concurrently alongside the bonding curve, enabling independent price discovery across multiple venues."
+            },
+            {
+              "type": "note",
+              "text": "The protocol does not monitor or maintain liquidity on third-party venues, which means price levels and pool depths on external AMMs can diverge from the bonding curve."
+            }
+          ]
+        },
+        {
+          "heading": "Scope of Protocol Guarantees",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The protocol guarantee is strictly defined and narrower than a guarantee of a single exclusive market. ADEXTO guarantees that its contracts will never migrate reserves to external pools and that no party can withdraw the curve contract's native assets."
+            },
+            {
+              "type": "p",
+              "text": "The protocol does not guarantee that token trading will remain confined to the curve venue. Because anyone can launch third-party liquidity pools permissionlessly, the curve guarantees the permanence and custody of its own reserves rather than exclusive market concentration."
+            },
+            {
+              "type": "list",
+              "items": [
+                "The protocol contracts contain no instructions to transfer or migrate curve liquidity to external pools.",
+                "No contract owner, factory administrator, or privileged account possesses the authority to drain curve reserves.",
+                "The protocol does not prevent third parties from establishing independent secondary markets on external venues."
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:40:50.238Z"
+    },
+    "fees": {
+      "title": "Fees",
+      "lede": "The ADEXTO protocol implements four additive fee legs across all curve trades, combining creator, depth, buyback, and protocol components. Every fee rate is fixed permanently at contract creation, and balances route exclusively to immutable destinations.",
+      "sections": [
+        {
+          "heading": "Additive Fee Architecture",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each transaction on an ADEXTO bonding curve incurs four distinct fee legs: the creator fee, the depth fee, the buyback fee, and the protocol fee. The creator defines the base fee rate when deploying a market, which cannot exceed the `maxTotalBps` limit of 500 bps."
+            },
+            {
+              "type": "p",
+              "text": "The depth fee and the buyback fee are carved directly out of the total configured by the creator. For deployed curves, `depthFeeBps` is set to 15 bps and `buybackBps` is set to 5 bps, leaving the remainder of the creator-configured total for the creator fee leg."
+            },
+            {
+              "type": "factsTable",
+              "table": "feeLegs"
+            }
+          ]
+        },
+        {
+          "heading": "Protocol Fee Surcharge and Trader Costs",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The protocol fee leg is defined by `protocolBps` at 10 bps and is applied on top of the creator-configured fee total rather than deducted from it. Because this fee leg is additive, a trader interacting with a curve pays 10 bps more than the rate configured by the creator."
+            },
+            {
+              "type": "note",
+              "text": "A market creator cannot reduce or waive the 10 bps protocol surcharge, and the creator-configured total remains constrained by the 500 bps maximum limit."
+            }
+          ]
+        },
+        {
+          "heading": "Rate Immutability and Factory Generations",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "All fee parameters are assigned during curve deployment, and the contracts provide no setter functions to alter them. Neither the market creator nor the factory contract can adjust fee rates after initialization."
+            },
+            {
+              "type": "p",
+              "text": "Curves deployed under superseded factory generations do not incur any protocol fee. Because fee parameters are immutable once deployed, markets from older factory versions will never pay protocol fees."
+            }
+          ]
+        },
+        {
+          "heading": "Permissionless Fee Claims",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The contract implements `claimProtocolFees` and `claimCreatorFees` to distribute accrued balances. Any caller can trigger these functions because the recipient destinations are assigned during curve construction and cannot be modified."
+            },
+            {
+              "type": "p",
+              "text": "Because payout destinations are immutable, permissionless execution allows balances to be collected without requiring privileged transactions or risking asset redirection."
+            }
+          ]
+        },
+        {
+          "heading": "Capped Buyback and Token Burn",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The buyback function can be called by any account to acquire tokens using accumulated buyback reserves. Each invocation is capped per call to restrict the volume executed in a single transaction."
+            },
+            {
+              "type": "p",
+              "text": "Tokens purchased through buyback transactions are burned immediately by the curve contract. This mechanism contracts the circulating token supply without distributing assets to an external caller or designated wallet."
+            },
+            {
+              "type": "note",
+              "text": "Buyback calls burn purchased tokens directly within the execution logic, preventing any party from obtaining custody of the acquired assets."
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:41:18.797Z"
+    },
+    "chains": {
+      "title": "Chains and deployments",
+      "lede": "The ADEXTO factory contract operates across four EVM mainnets under version 0.11.0. Each deployment contains exactly 21281 bytes of runtime bytecode with an identical keccak256 hash across all four networks.",
+      "sections": [
+        {
+          "heading": "Factory Deployments",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, and Monad Mainnet. Each network executes factory version 0.11.0 at a dedicated contract address."
+            },
+            {
+              "type": "factsTable",
+              "table": "chains"
+            },
+            {
+              "type": "note",
+              "text": "The factory address differs on every mainnet. Integrations must verify the chain ID alongside the contract address before submitting transactions."
+            }
+          ]
+        },
+        {
+          "heading": "Runtime Bytecode Verification",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The deployed factory contracts share the exact keccak256 hash of `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8` across all four mainnets. This confirms that the deployed instruction sets are identical across all targets."
+            },
+            {
+              "type": "code",
+              "lang": "bash",
+              "code": "cast code 0x216E7880D64D94335B583c539802d3e61958d4A2 --rpc-url https://base-rpc.publicnode.com | cast keccak"
+            }
+          ]
+        },
+        {
+          "heading": "Immutables and Bytecode Equivalence",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Byte-identical runtime bytecode is not automatic across separate chain deployments. In Solidity, immutable values are not stored in contract storage slots; the constructor inlines these constants directly into the deployed runtime opcode stream."
+            },
+            {
+              "type": "p",
+              "text": "Because immutable variables sit directly inside the runtime code, the runtime bytecode hashes match only because the identical protocol treasury address was supplied at deployment time on every chain. Any change to constructor parameters would alter the opcode payload and yield a different hash."
+            }
+          ]
+        },
+        {
+          "heading": "Compiled Artifact Discrepancies",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A locally compiled contract artifact does not produce the runtime bytecode hash observed on-chain. In the compiler output, immutable variable positions contain unassigned zero-value placeholders that are only populated when constructor execution completes."
+            },
+            {
+              "type": "p",
+              "text": "This mismatch between local compilation outputs and on-chain bytecode is expected compiler behavior rather than a deployment flaw. Verifiers must compare extracted on-chain runtime bytecode against deployed code on other chains rather than against raw local compilation artifacts."
+            }
+          ]
+        },
+        {
+          "heading": "Address Derivation and Chain Context",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Standard deployments derive contract addresses using the `CREATE` opcode, which computes addresses from the deployer account address and its current transaction nonce. When a deployer maintains equivalent nonce ordering across multiple networks, an identical address can appear on more than one chain."
+            },
+            {
+              "type": "note",
+              "text": "Because `CREATE` address calculation is agnostic to the target network, callers must always confirm the active chain ID. Matching contract addresses on different chains do not guarantee identical state or administrative ownership."
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:41:42.744Z"
+    },
+    "x402": {
+      "title": "Buying from another chain with x402",
+      "lede": "The ADEXTO x402 gateway allows buyers to purchase bonding-curve tokens across chains by submitting an EIP-3009 transfer authorization in response to an HTTP 402 challenge. The operator executes delivery on the target chain before collecting payment on the source chain, though the two transactions remain non-atomic.",
+      "sections": [
+        {
+          "heading": "The HTTP 402 Challenge and Quote Negotiation",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "An unpaid GET request sent to a purchase endpoint at the gateway, such as `https://x402.adexto.xyz/v1/x402/buy/zeebo`, returns an HTTP status of 402 Payment Required with a `WWW-Authenticate` header set to `x402 realm=\"adexto-buy-zeebo\"`."
+            },
+            {
+              "type": "p",
+              "text": "The response payload provides an `accepts` array that details payment parameters, including the required payment asset contract at `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` on Base, the payee address `0x24268Fffc119ec5550F68e80D94476fD64daE967`, the maximum amount `100000`, and a `maxTimeoutSeconds` value of `300`. It also returns a quote carrying the curve parameter `minTokensOut`, matching the fields `[\"symbol\", \"token\", \"curve\", \"chainId\", \"chain\", \"payWith\", \"deliver\", \"rate\", \"inventory\"]`."
+            },
+            {
+              "type": "code",
+              "lang": "json",
+              "code": "{\n  \"accepts\": [\n    {\n      \"scheme\": \"exact\",\n      \"network\": \"base\",\n      \"maxAmountRequired\": \"100000\",\n      \"resource\": \"https://x402.adexto.xyz/v1/x402/buy/zeebo\",\n      \"description\": \"Buy $ZEEBO on 0G Mainnet with USDC on Base. The curve sends tokens straight to your address; we never hold them.\",\n      \"mimeType\": \"application/json\",\n      \"payTo\": \"0x24268Fffc119ec5550F68e80D94476fD64daE967\",\n      \"maxTimeoutSeconds\": 300,\n      \"asset\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"extra\": {\n        \"name\": \"USD Coin\",\n        \"version\": \"2\",\n        \"transferMethod\": \"eip3009\"\n      }\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "heading": "EIP-3009 Payment Authorization",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "To fulfill the payment requirement, the caller signs an EIP-3009 `TransferWithAuthorization` message. Because EIP-3009 uses EIP-712 typed data signatures, the buyer does not need to pay native gas fees on the payment chain or submit a separate token allowance transaction."
+            },
+            {
+              "type": "p",
+              "text": "The gateway verifies the signature against the EIP-712 domain read directly from the USDC contract on-chain rather than reading the domain from the client HTTP request. This on-chain domain lookup ensures that domain attributes such as the verifying contract address and chain identifier cannot be spoofed by a caller."
+            }
+          ]
+        },
+        {
+          "heading": "Fill-Before-Charge Execution Order",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The operator executes delivery on the target chain before broadcasting the payment authorization on the payment chain. For a purchase of `ZEEBO` on 0G Mainnet with chain ID `16661`, the operator submits a buy transaction directly to the bonding curve at `0xBCdDE7f6071da3fc33f959F6A8B919dd921af49A`, which mints or transfers the purchased tokens directly to the buyer's destination address."
+            },
+            {
+              "type": "p",
+              "text": "The operator submits the EIP-3009 authorization to collect funds only after the target curve delivery transaction confirms. If the fill transaction on the target chain fails or reverts, the operator absorbs the gas loss and never broadcasts the payment authorization, preventing the buyer from being charged for an unfulfilled order. When execution succeeds, the HTTP response body returns the transaction hashes for both the delivery leg and the payment leg."
+            }
+          ]
+        },
+        {
+          "heading": "Non-Atomicity and Inventory Limits",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The delivery transaction and the payment authorization execute as two separate operations across distinct blockchains and are not atomic. The buyer depends on the operator to broadcast the curve purchase after receiving the signed authorization."
+            },
+            {
+              "type": "p",
+              "text": "Operator liquidity on destination chains is finite. If the operator lacks sufficient inventory or funds to fulfill the order on the destination curve, the gateway answers with an HTTP status of 503 before storing, processing, or broadcasting the buyer's payment authorization."
+            },
+            {
+              "type": "note",
+              "text": "The cross-chain delivery and payment legs are not atomic. If operator liquidity is insufficient, the endpoint returns an HTTP 503 response before touching any authorization payload."
+            }
+          ]
+        },
+        {
+          "heading": "Same-Chain Execution Path",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "When the target market resides on the same network as the payment token, no funds cross between chains. For example, purchasing `BLOOP` (token contract `0xC980987be6fF737E55e65Bb67Cdd2F231Aa0fa6B`, curve contract `0xdEC37908476Ba7C159fBd28C687b7dE43079E4E4`) on Base Mainnet with chain ID `8453` using Base USDC executes entirely within Base Mainnet."
+            },
+            {
+              "type": "p",
+              "text": "The gateway handles same-chain purchases through the exact same code path as cross-chain trades, executing the curve delivery first and charging the EIP-3009 authorization second. The markets table details all available bonding curves across supported networks."
+            },
+            {
+              "type": "factsTable",
+              "table": "markets"
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:42:28.799Z"
+    },
+    "agent-identity": {
+      "title": "Agent identity (ERC-8004)",
+      "lede": "ADEXTO integrates the Identity Registry from the ERC-8004 specification to bind agent identifiers to bonding curves at launch. The protocol checks agent ownership during market deployment but excludes reputation tracking, validation registries, and interface detection.",
+      "sections": [
+        {
+          "heading": "Integration Scope",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The ERC-8004 draft specification outlines three independent registries: Identity, Reputation, and Validation. The ADEXTO factory and bonding curve contracts interact solely with the Identity Registry."
+            },
+            {
+              "type": "p",
+              "text": "Neither the factory nor the bonding curves implement `supportsInterface`, and the protocol makes no calls to the Reputation Registry or the Validation Registry."
+            },
+            {
+              "type": "p",
+              "text": "Because the underlying specification remains in Draft status, protocol integration is restricted to verifying agent ownership during deployment."
+            }
+          ]
+        },
+        {
+          "heading": "Launch Verification and Agent Registration",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "An agent identifier is bound to a market only during contract creation, and the registration of that agent is an external prerequisite."
+            },
+            {
+              "type": "p",
+              "text": "The creator must register the agent on the Identity Registry in an independent transaction before deploying the market."
+            },
+            {
+              "type": "p",
+              "text": "When a creator supplies an agent identifier at launch, the factory invokes `ownerOf` on the Identity Registry. If the caller does not match the owner returned by the registry, the factory reverts the transaction."
+            }
+          ]
+        },
+        {
+          "heading": "Identifier Semantics and the agentBound Flag",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The contracts track whether an agent is attached using an explicit `agentBound` boolean flag rather than evaluating whether the agent identifier is non-zero."
+            },
+            {
+              "type": "p",
+              "text": "In the Identity Registry, token identifier 0 represents a real agent with a legitimate owner. Inspecting the numeric identifier instead of `agentBound` would incorrectly treat token 0 as an unassigned slot."
+            },
+            {
+              "type": "list",
+              "items": [
+                "The `agentBound` storage variable records whether an agent was associated with the curve at creation time.",
+                "The numeric `agentId` field stores the token identifier, which may validly be 0."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Chain-Specific Registry State",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "An agent identifier has no meaning without its specific chain. Every network hosts an independent registry deployment that maintains its own isolated storage and token sequence."
+            },
+            {
+              "type": "p",
+              "text": "An identifier on one chain does not correspond to the same agent or owner on another chain. The factory contract on each network queries only the local Identity Registry deployed on that same network."
+            },
+            {
+              "type": "factsTable",
+              "table": "chains"
+            },
+            {
+              "type": "p",
+              "text": "Each factory listed above executes calls against the local Identity Registry for its network and maintains no cross-chain registry synchronization."
+            }
+          ]
+        },
+        {
+          "heading": "Upgradeable Proxy Architecture and Governance",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The Identity Registry is deployed as an upgradeable proxy owned and controlled by an external third party. ADEXTO holds no administrative keys or governance authority over the registry implementation."
+            },
+            {
+              "type": "note",
+              "text": "Because the Identity Registry is an externally owned upgradeable proxy and ERC-8004 is a Draft specification, registry behaviour, internal functions, and storage structures can change without notification or involvement from ADEXTO."
+            },
+            {
+              "type": "list",
+              "items": [
+                "Logic upgrades deployed by the proxy owner can modify how `ownerOf` executes without altering factory bytecode.",
+                "Agent registration logic and metadata storage are managed entirely by the external proxy.",
+                "Reputation scoring and third-party validation registries from ERC-8004 are not queried, stored, or verified by any ADEXTO contract."
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:43:39.719Z"
+    },
+    "data": {
+      "title": "Reading market data",
+      "lede": "ADEXTO resolves market state through on-chain factory contracts as the primary authority, while using chain-specific indexing pipelines for historical log aggregation. The on-chain registry determines market existence directly so that indexing latency does not cause newly launched markets to appear nonexistent.",
+      "sections": [
+        {
+          "heading": "Factory Registry Authority and Indexer Latency",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The factory contract on each chain serves as the sole authoritative registry for market existence. While auxiliary indexers ingest logs asynchronously, direct state reads from the factory contract alone decide whether a bonding-curve market exists at any given block."
+            },
+            {
+              "type": "p",
+              "text": "An indexer necessarily operates behind the current chain tip. If a caller queries an indexer immediately after a market launch transaction succeeds, an indexer that has not yet processed the transaction block would report that the market does not exist. Indexers operate strictly as an additive caching layer for trade history, while canonical verification requires querying the factory directly."
+            },
+            {
+              "type": "factsTable",
+              "table": "chains"
+            },
+            {
+              "type": "note",
+              "text": "A market exists on-chain as soon as its creation transaction confirms on the factory contract, regardless of the processing delay in downstream indexing services."
+            }
+          ]
+        },
+        {
+          "heading": "Chain-Specific Read Architectures",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Read paths differ across the four supported networks due to varying external infrastructure availability on each blockchain."
+            },
+            {
+              "type": "list",
+              "items": [
+                "Base Mainnet and Arbitrum One use hosted subgraphs to index contract events.",
+                "Monad Mainnet uses an Envio HyperIndex deployment for log indexing and queries.",
+                "0G Mainnet reads event logs directly from the node RPC endpoint at `https://evmrpc.0g.ai` because The Graph does not offer indexing support for chain ID 16661."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "Direct RPC log scanning removes dependency on third-party indexers on 0G Mainnet, but it requires clients to handle RPC query boundaries directly."
+            }
+          ]
+        },
+        {
+          "heading": "Monad Indexing via Envio HyperIndex",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Market data on Monad Mainnet (chain ID 143) is indexed through Envio HyperIndex. The service is publicly queryable without requiring user account registration or an access key."
+            },
+            {
+              "type": "p",
+              "text": "Read-only access to the Envio indexer is enforced through PostgreSQL database role permissions. Because this read-only role restricts schema access, the exposed public schema contains no mutation root, preventing unauthorized state modification while serving public historical queries."
+            },
+            {
+              "type": "p",
+              "text": "As noted in the `list_markets` tool description, the Envio indexer on Monad operates without a lookback window limitation, whereas direct log scans on other networks remain constrained by RPC block span limits."
+            }
+          ]
+        },
+        {
+          "heading": "Direct RPC Log Scanning and Measured Limits",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Because 0G Mainnet lacks third-party indexing, market trade history is gathered by scanning event logs directly via `eth_getLogs` calls against `https://evmrpc.0g.ai`. This structure functions without dedicated indexing servers, but it is constrained by RPC node rate and range parameters."
+            },
+            {
+              "type": "p",
+              "text": "Node providers place strict limitations on the maximum block range and the number of event logs returned per `eth_getLogs` request. ADEXTO measures these block range limits dynamically rather than relying on assumed values, because infrastructure providers routinely tighten filter boundaries without prior notice."
+            },
+            {
+              "type": "note",
+              "text": "When a direct RPC log scan cannot reach the initial launch block of a market, the response explicitly indicates that the scan window is bounded, rather than misrepresenting the partial record as a complete history."
+            }
+          ]
+        },
+        {
+          "heading": "On-Chain Registry Deployments",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "All four networks run factory version 0.11.0. The deployed bytecode is identical across each chain, measuring 21281 bytes with the keccak hash `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8`."
+            },
+            {
+              "type": "factsTable",
+              "table": "markets"
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:44:17.206Z"
+    },
+    "security": {
+      "title": "Security and guarantees",
+      "lede": "The ADEXTO smart contracts deploy immutable bonding curves without administrative control, upgradability proxies, or balance extraction functions. While these mechanisms eliminate discretionary intervention, no security firm has reviewed the codebase.",
+      "sections": [
+        {
+          "heading": "Immutable Fee Rates and Launch Architecture",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The protocol enforces fixed fee parameters across its contracts. The protocol fee is set to 10 bps, the maximum total fee is bounded at 500 bps, and the anti-snipe window spans 5 blocks."
+            },
+            {
+              "type": "p",
+              "text": "Nothing on the launch path possesses an owner, an administrator, or a setter function. This design guarantees that fee rates and launch configurations cannot be modified after deployment, but it also prevents any adjustment to these settings if market requirements change."
+            }
+          ]
+        },
+        {
+          "heading": "Native Asset Flow and Absence of Extraction Functions",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "There is no withdraw, sweep, rescue, or drain function anywhere in the curve contracts. Native cryptocurrency can leave a curve contract through only two paths: a seller's payout disbursed upon selling tokens back to the curve, or an accrued fee claim routed to an address fixed at construction."
+            },
+            {
+              "type": "note",
+              "text": "Because the curve contracts lack any recovery or drain mechanism, native currency or tokens sent to a contract by mistake cannot be recovered."
+            }
+          ]
+        },
+        {
+          "heading": "Frozen Bytecode and Absence of Upgrade Paths",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The protocol deploys without proxies, fallback upgrade patterns, or delegatecall modifications. Across all deployed chains, the factory contract bytecode comprises 21281 bytes with a keccak hash of 0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8."
+            },
+            {
+              "type": "p",
+              "text": "Because deployed bytecode is completely frozen, an unauthorized entity cannot alter contract rules. However, this immutability also means that a future bug fix cannot reach a market that already exists; resolving an issue requires deploying a completely new market instance."
+            }
+          ]
+        },
+        {
+          "heading": "Automated Analyser Verification",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The repository evaluates contracts against 8 analyser engines tested at commit c14c62446e4ee4ce0e56a9e31d1edeb0603dbb6a. The testing suite applies static analysers, compiler linters, fuzzing suites, and invariant property checks."
+            },
+            {
+              "type": "factsTable",
+              "table": "analysers"
+            },
+            {
+              "type": "p",
+              "text": "While automated analysers check known structural vulnerabilities and verify specific assertions, they cannot evaluate high-level economic designs or unforeseen edge conditions."
+            }
+          ]
+        },
+        {
+          "heading": "Independent Review Status and Vulnerability Disclosure",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No security firm has reviewed the contracts. Published analyser output provides insight into automated test results, but it is not a substitute for an external manual audit."
+            },
+            {
+              "type": "p",
+              "text": "Researchers and developers who discover potential vulnerabilities must report their findings through GitHub private vulnerability reporting."
+            },
+            {
+              "type": "note",
+              "text": "Participants interact directly with autonomous smart contracts that operate without third-party audit verification or administrative override capabilities."
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:44:52.535Z"
+    },
+    "launch": {
+      "title": "Launch a market",
+      "lede": "The ADEXTO factory deploys a bonding-curve market in a single transaction without accepting an initial native liquidity deposit. The entire token supply transfers into the curve at creation, locking the symbol permanently while enforcing a temporary per-transaction purchase cap.",
+      "sections": [
+        {
+          "heading": "Market Initialization and Virtual Liquidity",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The factory initializes a new bonding-curve market through the `deployTrinity` function in a single transaction. The `deployTrinity` function is non-payable, which prevents the creator from depositing native currency at creation time."
+            },
+            {
+              "type": "p",
+              "text": "Because the function cannot receive native funds, the market establishes its native side entirely with virtual liquidity rather than real pooled deposits."
+            },
+            {
+              "type": "note",
+              "text": "The `deployTrinity` entry point does not accept native currency, so market creators cannot seed initial liquidity deposits during deployment."
+            }
+          ]
+        },
+        {
+          "heading": "Token Allocation and Supply Invariants",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "During market deployment, 100% of the token supply transfers directly into the bonding curve. The market creator retains no initial token allocation and receives no creator reserves."
+            },
+            {
+              "type": "p",
+              "text": "Once the transfer completes, the factory checks an explicit assertion that its own balance of the token is zero. This check verifies that the factory has not retained any portion of the supply."
+            }
+          ]
+        },
+        {
+          "heading": "Anti-Sniper Window Mechanics",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The curve enforces a per-transaction purchase cap during an anti-sniper window defined by the `antiSnipeBlocks` parameter, which is set to 5 blocks. This cap limits the quantity of tokens a single buyer can acquire per transaction immediately after launch."
+            },
+            {
+              "type": "p",
+              "text": "The deployment transaction itself is exempt from the per-transaction cap because the launcher must transfer the entire token supply into the curve in that same transaction."
+            },
+            {
+              "type": "note",
+              "text": "The purchase cap applies exclusively during the first 5 blocks following deployment, after which the limit expires."
+            }
+          ]
+        },
+        {
+          "heading": "Permanent Symbol Reservation",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A market claims its token ticker on-chain through the `symbolRegistry` contract during initialization. The symbol is claimed permanently on that specific chain."
+            },
+            {
+              "type": "p",
+              "text": "The `symbolRegistry` contract does not contain a release function, so a registered ticker cannot be removed, reallocated, or repurposed after deployment."
+            }
+          ]
+        },
+        {
+          "heading": "Optional ERC-8004 Agent Binding Configuration",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The deployment transaction allows an optional binding to an ERC-8004 agent identifier, but this configuration is disabled by default. The deployment process does not register an agent."
+            },
+            {
+              "type": "p",
+              "text": "If an agent identifier is specified, the factory only verifies that the caller owns the identifier by querying `ownerOf` on the target contract."
+            },
+            {
+              "type": "note",
+              "text": "The factory does not perform agent registration during market creation; it solely verifies ownership of an existing identifier via `ownerOf`."
+            }
+          ]
+        },
+        {
+          "heading": "Factory Deployments Across Networks",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The factory contract is deployed across four EVM mainnets using identical bytecode. The deployed factory addresses and chain identifiers are provided in the table below."
+            },
+            {
+              "type": "factsTable",
+              "table": "chains"
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-09-21T15:45:48.029Z"
+    }
+  },
+  "order": [
+    "launch",
+    "trading",
+    "fees",
+    "chains",
+    "x402",
+    "mcp",
+    "agent-identity",
+    "data",
+    "security"
+  ],
+  "generatedWith": {
+    "model": "ag/gemini-3.8-flash-high",
+    "factsGeneratedAt": "2026-09-21T15:33:40.845Z"
+  }
+}

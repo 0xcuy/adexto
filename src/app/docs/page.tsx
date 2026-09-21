@@ -6,17 +6,75 @@ import { ShieldCheck, Cpu, Terminal, Layers, CloudLightning, Award, Network, Glo
 import { agentAttestation } from "@/lib/og-attestation";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
 import { STUDIO_VERSION } from "@/config/subgraph";
+import docsPages from "@/config/docs-pages.json";
 
 /**
  * Halaman ini server component, jadi status attestation dibaca langsung dari
  * router 0G saat render — tanpa perjalanan tambahan lewat peramban dan tanpa
  * kunci API pernah meninggalkan server.
  */
+
+/**
+ * Judul panduan dibaca dari `docs-pages.json`, blurb-nya ditulis tangan di sini.
+ *
+ * Judulnya datang dari berkas itu supaya menambah halaman tidak menuntut menyunting dua
+ * tempat dan tidak bisa menghasilkan tautan ke halaman yang tidak ada. Blurb-nya TIDAK dari
+ * sana: satu baris yang memutuskan apakah pembaca mengklik itu tulisan, bukan metadata, dan
+ * isi `docs-pages.json` disusun model bahasa.
+ */
+const BLURBS: Record<string, string> = {
+  launch: "One transaction, no liquidity deposit, no creator allocation.",
+  trading: "The curve as a permanent venue, and the exit path.",
+  fees: "Four legs, and which one is added on top.",
+  chains: "Four mainnets, and why the bytecode hashes match.",
+  x402: "Pay with USDC over HTTP, receive on another chain.",
+  mcp: "Seven tools. One spends money, and it says whose key signs.",
+  "agent-identity": "One ERC-8004 registry, integrated, opt-in.",
+  data: "Registry first, indexers additive, and why they differ per chain.",
+  security: "What the contracts guarantee, and what has not been done.",
+};
+const DOC_PAGES = ((docsPages as { order?: string[]; pages: Record<string, { title: string }> }).order ?? [])
+  .filter((slug) => docsPages.pages[slug as keyof typeof docsPages.pages])
+  .map((slug) => ({
+    slug,
+    title: (docsPages.pages as Record<string, { title: string }>)[slug].title,
+    blurb: BLURBS[slug] ?? "",
+  }));
 export default async function DocsPage() {
   const tee = await agentAttestation();
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       {/* Header */}
+      {/* ── Navigasi ke halaman anak ────────────────────────────────────────
+          Halaman ini TIDAK diubah menjadi indeks. Ia sudah punya peran: status
+          komponen demi komponen, dan `audit_consistency.mjs` memeriksa bahwa ia
+          merender VerifiedDeploymentCard. Mengubahnya menjadi daftar tautan akan
+          memindahkan isi yang sudah diperiksa ke tempat yang belum.
+
+          Jadi panduan ditaruh DI ATAS sebagai jalan masuk, dan status tetap di
+          bawahnya. Pembaca yang datang untuk belajar berhenti di kartu; pembaca
+          yang datang memverifikasi terus turun. */}
+      <div className="mb-10">
+        <div className="kicker mb-3">DOCUMENTATION</div>
+        <h1 className="mb-2 text-3xl font-semibold text-ink sm:text-4xl">Build on ADEXTO</h1>
+        <p className="mb-6 max-w-2xl text-sm leading-relaxed text-ink-soft">
+          Nine guides covering a launch, the curve, fees, the chains, paying from another chain, the MCP server for
+          agents, agent identity, reading market data, and what the contracts guarantee.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {DOC_PAGES.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/docs/${p.slug}`}
+              className="group rounded-xl border border-line p-3 transition hover:border-accent/40 hover:bg-cream-3/[0.05]"
+            >
+              <div className="text-[13px] font-bold text-ink group-hover:text-accent">{p.title}</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-ink-faint">{p.blurb}</div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       <div className="border-b-2 border-line pb-6 mb-10">
         <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
         <h1 className="text-3xl sm:text-4xl font-semibold text-ink">Technical status, component by component</h1>

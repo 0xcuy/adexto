@@ -65,11 +65,42 @@ export function middleware(req: NextRequest) {
     day2: "/founder-house/index.html",
   };
 
+  /**
+   * Subdomain yang membawa BANYAK halaman, bukan satu.
+   *
+   * Cabang di bawah hanya me-rewrite `/`, jadi `docs.adexto.xyz` bekerja sementara
+   * `docs.adexto.xyz/trading` menjadi `/trading` — rute yang tidak ada, jadi 404. Itu benar
+   * selama `/docs` satu halaman, dan berhenti benar begitu ia menjadi situs.
+   *
+   * Prefiks di sini di-rewrite untuk SETIAP path, jadi `docs.adexto.xyz/mcp` menjadi
+   * `/docs/mcp`. Hanya untuk subdomain yang memang punya anak halaman; `studio`, `swap` dan
+   * `explorer` tetap di cabang bawah karena masing-masing satu halaman, dan memetakan
+   * seluruh path-nya akan mengubah `swap.adexto.xyz/explorer` menjadi `/swap/explorer` yang
+   * tidak ada.
+   *
+   * Aset di bawah `/_next` dan `/api` sudah dikecualikan oleh `matcher` di bawah berkas ini,
+   * jadi tidak ada aturan kedua yang perlu ditulis untuk itu.
+   */
+  const SUBDOMAIN_PREFIXES: Record<string, string> = {
+    docs: "/docs",
+  };
+
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
     // Extract subdomain (e.g. "aegis" from "aegis.adexto.xyz")
     const parts = host.split(".");
     if (parts.length >= 3) {
       const subdomain = parts[0];
+      const prefix = SUBDOMAIN_PREFIXES[subdomain];
+      if (prefix) {
+        // `/` -> prefiks itu sendiri; sisanya digabung. Path yang sudah membawa prefiksnya
+        // dibiarkan, supaya tautan absolut dari halaman lain tidak menjadi `/docs/docs/...`.
+        if (url.pathname === "/" || url.pathname === "") {
+          url.pathname = prefix;
+        } else if (!url.pathname.startsWith(`${prefix}/`) && url.pathname !== prefix) {
+          url.pathname = `${prefix}${url.pathname}`;
+        }
+        return NextResponse.rewrite(url);
+      }
       // If user accesses root of subdomain, rewrite to the section or /token/[subdomain]
       if (url.pathname === "/" || url.pathname === "") {
         url.pathname = APP_SECTIONS[subdomain] ?? `/token/${subdomain}`;

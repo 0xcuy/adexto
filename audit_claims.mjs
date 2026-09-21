@@ -45,9 +45,22 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3100";
  * daftar ini sama saja dengan tidak dijaga: penjaganya lulus tanpa pernah membukanya.
  */
 const ROUTES =
-  "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/recognition,/founder-house/index.html".split(
-    ","
-  );
+  (
+    "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/recognition," +
+    "/founder-house/index.html," +
+    /**
+     * Sembilan halaman panduan di bawah `/docs/`. Prosanya disusun model bahasa, jadi ia
+     * PALING butuh penjaga ini, bukan paling sedikit: `scripts/docs-verify.mjs` menangkap
+     * alamat dan angka karangan, dan berkas ini menangkap frasa yang dilarang di seluruh
+     * situs. Dua pemeriksa berbeda untuk dua kelas kesalahan berbeda.
+     *
+     * Didaftarkan eksplisit, bukan ditemukan otomatis, dengan alasan yang sama seperti
+     * `/token/<slug>`: rute yang hilang dari daftar tidak pernah dipindai, dan tidak ada yang
+     * memberi tahu.
+     */
+    "/docs/launch,/docs/trading,/docs/fees,/docs/chains,/docs/x402,/docs/mcp," +
+    "/docs/agent-identity,/docs/data,/docs/security"
+  ).split(",");
 
 /**
  * Frasa terlarang, masing-masing dengan alasannya. Alasan ikut dicetak supaya
