@@ -4,6 +4,7 @@ import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps, buildCandles, type SwapCoverage } from "@/lib/onchain-trades";
 import { appendTrade, authorizeTelemetryWrite, listTrades, validateTrade, type TradeEvent } from "@/lib/telemetry";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
+import { readSubgraphSwaps, subgraphServesSwaps } from "@/lib/subgraph";
 
 /**
  * GET  — trade history for a symbol. Prefers real `Swap` events read from the
@@ -80,14 +81,36 @@ export async function GET(req: Request) {
     let indexerBlock: number | null = null;
     let envioError: string | null = null;
 
-    if (project?.poolAddress && project.poolLive && envioServes(project.chainId)) {
-      const fromIndexer = await readEnvioSwaps(
-        project.poolAddress,
-        symbol,
-        chain.nativeSymbol,
-        chain.chainId,
-        400
-      );
+    /**
+     * DUA indexer, dipilih per chain, dan alasannya sama untuk keduanya: jendela
+     * `eth_getLogs` chain itu terlalu sempit untuk mencapai blok peluncuran pasarnya.
+     *
+     *   Monad    -> Envio      cap 100 blok di rpc.monad.xyz
+     *   Base     -> subgraph   cap 2.000 blok x 16 panggilan = 32.000 blok, ~18 jam sejarah
+     *   Arbitrum -> subgraph   dilayani manifest yang sama
+     *   0G       -> log RPC    petak 90.000 x 16 = 1.440.000 blok, cukup ke pasar tertua
+     *
+     * `$BLOOP` adalah kasus yang memaksa ini: diluncurkan pada blok Base 51.372.549 dan
+     * sekarang ada di kedalaman ~223.000 blok, jadi pemindaian RPC TIDAK AKAN PERNAH
+     * mencapainya — dan gejalanya pasar yang tidak pernah diperdagangkan: `trades: 0`,
+     * `reachedLaunch: false`, tanpa satu pun galat.
+     *
+     * Keduanya memakai satu variabel galat dan satu bentuk `coverage`, supaya tidak ada
+     * cabang kedua yang bisa menyimpang. Kalau indexer mana pun gagal, pemindaian RPC di
+     * bawah tetap berjalan dan galatnya tetap diteruskan ke respons.
+     */
+    const useEnvio = envioServes(project?.chainId);
+    const useSubgraph = !useEnvio && subgraphServesSwaps(project?.chainId);
+    if (project?.poolAddress && project.poolLive && (useEnvio || useSubgraph)) {
+      const fromIndexer = useEnvio
+        ? await readEnvioSwaps(project.poolAddress, symbol, chain.nativeSymbol, chain.chainId, 400)
+        : await readSubgraphSwaps(
+            chain.chainId,
+            project.poolAddress,
+            symbol,
+            chain.nativeSymbol,
+            400
+          );
       envioError = fromIndexer.error;
       indexerBlock = fromIndexer.syncedToBlock;
       if (fromIndexer.trades.length > 0) {

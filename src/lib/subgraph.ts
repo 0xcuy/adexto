@@ -29,6 +29,7 @@ import {
   SUBGRAPH_TIMEOUT_MS,
 } from "@/config/subgraph";
 import { CHAINS, type ChainKey } from "@/lib/chains";
+import type { TradeEvent } from "@/lib/telemetry";
 
 /** Live curve state, entirely derived from indexed events. */
 export interface CurveStats {
@@ -410,4 +411,142 @@ export async function fetchCurveStats(
     complete: health.every((h) => h.reachable),
     fromCache: servedFromCache > 0 && toFetch.length === 0,
   };
+}
+
+/**
+ * Riwayat swap dari subgraph, untuk chain yang RPC-nya tidak bisa menjangkaunya.
+ *
+ * KENAPA INI ADA
+ *
+ * Base membatasi `eth_getLogs` pada 2.000 blok dan anggaran pemindaian 16 panggilan, jadi
+ * jangkauan RPC-nya 32.000 blok — sekitar 18 jam sejarah Base. `$BLOOP` diluncurkan pada
+ * blok 51.372.549 dan sekarang ada di kedalaman ~223.000 blok, jadi `readOnChainSwaps`
+ * TIDAK PERNAH bisa mencapai blok peluncurannya, berapa kali pun dicoba. Gejalanya pasar
+ * yang tidak pernah diperdagangkan: `trades: 0`, `reachedLaunch: false`, tanpa galat.
+ *
+ * Ini persis situasi Monad sebelum Envio, dan jawabannya sudah punya bentuk di repo ini:
+ * indexer menggantikan pemindaian log pada chain yang jendelanya terlalu sempit. Monad
+ * dilayani Envio; Base dan Arbitrum dilayani subgraph yang memang dibangun untuk keduanya.
+ * Jadi ini bukan sumber data baru, hanya sumber yang sudah ada dipakai untuk pembacaan
+ * kedua.
+ *
+ * URUTANNYA TETAP SEPERTI DI KEPALA BERKAS INI: registry sendiri yang menentukan pasar mana
+ * yang ada. Fungsi ini hanya menjawab "apa saja perdagangan kurva ini", dan kalau ia gagal
+ * pemanggilnya masih punya jalur RPC dan store. Ia mengembalikan `error`, tidak melempar.
+ */
+export type SubgraphSwapResult = {
+  trades: TradeEvent[];
+  /** Total baris yang dimiliki subgraph untuk kurva ini, tanpa dipotong `limit`. */
+  totalSwaps: number;
+  /** Blok terakhir yang sudah diproses subgraph, untuk menyatakan kesegarannya. */
+  syncedToBlock: number | null;
+  error: string | null;
+};
+
+/** Chain yang riwayat swap-nya dibaca dari subgraph, bukan dari log RPC. */
+export const SUBGRAPH_SWAP_CHAIN_IDS = new Set<number>([8453, 42161]);
+
+/**
+ * Benar hanya kalau chain ini memang dilayani subgraph DAN endpointnya terkonfigurasi.
+ * Keduanya diperiksa: daftar tanpa endpoint akan mengarahkan pembacaan ke sumber kosong
+ * dan mematikan jalur RPC yang sebetulnya masih bisa dipakai sebagian.
+ */
+export function subgraphServesSwaps(chainId: number | null | undefined): boolean {
+  if (chainId == null || !SUBGRAPH_SWAP_CHAIN_IDS.has(chainId)) return false;
+  const key = (Object.keys(CHAINS) as ChainKey[]).find((k) => CHAINS[k].chainId === chainId);
+  return Boolean(key && SUBGRAPH_ENDPOINTS[key]);
+}
+
+const SWAPS_QUERY = `query Swaps($curve: String!, $limit: Int!) {
+  swaps(
+    where: { curve: $curve }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: $limit
+  ) {
+    txHash
+    logIndex
+    isBuy
+    amountIn
+    amountOut
+    priceNativeAfter
+    trader
+    timestamp
+    blockNumber
+  }
+  curve(id: $curve) { swapCount }
+  _meta { block { number } }
+}`;
+
+const SWAP_WEI = 1e18;
+
+export async function readSubgraphSwaps(
+  chainId: number,
+  curveAddress: string,
+  symbol: string,
+  nativeSymbol: string,
+  limit = 400
+): Promise<SubgraphSwapResult> {
+  const empty: SubgraphSwapResult = { trades: [], totalSwaps: 0, syncedToBlock: null, error: null };
+  const key = (Object.keys(CHAINS) as ChainKey[]).find((k) => CHAINS[k].chainId === chainId);
+  const endpoint = key ? SUBGRAPH_ENDPOINTS[key] : null;
+  if (!endpoint) return { ...empty, error: `No subgraph endpoint configured for chain ${chainId}.` };
+  if (!/^0x[a-fA-F0-9]{40}$/.test(curveAddress)) {
+    return { ...empty, error: "Curve address is not a valid contract address." };
+  }
+  /**
+   * Di-LOWERCASE sebelum dicocokkan. graph-node menyimpan setiap id entitas huruf kecil
+   * sementara registry menyimpan alamat ber-checksum, dan ketidakcocokannya mengembalikan
+   * nol baris — tidak bisa dibedakan dari pasar yang belum pernah diperdagangkan. Pelajaran
+   * yang sama sudah dibayar sekali di jalur Envio.
+   */
+  const curve = curveAddress.toLowerCase();
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: SWAPS_QUERY, variables: { curve, limit } }),
+      signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (!res.ok) return { ...empty, error: `Subgraph answered HTTP ${res.status}.` };
+    const body = await res.json();
+    if (body?.errors?.length) {
+      return { ...empty, error: String(body.errors[0]?.message ?? "Subgraph returned an error.") };
+    }
+    const rows: Array<Record<string, unknown>> = Array.isArray(body?.data?.swaps) ? body.data.swaps : [];
+    const totalSwaps = Number(body?.data?.curve?.swapCount ?? rows.length);
+    const syncedToBlock = Number(body?.data?._meta?.block?.number) || null;
+    const toWhole = (v: unknown) => Number(v ?? 0) / SWAP_WEI;
+    const trades: TradeEvent[] = rows.map((r) => {
+      const isBuy = Boolean(r.isBuy);
+      // Pada pembelian `amountIn` native dan `amountOut` token; pada penjualan terbalik.
+      const amountNative = toWhole(isBuy ? r.amountIn : r.amountOut);
+      const amountToken = toWhole(isBuy ? r.amountOut : r.amountIn);
+      return {
+        // `logIndex` ikut, karena satu transaksi bisa memancarkan beberapa `Swap`: sebuah
+        // buyback berjalan di transaksi yang sama dengan fill yang memicunya.
+        id: `${r.txHash}-${r.logIndex}`,
+        txHash: String(r.txHash),
+        type: isBuy ? "BUY" : "SELL",
+        symbol,
+        amountToken,
+        amountNative,
+        nativeSymbol,
+        priceNative: amountToken > 0 ? amountNative / amountToken : 0,
+        priceNativeAfter: Number(r.priceNativeAfter) || null,
+        trader: String(r.trader ?? ""),
+        timestamp: new Date(Number(r.timestamp) * 1000).toISOString(),
+        blockNumber: Number(r.blockNumber),
+        chainId,
+        source: "onchain",
+      };
+    });
+    return { trades, totalSwaps, syncedToBlock, error: null };
+  } catch (e: unknown) {
+    const err = e as { name?: string; message?: string };
+    const msg =
+      err?.name === "TimeoutError" ? "Subgraph did not answer in time." : String(err?.message ?? e);
+    return { ...empty, error: msg };
+  }
 }
