@@ -94,7 +94,23 @@ try {
 }
 
 const markets = await tool("list_markets", {});
-ok("list_markets memuat 5 pasar di 4 chain", markets.count === 5 && new Set(markets.markets?.map((m) => m.chainId)).size === 4, `count=${markets.count}`);
+/**
+ * Jumlah pasar dibaca dari `onchain-launches.json`, bukan ditulis sebagai angka di sini.
+ *
+ * Syarat lamanya `markets.count === 5`, lalu `$ZEEBO` diluncurkan dan gerbang pra-demo ini
+ * mulai GAGAL untuk sesuatu yang bukan masalah. Gerbang yang berbunyi salah akan dilatih
+ * untuk diabaikan, dan gerbang yang diabaikan sama saja dengan tidak ada.
+ *
+ * `listedMarkets` di berkas itu sudah dijaga `audit_consistency.mjs` terhadap
+ * `totalProjectsCount()` di keempat chain, jadi ia satu-satunya angka yang tidak bisa
+ * basi tanpa ada yang menggagalkan build.
+ */
+const LISTED = JSON.parse(readFileSync("src/config/onchain-launches.json", "utf8")).listedMarkets;
+ok(
+  `list_markets memuat ${LISTED} pasar di 4 chain`,
+  markets.count === LISTED && new Set(markets.markets?.map((m) => m.chainId)).size === 4,
+  `count=${markets.count} vs listedMarkets=${LISTED}`,
+);
 
 // Pemeriksaan keamanan: alat berbayar HARUS menolak pemanggil tanpa kunci.
 const anon = await tool("pay_and_buy", { symbol: markets.markets?.[0]?.symbol ?? "BLOOP" });
@@ -125,9 +141,39 @@ for (const [cid, cost] of Object.entries(launch)) {
   const n = Math.floor(b / cost);
   ok(`  deployer chain ${cid}: >= 3 peluncuran`, n >= 3, `${n} peluncuran`, cid !== "16661");
 }
+/**
+ * Stok relayai diukur dalam FILL, bukan `b > 0`.
+ *
+ * Syarat lamanya `b > 0` lolos dengan stok satu fill, yaitu tepat keadaan yang gerbang
+ * ini ada untuk mencegah. Spesiesnya sama dengan penjaga `getLogs` yang menguji jendela
+ * terbaru: pemeriksaan yang lulus justru pada saat seharusnya berteriak.
+ *
+ * Harga per fill diambil dari kutipan 402 yang baru saja dibaca di atas, jadi angkanya
+ * angka gerbang sendiri dan bukan konstanta kedua yang bisa menyimpang. Rinciannya,
+ * termasuk sisi USDC dan jumlah top-up yang dibutuhkan, ada di
+ * `node scripts/inventory-status.mjs`.
+ */
+const MIN_FILLS = 3;
 for (const cid of [16661, 143, 8453, 42161]) {
   const b = Number(ethers.formatEther(await provider(cid).getBalance(RELAYER)));
-  ok(`  relayer chain ${cid} punya stok`, b > 0, `${b.toFixed(6)}`);
+  const m = (markets.markets ?? []).find((x) => x.chainId === cid);
+  let perFill = null;
+  if (m) {
+    try {
+      const r = await fetch(`${GATEWAY}/buy?symbol=${m.symbol}&chainId=${cid}&usdc=0.10`, {
+        signal: AbortSignal.timeout(60000),
+      });
+      perFill = Number((await r.json())?.quote?.deliver?.nativeSpent ?? 0) || null;
+    } catch {
+      /* dilaporkan di bawah sebagai stok yang tidak terukur */
+    }
+  }
+  const fills = perFill ? Math.floor(b / perFill) : null;
+  ok(
+    `  relayer chain ${cid}: >= ${MIN_FILLS} fill`,
+    fills != null && fills >= MIN_FILLS,
+    fills != null ? `${fills} fill (${b.toFixed(6)})` : `stok ${b.toFixed(6)} tapi harga per fill tidak terbaca`,
+  );
 }
 
 // ── 5. layanan 0G ────────────────────────────────────────────────────────────

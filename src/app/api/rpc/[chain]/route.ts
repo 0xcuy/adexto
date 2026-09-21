@@ -62,14 +62,52 @@ const ALLOWED = new Set([
  * langkah terakhir lebih buruk daripada yang gagal di awal, karena kegagalannya terjadi
  * setelah dana bergerak.
  */
-const UPSTREAMS: Record<string, { chainId: number; urls: string[] }> = {
+/**
+ * URUTAN BACA DAN TUJUAN SIARAN DIPISAH, DAN ITU MEMPERBAIKI KEGAGALAN TERUKUR
+ *
+ * `mainnet.base.org` dulu berada di urutan PERTAMA untuk semua metode. Digabung dengan
+ * batas waktu 12 detik per upstream di bawah, akibatnya bukan "agak lambat" melainkan
+ * setiap `eth_call` membakar 12 detik gagal lebih dulu sebelum jatuh ke upstream yang
+ * melayani. Satu kutipan x402 membutuhkan banyak `eth_call`, jadi biayanya berlipat.
+ *
+ * Terukur terhadap gerbang produksi, `?symbol=BLOOP&chainId=8453`, lima percobaan:
+ *
+ *   3 dari 5  habis waktu pada 70 detik tanpa jawaban
+ *   1 dari 5  berhasil dalam 27,3 detik
+ *   1 dari 5  habis waktu
+ *
+ * Yaitu pembeli Base ditolak lebih sering daripada dilayani, dan penyebabnya urutan
+ * daftar ini — bukan kurva, bukan stok.
+ *
+ * KENAPA ALASAN DI RUNBOOK TIDAK BERLAKU DI SINI, dan ini inti koreksinya.
+ *
+ * Catatan "IP egress Cloudflare dibatasi penyedia RPC publik" itu benar, dan ia alasan
+ * `BASE_RPC` menunjuk relai ini alih-alih menunjuk publicnode langsung. Tetapi upstream
+ * relai dipanggil dari VPS kami, BUKAN dari Cloudflare. Jadi alasan itu berlaku pada hop
+ * Worker→relai, dan pernah dipakai untuk memutuskan hop relai→upstream — hop yang
+ * berbeda. Dari VPS, publicnode melayani `eth_call` pada 208 ms terhadap 21.377 ms milik
+ * `mainnet.base.org`, dan angka itu sudah ada di runbook sejak lama.
+ *
+ * Yang ditolak publicnode adalah permintaan ARSIP, dan daftar izin di bawah tidak memuat
+ * `eth_getLogs` sama sekali. Kalaupun ia menolak sebuah pencarian receipt dengan 403,
+ * lingkaran di bawah meneruskan ke upstream berikutnya karena `!res.ok` memang dicoba
+ * ulang — jadi jalur uang tetap punya jaring.
+ *
+ * `broadcast` DIPERTAHANKAN di `mainnet.base.org` dan sengaja tidak ikut diubah.
+ * `eth_sendRawTransaction` hanya pernah menemui satu upstream, jadi mengubahnya berarti
+ * mengubah perilaku jalur uang tanpa pengukuran yang menuntutnya. Yang diperbaiki di sini
+ * adalah kutipan, dan kutipan tidak menyiarkan apa pun.
+ */
+const UPSTREAMS: Record<string, { chainId: number; urls: string[]; broadcast: string }> = {
   base: {
     chainId: 8453,
-    urls: ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org"],
+    urls: ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base.drpc.org"],
+    broadcast: "https://mainnet.base.org",
   },
   arbitrum: {
     chainId: 42161,
     urls: ["https://arb1.arbitrum.io/rpc", "https://arbitrum.drpc.org"],
+    broadcast: "https://arb1.arbitrum.io/rpc",
   },
 };
 
@@ -116,7 +154,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ chain: string 
    * Kegagalannya dilaporkan alih-alih diulang.
    */
   const once = method === "eth_sendRawTransaction";
-  const targets = once ? upstream.urls.slice(0, 1) : upstream.urls;
+  // Siaran memakai tujuan yang dinamai sendiri, bukan `urls[0]`. Dulu keduanya sama, jadi
+  // menyusun ulang urutan baca akan diam-diam memindahkan tujuan siaran juga — perubahan
+  // pada jalur uang yang tidak diminta siapa pun dan tidak terlihat di diff.
+  const targets = once ? [upstream.broadcast] : upstream.urls;
   let last = "no upstream tried";
 
   for (const url of targets) {
