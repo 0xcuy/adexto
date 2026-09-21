@@ -249,6 +249,80 @@ const oldCurve = new ethers.Contract(
   provider,
 );
 const oldCreatorBps = Number(await oldCurve.creatorFeeBps().catch(() => 10n));
+
+// ── Ikatan ERC-8004 pasar lama, dibawa ke pasar baru ───────────────────────
+//
+// KENAPA INI ADA, dan ini bug yang sudah menelan korban.
+//
+// Berkas ini mempertahankan tarif fee PERSIS, dengan alasan yang benar: satu-satunya
+// perbedaan pada pasar baru harus kaki protokol, bukan diam-diam juga mengubah hal lain.
+// Lalu `bindAgent` dan `agentId` dikirim sebagai `false` dan `0` — hardcode, tanpa
+// membaca pasar lama sama sekali.
+//
+// Akibatnya nyata dan permanen. $ADEXTO di factory 0.10.0 TERIKAT: `agentBound true`,
+// `agentId 3545431`, `agentRegistry 0x8004A169...`. Setelah diluncurkan ulang ke 0.11.0
+// supaya membayar kaki protokol, pasar yang terdaftar membaca `agentBound false`,
+// `agentId 0`, `agentRegistry` alamat nol. Ikatannya hilang, dan `agentBound` itu
+// `immutable` — jadi pasar $ADEXTO yang hidup sekarang TIDAK BISA diikat lagi tanpa
+// diluncurkan ulang sekali lagi.
+//
+// Yang membuatnya luput selama ini: tidak ada yang gagal. Peluncurannya sukses, semua
+// pemeriksaan pascanya lolos, dan satu-satunya jejaknya adalah sebuah getter yang
+// berubah dari true ke false di kontrak yang berbeda. Persis kelas bug yang sama dengan
+// data source subgraph yang menunjuk alamat nol: berjalan, melapor sehat, kehilangan
+// isinya.
+//
+// Sekarang ikatannya dibaca dari token lama dan diteruskan. Kalau pasar lama terikat
+// tetapi kita bukan lagi pemilik agent itu, skrip BERHENTI — tidak melanjutkan tanpa
+// ikatan. Melanjutkan diam-diam adalah cara bug ini terjadi pertama kali.
+const oldAgent = new ethers.Contract(
+  old.tokenAddress,
+  [
+    'function agentBound() view returns (bool)',
+    'function agentId() view returns (uint256)',
+    'function agentRegistry() view returns (address)',
+  ],
+  provider,
+);
+const oldAgentBound = await oldAgent.agentBound().catch(() => false);
+const oldAgentId = oldAgentBound ? await oldAgent.agentId().catch(() => 0n) : 0n;
+const oldAgentRegistry = oldAgentBound
+  ? await oldAgent.agentRegistry().catch(() => ethers.ZeroAddress)
+  : ethers.ZeroAddress;
+
+if (oldAgentBound) {
+  console.log(`  ikatan ERC-8004 lama: agentId ${oldAgentId} di registry ${oldAgentRegistry}`);
+  // Factory memanggil `ownerOf(agentId)` dan revert kalau pemanggil bukan pemiliknya,
+  // jadi diperiksa di sini supaya gagalnya terbaca sebagai kalimat, bukan sebagai revert
+  // tanpa alasan setelah gas terpakai.
+  let agentOwner = ethers.ZeroAddress;
+  try {
+    agentOwner = await new ethers.Contract(
+      oldAgentRegistry,
+      ['function ownerOf(uint256) view returns (address)'],
+      provider,
+    ).ownerOf(oldAgentId);
+  } catch (e) {
+    die(
+      `Pasar lama terikat agentId ${oldAgentId} tetapi registry ${oldAgentRegistry} tidak bisa dibaca: ` +
+        `${e.shortMessage || e.message}\nTidak dilanjutkan: meluncurkan ulang sekarang akan MEMBUANG ikatan itu selamanya.`,
+    );
+  }
+  check(
+    `agent ${oldAgentId} masih dimiliki deployer`,
+    String(agentOwner).toLowerCase() === ME.toLowerCase(),
+    `${agentOwner}`,
+  );
+  if (String(agentOwner).toLowerCase() !== ME.toLowerCase()) {
+    die(
+      `Pasar lama terikat agentId ${oldAgentId}, tetapi pemiliknya ${agentOwner}, bukan ${ME}.\n` +
+        'Factory akan revert dengan "Factory: agent not owned by caller".\n' +
+        'Tidak dilanjutkan tanpa ikatan: `agentBound` itu immutable, jadi pasar baru tidak akan pernah bisa diikat.',
+    );
+  }
+} else {
+  console.log('  ikatan ERC-8004 lama: tidak ada, jadi tidak ada yang perlu dibawa');
+}
 const swapFeePct = (oldDepthBps + oldCreatorBps + oldTreasuryBps) / 100;
 console.log(
   `  fee dipertahankan: depth ${oldDepthBps} + creator ${oldCreatorBps} + buyback ${oldTreasuryBps} = ${
@@ -400,8 +474,8 @@ const prepare = await post({
   treasuryCut: oldTreasuryBps / 100,
   model: 'glm-5.3',
   persona: old.agentPersona || 'Autonomous AI agent',
-  bindAgent: false,
-  agentIds: null,
+  bindAgent: oldAgentBound,
+  agentIds: oldAgentBound ? { [net.chainId]: String(oldAgentId) } : null,
   deployer: ME,
   targetChains: [net.chainId],
   attestationSignature,
@@ -431,9 +505,12 @@ const launchArgs = [
   BigInt(oldCreatorBps),
   BigInt(oldTreasuryBps),
   attestationRoot,
-  false,
-  0n,
+  oldAgentBound,
+  oldAgentId,
 ];
+console.log(
+  `  bindAgent      : ${oldAgentBound}${oldAgentBound ? ` agentId ${oldAgentId} (dibawa dari pasar lama)` : ''}`,
+);
 
 step('5) SIMULASI deployTrinity di factory baru');
 try {
@@ -467,6 +544,39 @@ if (!newToken || !newCurve) restore(`receipt ${tx.hash} tidak memuat TrinityProj
 console.log(`  token baru : ${newToken}`);
 console.log(`  kurva baru : ${newCurve}`);
 console.log(`  block      : ${receipt.blockNumber}  gasUsed ${receipt.gasUsed}`);
+
+/**
+ * Baca ikatan agent dari token BARU, bukan percaya argumen yang dikirim.
+ *
+ * Argumen yang benar dan hasil yang benar itu dua hal berbeda, dan justru di sela itu
+ * bug sebelumnya hidup: `bindAgent: false` dikirim, peluncurannya sukses, semua
+ * pemeriksaan lain lolos, dan tidak ada satu pun baris yang pernah membaca `agentBound()`
+ * di token yang baru lahir. Karena `agentBound` itu `immutable`, ketidakcocokan di sini
+ * hanya bisa diperbaiki dengan meluncurkan ulang LAGI — jadi ia harus berteriak sekarang,
+ * saat pasarnya belum masuk registry, bukan ditemukan berbulan-bulan kemudian.
+ */
+const bornAgent = new ethers.Contract(
+  newToken,
+  ['function agentBound() view returns (bool)', 'function agentId() view returns (uint256)'],
+  provider,
+);
+const bornBound = await bornAgent.agentBound().catch(() => false);
+const bornId = await bornAgent.agentId().catch(() => 0n);
+check(
+  `ikatan ERC-8004 terbawa ke pasar baru: ${oldAgentBound ? `agentId ${oldAgentId}` : 'tidak ada ikatan'}`,
+  bornBound === oldAgentBound && BigInt(bornId) === BigInt(oldAgentId),
+  `token baru membaca agentBound ${bornBound}, agentId ${bornId}`,
+);
+if (bornBound !== oldAgentBound || BigInt(bornId) !== BigInt(oldAgentId)) {
+  console.error(
+    `  FATAL: pasar lama agentBound ${oldAgentBound}/agentId ${oldAgentId}, ` +
+      `pasar baru ${bornBound}/${bornId}. `.concat(
+        '`agentBound` immutable, jadi ini tidak bisa diperbaiki pada pasar ini. ',
+        'Registry TIDAK disentuh; pasar lama masih yang terdaftar.',
+      ),
+  );
+  restore('ikatan ERC-8004 tidak terbawa — lihat pesan di atas');
+}
 
 /**
  * Catat pasar yang ditinggalkan SEBELUM registry disentuh.
