@@ -66,6 +66,31 @@ echo "==> 3/4 jalankan kontainer baru"
 "${SSH[@]}" "$HOST" "cd $REMOTE_DIR && set -a && . ./.env.local && set +a && docker compose up -d" 2>&1 | tail -3
 "${SSH[@]}" "$HOST" "docker compose -f $REMOTE_DIR/docker-compose.yml ps | tail -2"
 
+# ── Batasi build cache, karena tidak ada yang pernah membatasinya ─────────────
+#
+# Skrip ini tidak pernah memangkas cache build, jadi setiap deploy meninggalkan satu set
+# layer baru dan tidak ada yang hilang. Terukur: `docker builder du` melaporkan **186 GB,
+# seluruhnya reclaimable** — tidak satu byte pun sedang dipakai. Disk VPS terisi 81%
+# (250 G dari 309 G), dan di situlah build mulai merayap. Sesudah dipangkas: 78 G, 26%.
+#
+# Angka pembandingnya: cache SEHAT untuk proyek ini terbentuk kembali menjadi sekitar
+# 5 GB dalam satu build. Jadi 186 GB itu bukan cache, itu sampah berminggu-minggu.
+#
+# Dipangkas SESUDAH `up -d`, bukan sebelum build. Memangkas sebelum build berarti setiap
+# deploy membayar build cold — itu yang tanpa sengaja terjadi saat masalah ini ditemukan,
+# dan build berikutnya melewati tiga puluh menit. Memangkas sesudahnya berarti deploy ini
+# memakai cache-nya lalu membuang yang sudah tidak dirujuk.
+#
+# `until=72h` menyimpan cache beberapa hari terakhir, jadi deploy harian tetap hangat
+# sementara pertumbuhannya berhenti tanpa batas. `--keep-storage` tidak dipakai karena
+# docker di VPS ini tidak menyediakannya; `--filter` yang ada.
+#
+# Kegagalannya TIDAK menggagalkan deploy: aplikasinya sudah jalan pada titik ini, dan
+# kebersihan disk bukan alasan untuk melaporkan rilis yang sehat sebagai gagal.
+echo "==> housekeeping: batasi build cache"
+"${SSH[@]}" "$HOST" "docker builder prune -f --filter until=72h 2>&1 | tail -1; df -h / | tail -1" || \
+  echo "    (pemangkasan cache gagal, dilewati — deploy tetap sah)"
+
 echo "==> 4/4 verifikasi rute publik"
 # Kontainer butuh sedikit waktu sebelum sehat; exit code nol dari `up -d` bukan
 # bukti situsnya menyajikan apa pun.
