@@ -63,6 +63,17 @@ export function middleware(req: NextRequest) {
      * jadi tidak ada aturan kedua yang perlu ditulis untuknya.
      */
     day2: "/founder-house/index.html",
+    /**
+     * `campaign` -> dek campaign Galxe, pola yang sama dengan `day2`.
+     *
+     * Berbeda dari `day2` dalam satu hal yang penting: dek ini memuat gambar latar dan tombol
+     * unduh PDF lewat jalur RELATIF, karena `scripts/render-deck.mjs` mencetaknya dari
+     * `file://` dan jalur absolut akan dicari di akar filesystem. Jadi `campaign` juga
+     * terdaftar di `SUBDOMAIN_PREFIXES` di bawah — tanpa itu `/art/cover.jpg` di subdomain ini
+     * tidak pernah menemukan `public/campaign/art/cover.jpg` dan dek-nya tersaji tanpa latar
+     * sama sekali, tanpa galat apa pun yang terlihat.
+     */
+    campaign: "/campaign/index.html",
   };
 
   /**
@@ -83,6 +94,15 @@ export function middleware(req: NextRequest) {
    */
   const SUBDOMAIN_PREFIXES: Record<string, string> = {
     docs: "/docs",
+    /**
+     * `campaign` ada di SINI untuk asetnya, dan di `APP_SECTIONS` untuk akarnya.
+     *
+     * `/docs` adalah rute Next, jadi `/` yang di-rewrite menjadi prefiksnya sendiri sudah
+     * benar. `/campaign` adalah DIREKTORI di `public/`, dan Next tidak menyajikan index
+     * direktori — `/campaign` membalas 404 sementara `/campaign/index.html` berhasil. Itu
+     * sebabnya cabang di bawah memeriksa `APP_SECTIONS` lebih dulu untuk path akar.
+     */
+    campaign: "/campaign",
   };
 
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
@@ -92,10 +112,13 @@ export function middleware(req: NextRequest) {
       const subdomain = parts[0];
       const prefix = SUBDOMAIN_PREFIXES[subdomain];
       if (prefix) {
-        // `/` -> prefiks itu sendiri; sisanya digabung. Path yang sudah membawa prefiksnya
-        // dibiarkan, supaya tautan absolut dari halaman lain tidak menjadi `/docs/docs/...`.
+        // `/` -> dokumen akar kalau subdomain ini punya satu, kalau tidak prefiksnya sendiri.
+        // `APP_SECTIONS` diperiksa lebih dulu karena sebuah prefiks bisa menunjuk direktori
+        // statis alih-alih rute Next, dan direktori tidak punya index yang disajikan sendiri.
+        // Sisanya digabung. Path yang sudah membawa prefiksnya dibiarkan, supaya tautan
+        // absolut dari halaman lain tidak menjadi `/docs/docs/...`.
         if (url.pathname === "/" || url.pathname === "") {
-          url.pathname = prefix;
+          url.pathname = APP_SECTIONS[subdomain] ?? prefix;
         } else if (!url.pathname.startsWith(`${prefix}/`) && url.pathname !== prefix) {
           url.pathname = `${prefix}${url.pathname}`;
         }

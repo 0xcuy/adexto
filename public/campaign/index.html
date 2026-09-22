@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  Dek campaign Galxe, tersaji di campaign.adexto.xyz. Dirakit oleh
+  scripts/build-campaign-deck.mjs dari kerangka dek Founder House — JANGAN sunting berkas
+  ini, suntingannya akan hilang pada perakitan berikutnya. Sunting skripnya.
+
+  KENAPA HTML STATIS DAN BUKAN HALAMAN REACT
+
+  Satu berkas ini punya tiga tugas: dipresentasikan fullscreen, dirender jadi PDF oleh
+  headless Chrome, dan disajikan online. Halaman React akan menambah hidrasi dan CSS
+  bersama yang harus dijinakkan saat dicetak, untuk nol keuntungan — dek ini tidak punya
+  state, tidak memanggil API, dan tidak berbagi komponen dengan situs.
+
+  ATURAN ISI, dan ini yang paling mudah dilanggar besok:
+  - Setiap angka di sini SUDAH diverifikasi ke chain, ke kontrak, atau ke endpoint hidup.
+    Yang belum terverifikasi tidak ditulis. Sesi yang menghapus empat kartu alat MCP
+    fiktif dari /docs dan mencabut "the agent runs on 0G Compute" dari halaman depan
+    berlaku juga di sini — sebuah dek justru tempat paling berbahaya untuk mengarang,
+    karena tidak ada penjaga otomatis yang membacanya.
+  - TIDAK ADA slide permintaan budget. Angka permintaan diucapkan, bukan dipajang, karena
+    berkas ini publik di repo maupun di URL-nya.
+  - "Nol creator eksternal" TETAP ditulis. Siapa pun bisa melihat di explorer bahwa
+    ketiga pasar punya creator wallet yang sama, jadi menyembunyikannya hanya membuat
+    sisa dek ikut diragukan.
+
+  @media print membuat tiap .slide jadi tepat satu halaman lanskap, sehingga PDF-nya
+  keluar dari sumber yang sama persis dengan yang dipresentasikan.
+-->
+<title>ADEXTO — Galxe campaign</title>
+<style>
+  /* Cream + ungu, mengikuti brand: #7C3AED sudah dipakai badge README dan aksen situs. */
+  :root {
+    --cream: #f7f2e8;
+    --cream-deep: #efe7d7;
+    --ink: #1c1420;
+    --ink-soft: #574a5e;
+    --ink-faint: #8b7d92;
+    --purple: #4c1d95;
+    --purple-mid: #6d28d9;
+    --accent: #7c3aed;
+    --ok: #0f9d6e;
+    --line: #ddd0bb;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { background: var(--cream-deep); }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 1280x720 = 16:9. Ukuran tetap, lalu diskalakan ke viewport, supaya tata letaknya
+     identik di layar mana pun dan di PDF. Skala dihitung di JS. */
+  .deck { --w: 1280px; --h: 720px; }
+
+  /*
+    SATU SLIDE PENUH LAYAR, BERGESER HORIZONTAL.
+
+    Versi pertama menumpuk slide vertikal dan panah menggulir ke bawah. Itu keliru untuk
+    tugasnya: waktu di-screen share, penonton melihat potongan slide berikutnya menyembul
+    di bawah, dan gulir yang tidak selesai meninggalkan dua setengah slide di layar. Dek
+    presentasi harus memperlihatkan tepat satu bidang.
+
+    `.stage` mengurung tepat satu slide dan diskalakan ke viewport; `.track` yang bergeser
+    di dalamnya. Skala dipasang di `.stage`, bukan di tiap slide, supaya geseran `.track`
+    tidak bertabrakan dengan transform skala — dua transform pada elemen yang sama itu
+    tepatnya yang membuat versi pertama harus dikoreksi dengan margin negatif.
+
+    Untuk CETAK semua ini dibongkar kembali menjadi aliran blok biasa, jadi tiap slide
+    tetap satu halaman PDF. Satu sumber, dua bentuk keluaran.
+  */
+  /*
+    Dipusatkan dengan `position: fixed` + `translate(-50%, -50%)`, BUKAN dengan margin
+    negatif.
+
+    Versi sebelumnya memusatkan bidang terskala dengan margin negatif inline dari JS, dan
+    margin itu bocor ke cetakan: `.stage` jadi 1358px lebar di dalam halaman 1280px, karena
+    margin negatif MELEBARKAN kotak dengan `width: auto`. Slide-nya sendiri sudah benar
+    1280x720, jadi cacatnya hanya muncul sebagai dokumen yang lebih lebar dari halamannya —
+    dan `pdfinfo` tetap melaporkan 960x540 pt dengan sehat.
+
+    Pemusatan lewat transform tidak menyentuh tata letak sama sekali, jadi tidak ada apa pun
+    yang perlu dibatalkan saat cetak selain transform-nya sendiri.
+  */
+  .stage {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: var(--w);
+    height: var(--h);
+    overflow: hidden;
+    border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(28, 20, 32, 0.16);
+    transform-origin: center center;
+  }
+  .track {
+    display: flex;
+    height: var(--h);
+    will-change: transform;
+    transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /*
+    `justify-content: center` — isi diseimbangkan vertikal, bukan rata atas.
+
+    Diukur, bukan selera: dengan rata atas, slide 4 dan 6 meninggalkan ~150px ruang mati
+    tepat di atas footer, karena `.foot` diposisikan absolute sehingga tidak ikut flex.
+    Hasilnya slide terbaca berat di atas dan bolong di bawah. Padding bawah 96px
+    menyediakan ruang untuk footer absolute itu, jadi pemusatannya tidak menabraknya.
+
+    Dipakai untuk KEDELAPAN slide, bukan disetel per slide: penyetelan per slide berarti
+    delapan tempat yang harus diperiksa ulang setiap kali satu kalimat berubah panjang.
+  */
+  .slide {
+    position: relative;
+    width: var(--w);
+    height: var(--h);
+    background: var(--cream);
+    padding: 62px 76px 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Di layar: satu slide, dipusatkan, sisanya di luar bidang. */
+  @media screen {
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; align-items: center; justify-content: center; }
+    .slide { flex: 0 0 var(--w); }
+  }
+
+  h1, h2, h3 { line-height: 1.08; letter-spacing: -0.02em; }
+
+  .kicker {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+
+  h2.title { font-size: 46px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+  h2.title.sm { font-size: 38px; }
+  p.lede { font-size: 20px; line-height: 1.5; color: var(--ink-soft); max-width: 60ch; }
+
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  strong { font-weight: 700; color: var(--ink); }
+
+  /* ── cover ─────────────────────────────────────────────────────────── */
+  .cover {
+    background: linear-gradient(140deg, #3b1478 0%, var(--purple) 42%, var(--purple-mid) 100%);
+    color: #fff;
+    justify-content: center;
+  }
+  .cover .mark { width: 108px; height: 108px; margin-bottom: 40px; }
+  .cover .mark svg { width: 100%; height: 100%; display: block; }
+  .cover h1 { font-size: 66px; font-weight: 700; color: #fff; margin-bottom: 20px; }
+  .cover .sub { font-size: 25px; color: #ddd0f7; font-weight: 500; line-height: 1.35; max-width: 46ch; }
+  .cover .meta {
+    position: absolute; left: 76px; right: 76px; bottom: 54px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    font-size: 15px; color: #c3aeef; border-top: 1px solid rgba(255,255,255,0.22); padding-top: 20px;
+  }
+  .cover .meta b { color: #fff; font-weight: 700; }
+
+  /* ── kartu ─────────────────────────────────────────────────────────── */
+  .grid { display: grid; gap: 16px; margin-top: 26px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .card .h {
+    font-size: 17px; font-weight: 700; color: var(--ink);
+    margin-bottom: 8px; display: flex; align-items: center; gap: 9px;
+  }
+  .card .b { font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+  .card.tight { padding: 17px 19px; }
+  .card.tight .h { font-size: 16px; }
+  .card.tight .b { font-size: 14px; }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+  .dot.ok { background: var(--ok); }
+  .dot.warn { background: #d97706; }
+
+  /* ── angka besar ───────────────────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; margin-top: 30px; }
+  .stat .v { font-size: 42px; font-weight: 700; color: var(--purple); line-height: 1; }
+  .stat .k { font-size: 13px; color: var(--ink-faint); margin-top: 9px; line-height: 1.35; }
+  /* Angka nol diberi warna berbeda DENGAN SENGAJA. Ia satu-satunya angka di baris itu
+     yang bukan pencapaian, dan menyamakan warnanya dengan tiga lainnya membuat kelemahan
+     kita terbaca seperti sedang disamarkan di antara metrik bagus. Warna berbeda justru
+     menyatakan bahwa kita yang menyebutnya lebih dulu. */
+  .stat.gap .v { color: #b45309; }
+
+  /* ── tabel ─────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-faint);
+    padding-bottom: 9px; border-bottom: 1px solid var(--line);
+  }
+  td { font-size: 15px; padding: 11px 0; border-bottom: 1px solid #eee3d2; color: var(--ink-soft); }
+  td.chain { color: var(--ink); font-weight: 600; }
+  td.right { text-align: right; }
+  td b { color: var(--purple); }
+  tr:last-child td { border-bottom: none; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em; color: var(--purple-mid);
+    background: #f0e9fb; padding: 1px 5px; border-radius: 4px;
+  }
+
+  .foot {
+    position: absolute; left: 76px; right: 76px; bottom: 26px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; color: var(--ink-faint);
+    border-top: 1px solid var(--line); padding-top: 13px;
+  }
+  .foot .l { display: flex; align-items: center; gap: 8px; }
+  .foot svg { width: 15px; height: 15px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #f0e9fb; color: var(--purple);
+    border: 1px solid #d9c9f5; border-radius: 999px;
+    padding: 5px 13px; font-size: 12.5px; font-weight: 700;
+  }
+  .pill.ok { background: #e7f7f0; color: #0b7d57; border-color: #b9e6d3; }
+  .pill.warn { background: #fdf3e3; color: #9a5b06; border-color: #f0dcb4; }
+
+  .rows { margin-top: 22px; display: flex; flex-direction: column; gap: 11px; }
+  .row {
+    display: grid; grid-template-columns: 190px 1fr; gap: 22px; align-items: start;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 15px 20px;
+  }
+  .row .lbl { font-size: 15px; font-weight: 700; color: var(--purple); }
+  .row .val { font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+
+  .note { margin-top: 20px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; max-width: 82ch; }
+
+  /* ── cetak: satu slide = satu halaman lanskap ──────────────────────── */
+  @page { size: 1280px 720px; margin: 0; }
+  @media print {
+    html, body { background: #fff; height: auto; overflow: visible; }
+    body { display: block; padding: 0; gap: 0; }
+    /* Pengurungan dan geseran dibongkar: tanpa ini `.stage` yang tinggi 720px dan
+       `overflow: hidden` akan memotong tujuh slide sisanya jadi satu halaman. */
+    /* `position` dan `margin` dipaksa kembali normal. Keduanya disetel untuk layar — satu
+       lewat CSS, satu pernah lewat inline JS — dan keduanya merusak cetakan dengan cara
+       yang tidak terlihat pada ukuran halaman. */
+    .stage {
+      position: static !important;
+      left: auto; top: auto;
+      width: auto; height: auto; overflow: visible;
+      margin: 0 !important;
+      border-radius: 0; box-shadow: none;
+      transform: none !important;
+    }
+    /* `width: auto !important` sebagai PERTAHANAN, bukan karena dibutuhkan sekarang: JS
+       sudah tidak menyetel lebar inline. Kalau nanti ada yang mengembalikannya, aturan ini
+       yang mencegah cetakan rusak lagi dengan cara yang tidak terlihat di `pdfinfo`. */
+    .track { display: block; width: auto !important; height: auto; transform: none !important; transition: none; }
+    .slide {
+      flex: none; border-radius: 0; box-shadow: none;
+      transform: none !important;
+      page-break-after: always; break-after: page;
+    }
+    .slide:last-child { page-break-after: auto; break-after: auto; }
+    .hint, .bar { display: none !important; }
+  }
+
+  .hint {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 50;
+    background: rgba(28,20,32,0.78); color: #fff;
+    font-size: 11.5px; padding: 7px 14px; border-radius: 999px;
+    transition: opacity 400ms;
+  }
+  /* Petunjuk memudar setelah dibaca. Ia berguna sepuluh detik pertama dan jadi gangguan
+     sesudahnya — terutama kalau dek ini sedang di-screen share. */
+  .hint.gone { opacity: 0; pointer-events: none; }
+
+  /* Bilah kontrol. Di luar `.stage` supaya tidak ikut terskala dan tidak ikut tergeser,
+     dan disembunyikan saat cetak. */
+  .bar {
+    position: fixed; right: 16px; bottom: 14px; z-index: 50;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .bar .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(28,20,32,0.78); color: #fff;
+    border: none; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 11.5px; font-weight: 600;
+    padding: 7px 13px; text-decoration: none;
+  }
+  .bar .btn:hover { background: var(--purple); }
+  .bar .btn svg { width: 13px; height: 13px; }
+  .bar .count { font-variant-numeric: tabular-nums; min-width: 44px; justify-content: center; }
+  .bar .nav { padding: 7px 11px; font-size: 13px; line-height: 1; }
+  .bar .nav[disabled] { opacity: 0.35; cursor: default; }
+  .bar .nav[disabled]:hover { background: rgba(28,20,32,0.78); }
+
+  /* Garis kemajuan di tepi atas: satu-satunya kromium yang tetap terlihat saat presentasi,
+     dan ia menjawab "masih berapa lagi" tanpa memakan ruang slide. */
+  .progress {
+    position: fixed; top: 0; left: 0; height: 3px; z-index: 60;
+    background: var(--accent); width: 0;
+    transition: width 420ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @media print { .progress { display: none !important; } }
+</style>
+
+<style>
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+    font-size: 15px;
+  }
+  .tbl thead th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--line);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .tbl tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(221,208,187,.55);
+    vertical-align: top;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+  .tbl tbody td b { color: var(--ink); }
+  .tbl tbody tr:last-child td { border-bottom: none; }
+  .tbl code { font-size: .88em; }
+  .tbl td.n { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .card.ok .h { color: var(--ok); }
+  .card.ok .dot { background: var(--ok); }
+
+  /*
+    Tautan yang BENAR-BENAR bisa diklik, di layar maupun di PDF.
+    Sebelumnya URL ditulis di dalam <code>, jadi terlihat seperti tautan tapi mati — orang
+    harus menyalinnya dengan tangan. Chromium membawa anchor asli ke dalam PDF, jadi satu
+    perubahan ini membuat dek cetaknya bisa diklik juga.
+  */
+  a.lnk {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(124,58,237,.35);
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: .92em;
+    word-break: break-all;
+  }
+  a.lnk:hover { border-bottom-color: var(--accent); }
+  a.lnk.plain { font-family: inherit; font-size: inherit; word-break: normal; }
+
+  /*
+    LATAR COVER
+    Gambarnya berlatar krem terang, sementara cover-nya ungu. Ditempel apa adanya ia jadi
+    kotak putih besar yang menabrak gradien. "mix-blend-mode: luminosity" membuatnya
+    mengambil warna dari gradien di belakangnya dan hanya menyumbang terang-gelapnya, jadi
+    robotnya menjadi ungu dan terlihat memang bagian dari slide.
+
+    Mask-nya memudarkan gambar dari kiri supaya judul tetap duduk di bidang bersih. Nilai
+    38% dipilih karena di bawah itu tepi gambar mulai memotong huruf terakhir judul pada
+    1280 px.
+
+    Konten cover dinaikkan ke z-index 1 secara eksplisit. Tanpa itu urutan lukisnya
+    bergantung pada kebetulan: anak statik memang menang atas z-index negatif, tapi
+    menuliskannya berarti tidak ada yang perlu mengingat aturan itu.
+
+    PERHATIAN pada .meta: HANYA z-index yang boleh ditambahkan padanya. Dek sumber
+    menempelkannya ke dasar slide dengan "position: absolute; bottom: 54px", jadi menulis
+    "position: relative" di sini — yang sempat saya lakukan — melepasnya kembali ke aliran
+    normal dan membuatnya menabrak subjudul. Ia sudah positioned, jadi z-index berlaku
+    tanpa perlu menyentuh position-nya.
+  */
+  .cover { overflow: hidden; }
+  .cover .art {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 62%;
+    background-image: url("art/cover.jpg");
+    background-size: cover;
+    background-position: 62% center;
+    mix-blend-mode: luminosity;
+    opacity: .5;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.85) 38%, #000 70%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.85) 38%, #000 70%);
+    z-index: 0;
+  }
+  .cover .mark, .cover h1, .cover .sub { position: relative; z-index: 1; }
+  .cover .meta { z-index: 1; }
+  /*
+    LATAR SLIDE ISI
+
+    Slide isi berlatar krem dengan teks gelap, jadi persoalannya berbeda dari cover: bukan
+    soal menyatukan warna, tapi soal tidak merusak keterbacaan. Karena itu opacity 0,14 —
+    cukup untuk terlihat sebagai bentuk, tidak cukup untuk bersaing dengan huruf. Mask
+    mengosongkan kiri, tempat kicker, judul dan paragraf duduk.
+
+    KENAPA "isolation: isolate" DAN z-index NEGATIF, BUKAN MENAIKKAN KONTEN
+
+    Menaikkan konten menuntut aturan seperti ".slide > *" yang memaksa "position: relative"
+    ke SEMUA anak — dan dua di antaranya, ".foot" dan ".meta", sudah "position: absolute"
+    untuk menempel di dasar slide. Itu persis bug yang baru saja terjadi di cover: footernya
+    naik menabrak subjudul.
+
+    z-index negatif menghindari itu tanpa menyentuh konten sama sekali, tapi hanya aman
+    kalau slide-nya benar-benar stacking context. ".slide" punya "position: relative" dengan
+    z-index auto, jadi bukan — dan anak z-index -1 akan lolos ke ancestor lalu tertutup
+    total oleh latar krem slide yang opak. "isolation: isolate" menjadikan slide stacking
+    context, sehingga -1 berhenti di dalamnya: di atas latar krem, di bawah seluruh konten.
+  */
+  .slide:not(.cover) { isolation: isolate; }
+  .slide:not(.cover) .art {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: right center;
+    opacity: .14;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 34%, #000 72%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.35) 34%, #000 72%);
+  }
+
+  @media print {
+    .cover .art, .slide:not(.cover) .art {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body class="deck">
+
+<!-- Logo dipakai dua kali: besar di cover, kecil di footer. Didefinisikan sekali di
+     sini dan dipakai ulang lewat <use>, jadi tidak ada dua salinan yang bisa menyimpang. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="adexto-mark">
+      <mask id="adexto-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+        <rect width="512" height="512" fill="#fff"/>
+        <g transform="rotate(-14 256 286)"><path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill="none" stroke="#000" stroke-width="20" stroke-linejoin="round"/></g>
+        <circle cx="388" cy="302" r="34" fill="none" stroke="#000" stroke-width="20"/>
+      </mask>
+      <path d="M256,104 L438,414 L350,414 L256,214 L162,414 L74,414 Z" mask="url(#adexto-cut)"/>
+      <g transform="rotate(-14 256 286)"><path d="M76,286 a180,66 0 1 0 360,0 a180,66 0 1 0 -360,0 Z M99,276 a169,55 0 1 0 338,0 a169,55 0 1 0 -338,0 Z" fill-rule="evenodd"/></g>
+      <circle cx="388" cy="302" r="34"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="progress" id="progress"></div>
+
+<div class="stage" id="stage">
+<div class="track" id="track">
+
+<section class="slide cover">
+  <div class="art"></div>
+  <div class="mark"><svg viewBox="74 77 364 364" fill="#fff"><use href="#adexto-mark"/></svg></div>
+  <h1>Open a market,<br/>not just a token.</h1>
+  <p class="sub">A market that trades from block one. No liquidity deposit, no founder allocation. Live on 0G, Base, Arbitrum One and Monad.</p>
+  <div class="meta">
+    <div>Galxe campaign · ADEXTO</div>
+    <div><b>adexto.xyz</b></div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/product.jpg')"></div>
+  <div class="kicker">The product</div>
+  <h2 class="title">One transaction, and the market is already trading.</h2>
+  <p class="lede">Most launchpads hand you a token and a page, then you wait for a listing. ADEXTO skips the wait because there is nothing to wait for.</p>
+  <div class="grid g3">
+    <div class="card">
+      <div class="h"><span class="dot"></span>No liquidity to deposit</div>
+      <div class="b">A bonding curve is the market. The first buyer trades against it in the same block it was created, so nobody has to seed a pool or find a counterparty.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>No founder allocation</div>
+      <div class="b"><strong>100% of the supply enters the curve at genesis.</strong> The creator holds none. There is no unlock schedule to read and no insider bag to front-run.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>No application, no gatekeeper</div>
+      <div class="b">Anyone can open one, on any of the four mainnets, and a market behaves the same wherever it lives. Nobody reviews it and nothing has to be approved first.</div>
+    </div>
+  </div>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>2 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/arrives.jpg')"></div>
+  <div class="kicker">What arrives with the market</div>
+  <h2 class="title">Three things a new market normally has to wait years for.</h2>
+  <div class="grid g3">
+    <div class="card">
+      <div class="h"><span class="dot"></span>A terminal built for minutes-old assets</div>
+      <div class="b">Candles from one second upward, an order book and a live trade feed. A chart on a one-minute interval is useless when the asset is four minutes old, so the terminal does not start there.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>A buyer on another chain can pay</div>
+      <div class="b">Holding only USDC somewhere else is enough. The price is payable over plain HTTP — no bridge, no swap, and the buyer never has to hold the market's gas token.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>An agent can trade it unattended</div>
+      <div class="b">An MCP server ships with the venue, so an AI agent can list markets, pull a quote and execute a buy on its own — no scraping, and no custom integration for each new market.</div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:18px">This campaign is for people who want to try that before it has a crowd.</p>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>3 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/tasks.jpg')"></div>
+  <div class="kicker">The campaign</div>
+  <h2 class="title">Four tasks. One of them is the product.</h2>
+  <table class="tbl">
+    <thead><tr><th>#</th><th>Task</th><th>Verified by</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1</td><td><b>Follow @adexto_ on X</b></td><td>Galxe native credential</td></tr>
+      <tr><td class="n">2</td><td><b>Join the ADEXTO Telegram group</b> — <a class="lnk" href="https://t.me/adexto">t.me/adexto</a></td><td>Galxe native credential</td></tr>
+      <tr><td class="n">3</td><td><b>Buy at least 0.1 0G of $ADEXTO</b> on 0G mainnet<br/><a class="lnk" href="https://adexto.xyz/token/adexto?chain=16661&tf=60">adexto.xyz/token/adexto?chain=16661&tf=60</a></td><td>The curve's on-chain <code>Swap</code> event</td></tr>
+      <tr><td class="n">4</td><td><b>Still hold at least 500 $ADEXTO when you claim</b></td><td>Galxe native ERC-20 balance check</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:14px">Tasks three and four are one idea split in two: buy, and still be holding. The activity lands on 0G mainnet, so it stays inside the ecosystem hosting the campaign.</p>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>4 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/price.jpg')"></div>
+  <div class="kicker">Task 3, exactly</div>
+  <h2 class="title">Two and a half cents, quoted from the contract.</h2>
+  <table class="tbl">
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Market</td><td><b>$ADEXTO</b> on 0G Mainnet, chain id <code>16661</code></td></tr>
+      <tr><td>Curve contract</td><td><code>0xc80e0659D2Fc29e62605C9DF6182a85372652B60</code></td></tr>
+      <tr><td>Token contract</td><td><code>0xA1358C17004469C7CA5365AbafD294F9b2c11DF7</code></td></tr>
+      <tr><td>Minimum spend</td><td class="n"><b>0.1 0G</b>, and more is fine</td></tr>
+      <tr><td>What 0.1 0G buys</td><td class="n"><b>4,943.78 $ADEXTO</b> — <code>getBuyQuote</code>, read from the live curve</td></tr>
+      <tr><td>Cost in USD</td><td class="n"><b>≈ $0.0235</b> at 0G = $0.234516</td></tr>
+      <tr><td>Gas for the buy</td><td class="n">≈ 0.0004 0G, so budget ~0.101 0G in total</td></tr>
+      <tr><td>Where to buy</td><td><a class="lnk" href="https://adexto.xyz/token/adexto?chain=16661&tf=60">adexto.xyz/token/adexto?chain=16661&tf=60</a></td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:14px">The hold threshold is 500, not 4,943, because a curve gets more expensive as it is bought. A late participant spending the same 0.1 0G receives fewer tokens and must still pass.</p>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>5 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/reward.jpg')"></div>
+  <div class="kicker">The reward</div>
+  <h2 class="title">An OAT called <em>ADEXTO — Block One</em>.</h2>
+  <p class="lede">The reward is the record itself, and we say that up front. Every market's supply goes to the curve at genesis — that fairness is the product, and it is why the OAT is what a participant walks away holding.</p>
+  <div class="grid g2">
+    <div class="card ok">
+      <div class="h"><span class="dot"></span>What the holder gets</div>
+      <div class="b">A permanent on-chain record that they bought into an ADEXTO market while it was still new — one transaction had created it, it was already trading, and they were among the first through the door.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>Who it attracts</div>
+      <div class="b">People who came to use the venue, not to wait for a snapshot. That is the audience worth having at this stage, and it is the audience an honest reward description brings in. A hundred people who open the terminal beat ten thousand who never do.</div>
+    </div>
+  </div>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>6 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/traction.jpg')"></div>
+  <div class="kicker">Why this is worth your audience's time</div>
+  <h2 class="title">It is shipped, and other people have already checked.</h2>
+  <div class="grid g2">
+    <div class="card">
+      <div class="h"><span class="dot"></span>Live, not a testnet demo</div>
+      <div class="b">Four mainnets — <strong>0G, Base, Arbitrum One, Monad</strong> — with six markets open and trading today. Anyone can open the terminal right now and watch a real chart, and the docs are at <code>docs.adexto.xyz</code>.</div>
+    </div>
+    <div class="card">
+      <div class="h"><span class="dot"></span>Named by 0G already</div>
+      <div class="b">ADEXTO is one of the eight projects in the <strong>0G Atlas Founder House Demo Day</strong> line-up, 18 September 2026, and appears in 0G's own A2A economy landscape — live on 0G mainnet, tagged Base, Arb and Monad. Sources are linked at <code>adexto.xyz/recognition</code>.</div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:18px">The venue is built and running. What this campaign adds is its first wave of traders.</p>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>7 / 8</div></div>
+</section>
+
+<section class="slide">
+  <div class="art" style="background-image:url('art/links.jpg')"></div>
+  <div class="kicker">Links</div>
+  <h2 class="title">Everything a participant needs.</h2>
+  <table class="tbl">
+    <thead><tr><th>Label</th><th>URL</th></tr></thead>
+    <tbody>
+      <tr><td><b>Buy $ADEXTO</b> (task 3)</td><td><a class="lnk" href="https://adexto.xyz/token/adexto?chain=16661&tf=60">adexto.xyz/token/adexto?chain=16661&tf=60</a></td></tr>
+      <tr><td>Open your own market</td><td><a class="lnk" href="https://adexto.xyz/studio">adexto.xyz/studio</a></td></tr>
+      <tr><td>Browse live markets</td><td><a class="lnk" href="https://adexto.xyz/explorer">adexto.xyz/explorer</a></td></tr>
+      <tr><td>Docs</td><td><a class="lnk" href="https://docs.adexto.xyz">docs.adexto.xyz</a></td></tr>
+      <tr><td>Recognition and sources</td><td><a class="lnk" href="https://adexto.xyz/recognition">adexto.xyz/recognition</a></td></tr>
+      <tr><td>X</td><td><a class="lnk" href="https://x.com/adexto_">x.com/adexto_</a></td></tr>
+      <tr><td>Telegram</td><td><a class="lnk" href="https://t.me/adexto">t.me/adexto</a></td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:14px">Run: <strong>two weeks, closing as TOKEN2049 opens in Singapore on 7 October 2026</strong>. Everything above is ready to configure today.</p>
+  <div class="foot"><div class="l"><svg viewBox="74 77 364 364" fill="#8b7d92"><use href="#adexto-mark"/></svg><span>ADEXTO</span></div><div>8 / 8</div></div>
+</section>
+</div><!-- /track -->
+</div><!-- /stage -->
+
+<div class="hint" id="hint">← → to move · F for fullscreen · click the right half to advance</div>
+
+<div class="bar">
+  <button class="btn nav" id="prev" aria-label="Previous slide">←</button>
+  <span class="btn count" id="count">1 / 8</span>
+  <button class="btn nav" id="next" aria-label="Next slide">→</button>
+  <!-- Jalur ABSOLUT, bukan relatif. Berkas ini disajikan di dua alamat: sebagai
+       `/founder-house/` dan sebagai akar `day2.adexto.xyz` lewat rewrite middleware. Pada
+       alamat kedua, URL di bilah peramban tetap `/`, jadi tautan relatif akan menunjuk
+       `day2.adexto.xyz/adexto-0g-founder-house.pdf` dan gagal. Jalur absolut benar di
+       keduanya. -->
+  <a class="btn" id="dl" href="adexto-galxe-campaign.pdf" download>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/>
+    </svg>
+    PDF
+  </a>
+</div>
+
+<script>
+  /*
+    Skala slide agar 1280x720 selalu pas di viewport, dan navigasi panah.
+
+    Tata letak dipaku pada 1280x720 lalu diskalakan, bukan dibuat responsif: dek ini juga
+    dicetak jadi PDF, dan tata letak responsif berarti apa yang dipresentasikan bisa
+    berbeda dari yang dicetak. Satu ukuran, satu hasil.
+  */
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage');
+  var track = document.getElementById('track');
+  var progress = document.getElementById('progress');
+  var count = document.getElementById('count');
+  var prevBtn = document.getElementById('prev');
+  var nextBtn = document.getElementById('next');
+  var hint = document.getElementById('hint');
+  var n = slides.length;
+  var i = 0;
+  var scale = 1;
+
+  /*
+    LEBAR `.track` TIDAK DISETEL, dan itu perbaikan bug — bukan penyederhanaan.
+
+    Baris ini dulu berbunyi `track.style.width = 1280 * n + 'px'` → 10.240px. Lebar itu
+    INLINE, jadi `@media print { .track { display: block } }` tidak bisa mengalahkannya:
+    setiap halaman PDF dilayout selebar 10.240px, Chrome menyusutkan seluruhnya agar masuk
+    halaman 1280px, dan hasilnya slide mengecil di sudut kiri-atas halaman yang mayoritas
+    kosong. Ukuran halamannya sendiri benar (960x540 pt), jadi `pdfinfo` melaporkan sehat
+    dan cacatnya baru terlihat saat PDF-nya dibuka di ponsel.
+
+    Ternyata lebarnya tidak pernah dibutuhkan: `.slide` memakai `flex: 0 0 1280px` dan flex
+    tidak membungkus secara bawaan, jadi anak-anaknya berbaris melampaui bidang induk
+    dengan sendirinya. Menghapus satu baris ini memperbaiki cetakan tanpa mengubah tampilan
+    di layar sedikit pun.
+  */
+
+  /*
+    Skala dipasang di `.stage` SAJA, dan geseran di `.track` saja.
+
+    Versi pertama memasang skala pada tiap slide, lalu harus menambal tinggi hasil skala
+    dengan margin negatif. Memisahkan keduanya membuat tambalan itu tidak perlu ada:
+    `.stage` mengurus "sebesar apa", `.track` mengurus "yang mana".
+  */
+  function fit() {
+    if (window.matchMedia('print').matches) return;
+    var pad = 44;
+    scale = Math.min((window.innerWidth - pad) / 1280, (window.innerHeight - pad) / 720, 1);
+    // Pemusatan ikut di dalam transform yang sama, jadi tidak ada margin yang perlu
+    // disetel — dan karena itu tidak ada apa pun yang bisa bocor ke cetakan.
+    stage.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+  }
+
+  function render() {
+    track.style.transform = 'translateX(' + -1280 * i + 'px)';
+    progress.style.width = ((i + 1) / n) * 100 + '%';
+    count.textContent = i + 1 + ' / ' + n;
+    prevBtn.disabled = i === 0;
+    nextBtn.disabled = i === n - 1;
+  }
+
+  function go(target) {
+    i = Math.max(0, Math.min(n - 1, target));
+    render();
+  }
+
+  window.addEventListener('resize', fit);
+  prevBtn.addEventListener('click', function () { go(i - 1); });
+  nextBtn.addEventListener('click', function () { go(i + 1); });
+
+  // Klik separuh kanan maju, separuh kiri mundur — cara paling cepat menggerakkan dek
+  // saat tangan sedang di mouse untuk screen share. Tombol di bilah dikecualikan.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.bar')) return;
+    go(e.clientX > window.innerWidth / 2 ? i + 1 : i - 1);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(i + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(i - 1); }
+    if (e.key === 'Home') { e.preventDefault(); go(0); }
+    if (e.key === 'End') { e.preventDefault(); go(n - 1); }
+    if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }
+  });
+
+  // Sentuh: geser kiri/kanan, untuk kalau dek dibuka di tablet.
+  var x0 = null;
+  document.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 40) go(dx < 0 ? i + 1 : i - 1);
+    x0 = null;
+  }, { passive: true });
+
+  setTimeout(function () { hint.classList.add('gone'); }, 6000);
+
+  fit();
+  render();
+</script>
+</body>
+</html>
