@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+/**
+ * `LOGO_PX` diimpor, tidak lagi ditulis ulang di sini.
+ *
+ * Studio memperkecil logo yang diunggah ke sisi yang sama supaya kedua jalur memakan ruang
+ * registry yang sebanding. Dua konstanta terpisah akan menyimpang tanpa ada yang gagal.
+ */
+import { LOGO_PX } from "@/lib/logo-image";
 
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
@@ -19,15 +26,18 @@ const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
  * ukurannya 17x lebih kecil dan 3,6x lebih cepat.
  *
  * Bukan cuma soal kenyamanan: data URI ini disimpan sebagai field `image` di
- * projects.json — satu berkas JSON yang dibaca dan di-parse utuh oleh registry —
- * DAN ikut masuk metadata yang ditambatkan ke 0G DA, yang tidak bisa ditarik
- * kembali. 618 KiB per proyek dikalikan batas 500 proyek berarti berkas registry
- * ratusan megabita.
+ * projects.json — satu berkas JSON yang dibaca dan di-parse utuh oleh registry.
+ * 618 KiB per proyek dikalikan batas 500 proyek berarti berkas registry ratusan
+ * megabita.
+ *
+ * KOREKSI: blok ini dulu menambahkan "DAN ikut masuk metadata yang ditambatkan ke 0G DA,
+ * yang tidak bisa ditarik kembali". Itu tidak benar, dan permanensi adalah alasan yang jauh
+ * lebih berat daripada yang sebenarnya berlaku. Diperiksa: payload yang `handlePrepare`
+ * unggah ke 0G DA berisi protocol, token, dex, agent dan teeAttestation — tidak ada `image`,
+ * dan studio bahkan tidak mengirim field itu ke stage `prepare`. Batasnya tetap benar; yang
+ * dilindungi adalah registry, bukan DA.
  */
-const LOGO_SIZE = "256x256";
-
-/** Angka yang sama dengan LOGO_SIZE, dipakai untuk SVG cadangan. */
-const LOGO_PX = 256;
+const LOGO_SIZE = `${LOGO_PX}x${LOGO_PX}`;
 
 /**
  * Prompt tidak lagi meminta tema gelap, dan tidak lagi meminta "8k".

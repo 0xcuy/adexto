@@ -6,6 +6,7 @@ import { ethers } from "ethers";
 import {
   Cpu, RefreshCw, Sparkles, ShieldCheck, Send, Bot, ChevronDown,
   Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets, Fingerprint,
+  ImagePlus,
 } from "lucide-react";
 
 import { useWallet } from "@/context/WalletContext";
@@ -15,6 +16,14 @@ import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletCh
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
 import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
+import {
+  ACCEPT_ATTR,
+  ACCEPTED_MIME,
+  LOGO_PX,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_MB,
+  validateProjectImage,
+} from "@/lib/logo-image";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
 /**
@@ -168,6 +177,19 @@ export default function StudioPage() {
    */
   const [logoInfo, setLogoInfo] = useState<{ generated: boolean; note?: string } | null>(null);
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
+  /**
+   * Dari mana logo yang terpasang berasal.
+   *
+   * Dipisah dari `logoInfo` karena keduanya menjawab pertanyaan berbeda: `logoInfo` menjawab
+   * "apakah model benar-benar jalan", sedangkan ini menjawab "apakah creator memilih
+   * gambarnya sendiri". Perlu dibedakan sebab begitu creator mengunggah logonya sendiri,
+   * tombol Generate harus mati — kalau tidak, satu klik tak sengaja menimpa berkas yang baru
+   * saja dipilih dan tidak ada jalan mengembalikannya.
+   */
+  const [logoSource, setLogoSource] = useState<"default" | "generated" | "uploaded">("default");
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [isReadingLogo, setIsReadingLogo] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement | null>(null);
 
   const [feeTier, setFeeTier] = useState<FeeTier>("standard");
   const [totalSwapFee, setTotalSwapFee] = useState(0.3);
@@ -603,6 +625,8 @@ export default function StudioPage() {
       if (data.imageUrl) {
         setGeneratedLogo(data.imageUrl);
         setLogoInfo({ generated: Boolean(data.generated), note: data.note });
+        setLogoSource("generated");
+        setLogoError(null);
       }
     } catch (error) {
       console.warn("[adexto] logo generation failed:", error);
@@ -610,6 +634,107 @@ export default function StudioPage() {
     } finally {
       setIsGeneratingLogo(false);
     }
+  };
+
+  /**
+   * Unggah logo yang sudah dimiliki creator.
+   *
+   * KENAPA DIGAMBAR ULANG KE KANVAS, BUKAN DISIMPAN APA ADANYA
+   *
+   * Nilainya berakhir sebagai data URI di dalam `projects.json`, satu berkas yang di-parse
+   * utuh dan dibatasi 500 pasar. Menyimpan berkas asli berarti ukuran registry ditentukan
+   * oleh kamera orang lain. Digambar ulang ke {@link LOGO_PX} px membuat unggahan memakan
+   * ruang yang sama dengan hasil generate, jadi tidak ada jalur yang lebih mahal dari yang
+   * lain.
+   *
+   * KENAPA WAJIB PERSEGI, DAN KENAPA DITOLAK ALIH-ALIH DIPOTONG
+   *
+   * Logo dirender di dalam kotak dengan `object-contain` di studio, /explorer dan halaman
+   * token. Gambar 16:9 akan tampil sebagai garis tipis dengan ruang kosong di atas dan bawah
+   * — masih "berfungsi", jadi tidak ada yang melaporkannya sebagai galat, dan creator baru
+   * menyadarinya setelah pasarnya terdaftar. Memotong otomatis lebih buruk lagi: ia memilih
+   * bagian mana yang dibuang tanpa bertanya. Jadi ditolak di depan, dengan ukuran yang
+   * terbaca supaya jelas apa yang harus diperbaiki.
+   */
+  const handleLogoFile = async (file: File | null) => {
+    if (!file) return;
+    setLogoError(null);
+
+    if (!ACCEPTED_MIME.includes(file.type as (typeof ACCEPTED_MIME)[number])) {
+      setLogoError(`That file is ${file.type || "of an unknown type"}. Use PNG, JPEG or WebP.`);
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setLogoError(
+        `That file is ${(file.size / (1024 * 1024)).toFixed(1)} MB, over the ${MAX_UPLOAD_MB} MB limit.`
+      );
+      return;
+    }
+
+    setIsReadingLogo(true);
+    // `objectUrl` dipakai alih-alih FileReader: ia tidak menyalin seluruh berkas ke memori
+    // sebagai string base64 hanya untuk diukur, dan dibebaskan di `finally`.
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("decode failed"));
+        el.src = objectUrl;
+      });
+
+      if (img.naturalWidth !== img.naturalHeight) {
+        setLogoError(
+          `That image is ${img.naturalWidth}×${img.naturalHeight}. It has to be square — ` +
+            `crop it to equal width and height first.`
+        );
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = LOGO_PX;
+      canvas.height = LOGO_PX;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        setLogoError("This browser would not give a 2D canvas, so the image could not be resized.");
+        return;
+      }
+      ctx.drawImage(img, 0, 0, LOGO_PX, LOGO_PX);
+      const dataUri = canvas.toDataURL("image/png");
+
+      /**
+       * Diperiksa dengan validator yang sama yang dipakai server.
+       *
+       * Terlihat berlebihan karena kanvasnya baru saja kita buat sendiri, tapi PNG dari
+       * kanvas 256x256 bisa melebihi batas kalau sumbernya foto penuh detail, bukan emblem.
+       * Ketahuan di sini jauh lebih baik daripada ditolak `/api/deploy` setelah creator
+       * menandatangani attestation.
+       */
+      const check = validateProjectImage(dataUri);
+      if (!check.ok) {
+        setLogoError(`${check.reason} Try a flatter image, or a simpler logo.`);
+        return;
+      }
+
+      setGeneratedLogo(check.value);
+      setLogoSource("uploaded");
+      setLogoInfo(null);
+    } catch {
+      setLogoError("That file could not be read as an image.");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      setIsReadingLogo(false);
+      // Direset supaya memilih berkas yang SAMA lagi tetap memicu `change`.
+      if (logoFileRef.current) logoFileRef.current.value = "";
+    }
+  };
+
+  /** Kembali ke bawaan, sehingga Generate hidup lagi. */
+  const clearUploadedLogo = () => {
+    setGeneratedLogo("/logo.svg");
+    setLogoSource("default");
+    setLogoInfo(null);
+    setLogoError(null);
   };
 
   // ── deploy ───────────────────────────────────────────────────────────────
@@ -1317,43 +1442,116 @@ export default function StudioPage() {
                   </Field>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-white border border-line flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-accent/30 p-1 flex items-center justify-center shrink-0">
-                      <img src={generatedLogo ?? "/logo.svg"} alt="Logo" className="w-full h-full object-contain" />
-                    </div>
-                    {/* Nama model hanya ditulis kalau model itu memang jalan.
-                        Sebelumnya "0G z-image-turbo" tercetak tetap, termasuk di atas
-                        gambar cadangan yang digambar sendiri oleh server. */}
-                    <div>
-                      <div className="text-[11px] font-bold text-ink">
-                        {logoInfo && !logoInfo.generated ? "Placeholder emblem" : "0G z-image-turbo"}
+                {/* Logo: unggah milik sendiri, atau biarkan model menggambarnya.
+                    Unggah didahulukan dalam urutan tombol karena creator yang SUDAH punya
+                    logo adalah kasus yang lebih umum, dan sebelumnya mereka tidak punya
+                    jalan sama sekali selain menerima apa pun yang keluar dari model. */}
+                <div className="p-2.5 rounded-xl bg-white border border-line space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-accent/30 p-1 flex items-center justify-center shrink-0">
+                        <img src={generatedLogo ?? "/logo.svg"} alt="Token logo preview" className="w-full h-full object-contain" />
                       </div>
-                      <span className="text-[10px] text-ink-soft" title={logoInfo?.note}>
-                        {logoInfo === null
-                          ? "Generate an emblem for the token"
-                          : logoInfo.generated
-                          ? "Rendered on the 0G router · 256×256"
-                          : "Drawn locally — the router did not return an image"}
-                      </span>
+                      {/* Nama model hanya ditulis kalau model itu memang jalan.
+                          Sebelumnya "0G z-image-turbo" tercetak tetap, termasuk di atas
+                          gambar cadangan yang digambar sendiri oleh server — dan sekarang
+                          juga akan salah di atas berkas yang diunggah creator. */}
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-ink">
+                          {logoSource === "uploaded"
+                            ? "Your image"
+                            : logoInfo && !logoInfo.generated
+                            ? "Placeholder emblem"
+                            : "0G z-image-turbo"}
+                        </div>
+                        <span className="text-[10px] text-ink-soft" title={logoInfo?.note}>
+                          {logoSource === "uploaded"
+                            ? `Resized to ${LOGO_PX}×${LOGO_PX} · generation is off`
+                            : logoInfo === null
+                            ? "Generate an emblem, or upload one you already have"
+                            : logoInfo.generated
+                            ? `Rendered on the 0G router · ${LOGO_PX}×${LOGO_PX}`
+                            : "Drawn locally — the router did not return an image"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Input asli disembunyikan, bukan dihapus: tombol di sebelahnya yang
+                          memicunya, supaya gayanya sama dengan tombol lain di form ini dan
+                          tetap bisa dijangkau keyboard lewat tombol itu. */}
+                      <input
+                        ref={logoFileRef}
+                        type="file"
+                        accept={ACCEPT_ATTR}
+                        className="hidden"
+                        onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+                      />
+                      {logoSource === "uploaded" ? (
+                        <button
+                          type="button"
+                          onClick={clearUploadedLogo}
+                          className="px-3 py-1.5 rounded-lg bg-cream-2 hover:bg-cream-2 text-ink-soft border border-line text-xs font-bold flex items-center gap-1.5"
+                        >
+                          <XCircle className="w-3 h-3" /> Remove
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => logoFileRef.current?.click()}
+                        disabled={isReadingLogo}
+                        className="px-3 py-1.5 rounded-lg bg-cream-2 hover:bg-cream-2 text-ink border border-line text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isReadingLogo ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" /> Reading…
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="w-3 h-3" /> {logoSource === "uploaded" ? "Replace" : "Upload"}
+                          </>
+                        )}
+                      </button>
+                      {/* Mati begitu ada unggahan, dengan alasan yang tertulis di `title`.
+                          Satu klik di sini akan menimpa berkas yang baru dipilih, dan tidak
+                          ada salinan untuk mengembalikannya. "Remove" adalah jalan keluarnya. */}
+                      <button
+                        type="button"
+                        onClick={handleGenerateLogo}
+                        disabled={isGeneratingLogo || logoSource === "uploaded"}
+                        title={
+                          logoSource === "uploaded"
+                            ? "Your own image is in use. Remove it to generate one instead."
+                            : undefined
+                        }
+                        className="px-3 py-1.5 rounded-lg bg-accent-soft hover:bg-accent-soft text-accent border border-accent/30 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingLogo ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" /> Rendering…
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-3 h-3" /> Generate
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleGenerateLogo}
-                    disabled={isGeneratingLogo}
-                    className="px-3 py-1.5 rounded-lg bg-accent-soft hover:bg-accent-soft text-accent border border-accent/30 text-xs font-bold flex items-center gap-1.5 shrink-0"
-                  >
-                    {isGeneratingLogo ? (
-                      <>
-                        <RefreshCw className="w-3 h-3 animate-spin" /> Rendering…
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="w-3 h-3" /> Generate
-                      </>
-                    )}
-                  </button>
+
+                  {/* Persyaratannya ditulis SEBELUM orang memilih berkas, bukan hanya sebagai
+                      galat sesudahnya. */}
+                  <p className="text-[10px] text-ink-faint">
+                    PNG, JPEG or WebP · <strong className="text-ink-soft">square</strong> · max{" "}
+                    <strong className="text-ink-soft">{MAX_UPLOAD_MB} MB</strong>. Whatever you upload is
+                    resized to {LOGO_PX}×{LOGO_PX} and stored with the market.
+                  </p>
+
+                  {logoError ? (
+                    <p role="alert" className="text-[10px] text-danger flex items-start gap-1.5">
+                      <AlertTriangle className="w-3 h-3 mt-px shrink-0" />
+                      <span>{logoError}</span>
+                    </p>
+                  ) : null}
                 </div>
               </Section>
 

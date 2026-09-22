@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { keccak256, toHex } from "viem";
 import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
+import { validateProjectImage } from "@/lib/logo-image";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST, readProvider } from "@/lib/chains";
 import {
@@ -721,6 +722,39 @@ async function handleConfirm(body: any) {
     ? body.targetChainIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id))
     : [chain.chainId];
 
+  /**
+   * `image` DIVALIDASI, dan sebelumnya tidak.
+   *
+   * Barisnya dulu `image: body.image || "/logo.svg"` — apa pun yang dikirim langsung masuk
+   * `projects.json`. Studio kini memperkecil unggahan ke 256x256 sebelum mengirimnya, tapi
+   * studio bukan satu-satunya yang bisa memanggil endpoint ini: `POST /api/deploy` menerima
+   * JSON dari siapa pun, jadi batas di browser hanya saran sampai server ikut menolak.
+   *
+   * Yang dilindungi adalah registry. `projects.json` dibaca dan di-parse utuh setiap kali
+   * disentuh, dan batasnya 500 pasar, jadi satu nilai besar dikalikan 500. URL absolut juga
+   * ditolak: membiarkannya berarti gambar sebuah pasar bisa diganti menjadi apa pun setelah
+   * terdaftar, oleh host yang bukan milik kita.
+   *
+   * 400, bukan diam-diam diganti bawaan: pasar sudah ada di chain pada titik ini, dan creator
+   * harus tahu kenapa listing-nya ditolak alih-alih menemukan logonya hilang nanti.
+   */
+  const imageCheck = validateProjectImage(body.image);
+  if (!imageCheck.ok) {
+    return NextResponse.json(
+      {
+        error: imageCheck.reason,
+        code: "INVALID_IMAGE",
+        // Dikembalikan dengan alasan yang sama seperti RegistryLimitError di bawah: tokennya
+        // sudah hidup, jadi alamatnya tidak boleh hilang hanya karena logonya ditolak.
+        tokenAddress,
+        poolAddress,
+        txHash,
+        chainId: chain.chainId,
+      },
+      { status: 400 }
+    );
+  }
+
   // The label names the chain this market actually lives on. It used to claim
   // "Omnichain (0G + Arbitrum + Base + Monad)" from the *selected* chain list even
   // when the record existed on one chain, and every consumer then mis-resolved the
@@ -754,7 +788,7 @@ async function handleConfirm(body: any) {
     agentModel: body.agentModel || AGENT_MODEL,
     agentPersona: body.persona || undefined,
     category: body.category || "defi",
-    image: body.image || "/logo.svg",
+    image: imageCheck.value,
     txHash,
     blockNumber: receipt.blockNumber,
     teeRoot: /^0x[a-fA-F0-9]{64}$/.test(String(body.attestationRoot || "")) ? String(body.attestationRoot) : null,
