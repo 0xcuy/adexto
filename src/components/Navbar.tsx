@@ -138,7 +138,16 @@ export default function Navbar() {
               rem di situs ini 14px, jadi `h-9` = 31,5px — bukan 36px seperti dugaan default
               Tailwind. Itu sebabnya tingginya tidak boleh dikira-kira dari padding. */}
           <div className="flex items-center gap-2">
-            <div className="hidden h-9 items-stretch overflow-hidden rounded-xl border border-line bg-gradient-to-b from-white to-cream-2 shadow-[0_1px_2px_rgba(32,24,16,0.05)] sm:inline-flex">
+            {/* JANGAN tambahkan `overflow-hidden` di sini.
+                Sempat ditambahkan untuk memotong sudut segmen ke radius wadah, dan itu
+                memotong menu dropdown kedua anaknya juga — panelnya diposisikan absolut di
+                dalam wrapper masing-masing, jadi menekan chain atau alamat dompet membuka
+                panel yang terpangkas menjadi sepotong setinggi 31px. Terlihat seperti
+                kontrolnya menghilang.
+
+                Sudutnya tidak membutuhkannya: tiap segmen sudah membulatkan sisi luarnya
+                sendiri lewat `rounded-l-[11px]` dan `rounded-r-[11px]`. */}
+            <div className="hidden h-9 items-stretch rounded-xl border border-line bg-gradient-to-b from-white to-cream-2 shadow-[0_1px_2px_rgba(32,24,16,0.05)] sm:inline-flex">
               <ChainSwitcher variant="grouped" />
               <WalletMenu variant="grouped" />
             </div>
