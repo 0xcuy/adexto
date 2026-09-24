@@ -24,6 +24,7 @@ import {
   MAX_UPLOAD_MB,
   validateProjectImage,
 } from "@/lib/logo-image";
+import { DEFAULT_CATEGORY, MARKET_CATEGORIES, type MarketCategory } from "@/lib/categories";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
 /**
@@ -165,6 +166,13 @@ export default function StudioPage() {
   const [tokenName, setTokenName] = useState("Aegis Quant AI");
   const [tokenTicker, setTokenTicker] = useState("AQUANT");
   const [tokenSupply, setTokenSupply] = useState("1,000,000,000");
+  /**
+   * Kategori yang dipilih creator.
+   *
+   * Bawaannya `DEFAULT_CATEGORY` supaya perilakunya identik dengan sebelum field ini ada:
+   * siapa pun yang tidak menyentuh dropdown mendapat hasil yang sama seperti dulu.
+   */
+  const [category, setCategory] = useState<MarketCategory>(DEFAULT_CATEGORY);
   const [generatedLogo, setGeneratedLogo] = useState<string | null>("/logo.svg");
   /**
    * Apakah logo yang terpasang benar-benar keluaran model, atau gambar cadangan.
@@ -977,6 +985,7 @@ export default function StudioPage() {
             persona: agentPersona,
             agentModel: `0G Router (${selectedModel})`,
             image: generatedLogo ?? "/logo.svg",
+            category,
             attestationRoot,
             daStorageTx,
             targetChainIds: chains.map((c) => c.chainId),
@@ -1441,6 +1450,35 @@ export default function StudioPage() {
                     />
                   </Field>
                 </div>
+
+                {/* Kategori.
+                    Sebelumnya tidak ada di form sama sekali, jadi setiap pasar tercatat
+                    "defi" — `/api/deploy` menerima field ini tapi studio tidak pernah
+                    mengirimnya. Akibatnya tab kategori di /explorer, yang diturunkan dari
+                    data, hanya pernah punya satu isi. */}
+                <Field
+                  label="Category"
+                  hint={MARKET_CATEGORIES.find((c) => c.key === category)?.hint}
+                >
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as MarketCategory)}
+                    className={`${FIELD_CLASS} font-semibold`}
+                  >
+                    {MARKET_CATEGORIES.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <p className="text-[10px] text-ink-faint">
+                  Decides which tab your market appears under in the{" "}
+                  <Link href="/explorer" className="text-accent hover:underline">
+                    explorer
+                  </Link>
+                  . It does not affect the curve, the fees or anything on chain.
+                </p>
 
                 {/* Logo: unggah milik sendiri, atau biarkan model menggambarnya.
                     Unggah didahulukan dalam urutan tombol karena creator yang SUDAH punya

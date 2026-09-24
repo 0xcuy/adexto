@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { keccak256, toHex } from "viem";
 import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { validateProjectImage } from "@/lib/logo-image";
+import { normalizeCategory } from "@/lib/categories";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST, readProvider } from "@/lib/chains";
 import {
@@ -787,7 +788,11 @@ async function handleConfirm(body: any) {
     treasuryBuybackBps: Number(body.treasuryBuybackBps ?? 10),
     agentModel: body.agentModel || AGENT_MODEL,
     agentPersona: body.persona || undefined,
-    category: body.category || "defi",
+    // Dinormalkan, bukan diterima apa adanya: nilai ini menjadi tab yang terlihat publik di
+    // /explorer, jadi ejaan bebas memecah satu kategori menjadi beberapa tab berisi satu
+    // pasar. Yang tidak dikenal turun ke bawaan alih-alih menolak peluncuran — alasannya ada
+    // di `src/lib/categories.ts`.
+    category: normalizeCategory(body.category),
     image: imageCheck.value,
     txHash,
     blockNumber: receipt.blockNumber,

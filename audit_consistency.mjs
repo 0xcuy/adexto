@@ -2196,6 +2196,51 @@ console.log("\n── ABI publik vs artifact yang dikompilasi ──");
   }
 }
 
+// ── slug docs di middleware vs halaman docs yang benar-benar ada ────────────
+//
+// `src/middleware.ts` menyalin daftar slug `/docs` alih-alih mengimpornya, karena
+// `docs-pages.json` 48 KB dan middleware jalan di setiap permintaan. Salinan itu yang
+// memutuskan apakah `docs.adexto.xyz/<sesuatu>` disajikan sebagai halaman docs atau
+// dialihkan ke apex — jadi slug yang hilang dari daftar akan mengalihkan halaman docs yang
+// sah keluar dari subdomainnya, dan slug berlebih akan menahan path yang seharusnya pulang
+// ke apex lalu menyajikan 404.
+console.log("\n── slug docs di middleware vs docs-pages.json ──");
+{
+  const mw = readFileSync("src/middleware.ts", "utf8");
+  const block = mw.match(/const DOCS_SLUGS = new Set\(\[([\s\S]*?)\]\)/);
+  check("DOCS_SLUGS terbaca di middleware", Boolean(block));
+  if (block) {
+    const inMw = [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+    const pages = JSON.parse(readFileSync("src/config/docs-pages.json", "utf8"));
+    const real = Object.keys(pages.pages).sort();
+    const missing = real.filter((s) => !inMw.includes(s));
+    const extra = inMw.filter((s) => !real.includes(s));
+    check(
+      "daftar slug middleware = halaman docs yang ada",
+      missing.length === 0 && extra.length === 0,
+      missing.length || extra.length
+        ? `hilang: ${missing.join(", ") || "-"} · berlebih: ${extra.join(", ") || "-"}`
+        : `${real.length} slug: ${real.join(", ")}`
+    );
+    /**
+     * Tabrakan nama dilaporkan, bukan digagalkan.
+     *
+     * `mcp`, `x402` dan `security` adalah slug docs SEKALIGUS rute tingkat atas. Di subdomain
+     * docs, slug yang menang, dan itu memang yang diinginkan — `docs.adexto.xyz/mcp` harus
+     * memberi halaman docs-nya, bukan halaman produk. Dicatat supaya keputusan itu terlihat
+     * kalau suatu saat ada yang bingung kenapa dua host memberi isi berbeda.
+     */
+    const sections = readdirSync("src/app", { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith("_") && !d.name.startsWith("[") && d.name !== "api")
+      .map((d) => d.name);
+    const shared = real.filter((s) => sections.includes(s));
+    ok(
+      "slug yang juga rute tingkat atas — slug menang di subdomain docs",
+      shared.length ? shared.join(", ") : "tidak ada"
+    );
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");

@@ -92,8 +92,43 @@ export function middleware(req: NextRequest) {
    * Aset di bawah `/_next` dan `/api` sudah dikecualikan oleh `matcher` di bawah berkas ini,
    * jadi tidak ada aturan kedua yang perlu ditulis untuk itu.
    */
-  const SUBDOMAIN_PREFIXES: Record<string, string> = {
-    docs: "/docs",
+  /**
+   * Slug anak `/docs`, ditulis literal DI SINI dan dijaga `audit_consistency.mjs`.
+   *
+   * Sumber sebenarnya `src/config/docs-pages.json`, tapi berkas itu 48 KB berisi seluruh isi
+   * halaman. Mengimpornya berarti membundel 48 KB ke dalam middleware, yang jalan di setiap
+   * permintaan. Jadi daftarnya disalin dan penyimpangannya dijadikan kegagalan audit — pola
+   * yang sama yang dipakai repo ini untuk daftar lain yang bisa berbeda tanpa ada yang gagal.
+   */
+  const DOCS_SLUGS = new Set([
+    "mcp",
+    "trading",
+    "fees",
+    "chains",
+    "x402",
+    "agent-identity",
+    "data",
+    "security",
+    "launch",
+  ]);
+
+  /**
+   * Subdomain yang membawa BANYAK halaman — dan seberapa banyak dari path yang benar-benar
+   * miliknya.
+   *
+   * `ownPaths` itu yang membedakan keduanya, dan salah satu percobaan pertama perbaikan ini
+   * melewatkannya: aturan "path yang bukan milikmu pulang ke apex" diterapkan ke semua
+   * subdomain berprefiks sekaligus, sehingga `campaign.adexto.xyz/art/cover.jpg` ikut
+   * dialihkan dan dek-nya kehilangan seluruh latarnya.
+   *
+   *   `docs`     -> hanya segmen pertama yang berupa slug docs miliknya. `/studio` bukan
+   *                 halaman docs, jadi ia pulang ke apex.
+   *   `campaign` -> SELURUH path miliknya. Itu direktori statis di `public/`, dan `art/…`
+   *                 maupun PDF-nya diminta relatif dari dek, jadi tidak ada path di bawah
+   *                 host ini yang dimaksudkan untuk apex.
+   */
+  const SUBDOMAIN_PREFIXES: Record<string, { prefix: string; ownPaths: Set<string> | "all" }> = {
+    docs: { prefix: "/docs", ownPaths: DOCS_SLUGS },
     /**
      * `campaign` ada di SINI untuk asetnya, dan di `APP_SECTIONS` untuk akarnya.
      *
@@ -102,7 +137,7 @@ export function middleware(req: NextRequest) {
      * direktori — `/campaign` membalas 404 sementara `/campaign/index.html` berhasil. Itu
      * sebabnya cabang di bawah memeriksa `APP_SECTIONS` lebih dulu untuk path akar.
      */
-    campaign: "/campaign",
+    campaign: { prefix: "/campaign", ownPaths: "all" },
   };
 
   if (!isIpLiteral && host !== "localhost" && !mainDomains.includes(host)) {
@@ -110,18 +145,55 @@ export function middleware(req: NextRequest) {
     const parts = host.split(".");
     if (parts.length >= 3) {
       const subdomain = parts[0];
-      const prefix = SUBDOMAIN_PREFIXES[subdomain];
-      if (prefix) {
+      const mapped = SUBDOMAIN_PREFIXES[subdomain];
+      if (mapped) {
+        const { prefix, ownPaths } = mapped;
         // `/` -> dokumen akar kalau subdomain ini punya satu, kalau tidak prefiksnya sendiri.
         // `APP_SECTIONS` diperiksa lebih dulu karena sebuah prefiks bisa menunjuk direktori
         // statis alih-alih rute Next, dan direktori tidak punya index yang disajikan sendiri.
-        // Sisanya digabung. Path yang sudah membawa prefiksnya dibiarkan, supaya tautan
-        // absolut dari halaman lain tidak menjadi `/docs/docs/...`.
         if (url.pathname === "/" || url.pathname === "") {
           url.pathname = APP_SECTIONS[subdomain] ?? prefix;
-        } else if (!url.pathname.startsWith(`${prefix}/`) && url.pathname !== prefix) {
-          url.pathname = `${prefix}${url.pathname}`;
+          return NextResponse.rewrite(url);
         }
+
+        // Path yang sudah membawa prefiksnya dibiarkan, supaya tautan absolut dari halaman
+        // lain tidak menjadi `/docs/docs/...`.
+        if (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) {
+          return NextResponse.rewrite(url);
+        }
+
+        /**
+         * PATH YANG BUKAN MILIK SUBDOMAIN INI DIKEMBALIKAN KE DOMAIN ASLINYA.
+         *
+         * Sebelumnya SETIAP path digabung dengan prefiksnya, jadi `docs.adexto.xyz/studio`
+         * menjadi `/docs/studio` — rute yang tidak ada, sehingga menekan "Studio" di navbar
+         * dari halaman docs berakhir 404. Navbar dan footer dipakai bersama seluruh situs dan
+         * menulis `/studio`, `/explorer`, `/` sebagai jalur relatif; jalur itu benar di apex
+         * dan tidak mungkin benar di subdomain yang hanya memuat satu seksi.
+         *
+         * Memperbaikinya di komponen berarti setiap tautan bersama harus tahu ia sedang
+         * disajikan di host mana. Diperbaiki di sini, satu aturan menutup semuanya, termasuk
+         * tautan yang ditulis nanti dan URL yang dibagikan orang.
+         *
+         * 307, bukan 308: sebuah path yang hari ini bukan halaman docs bisa menjadi halaman
+         * docs nanti, dan 308 yang sudah di-cache browser akan mengunci yang lama.
+         */
+        const first = url.pathname.split("/")[1] ?? "";
+        if (ownPaths !== "all" && !ownPaths.has(first)) {
+          const apex = new URL(url);
+          apex.hostname = "adexto.xyz";
+          apex.port = "";
+          // Skema dipaksa https, tidak diwarisi dari permintaan. Cloudflare menghubungi
+          // origin lewat http, jadi mewarisinya menghasilkan `Location: http://adexto.xyz/...`
+          // — satu lompatan telanjang sebelum HSTS mengembalikannya, dan sebuah tautan
+          // http yang beredar di riwayat orang.
+          apex.protocol = "https:";
+          return NextResponse.redirect(apex, 307);
+        }
+
+        // Path yang memang milik subdomain ini tapi ditulis tanpa prefiks, mis.
+        // `docs.adexto.xyz/trading` atau `campaign.adexto.xyz/art/cover.jpg`.
+        url.pathname = `${prefix}${url.pathname}`;
         return NextResponse.rewrite(url);
       }
       // If user accesses root of subdomain, rewrite to the section or /token/[subdomain]
