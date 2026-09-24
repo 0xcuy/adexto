@@ -19,6 +19,9 @@ public/adexto_testnet_demo.webm
 public/adexto_mainnet_demo.mp4
 public/adexto_mainnet_demo.webm
 public/demo-raw/
+public/adexto_agent_compute_demo.mp4
+public/adexto_agent_compute_demo.webm
+public/demo-raw-agent/
 
 # Artefak toolchain keamanan. Semuanya bisa dibuat ulang di mesin mana pun dengan
 # `node scripts/security-scan.mjs`, dan produksi tidak membutuhkannya: halaman

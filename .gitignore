@@ -124,6 +124,13 @@ public/demo-raw/
 public/adexto_x402_demo.mp4
 public/adexto_x402_demo.webm
 public/demo-raw-x402/
+# Rekaman Agent Compute, nama keluaran sendiri dengan alasan yang sama: ia membuktikan
+# hal yang berbeda lagi — beli dengan mengisi sisi terima, stake, kunci API, lalu
+# pemakaian yang benar-benar terukur di halaman. Dihasilkan oleh
+# `node record_agent_compute_demo.mjs`.
+public/adexto_agent_compute_demo.mp4
+public/adexto_agent_compute_demo.webm
+public/demo-raw-agent/
 
 # Artefak kompilasi kontrak. Dihasilkan ulang oleh
 # `node scripts/compile-contracts.mjs --via-ir`.
