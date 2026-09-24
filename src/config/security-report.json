@@ -1,9 +1,10 @@
 {
-  "generatedAt": "2026-09-24T12:21:55.486Z",
-  "commit": "e6fda2db133f1b78837fb4398c049938cdbdd3b6",
-  "commitTime": "2026-09-24T17:14:55+07:00",
+  "generatedAt": "2026-09-24T20:06:19.517Z",
+  "commit": "cfd1cb1e8cae2ba023853ccfb994637c567e52d4",
+  "commitTime": "2026-09-24T19:48:46+07:00",
   "dirty": true,
   "contractHashes": {
+    "contracts/AdextoAgentStake.sol": "c818f8ad79f68915",
     "contracts/AdextoCCIPReceiver.sol": "0f7329b9dac81741",
     "contracts/AdextoCCIPTreasuryRouter.sol": "6ef1852421395a2b",
     "contracts/AdextoCurve.sol": "82299dcff0d5e8eb",
@@ -39,7 +40,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "44 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "46 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -98,9 +99,9 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 68,
+        "total": 71,
         "Medium": 30,
-        "Low": 24,
+        "Low": 27,
         "Informational": 9,
         "Optimization": 5
       },
@@ -109,7 +110,7 @@
         "Low": 11,
         "Informational": 6
       },
-      "detail": "68 findings across 102 detectors · 0 High on the launch path"
+      "detail": "71 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -122,7 +123,7 @@
         "highKinds": 1,
         "highInstances": 13,
         "lowKinds": 10,
-        "lowInstances": 43
+        "lowInstances": 46
       },
       "launchPathCounts": {
         "HighInstances": 8
@@ -138,9 +139,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 904
+        "warnings": 958
       },
-      "detail": "0 errors, 904 warnings (style & gas rules)"
+      "detail": "0 errors, 958 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -151,10 +152,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 13,
+        "filesScanned": 14,
         "configErrors": 0
       },
-      "detail": "0 findings across 13 files · general p/security-audit ruleset"
+      "detail": "0 findings across 14 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -166,10 +167,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50086,
+        "totalCalls": 50136,
         "uniqueInstructions": 7195
       },
-      "detail": "4/4 properties passed · 50,086 calls",
+      "detail": "4/4 properties passed · 50,136 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

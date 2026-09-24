@@ -55,6 +55,12 @@ const ROUTES =
      */
     "/about,/contact,/privacy,/terms,/disclaimer," +
     /**
+     * `/agent-compute` justru paling butuh dijaga di antara halaman baru. Ia menjual utilitas
+     * token, jadi ia halaman yang paling mudah tergelincir mengklaim kemampuan yang belum
+     * dikirim — dan saat ini sebagian besar isinya memang menjelaskan apa yang BELUM hidup.
+     */
+    "/agent-compute," +
+    /**
      * Sembilan halaman panduan di bawah `/docs/`. Prosanya disusun model bahasa, jadi ia
      * PALING butuh penjaga ini, bukan paling sedikit: `scripts/docs-verify.mjs` menangkap
      * alamat dan angka karangan, dan berkas ini menangkap frasa yang dilarang di seluruh
