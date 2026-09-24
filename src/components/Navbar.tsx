@@ -123,11 +123,28 @@ export default function Navbar() {
               It is also rendered whether or not a wallet is connected: the
               selection still drives prices, explorer links and which market /swap
               opens on. */}
+          {/* Satu segmented control, bukan dua pill berdampingan.
+              Tingginya 36px, sama dengan tombol Studio di sebelahnya — sebelumnya keduanya
+              ~30px, dan selisih 6px terhadap tetangga langsungnya itulah yang membuat sudut
+              kanan bar terlihat tidak disusun. Gradien krem yang sangat tipis dan satu
+              bayangan 1px memberi kedalaman tanpa mengubah paletnya.
+
+              Di bawah `sm`, switcher-nya pindah ke drawer (ia butuh ruang untuk nama chain
+              dan peringatan ketidakcocokan), jadi dompet berdiri sendiri lagi di sana —
+              karena itu variannya bergantung breakpoint, dan dua bentuk itu tidak bisa
+              dijadikan satu tanpa menyembunyikan salah satunya dari pengguna ponsel.
+
+              `h-9` di sini dan di tombol Studio berasal dari satu token yang sama. Diukur:
+              rem di situs ini 14px, jadi `h-9` = 31,5px — bukan 36px seperti dugaan default
+              Tailwind. Itu sebabnya tingginya tidak boleh dikira-kira dari padding. */}
           <div className="flex items-center gap-2">
-            <div className="hidden sm:block">
-              <ChainSwitcher />
+            <div className="hidden h-9 items-stretch overflow-hidden rounded-xl border border-line bg-gradient-to-b from-white to-cream-2 shadow-[0_1px_2px_rgba(32,24,16,0.05)] sm:inline-flex">
+              <ChainSwitcher variant="grouped" />
+              <WalletMenu variant="grouped" />
             </div>
-            <WalletMenu />
+            <div className="sm:hidden">
+              <WalletMenu />
+            </div>
           </div>
 
           {/* Satu-satunya tombol berwarna di bar ini. Sebelumnya berupa isian
@@ -136,7 +153,12 @@ export default function Navbar() {
               menyainginya secara visual. */}
           <Link
             href="/studio"
-            className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors"
+            /* `h-9` menggantikan `py-2`, supaya tingginya SAMA dengan segmented control di
+               sebelahnya alih-alih kebetulan mirip. Mencocokkan lewat padding tidak bisa
+               diandalkan di sini: rem di situs ini 14px, jadi tinggi hasil padding dan tinggi
+               hasil `h-*` berangkat dari dua dasar yang berbeda — dulu keduanya 34,8px lawan
+               31,5px, selisih yang cukup untuk membuat barisnya terlihat tidak rata. */
+            className="hidden sm:inline-flex h-9 items-center px-4 rounded-xl text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           >
             Studio
           </Link>

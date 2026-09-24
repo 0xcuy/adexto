@@ -12,7 +12,64 @@ import { useWallet } from "@/context/WalletContext";
  * Wallet ditemukan lewat EIP-6963, jadi kalau terpasang beberapa (MetaMask, Rabby,
  * OKX) semuanya bisa dipilih — bukan hanya pemenang lomba injeksi `window.ethereum`.
  */
-export default function WalletMenu({ compact = false }: { compact?: boolean }) {
+/**
+ * Avatar dua warna yang diturunkan DARI alamatnya sendiri.
+ *
+ * Bukan hiasan. Tombol ini menampilkan `0x8a3c…ee7d`, dan enam karakter di tengah yang
+ * dipotong itulah yang membedakan satu akun dari akun lain — dua alamat dari dompet yang sama
+ * sering berbagi awalan, jadi bentuk terpotongnya bisa terlihat nyaris identik. Warna yang
+ * ditentukan alamat bisa dikenali dalam sekali lihat, sehingga "saya di akun yang salah"
+ * terlihat tanpa membaca hex.
+ *
+ * Dihitung, bukan diambil dari layanan: tidak ada permintaan jaringan, dan alamat yang sama
+ * selalu memberi warna yang sama di perangkat mana pun.
+ *
+ * KENAPA PALET TERKURASI, BUKAN HSL ACAK
+ *
+ * Percobaan pertama memetakan alamat ke seluruh roda warna: `hsl(hue 58% 60%)` dengan hue apa
+ * saja dari 0 sampai 359. Hasilnya benar secara fungsi dan salah secara tampilan — alamat yang
+ * dipotret pertama kali menghasilkan gradien hijau ke merah di tengah navbar krem dan ungu, dan
+ * satu petak warna yang bukan bagian dari palet mana pun justru membuat sudut itu terlihat
+ * lebih murah, bukan lebih mahal. Warna acak bukan kemewahan.
+ *
+ * Dua belas duotone di bawah semuanya duduk di dalam keluarga situs ini: ungu, indigo, teal,
+ * amber, rose, sekam — jenuh sedang, terang sedang. Alamat memilih SALAH SATU, jadi sifat
+ * "bisa dikenali" tetap ada sementara hasilnya tidak mungkin bertabrakan dengan halamannya.
+ */
+const AVATAR_DUOTONES: ReadonlyArray<readonly [string, string]> = [
+  ["#8b5cf6", "#5b21b6"], // violet
+  ["#6366f1", "#3730a3"], // indigo
+  ["#0ea5e9", "#0c4a6e"], // sky
+  ["#14b8a6", "#0f766e"], // teal
+  ["#10b981", "#065f46"], // emerald
+  ["#84cc16", "#3f6212"], // lime, ditenangkan
+  ["#f59e0b", "#b45309"], // amber
+  ["#f97316", "#9a3412"], // orange
+  ["#f43f5e", "#9f1239"], // rose
+  ["#ec4899", "#9d174d"], // pink
+  ["#a78bfa", "#6d28d9"], // violet terang
+  ["#64748b", "#334155"], // slate, untuk yang netral
+];
+
+function addressGradient(address: string): string {
+  const hex = address.replace(/^0x/, "");
+  // Dua ujung alamat dipakai, bukan satu: enam karakter awal yang terlihat di tombol bisa sama
+  // antar akun dari dompet yang sama, jadi memilih hanya dari awalan akan memberi warna kembar
+  // pada dua akun yang justru paling sering tertukar.
+  const i = parseInt(hex.slice(0, 6), 16) % AVATAR_DUOTONES.length;
+  const angle = 90 + (parseInt(hex.slice(-2), 16) % 4) * 45;
+  const [from, to] = AVATAR_DUOTONES[i];
+  return `linear-gradient(${angle}deg, ${from}, ${to})`;
+}
+
+export default function WalletMenu({
+  compact = false,
+  variant = "solo",
+}: {
+  compact?: boolean;
+  /** Lihat catatan varian di `ChainSwitcher`: `grouped` melepas border dan radiusnya sendiri. */
+  variant?: "solo" | "grouped";
+}) {
   const {
     address,
     isConnected,
@@ -114,25 +171,46 @@ export default function WalletMenu({ compact = false }: { compact?: boolean }) {
   // ── Sudah tersambung ──────────────────────────────────────────────────────
   const others = availableWallets.filter((w) => w.info.rdns !== activeWallet?.rdns);
 
+  const grouped = variant === "grouped";
+
   return (
-    <div className="relative" ref={boxRef}>
+    <div className={grouped ? "relative flex" : "relative"} ref={boxRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         title="Wallet options"
-        className={`inline-flex items-center gap-2 rounded-xl border border-line bg-white transition-colors hover:border-accent/30 ${
-          compact ? "w-full justify-between px-3 py-2" : "px-2.5 py-1.5"
-        }`}
+        className={[
+          "inline-flex items-center gap-2 transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+          grouped
+            // Pembatasnya adalah border kiri segmen ini, bukan elemen tersendiri — satu
+            // hairline yang tidak bisa bergeser dari pasangannya.
+            ? "h-full rounded-r-[11px] border-l border-line px-3 hover:bg-white"
+            : `rounded-xl border border-line bg-white hover:border-accent/30 ${
+                compact ? "w-full justify-between px-3 py-2" : "px-2.5 py-1.5"
+              }`,
+        ].join(" ")}
       >
         <span className="flex items-center gap-2 min-w-0">
           {activeWallet?.icon ? (
-            <img src={activeWallet.icon} alt="" className="h-4 w-4 rounded shrink-0" />
+            <img src={activeWallet.icon} alt="" className="h-[18px] w-[18px] rounded-[5px] shrink-0" />
+          ) : address ? (
+            /* Menggantikan titik hijau berdenyut.
+               Denyutnya mengaku "live" padahal yang diketahuinya cuma "ada alamat" — kritik
+               yang sama sudah tercatat untuk titik berdenyut di navbar, dan berlaku di sini
+               juga. Adanya alamat DI tombol sudah menjadi tanda tersambung, jadi ruang 18px
+               itu lebih berguna untuk membedakan akun. */
+            <span
+              aria-hidden="true"
+              className="h-[18px] w-[18px] shrink-0 rounded-[5px] ring-1 ring-black/[0.06]"
+              style={{ backgroundImage: addressGradient(address) }}
+            />
           ) : (
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-ok" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
           )}
-          <span className="truncate font-mono text-[11px] font-bold text-ink">
+          <span className="truncate font-mono text-[11px] font-bold tracking-tight text-ink">
             {address?.slice(0, 6)}…{address?.slice(-4)}
           </span>
         </span>

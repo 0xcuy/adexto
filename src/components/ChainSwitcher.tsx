@@ -31,7 +31,22 @@ import { CHAIN_LIST, chainFromId, type ChainInfo } from "@/lib/chains";
  * wallet prompt must not be left looking at a menu that appears to have worked. So
  * this calls `switchToChain` and surfaces the failure.
  */
-export default function ChainSwitcher() {
+/**
+ * `grouped` menempelkan tombol ini ke kontrol tetangganya sebagai satu segmen.
+ *
+ * KENAPA ADA VARIAN, BUKAN SATU GAYA
+ *
+ * Di navbar, switcher ini berdiri tepat di samping tombol dompet. Sebagai dua pill terpisah
+ * keduanya menggambar border, radius dan tingginya sendiri — dan ketiganya sempat berbeda:
+ * `rounded-lg` di sini melawan `rounded-xl` di sana, keduanya ~30px sementara tombol Studio di
+ * sebelahnya 36px. Tiga ketidakcocokan kecil yang berdampingan itulah yang membuat sudut kanan
+ * bar terlihat murah, bukan pilihan warnanya.
+ *
+ * Digabung menjadi satu wadah berpembatas, keduanya menjadi satu kontrol. Tapi di drawer mobile
+ * switcher ini berdiri sendiri, jadi gaya lamanya tetap dibutuhkan — karena itu varian, dan
+ * bawaannya `solo` supaya pemakaian yang sudah ada tidak berubah sama sekali.
+ */
+export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" | "grouped" }) {
   const { chainInfo, walletChainId, isConnected, switchToChain, setSelectedChain } = useWallet();
   const [open, setOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -92,30 +107,55 @@ export default function ChainSwitcher() {
 
   const current = walletOnUnknown ? null : chainInfo;
 
+  const grouped = variant === "grouped";
+  const alert = walletOnUnknown || walletMismatch;
+
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} className={grouped ? "relative flex" : "relative"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Network: ${current ? current.name : "unsupported"}. Change network`}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
-          walletOnUnknown || walletMismatch
-            ? "border-warn/40 bg-warn/10 text-warn hover:bg-warn/20"
-            : "border-line bg-white text-ink hover:border-line-strong"
-        }`}
+        className={[
+          "inline-flex items-center gap-2 text-[12px] font-semibold transition-colors",
+          // Cincin fokus ditambahkan, dan itu memang hilang sebelumnya: kedua kontrol ini
+          // hanya punya state hover, jadi menelusuri navbar dengan Tab tidak memperlihatkan
+          // apa pun yang sedang terpilih.
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+          grouped
+            ? "h-full rounded-l-[11px] px-3"
+            : "rounded-lg border px-2.5 py-1.5",
+          alert
+            ? grouped
+              ? "bg-warn/10 text-warn hover:bg-warn/15"
+              : "border-warn/40 bg-warn/10 text-warn hover:bg-warn/20"
+            : grouped
+            ? "text-ink hover:bg-white"
+            : "border-line bg-white text-ink hover:border-line-strong",
+        ].join(" ")}
       >
         {walletOnUnknown ? (
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         ) : (
+          /* Titik status dibungkus cincin sewarna yang transparan.
+             Artinya tidak berubah — hijau berarti chain ini punya curve factory yang
+             benar-benar tersambung — tapi titik 6px telanjang terbaca seperti debu pada
+             ukuran itu. Cincinnya memberinya bentuk tanpa menambah makna baru. */
           <span
             aria-hidden="true"
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ${tradable(chainInfo) ? "bg-ok" : "bg-warn"}`}
-          />
+            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+              tradable(chainInfo) ? "bg-ok/15" : "bg-warn/15"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${tradable(chainInfo) ? "bg-ok" : "bg-warn"}`} />
+          </span>
         )}
-        <span className="max-w-[92px] truncate">{current ? current.key : "Unsupported"}</span>
-        <ChevronDown className={`h-3 w-3 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+        <span className="max-w-[92px] truncate tracking-wide">{current ? current.key : "Unsupported"}</span>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
