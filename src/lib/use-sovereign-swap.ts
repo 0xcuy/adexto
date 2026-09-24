@@ -5,7 +5,8 @@ import { ethers } from "ethers";
 import { resolveChainOrDefault, type ChainInfo } from "@/lib/chains";
 import {
   ERC20_ABI, applySlippage, describeTxError, executeBuy, executeSell,
-  poolIsTradable, quoteBuyLocal, quoteSellLocal, readPoolState, type PoolState, type Quote,
+  poolIsTradable, quoteBuyLocal, quoteSellLocal, readPoolState,
+  solveBuyForTokensOut, solveSellForNativeOut, type PoolState, type Quote,
 } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 
@@ -42,6 +43,26 @@ export interface SovereignSwap {
   setMode: (mode: SwapMode) => void;
   amountInput: string;
   setAmountInput: (value: string) => void;
+  /**
+   * Sisi keluaran, bisa diisi langsung.
+   *
+   * Yang diperdagangkan orang seringkali jumlah yang mereka INGINKAN, bukan jumlah yang mereka
+   * belanjakan: "saya butuh 5.000 ADEXTO untuk stake" adalah niat yang utuh, sementara "berapa 0G
+   * untuk 5.000 ADEXTO" adalah pertanyaan yang seharusnya dijawab aplikasi, bukan pengguna.
+   * Sebelum ini kolom bawah hanya teks, jadi satu-satunya cara mencapai angka tertentu adalah
+   * menebak-nebak kolom atas.
+   *
+   * Yang TIDAK berubah: eksekusi tetap memakai `amountInput`. Mengisi kolom bawah menyelesaikan
+   * masukannya lalu MENULISNYA ke `amountInput`, jadi kutipan, slippage, dan transaksinya berjalan
+   * di jalur yang sama persis seperti kalau angkanya diketik di atas. Tidak ada jalur eksekusi
+   * kedua yang bisa menyimpang.
+   */
+  outputInput: string;
+  setOutputInput: (value: string) => void;
+  /** Sisi mana yang terakhir disunting. Menentukan angka mana yang ditampilkan apa adanya. */
+  lastEdited: "in" | "out";
+  /** Diisi saat permintaan di kolom bawah melebihi yang bisa diberikan kurva. */
+  outputUnreachable: boolean;
   slippageBps: number;
   setSlippageBps: (bps: number) => void;
 
@@ -88,8 +109,26 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
   const [tokenDecimals, setTokenDecimals] = useState(18);
 
   const [mode, setModeState] = useState<SwapMode>("buy");
-  const [amountInput, setAmountInput] = useState("");
+  const [amountInput, setAmountInputState] = useState("");
+  const [outputDraft, setOutputDraft] = useState("");
+  const [lastEdited, setLastEdited] = useState<"in" | "out">("in");
+  const [outputUnreachable, setOutputUnreachable] = useState(false);
   const [slippageBps, setSlippageBps] = useState(100);
+
+  /**
+   * Menyunting sisi bayar membatalkan sisi terima, dan sebaliknya.
+   *
+   * Dibungkus alih-alih dipakai mentah supaya setiap tempat yang sudah menulis ke jumlah — tombol
+   * porsi, Max, pembersihan sesudah transaksi sukses — otomatis mengembalikan kendali ke kolom
+   * atas. Tanpa itu, menekan "Max" sesudah mengisi kolom bawah akan mengubah jumlah bayar
+   * sementara kolom bawah tetap memamerkan angka lama yang sudah tidak berlaku.
+   */
+  const setAmountInput = useCallback((value: string) => {
+    setAmountInputState(value);
+    setLastEdited("in");
+    setOutputDraft("");
+    setOutputUnreachable(false);
+  }, []);
 
   const [nativeBalance, setNativeBalance] = useState<bigint>(0n);
   const [tokenBalance, setTokenBalance] = useState<bigint>(0n);
@@ -177,6 +216,73 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     [quote, slippageBps]
   );
 
+  /**
+   * Menyelesaikan sisi masukan dari keluaran yang diminta, lalu MENULISNYA ke `amountInput`.
+   *
+   * Hasilnya sengaja dibulatkan ke atas ke 6 desimal sebelum ditulis. Jawaban solver presisi wei,
+   * dan menampilkan `0.000123456789012345` di kolom yang dibaca manusia tidak membantu siapa pun;
+   * dibulatkan ke ATAS, bukan ke bawah, supaya jumlah yang ditampilkan tetap mencapai target
+   * alih-alih kurang satu satuan terkecil darinya.
+   */
+  const solveFromOutput = useCallback(
+    (raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed || Number(trimmed) <= 0 || !Number.isFinite(Number(trimmed))) {
+        setAmountInputState("");
+        setOutputUnreachable(false);
+        return;
+      }
+      if (!pool) return;
+
+      let wanted: bigint;
+      try {
+        wanted = mode === "buy" ? ethers.parseUnits(trimmed, tokenDecimals) : ethers.parseEther(trimmed);
+      } catch {
+        return;
+      }
+
+      const solved =
+        mode === "buy" ? solveBuyForTokensOut(pool, wanted) : solveSellForNativeOut(pool, wanted);
+      if (solved === null || solved <= 0n) {
+        setOutputUnreachable(true);
+        setAmountInputState("");
+        return;
+      }
+      setOutputUnreachable(false);
+
+      // Dibulatkan ke atas pada 6 desimal: satu unit terakhir ditambahkan kalau ada sisa.
+      const unitsPerDisplay = mode === "buy" ? 10n ** 12n : 10n ** BigInt(Math.max(0, tokenDecimals - 6));
+      const rounded = solved % unitsPerDisplay === 0n ? solved : (solved / unitsPerDisplay + 1n) * unitsPerDisplay;
+      setAmountInputState(
+        mode === "buy" ? ethers.formatEther(rounded) : ethers.formatUnits(rounded, tokenDecimals)
+      );
+    },
+    [pool, mode, tokenDecimals]
+  );
+
+  const setOutputInput = useCallback(
+    (value: string) => {
+      setOutputDraft(value);
+      setLastEdited("out");
+      solveFromOutput(value);
+    },
+    [solveFromOutput]
+  );
+
+  /**
+   * Kolam bergerak, jadi jawaban yang diselesaikan lima detik lalu bisa sudah tidak cukup.
+   *
+   * Diselesaikan ulang setiap kali state kolam terbaca ulang, TAPI hanya selama sisi terima yang
+   * dipegang pengguna. Kalau tidak, penyegaran kolam akan menimpa jumlah yang baru saja mereka
+   * ketik di kolom atas.
+   */
+  useEffect(() => {
+    if (lastEdited !== "out" || !outputDraft) return;
+    solveFromOutput(outputDraft);
+    // `solveFromOutput` sudah bergantung pada pool dan mode, jadi identitasnya berubah saat
+    // keduanya berubah — itulah pemicu yang diinginkan di sini.
+  }, [solveFromOutput, lastEdited, outputDraft]);
+
   const tradable = poolIsTradable(pool);
   const spotPriceNative = pool?.spotPriceNative ?? market?.priceNative ?? 0;
 
@@ -196,13 +302,16 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
   }, [market, chain, pool, poolChecked]);
 
   // ── actions ──────────────────────────────────────────────────────────────
-  const setMode = useCallback((next: SwapMode) => {
-    setModeState(next);
-    setAmountInput("");
-    setErrorLine(null);
-    setStatusLine(null);
-    setTxHash(null);
-  }, []);
+  const setMode = useCallback(
+    (next: SwapMode) => {
+      setModeState(next);
+      setAmountInput("");
+      setErrorLine(null);
+      setStatusLine(null);
+      setTxHash(null);
+    },
+    [setAmountInput]
+  );
 
   const setAmountFraction = useCallback(
     (percent: number) => {
@@ -327,6 +436,10 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     setMode,
     amountInput,
     setAmountInput,
+    outputInput: outputDraft,
+    setOutputInput,
+    lastEdited,
+    outputUnreachable,
     slippageBps,
     setSlippageBps,
 

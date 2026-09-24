@@ -194,18 +194,57 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </button>
       </div>
 
+      {/* Sisi terima BISA DIISI.
+          Dulu ia `<span>`, jadi satu-satunya cara mendapat jumlah token tertentu adalah
+          menebak-nebak kolom atas — dan niat yang paling sering dibawa orang ke halaman ini
+          justru berbentuk "saya butuh 5.000 ADEXTO", bukan "saya mau belanja 0,3 0G".
+          Mengisinya menyelesaikan sisi bayar dan menuliskannya ke kolom atas, jadi kutipan dan
+          transaksinya tetap satu jalur. */}
       <div className="mt-1.5 rounded-2xl border border-line bg-white p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-ink-soft">You receive</span>
-          <span className="text-[11px] text-ink-faint">estimated</span>
+          <span className="text-[11px] text-ink-faint">
+            {swap.lastEdited === "out" ? "exact — pay side is solved" : "estimated"}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="min-w-0 flex-1 truncate text-4xl font-semibold tracking-tight text-accent" data-numeric>
-            {swap.outputAmount > 0 ? formatTokenAmount(swap.outputAmount) : "0"}
-          </span>
+          {/* `type="text"` dengan `inputMode="decimal"`, BUKAN `type="number"`, dan itu bukan
+              kelalaian. Saat sisi ini menampilkan estimasi ia memakai pemisah ribuan —
+              "9,887.12" — dan input number menolak nilai berkoma sebagai tidak sah, sehingga
+              peramban merendernya KOSONG. Terlihat dari uji interaksi, bukan dari kode: mengetik
+              di kolom atas membuat kolom bawah blank. Teks menyimpan pemisahnya, dan koma
+              dibersihkan saat pengguna mengetik. */}
+          <input
+            type="text"
+            inputMode="decimal"
+            value={
+              swap.lastEdited === "out"
+                ? swap.outputInput
+                : swap.outputAmount > 0
+                  ? formatTokenAmount(swap.outputAmount)
+                  : ""
+            }
+            onChange={(e) => {
+              // Hanya angka dan satu titik desimal yang lolos, jadi menempel "5,000" atau
+              // "1 000" tetap menghasilkan jumlah yang bisa diparse.
+              const cleaned = e.target.value.replace(/[^\d.]/g, "");
+              const parts = cleaned.split(".");
+              swap.setOutputInput(parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned);
+            }}
+            className="min-w-0 flex-1 bg-transparent text-4xl font-semibold tracking-tight text-accent placeholder:text-ink-faint/60 focus:outline-none"
+            placeholder="0"
+            aria-label={`Amount of ${getSymbol} to receive`}
+            data-numeric
+          />
           <AssetPill symbol={getSymbol} logo={getLogo} />
         </div>
+
+        {swap.outputUnreachable && (
+          <p className="mt-2 text-xs text-warn">
+            The curve cannot deliver that much in one trade. Ask for less.
+          </p>
+        )}
 
         <div
           className="mt-2 text-xs text-ink-faint"

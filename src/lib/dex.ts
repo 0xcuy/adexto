@@ -486,6 +486,80 @@ export function quoteSellLocal(state: PoolState, tokenIn: bigint): Quote {
 }
 
 /**
+ * Kebalikan dari kutipan: berapa masukan yang dibutuhkan untuk mendapat keluaran tertentu.
+ *
+ * KENAPA PENCARIAN BINER, BUKAN RUMUS TERTUTUP
+ *
+ * Rumus tertutupnya ada dan pendek. Untuk beli: `inAfterFee = reserveNative*T/(reserveToken-T)`
+ * lalu dibagi `(1 - totalFee)`. Masalahnya bukan aljabarnya melainkan pembulatannya: jalur maju
+ * memotong SETIAP kaki biaya secara terpisah dengan pembagian lantai bigint, jadi rumus yang
+ * membagi sekali dengan biaya gabungan melenceng beberapa wei. Melenceng ke bawah berarti
+ * `quoteBuyLocal(hasil).amountOut` sedikit KURANG dari yang diminta pengguna — tepat kelas
+ * kesalahan yang membuat kolom "you receive" menampilkan 5.000 lalu menyerahkan 4.999,999.
+ *
+ * Kedua fungsi kutipan monoton naik terhadap masukannya, jadi pencarian biner terhadap fungsi
+ * maju YANG SAMA memberi jawaban yang benar menurut definisi: tidak ada model kedua yang bisa
+ * menyimpang dari yang dipakai saat eksekusi. Ini juga alasan solver memanggil `quoteBuyLocal`
+ * alih-alih menyalin isinya.
+ *
+ * Yang dikembalikan adalah masukan TERKECIL yang keluarannya mencapai target, atau null kalau
+ * kolamnya tidak bisa memberi sebanyak itu sama sekali.
+ */
+function solveForOut(
+  forward: (amountIn: bigint) => bigint,
+  wantOut: bigint,
+  ceiling: bigint
+): bigint | null {
+  if (wantOut <= 0n) return 0n;
+
+  // Batas atas dicari dengan penggandaan, bukan ditebak. Kolam virtual bisa sangat besar atau
+  // sangat kecil, dan konstanta apa pun akan salah di salah satu ujungnya.
+  let hi = 1n;
+  let guard = 0;
+  while (forward(hi) < wantOut) {
+    hi *= 2n;
+    if (hi > ceiling) {
+      // Bahkan di plafon pun keluarannya belum cukup: permintaannya di luar jangkauan kolam.
+      return forward(ceiling) >= wantOut ? ceiling : null;
+    }
+    if (++guard > 256) return null;
+  }
+
+  let lo = hi / 2n;
+  while (lo + 1n < hi) {
+    const mid = (lo + hi) / 2n;
+    if (forward(mid) >= wantOut) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+/** Native yang harus dibayar untuk menerima `wantTokens` token. */
+export function solveBuyForTokensOut(state: PoolState, wantTokens: bigint): bigint | null {
+  if (!state.initialized || wantTokens <= 0n) return null;
+  // Kurva tidak pernah bisa menyerahkan seluruh cadangan tokennya: keluaran mendekatinya
+  // secara asimtot. Ditolak di sini supaya penggandaan di atas tidak berlari sampai plafon.
+  if (wantTokens >= state.reserveToken) return null;
+  return solveForOut(
+    (nativeIn) => quoteBuyLocal(state, nativeIn).amountOut,
+    wantTokens,
+    // Plafon: cukup besar untuk kolam mana pun, cukup kecil untuk tetap masuk akal sebagai angka.
+    state.reserveNative * 1_000_000n + 10n ** 24n
+  );
+}
+
+/** Token yang harus dijual untuk menerima `wantNative` native. */
+export function solveSellForNativeOut(state: PoolState, wantNative: bigint): bigint | null {
+  if (!state.initialized || wantNative <= 0n) return null;
+  if (wantNative >= state.reserveNative) return null;
+  return solveForOut(
+    (tokenIn) => quoteSellLocal(state, tokenIn).amountOut,
+    wantNative,
+    state.reserveToken * 1_000_000n + 10n ** 24n
+  );
+}
+
+/**
  * What generation a chain's launch factory actually is, read from the chain.
  *
  * The point is that nothing in the app has to be told. The studio needs to state

@@ -170,6 +170,22 @@ input[type="number"],
   font-feature-settings: "tnum" 1, "zero" 1;
 }
 
+/* Panah naik-turun bawaan peramban pada input angka DIBUANG.
+   Kolom jumlah di halaman ini besar (26–36px) dan panah itu dirender pada ukuran
+   tetapnya sendiri, jadi ia muncul sebagai dua segitiga kecil berdempet di sebelah
+   angka raksasa — dan ia menumpuk tepat di tempat lambang aset berada. Menaikkan
+   jumlah stake selangkah juga bukan gerakan yang dibutuhkan siapa pun di sini;
+   angkanya diketik atau dipilih dari tombol tingkatan. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 /* Fokus keyboard. Sebelumnya hampir setiap kontrol memakai `focus:outline-none`
    tanpa pengganti, jadi navigasi keyboard benar-benar tidak terlihat. */
 :focus-visible {
