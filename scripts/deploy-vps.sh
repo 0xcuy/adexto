@@ -100,7 +100,8 @@ fail=0
 # naik dan itu bukan kegagalan deploy.
 printf '  menunggu kontainer melayani'
 for i in $(seq 1 30); do
-  if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$PUBLIC_URL/" || echo 000)" = "200" ]; then
+  ready=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$PUBLIC_URL/") || ready=000
+  if [ "$ready" = "200" ]; then
     printf ' siap setelah %ss\n' "$((i * 2))"
     break
   fi
@@ -112,9 +113,35 @@ done
 # `/governance` DICABUT dari daftar ini karena halamannya dihapus — governance tidak
 # bisa dibuat berfungsi tanpa menambah permukaan admin yang protokol ini janjikan tidak
 # ada. Membiarkannya di sini membuat setiap deploy gagal atas 404 yang memang disengaja.
+# Tiap rute dicoba sampai TIGA kali sebelum dinyatakan gagal.
+#
+# KENAPA MENCOBA ULANG, BUKAN SEKADAR MENAIKKAN TIMEOUT
+#
+# `/agent/demo` pernah tercatat gagal di sini sementara rutenya sehat. Diukur sesudahnya:
+# 13ms di origin, 0,32s lewat Cloudflare. Yang terjadi adalah jalur Cloudflare ke origin
+# kadang menahan satu permintaan sampai puluhan detik — sudah diukur 7,5s, 9,9s dan 40s
+# dari sepuluh percobaan, sementara origin-nya sendiri 6–21ms untuk SETIAP rute. Timeout
+# yang lebih panjang hanya menukar kegagalan palsu dengan deploy yang lambat; percobaan
+# kedua biasanya langsung lolos.
+#
+# Yang TIDAK dilakukan: melunakkan kegagalannya. Kalau tiga kali tetap bukan 200, deploy
+# tetap dinyatakan bermasalah.
+#
+# `|| echo 000` DIBUANG. `%{http_code}` sudah mencetak `000` sendiri ketika curl gagal,
+# jadi keduanya bersama menghasilkan `HTTP 000000` — angka yang tidak pernah ada dan
+# sempat membuat log ini terbaca seperti kode status yang aneh alih-alih permintaan gagal.
 for r in / /studio /swap /explorer /docs /whitepaper /security /agent/demo /x402; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
-  printf '  %-13s HTTP %s\n' "$r" "$code"
+  code=000
+  for attempt in 1 2 3; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r") || code=000
+    [ "$code" = "200" ] && break
+    [ "$attempt" -lt 3 ] && sleep 3
+  done
+  if [ "$code" = "200" ] && [ "$attempt" -gt 1 ]; then
+    printf '  %-13s HTTP %s (percobaan ke-%s)\n' "$r" "$code" "$attempt"
+  else
+    printf '  %-13s HTTP %s\n' "$r" "$code"
+  fi
   [ "$code" = "200" ] || fail=1
 done
 
@@ -128,7 +155,7 @@ done
 # rename balik atau satu build dari image lama sudah cukup untuk menyajikannya kembali
 # tanpa ada yang sengaja memutuskan begitu.
 for r in /governance /pitch; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r" || echo 000)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r") || code=000
   printf '  %-13s HTTP %s (diharapkan 404)\n' "$r" "$code"
   [ "$code" = "404" ] || fail=1
 done

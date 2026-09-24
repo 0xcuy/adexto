@@ -103,3 +103,65 @@ export function validateProjectImage(input: unknown): ImageCheck {
   }
   return { ok: true, value: input };
 }
+
+/**
+ * Ubah nilai `image` sebuah pasar menjadi URL yang bisa di-cache, bukan data URI inline.
+ *
+ * KENAPA INI ADA — DIUKUR, BUKAN DIPERKIRAKAN
+ *
+ * `POST /api/graphql` mengembalikan 217.801 byte, dan 206.855 di antaranya (94%) adalah
+ * field `image` dari enam pasar — tiap logo sekitar 34 KB sebagai base64. `/explorer` dan
+ * `SwapTerminal` keduanya mengambil payload itu pada setiap kunjungan, jadi dua halaman yang
+ * dilaporkan "berat" memang benar-benar menarik 218 KB JSON sebelum satu baris pun tergambar.
+ *
+ * Data URI juga TIDAK BISA di-cache secara terpisah: ia bagian dari badan JSON, jadi ia
+ * ikut terunduh ulang setiap kali registry berubah — bahkan ketika logonya sendiri tidak
+ * berubah — dan tidak pernah dilayani dari cache browser sebagai gambar.
+ *
+ * Diganti URL, payload yang sama turun ke ~11 KB dan logonya menjadi enam permintaan gambar
+ * paralel dengan `immutable`, sehingga kunjungan berikutnya tidak mengunduh apa pun.
+ *
+ * KENAPA ALAMATNYA BERISI HASH ISI
+ *
+ * Supaya `immutable` benar-benar aman. Sebuah pasar bisa diluncurkan ulang dengan logo baru
+ * di bawah ticker yang sama; kalau URL-nya hanya `<chain>-<symbol>`, browser yang sudah
+ * menyimpannya setahun akan menampilkan logo lama selamanya. Dengan hash isi di dalam nama,
+ * logo yang berbeda adalah URL yang berbeda, dan yang sama tidak pernah diunduh dua kali.
+ *
+ * Hash-nya FNV-1a 32-bit, bukan kriptografis, dan itu memadai: ia tidak melindungi apa pun,
+ * ia hanya menamai. Rute pembacanya tetap mencocokkan hash sebelum menjawab, jadi nama yang
+ * ditebak orang tidak bisa memaksa byte apa pun keluar.
+ */
+export function logoContentHash(dataUri: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < dataUri.length; i++) {
+    h ^= dataUri.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+/** Ekstensi berkas dari tipe MIME data URI, untuk menamai URL-nya. */
+function extOf(dataUri: string): string {
+  const m = /^data:image\/(png|jpeg|webp);base64,/.exec(dataUri);
+  if (!m) return "bin";
+  return m[1] === "jpeg" ? "jpg" : m[1];
+}
+
+/**
+ * URL publik untuk logo sebuah pasar.
+ *
+ * Nilai yang BUKAN data URI dikembalikan apa adanya. `/logo.svg` sudah berupa berkas statis
+ * yang dilayani dan di-cache dengan benar, jadi membungkusnya lewat rute API hanya akan
+ * menambah satu lapisan tanpa memperbaiki apa pun.
+ */
+export function logoUrlFor(input: { chainId: number; symbol: string; image?: string | null }): string {
+  const image = input.image ?? "/logo.svg";
+  if (!image.startsWith("data:")) return image;
+  const hash = logoContentHash(image);
+  const symbol = input.symbol.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `/api/logo/${input.chainId}-${symbol}-${hash}.${extOf(image)}`;
+}
+
+/** Bentuk nama berkas di `/api/logo/<name>`, dipakai rutenya untuk mengurai permintaan. */
+export const LOGO_URL_PATTERN = /^(\d+)-([a-z0-9]+)-([0-9a-f]{8})\.(png|jpg|webp)$/;

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import TokenTerminal, { type TerminalProject, type TerminalDeployment } from "@/components/TokenTerminal";
 import { findProject, findProjectGroup } from "@/lib/registry";
+import { logoUrlFor } from "@/lib/logo-image";
 import { resolveChainOrDefault } from "@/lib/chains";
 
 /**
@@ -79,7 +80,9 @@ export default async function TokenPage({ params, searchParams }: PageProps) {
     agentModel: project.agentModel,
     agentPersona: project.agentPersona,
     agentStatus: project.agentStatus,
-    image: project.image,
+    // URL, bukan data URI: alasannya di `src/lib/logo-image.ts`. Tanpa ini halaman token
+    // tetap menyisipkan 34 KB base64 ke dalam payload RSC-nya sendiri.
+    image: logoUrlFor(project),
     teeRoot: project.teeRoot,
     txHash: project.txHash,
     verified: project.verified,

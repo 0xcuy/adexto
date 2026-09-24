@@ -49,6 +49,12 @@ const ROUTES =
     "/,/studio,/swap,/explorer,/docs,/whitepaper,/security,/agent/demo,/x402,/mcp,/recognition," +
     "/founder-house/index.html," +
     /**
+     * Lima halaman Company. Justru halaman seperti ini yang paling mudah lolos tanpa dijaga:
+     * ia jarang dibuka saat pengembangan, dan isinya prosa panjang — tempat paling nyaman bagi
+     * satu kalimat Indonesia untuk menetap tanpa ada yang menyadarinya.
+     */
+    "/about,/contact,/privacy,/terms,/disclaimer," +
+    /**
      * Sembilan halaman panduan di bawah `/docs/`. Prosanya disusun model bahasa, jadi ia
      * PALING butuh penjaga ini, bukan paling sedikit: `scripts/docs-verify.mjs` menangkap
      * alamat dan angka karangan, dan berkas ini menangkap frasa yang dilarang di seluruh

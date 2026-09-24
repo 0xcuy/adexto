@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listProjects, customProjectCount, marketKey, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { isDurable } from "@/lib/server-store";
+import { logoUrlFor } from "@/lib/logo-image";
 import { fetchCurveStats, type CurveStats, type SubgraphChainHealth } from "@/lib/subgraph";
 import { ANY_SUBGRAPH_CONFIGURED } from "@/config/subgraph";
 
@@ -135,7 +136,14 @@ function serialize(
     edgeProvider: project.edgeProvider,
     mcpTools: project.mcpTools,
     category: project.category,
-    image: project.image,
+    /**
+     * URL, BUKAN data URI. Nama fieldnya tidak berubah karena setiap konsumen memakainya
+     * sebagai `<img src>`, jadi sebuah URL bekerja identik di tempat nilai lama berada.
+     *
+     * Diukur sebelum perubahan ini: payload rute ini 217.801 byte, 206.855 di antaranya
+     * field ini untuk enam pasar. Alasan lengkapnya ada di `src/lib/logo-image.ts`.
+     */
+    image: logoUrlFor(project),
 
     transactionHash: project.txHash,
     blockNumber: project.blockNumber,

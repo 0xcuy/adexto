@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import CookieConsent from "@/components/CookieConsent";
 import { WalletProvider } from "@/context/WalletContext";
 
 export const metadata: Metadata = {
@@ -87,6 +88,11 @@ export default function RootLayout({
             <Navbar />
             <main className="flex-1">{children}</main>
             <Footer />
+            {/* Di luar <main> dan sesudah Footer, sebab ia melayang di atas segalanya
+                (`fixed bottom-0`) dan bukan bagian dari alur dokumen. Menaruhnya di dalam
+                <main> akan membuatnya ikut terpotong oleh halaman yang punya overflow
+                sendiri. */}
+            <CookieConsent />
           </div>
         </WalletProvider>
       </body>

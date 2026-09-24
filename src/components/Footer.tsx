@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-line bg-cream-2 relative z-10 text-ink-soft text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               {/* Dulu logo ini dibungkus kotak putih ber-border. Karena logonya
@@ -107,6 +107,21 @@ export default function Footer() {
                   melewati proyeksi pendapatan untuk mencapai tabel alamat. /docs adalah
                   halaman status teknis; registry memang termasuk isinya. */}
               <li><Link href="/docs" className="hover:text-accent transition-colors">Deployed contract registry</Link></li>
+            </ul>
+          </div>
+
+          {/* Company.
+              Judulnya "Company" karena itu kata yang dicari orang di footer, tapi halaman
+              About menyebut dengan jelas bahwa tidak ada badan hukum di belakang proyek ini.
+              Kolomnya menaut, bukan mengklaim. */}
+          <div>
+            <h4 className="font-bold text-ink mb-3 uppercase tracking-wider text-xs">Company</h4>
+            <ul className="space-y-2">
+              <li><Link href="/about" className="hover:text-accent transition-colors">About</Link></li>
+              <li><Link href="/contact" className="hover:text-accent transition-colors">Contact</Link></li>
+              <li><Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link></li>
+              <li><Link href="/terms" className="hover:text-accent transition-colors">Terms</Link></li>
+              <li><Link href="/disclaimer" className="hover:text-accent transition-colors">Disclaimer</Link></li>
             </ul>
           </div>
 
