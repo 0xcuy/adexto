@@ -44,16 +44,17 @@ export default function Navbar() {
    * ada, lebih baik tidak menjadi menu.
    */
   const links = [
-    /**
-     * Agent Compute ditaruh PERTAMA.
-     *
-     * Ia satu-satunya butir di bar ini yang memberi tahu pemegang token apa yang bisa dilakukan
-     * tokennya; sisanya soal memperdagangkan token orang lain. Menaruhnya sesudah Explorer dan Swap
-     * akan membuat utilitasnya terbaca sebagai catatan kaki.
-     */
-    { href: "/agent-compute", label: "Agent Compute", icon: Sparkles },
     { href: "/explorer", label: "Explorer", icon: Compass },
     { href: "/swap", label: "Swap", icon: ArrowDownUp },
+    /**
+     * Agent Compute di posisi ketiga, sesudah Swap.
+     *
+     * Sempat ditaruh paling depan dengan alasan ia satu-satunya butir yang bicara soal utilitas
+     * token. Urutan ini lebih baik: Explorer dan Swap adalah yang dicari orang yang datang untuk
+     * berdagang, dan menaruh fitur baru di depan keduanya menggeser jalur yang sudah dikenal
+     * pengunjung demi menonjolkan yang belum mereka cari.
+     */
+    { href: "/agent-compute", label: "Agent Compute", icon: Sparkles },
     { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
     { href: "/docs", label: "Docs", icon: ShieldCheck },
     /**
