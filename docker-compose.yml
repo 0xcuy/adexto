@@ -23,6 +23,12 @@ services:
         NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE: ${NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE:-}
         NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD: ${NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://adexto.xyz}
+        # AdextoAgentStake di 0G. Harus ada di sini, bukan hanya di env_file: nilainya
+        # dibaca oleh komponen klien (/agent-compute), jadi ia ter-inline saat build.
+        # Ditaruh di env_file saja, halaman yang sudah di-build akan selamanya melihat
+        # string kosong dan terus mengatakan "staking belum hidup" setelah kontraknya
+        # hidup.
+        NEXT_PUBLIC_AGENT_STAKE_0G: ${NEXT_PUBLIC_AGENT_STAKE_0G:-}
         # Bawaannya dulu `https://edge.adexto.xyz`, hostname yang tidak pernah diikat ke
         # apa pun dan membalas HTTP 525 selama berbulan-bulan. Gerbang x402 sekarang
         # dilayani di x402.adexto.xyz, terikat langsung ke Worker sebagai custom domain.

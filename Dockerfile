@@ -37,6 +37,14 @@ ARG NEXT_PUBLIC_CURVE_FACTORY_PREV_0G
 ARG NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM
 ARG NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE
 ARG NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD
+# AdextoAgentStake di 0G. Kelas kegagalan yang SAMA dengan dua blok di atas, dan ia
+# terjadi lagi: build arg-nya sudah ditambahkan ke docker-compose.yml, compose
+# menerimanya tanpa keluhan, tetapi tanpa `ARG` di sini `npm run build` tidak pernah
+# melihatnya — jadi bundel klien meng-inline string kosong dan /agent-compute terus
+# berkata "staking belum hidup" padahal kontraknya sudah di chain dan env di VPS sudah
+# benar. Server-side terlihat sehat (`/api/agent/keys` melaporkan alamatnya), yang
+# membuat gejalanya menunjuk ke arah yang salah.
+ARG NEXT_PUBLIC_AGENT_STAKE_0G
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_EDGE_GATEWAY
 ENV NEXT_PUBLIC_CURVE_FACTORY_0G=$NEXT_PUBLIC_CURVE_FACTORY_0G
@@ -47,6 +55,7 @@ ENV NEXT_PUBLIC_CURVE_FACTORY_PREV_0G=$NEXT_PUBLIC_CURVE_FACTORY_PREV_0G
 ENV NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM=$NEXT_PUBLIC_CURVE_FACTORY_PREV_ARBITRUM
 ENV NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE=$NEXT_PUBLIC_CURVE_FACTORY_PREV_BASE
 ENV NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD=$NEXT_PUBLIC_CURVE_FACTORY_PREV_MONAD
+ENV NEXT_PUBLIC_AGENT_STAKE_0G=$NEXT_PUBLIC_AGENT_STAKE_0G
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_EDGE_GATEWAY=$NEXT_PUBLIC_EDGE_GATEWAY
 

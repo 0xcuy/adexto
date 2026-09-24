@@ -130,7 +130,7 @@ done
 # `|| echo 000` DIBUANG. `%{http_code}` sudah mencetak `000` sendiri ketika curl gagal,
 # jadi keduanya bersama menghasilkan `HTTP 000000` — angka yang tidak pernah ada dan
 # sempat membuat log ini terbaca seperti kode status yang aneh alih-alih permintaan gagal.
-for r in / /studio /swap /explorer /docs /whitepaper /security /agent/demo /x402; do
+for r in / /studio /swap /explorer /agent-compute /docs /whitepaper /security /agent/demo /x402; do
   code=000
   for attempt in 1 2 3; do
     code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$PUBLIC_URL$r") || code=000

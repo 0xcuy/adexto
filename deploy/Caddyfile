@@ -62,6 +62,33 @@ adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.
     }
 }
 
+# Adexto Router — pool inferensi yang dibagikan ke pemegang stake.
+#
+# BLOK INI HARUS ADA DI ATAS WILDCARD, dan ketiadaannya pernah menjadi jebakan yang
+# menunggu: berkas ini menyatakan dirinya "disalin ke /etc/caddy/Caddyfile", tetapi ia
+# tidak memuat compute.adexto.xyz sementara berkas yang HIDUP memuatnya. Menyalin versi
+# repo ke server akan membuat compute.adexto.xyz jatuh ke blok wildcard di bawah,
+# diteruskan ke aplikasi Next di :3000, dan setiap pemegang kunci menerima 404 dari
+# situs alih-alih jawaban model. Drift-nya ditemukan saat menyambungkan pool ke
+# halaman /agent-compute, bukan saat ia dibuat.
+#
+# Port 20128 adalah pm2 `evidiq-router` di kotak yang sama. Aplikasi ADEXTO TIDAK berada
+# di jalur panggilan model: kunci yang diterbitkan /api/agent/keys adalah kunci router
+# asli, jadi permintaan pemegang stake berhenti di sini.
+compute.adexto.xyz {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+    handle /api/webhook* {
+        reverse_proxy 127.0.0.1:8788
+    }
+    handle /api/mailbox* {
+        reverse_proxy 127.0.0.1:8788
+    }
+    handle {
+        reverse_proxy 127.0.0.1:20128
+    }
+}
 # Setiap subdomain lain, termasuk setiap pasar yang diluncurkan setelah ini.
 #
 # Token dibaca dari lingkungan, bukan ditulis di sini: berkas ini ada di repo publik.

@@ -2282,6 +2282,214 @@ console.log("\n── slug docs di middleware vs docs-pages.json ──");
   }
 }
 
+// ── NEXT_PUBLIC_* : build arg compose vs ARG/ENV di Dockerfile ───────────────
+console.log("\n── setiap build arg NEXT_PUBLIC_* harus dideklarasikan di Dockerfile ──");
+{
+  /**
+   * Kelas kegagalan ini sudah terjadi TIGA KALI, dan Dockerfile-nya sendiri memuat komentar
+   * tentang dua di antaranya. Bentuknya selalu sama:
+   *
+   *   `docker-compose.yml` mengirim `NEXT_PUBLIC_X` sebagai build arg, compose menerimanya
+   *   tanpa keluhan, tetapi tanpa `ARG NEXT_PUBLIC_X` di Dockerfile, `npm run build` tidak
+   *   pernah melihatnya. Nilai `NEXT_PUBLIC_*` di-inline saat build, jadi bundel klien
+   *   meng-inline string kosong.
+   *
+   * Yang membuatnya mahal untuk didiagnosis: sisi SERVER terlihat sehat, karena env runtime
+   * datang dari `env_file`. Jadi rute API melaporkan nilai yang benar sementara halamannya
+   * berkata nilainya tidak ada, dan gejalanya menunjuk ke arah yang salah.
+   *
+   * Penjaga ini murni isi repo — tidak ada chain, tidak ada jaringan — jadi ketidakcocokan
+   * selalu kegagalan.
+   */
+  const dockerfile = readFileSync("Dockerfile", "utf8");
+  const compose = readFileSync("docker-compose.yml", "utf8");
+
+  // Build arg diambil dari blok `args:` saja, bukan dari `environment:` runtime.
+  const argsBlock = (compose.match(/\n\s*args:\n([\s\S]*?)\n\s{4}\w/) || ["", ""])[1] || "";
+  const composeArgs = [...argsBlock.matchAll(/^\s*(NEXT_PUBLIC_[A-Z0-9_]+):/gm)].map((m) => m[1]);
+  check("build arg NEXT_PUBLIC_* terbaca dari docker-compose.yml", composeArgs.length > 0, `${composeArgs.length} arg`);
+
+  const declaredArg = new Set(
+    [...dockerfile.matchAll(/^\s*ARG\s+(NEXT_PUBLIC_[A-Z0-9_]+)/gm)].map((m) => m[1])
+  );
+  const declaredEnv = new Set(
+    [...dockerfile.matchAll(/^\s*ENV\s+(NEXT_PUBLIC_[A-Z0-9_]+)=/gm)].map((m) => m[1])
+  );
+
+  const missingArg = composeArgs.filter((a) => !declaredArg.has(a));
+  const missingEnv = composeArgs.filter((a) => !declaredEnv.has(a));
+  check(
+    "setiap build arg punya ARG di Dockerfile",
+    missingArg.length === 0,
+    missingArg.length ? `hilang: ${missingArg.join(", ")}` : `${composeArgs.length} arg`
+  );
+  /**
+   * `ARG` saja TIDAK cukup, dan ini bagian yang mudah terlewat: `ARG` hanya membuat nilainya
+   * tersedia untuk instruksi Dockerfile, bukan untuk proses yang dijalankan `RUN`. Tanpa baris
+   * `ENV X=$X` di atas `RUN npm run build`, next build tetap melihatnya kosong.
+   */
+  check(
+    "setiap build arg diteruskan sebagai ENV sebelum npm run build",
+    missingEnv.length === 0,
+    missingEnv.length ? `hilang: ${missingEnv.join(", ")}` : `${composeArgs.length} arg`
+  );
+
+  const envIdx = [...declaredEnv].map((k) => dockerfile.indexOf(`ENV ${k}=`));
+  const buildIdx = dockerfile.indexOf("RUN npm run build");
+  check(
+    "semua ENV NEXT_PUBLIC_* berada SEBELUM RUN npm run build",
+    buildIdx > 0 && envIdx.every((i) => i > 0 && i < buildIdx),
+    buildIdx > 0 ? `build di offset ${buildIdx}` : "RUN npm run build tidak ditemukan"
+  );
+}
+
+// ── pool Agent Compute: label model, endpoint, dan pemisahan dari /api/chat ──
+console.log("\n── pool Agent Compute: label model vs router 0G, dan angka di halaman ──");
+{
+  /**
+   * Empat hal bisa berpisah di sini, dan dua di antaranya SUDAH hampir terjadi hari ini:
+   *
+   *   1. `-0731` di label model bukan nomor versi yang kami pilih. Ia tanggal snapshot yang
+   *      DIPIN 0G, dibaca dari deskripsi model di `/v1/models` ("Currently served as the pinned
+   *      2026-07-31 snapshot"). Kalau 0G memindahkan pin-nya, label kami berubah dari fakta
+   *      menjadi klaim palsu tanpa satu pun berkas di repo ini berubah.
+   *
+   *   2. Kunci pemegang stake DIPIN ke provider `0g-compute` di router. Id model yang
+   *      didokumentasikan harus memakai awalan provider yang sama; tanpa awalan itu router
+   *      memarsing modelnya ke provider lain sebelum pin berlaku, dan pemanggil mendapat model
+   *      yang tidak pernah kami sebut.
+   *
+   *   3. Pool ini TIDAK sama dengan model yang dipakai `/api/chat` (co-pilot studio, glm-5.3)
+   *      atau `/api/generate-logo` (z-image-turbo). Keduanya berjalan di kunci server dan tidak
+   *      memotong jatah siapa pun. Menyetel pool lalu ikut mengubah keduanya adalah kesalahan
+   *      yang nyaris dibuat saat pool ini dipasang, jadi ia dijaga di sini.
+   *
+   *   4. Angka jatah di halaman harus datang dari config, bukan ditulis tangan.
+   */
+  const cfg = readFileSync("src/config/agent-compute.ts", "utf8");
+  const one = (re, label) => {
+    const m = cfg.match(re);
+    if (!m) bad(`tidak bisa membaca ${label} dari config`);
+    return m ? m[1] : null;
+  };
+
+  const modelId = one(/AGENT_COMPUTE_MODEL\s*=\s*"([^"]+)"/, "AGENT_COMPUTE_MODEL");
+  const modelLabel = one(/AGENT_COMPUTE_MODEL_LABEL\s*=\s*"([^"]+)"/, "AGENT_COMPUTE_MODEL_LABEL");
+  const endpoint = one(/AGENT_COMPUTE_ENDPOINT\s*=\s*"([^"]+)"/, "AGENT_COMPUTE_ENDPOINT");
+  const poolProvider = one(/AGENT_COMPUTE_PROVIDER\s*=\s*"([^"]+)"/, "AGENT_COMPUTE_PROVIDER");
+  const upstreamName = one(/upstreamName:\s*"([^"]+)"/, "upstreamName");
+  const contextLength = Number((cfg.match(/contextLength:\s*([\d_]+)/) || [])[1]?.replace(/_/g, ""));
+  const maxOut = Number((cfg.match(/maxCompletionTokens:\s*([\d_]+)/) || [])[1]?.replace(/_/g, ""));
+  const minStake = Number((cfg.match(/MIN_STAKE_ADEXTO\s*=\s*([\d_]+)/) || [])[1]?.replace(/_/g, ""));
+  const tierAllowances = [...cfg.matchAll(/\{\s*stake:\s*([\d_]+),\s*allowance:\s*([\w_]+)/g)].map((m) => ({
+    stake: Number(m[1].replace(/_/g, "")),
+    allowance: m[2].replace(/_/g, ""),
+  }));
+  const ceiling = Number((cfg.match(/BETA_TOKEN_CEILING\s*=\s*([\d_]+)/) || [])[1]?.replace(/_/g, ""));
+  const allowances = tierAllowances.map((t) =>
+    /^\d+$/.test(t.allowance) ? Number(t.allowance) : ceiling
+  );
+
+  check("config pool terbaca", Boolean(modelId && modelLabel && endpoint), `${modelId} · ${modelLabel}`);
+  check(
+    "awalan id model = provider yang kunci dipin ke situ",
+    poolProvider === "0g-compute" ? modelId?.startsWith("0g/") === true : true,
+    `${modelId} vs ${poolProvider}`
+  );
+  check(
+    "endpoint pool memakai host compute, bukan host situs",
+    /^https:\/\/compute\.adexto\.xyz\/v1$/.test(endpoint || ""),
+    endpoint || "kosong"
+  );
+
+  // Pool vs pemakaian model milik situs sendiri: harus tetap terpisah.
+  const chatSrc = visibleText("src/app/api/chat/route.ts");
+  const chatDefault = (chatSrc.match(/model \|\| "([^"]+)"/) || [])[1] || null;
+  const bare = (modelId || "").replace(/^[^/]+\//, "");
+  check(
+    "/api/chat tidak memakai model pool",
+    Boolean(chatDefault) && chatDefault !== bare && chatDefault !== modelId,
+    `/api/chat = ${chatDefault} · pool = ${modelId}`
+  );
+  check(
+    "/api/chat tetap menunjuk router 0G langsung, bukan endpoint pool",
+    !chatSrc.includes("compute.adexto.xyz"),
+    "tidak ada host pool di route chat"
+  );
+
+  // Tanggal snapshot di label vs deskripsi model upstream.
+  const routerUrl2 = (env.OG_ROUTER_URL || "https://router-api.0g.ai/v1").replace(/\/+$/, "");
+  const routerKey2 = env.OG_ROUTER_API_KEY || "";
+  if (!routerKey2) {
+    soft("label snapshot model tidak diuji", "OG_ROUTER_API_KEY tidak ada di .env.local");
+  } else {
+    let served2 = null;
+    try {
+      const res = await fetch(`${routerUrl2}/models`, {
+        headers: { authorization: `Bearer ${routerKey2}` },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      served2 = (await res.json())?.data ?? [];
+    } catch (e) {
+      soft("daftar model 0G tidak bisa dihubungi", String(e.message).slice(0, 50));
+    }
+    if (served2) {
+      const m = served2.find((x) => x.id === bare);
+      check(`model pool dilayani 0G: ${bare}`, Boolean(m), m ? `owned_by ${m.owned_by}` : "tidak ada di /v1/models");
+      if (m) {
+        check("nama upstream = upstreamName di config", m.name === upstreamName, `${m.name} vs ${upstreamName}`);
+        check("context_length = config", m.context_length === contextLength, `${m.context_length} vs ${contextLength}`);
+        check(
+          "max_completion_tokens = config",
+          m.max_completion_tokens === maxOut,
+          `${m.max_completion_tokens} vs ${maxOut}`
+        );
+
+        const pinned = String(m.description || "").match(/pinned (\d{4})-(\d{2})-(\d{2}) snapshot/);
+        if (!pinned) {
+          soft("0G tidak lagi menyebut snapshot yang dipin", "label bertanggal tidak bisa diverifikasi");
+        } else {
+          const suffix = `${pinned[2]}${pinned[3]}`;
+          check(
+            `akhiran tanggal di label = snapshot yang dipin 0G (${pinned[1]}-${pinned[2]}-${pinned[3]})`,
+            (modelLabel || "").endsWith(`-${suffix}`),
+            `${modelLabel} vs -${suffix}`
+          );
+        }
+      }
+    }
+  }
+
+  // Angka di halaman harus sama dengan config.
+  const BASE2 = process.env.BASE_URL;
+  if (!BASE2) {
+    soft("angka di /agent-compute tidak diperiksa", "setel BASE_URL");
+  } else {
+    let html = null;
+    try {
+      const res = await fetch(`${BASE2}/agent-compute`, { signal: AbortSignal.timeout(60000) });
+      html = res.ok ? await res.text() : null;
+      if (!html) soft("/agent-compute tidak bisa dibaca", `HTTP ${res.status}`);
+    } catch (e) {
+      soft("/agent-compute tidak bisa dibaca", String(e.message).slice(0, 50));
+    }
+    if (html) {
+      check("halaman menyebut endpointnya", html.includes(endpoint), endpoint);
+      check("halaman menyebut id model yang harus dikirim", html.includes(modelId), modelId);
+      check("halaman menyebut label model", html.includes(modelLabel), modelLabel);
+      const fmtNum = (n) => n.toLocaleString("en-US");
+      const missingTiers = allowances.filter((a) => !html.includes(`${fmtNum(a / 1000)}`));
+      check(
+        "setiap jatah tingkatan dirender dari config",
+        missingTiers.length === 0,
+        missingTiers.length ? `hilang: ${missingTiers.join(", ")}` : `${allowances.length} tingkatan`
+      );
+      check("halaman menyebut stake minimum dari config", html.includes(fmtNum(minStake)), fmtNum(minStake));
+    }
+  }
+}
+
 console.log(`\n  temuan: ${fail}   peringatan: ${warn}`);
 if (fail > 0) {
   console.log("  Kelas bug di sini adalah pernyataan yang dulu benar. Perbaiki teksnya, bukan pemeriksanya,");
