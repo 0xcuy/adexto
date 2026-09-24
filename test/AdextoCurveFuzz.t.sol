@@ -39,8 +39,12 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         assertEq(curve.totalFeeBps(), TOTAL_PAID_BPS, "total yang dibayar bukan 40 bps");
         assertEq(factory.PROTOCOL_FEE_BPS(), PROTOCOL_BPS, "konstanta factory bukan 10 bps");
         assertEq(curve.protocolTreasury(), PROTOCOL_TREASURY, "treasury protokol salah");
-        assertEq(curve.VERSION(), "0.11.0", "versi kurva salah");
-        assertEq(factory.VERSION(), "0.11.0", "versi factory salah");
+        // Dibandingkan dengan SATU konstanta, dan satu sama lain. Yang kedua itu invarian
+        // sebenarnya: factory menanam creation code kurva, jadi dua nomor berbeda berarti
+        // salah satunya tidak pernah diperbarui.
+        assertEq(curve.VERSION(), SOURCE_VERSION, "versi kurva salah");
+        assertEq(factory.VERSION(), SOURCE_VERSION, "versi factory salah");
+        assertEq(curve.VERSION(), factory.VERSION(), "versi kurva dan factory berbeda");
     }
 
     // ── 2. Kuotasi harus SAMA dengan eksekusi, termasuk kaki protokol ─────────

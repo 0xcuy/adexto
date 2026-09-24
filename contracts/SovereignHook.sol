@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 /**
  * @title SovereignHook
@@ -22,21 +22,12 @@ pragma solidity ^0.8.26;
  *      - `treasuryFeeBps`  accrues to `treasuryNative`, spent by `executeBuyback`
  */
 
-interface IERC20Minimal {
-    function transfer(address to, uint256 amount) external returns (bool);
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-
-    function balanceOf(address account) external view returns (uint256);
-
-    function allowance(address owner, address spender) external view returns (uint256);
-
-    function totalSupply() external view returns (uint256);
-}
-
-interface IAdextoToken {
-    function executeTreasuryBuyback(uint256 amountToBurn) external;
-}
+// `IERC20Minimal` dan `IAdextoToken` dipindah ke berkas bersama.
+//
+// Keduanya dulu dideklarasikan di sini DAN di berkas generasi ini yang lain, dengan isi
+// identik tetapi format berbeda — yang justru memperkuat masalahnya: dua definisi satu nama
+// sudah mulai menyimpang bentuknya. Aderyn High "Contract Name Reused in Different Files".
+import {IERC20Minimal, IAdextoToken} from "./ISovereignLegacy.sol";
 
 interface IPoolManager {
     struct PoolKey {

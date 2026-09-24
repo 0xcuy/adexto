@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {AdextoToken} from "./AdextoToken.sol";
 import {AdextoCurve} from "./AdextoCurve.sol";
@@ -58,7 +58,19 @@ contract AdextoFactory {
      *      stabil. Naik ke 1.0.0 hanya setelah factory ini ter-broadcast ke mainnet
      *      dan satu peluncuran nyata berhasil.
      */
-    string public constant VERSION = "0.11.0";
+    /**
+     * 0.12.0 KARENA PERILAKUNYA BERUBAH, dan nomor ini tidak boleh berbohong.
+     *
+     * `executeBuyback` mendapat cooldown (lihat catatan panjang pada fungsinya, temuan 1 di
+     * GHSA-g589-wjqq-86f2). Bytecode-nya ikut berubah — terukur: artifact 21.476 B lawan
+     * 21.281 B di chain — jadi membiarkan nomornya tetap 0.11.0 berarti dua bytecode berbeda
+     * mengaku sebagai generasi yang sama, dan tidak akan ada cara membedakannya dari luar.
+     *
+     * `src/config/contracts.ts` SENGAJA tetap 0.11.0: berkas itu mencatat generasi yang
+     * benar-benar HIDUP di keempat chain, dan `audit_consistency.mjs` membacanya lalu
+     * membandingkannya dengan `VERSION()` on-chain. Ia baru naik ketika 0.12.0 di-deploy.
+     */
+    string public constant VERSION = "0.12.0";
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_SUPPLY = 1_000_000_000_000; // 1e12 whole tokens
@@ -269,19 +281,19 @@ contract AdextoFactory {
             agentRegistry
         );
         token = address(newToken);
-
-        // 3. Bind and load the curve atomically with 100% of supply. No native
-        //    changes hands, so a launch costs the creator gas only.
-        sovereignCurve.bindToken(token);
-        uint256 minted = IERC20SupplySeed(token).balanceOf(address(this));
-        require(minted > 0, "Factory: nothing minted");
-        require(IERC20SupplySeed(token).approve(curve, minted), "Factory: approve failed");
-        sovereignCurve.initializeCurve(minted);
-
-        // 4. Nothing is forwarded to the creator on purpose: no free allocation
-        //    means no supply to dump. The creator earns from `creatorShareBps`.
-        require(IERC20SupplySeed(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
-
+        /**
+         * REGISTRY DITULIS DI SINI, bukan setelah kurva diisi.
+         *
+         * `curve` dan `token` sudah final pada titik ini, jadi menunda penulisannya sampai
+         * setelah `bindToken` dan `initializeCurve` tidak memberi apa pun — sementara itu
+         * membuat setiap tulisan terjadi SESUDAH panggilan eksternal, yang dilaporkan Aderyn
+         * sebagai High "Reentrancy: State change after external call", 6 instance di berkas ini.
+         *
+         * Dipindah ke depan, urutannya menjadi checks-effects-interactions. Dan ini lebih ketat
+         * daripada sekadar rapi: pada urutan lama `symbolRegistry[symbolKey]` masih nol selama
+         * kontrak lain dipanggil, jadi panggilan yang masuk kembali bisa mengklaim ticker yang
+         * sama. Sekarang klaim kedua menabrak `require` yang sudah ada di atas.
+         */
         symbolRegistry[symbolKey] = token;
         curveOf[token] = curve;
         tokenOf[curve] = token;
@@ -306,6 +318,20 @@ contract AdextoFactory {
             agentIdOf[token] = agentId;
             emit AgentBound(token, agentId, agentRegistry, msg.sender);
         }
+
+
+        // 3. Bind and load the curve atomically with 100% of supply. No native
+        //    changes hands, so a launch costs the creator gas only.
+        sovereignCurve.bindToken(token);
+        uint256 minted = IERC20SupplySeed(token).balanceOf(address(this));
+        require(minted > 0, "Factory: nothing minted");
+        require(IERC20SupplySeed(token).approve(curve, minted), "Factory: approve failed");
+        sovereignCurve.initializeCurve(minted);
+
+        // 4. Nothing is forwarded to the creator on purpose: no free allocation
+        //    means no supply to dump. The creator earns from `creatorShareBps`.
+        require(IERC20SupplySeed(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
+
 
         emit TrinityProjectCreated(token, msg.sender, symbol, metadataRoot);
         emit TrinityProjectDeployed(

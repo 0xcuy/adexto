@@ -142,11 +142,26 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
     how:
       "There is no graduation step and no migration to another venue. The curve is the market, permanently. The usual launchpad pattern moves a curve into an external pool, and that step is where much of the historical exploit surface lives.",
   },
+  /**
+   * KLAIM INI DIPERSEMPIT SETELAH SEBUAH LAPORAN.
+   *
+   * Isinya dulu: "what restrains it is size: at most 1% of the native reserve per call" —
+   * dan berhenti di situ, sehingga terbaca sebagai batas atas total. Sebuah laporan
+   * (GHSA-g589-wjqq-86f2, temuan 1) menunjukkan plafon per panggilan tidak membatasi
+   * BERAPA KALI satu transaksi memanggilnya, dan karena tiap panggilan menaikkan reserve,
+   * plafon 1% itu ikut naik selama loop berjalan. Terukur: 101,32 native keluar dalam 3
+   * panggilan.
+   *
+   * Cooldown sudah ditambahkan di `contracts/AdextoCurve.sol`, tetapi kalimat di sini tidak
+   * boleh menyiratkan pasar yang SUDAH hidup ikut terlindungi: bytecode-nya beku dan tanpa
+   * pemilik, jadi tidak ada jalur upgrade. Itulah sebabnya kartu ini sekarang menyebut
+   * keduanya secara terpisah, bukan satu klaim yang berlaku untuk semuanya.
+   */
   {
     title: "Bounded, permissionless buyback",
     where: "AdextoCurve.sol · SovereignCurve.sol",
     how:
-      "`executeBuyback` deliberately has no caller gate — what restrains it is size: at most 1% of the native reserve per call. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned.",
+      "`executeBuyback` deliberately has no caller gate. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned. Two limits apply in the source today: at most 1% of the native reserve per call, and a one-hour cooldown between calls. The cooldown was added after a report showed the per-call cap alone did not stop a single transaction from looping until the bucket was empty. Markets already deployed carry only the per-call cap, because their bytecode is frozen and has no owner — the cooldown reaches curves deployed from here on.",
   },
 ];
 

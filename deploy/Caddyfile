@@ -48,6 +48,17 @@ adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        # Peer sebenarnya, DITIMPA di setiap permintaan.
+        #
+        # `clientIp()` di src/lib/rate-limit.ts memakai ini untuk memutuskan apakah
+        # `cf-connecting-ip` boleh dipercaya. Blok ini tidak menyentuh header itu — Caddy
+        # meneruskannya apa adanya — jadi dulu satu-satunya header yang dipercaya penuh justru
+        # satu-satunya yang bisa ditulis pemanggil. Origin juga melayani permintaan langsung ke
+        # IP publiknya, sehingga jalur tanpa Cloudflare memang ada.
+        #
+        # `header_up` MENIMPA, jadi nilai X-Peer-IP yang dikirim klien tidak pernah lolos.
+        # Temuan 4 di GHSA-g589-wjqq-86f2.
+        header_up X-Peer-IP {remote_host}
     }
 }
 
@@ -64,6 +75,17 @@ adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        # Peer sebenarnya, DITIMPA di setiap permintaan.
+        #
+        # `clientIp()` di src/lib/rate-limit.ts memakai ini untuk memutuskan apakah
+        # `cf-connecting-ip` boleh dipercaya. Blok ini tidak menyentuh header itu — Caddy
+        # meneruskannya apa adanya — jadi dulu satu-satunya header yang dipercaya penuh justru
+        # satu-satunya yang bisa ditulis pemanggil. Origin juga melayani permintaan langsung ke
+        # IP publiknya, sehingga jalur tanpa Cloudflare memang ada.
+        #
+        # `header_up` MENIMPA, jadi nilai X-Peer-IP yang dikirim klien tidak pernah lolos.
+        # Temuan 4 di GHSA-g589-wjqq-86f2.
+        header_up X-Peer-IP {remote_host}
     }
 }
 
@@ -75,6 +97,17 @@ adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        # Peer sebenarnya, DITIMPA di setiap permintaan.
+        #
+        # `clientIp()` di src/lib/rate-limit.ts memakai ini untuk memutuskan apakah
+        # `cf-connecting-ip` boleh dipercaya. Blok ini tidak menyentuh header itu — Caddy
+        # meneruskannya apa adanya — jadi dulu satu-satunya header yang dipercaya penuh justru
+        # satu-satunya yang bisa ditulis pemanggil. Origin juga melayani permintaan langsung ke
+        # IP publiknya, sehingga jalur tanpa Cloudflare memang ada.
+        #
+        # `header_up` MENIMPA, jadi nilai X-Peer-IP yang dikirim klien tidak pernah lolos.
+        # Temuan 4 di GHSA-g589-wjqq-86f2.
+        header_up X-Peer-IP {remote_host}
     }
 }
 

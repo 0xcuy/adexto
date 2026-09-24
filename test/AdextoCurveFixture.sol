@@ -38,6 +38,16 @@ abstract contract AdextoCurveFixture is Test {
     uint256 internal constant PROTOCOL_BPS = 10;
     uint256 internal constant TOTAL_PAID_BPS = 40;
 
+    /**
+     * Generasi yang ditulis SOURCE, bukan yang ter-deploy.
+     *
+     * Satu tempat saja, karena angkanya dulu tertanam dua kali di satu test sehingga naik ke
+     * 0.12.0 menuntut dua suntingan berbarengan. Nilainya sengaja boleh berbeda dari
+     * `src/config/contracts.ts`, yang mencatat generasi HIDUP di chain — perbedaan itu normal
+     * selama 0.12.0 belum di-deploy.
+     */
+    string internal constant SOURCE_VERSION = "0.12.0";
+
     uint256 internal constant SUPPLY = 1_000_000_000;
     /// Sama besaran dengan pembukaan 0G di produksi.
     uint256 internal constant VIRTUAL_NATIVE = 1500 ether;

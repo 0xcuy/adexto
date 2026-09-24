@@ -281,7 +281,24 @@ if (!has(BIN.aderyn)) {
 } else {
   const jsonPath = path.join(OUT_DIR, "aderyn.json");
   try {
-    sh(BIN.aderyn, ["--src", "contracts", "--path-excludes", "test/,lib/,node_modules/", "-o", jsonPath], {
+    /**
+     * `echidna/` IKUT DIKECUALIKAN, dan itu soal cakupan, bukan menutupi temuan.
+     *
+     * `contracts/echidna/EchidnaCurve.sol` adalah harness fuzz: ia membungkus kurva agar
+     * Echidna bisa memanggilnya, dan ia tidak pernah di-deploy ke chain mana pun. Sebelumnya ia
+     * ikut terpindai dan menyumbang 2 High instance ("locks Ether without a withdraw function",
+     * "state change after external call") plus 21 Low — semuanya tentang berkas yang tidak ada
+     * di produksi.
+     *
+     * Membiarkannya bukan cuma membesarkan angka, ia MENYESATKAN: pembaca /security melihat
+     * High dan menyimpulkan ada masalah pada kontrak yang memegang uangnya, padahal temuannya
+     * tentang alat uji. `test/` sudah dikecualikan dengan alasan yang sama persis; ini
+     * memperlakukan harness fuzz secara konsisten dengan itu.
+     *
+     * Yang TIDAK dikecualikan: seluruh kontrak produksi, termasuk generasi yang sudah
+     * digantikan, karena bytecode-nya masih diterbitkan dan masih bisa di-deploy.
+     */
+    sh(BIN.aderyn, ["--src", "contracts", "--path-excludes", "test/,lib/,node_modules/,echidna/", "-o", jsonPath], {
       env: { ...process.env, PATH: `${path.join(HOME, ".foundry", "bin")}:${path.join(HOME, ".local", "bin")}:${process.env.PATH}` },
       stdio: ["ignore", "pipe", "pipe"],
     });

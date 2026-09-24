@@ -4,6 +4,11 @@ import { keccak256, toHex } from "viem";
 import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { validateProjectImage } from "@/lib/logo-image";
 import { normalizeCategory } from "@/lib/categories";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+
+/** Satu peluncuran memanggil `prepare` sekali; lihat catatan di POST. */
+const PREPARE_LIMIT = 6;
+const PREPARE_WINDOW_MS = 10 * 60 * 1000;
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST, readProvider } from "@/lib/chains";
 import {
@@ -123,6 +128,49 @@ export async function POST(req: Request) {
   }
 
   const stage = String(body.stage || "prepare").toLowerCase();
+
+  /**
+   * `prepare` DIBATASI LAJUNYA. Ia stage yang membelanjakan uang kami.
+   *
+   * `handlePrepare` memanggil `uploadMetadataTo0G`, yang menandatangani unggahan dengan
+   * `PRIVATE_KEY` server dan membayar gas di 0G. Satu-satunya gerbang sebelum ini adalah
+   * attestation self-signed — yang membuktikan pemanggil menguasai alamat yang diklaimnya, dan
+   * tidak lebih. Komentar di berkas ini sudah menyebutnya sendiri: "alamat baru bisa dibuat
+   * tanpa batas dan tanpa biaya", jadi gerbang itu tidak berbiaya bagi penyerang.
+   *
+   * Batas gas nyata yang dijadikan andalan di catatan lain berlaku untuk `confirm`, yang
+   * menuntut transaksi sudah mined. Ia tidak pernah menyentuh `prepare`.
+   *
+   * Dibatasi SEBELUM body diurai lebih jauh dan sebelum stage-nya dipanggil, dengan alasan yang
+   * sama seperti di `/api/chat`: yang dibatasi adalah biaya, dan biaya itu keluar di panggilan
+   * hilir. `confirm` sengaja TIDAK dibatasi — ia menuntut transaksi mainnet yang sudah mined,
+   * jadi ia sudah berbiaya gas bagi pemanggilnya, dan membatasinya berisiko menolak pencatatan
+   * pasar yang sudah hidup di chain.
+   *
+   * Angkanya: satu peluncuran memanggil `prepare` sekali. 6 per 10 menit memberi ruang untuk
+   * mencoba ulang dan meluncurkan beberapa pasar berturut-turut, sambil menjadikan penyedotan
+   * kunci anchoring mustahil dari satu alamat.
+   *
+   * Ini BUKAN perlindungan yang lengkap, dan itu perlu ditulis: `clientIp` bergantung pada
+   * header yang benar, dan lapisan itu diperbaiki terpisah. Batas per-IP juga lebih lemah
+   * daripada budget belanja pada kunci anchoring beserta alarm saldonya.
+   *
+   * Dilaporkan sebagai temuan 3 di GHSA-g589-wjqq-86f2.
+   */
+  if (stage === "prepare") {
+    const gate = rateLimit(`deploy-prepare:${clientIp(req)}`, PREPARE_LIMIT, PREPARE_WINDOW_MS);
+    if (!gate.ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Too many launch preparations. This stage anchors metadata to 0G and costs gas on our side, so it is rate limited.",
+          retryAfter: gate.retryAfter,
+        },
+        { status: 429, headers: rateLimitHeaders(gate) }
+      );
+    }
+  }
+
   try {
     if (stage === "prepare") return await handlePrepare(body);
     if (stage === "confirm") return await handleConfirm(body);
@@ -634,13 +682,31 @@ async function handleConfirm(body: any) {
 
   const symbol = String(body.symbol || "").trim().toUpperCase();
 
-  // Scoped to this chain, so chains 2..4 of a multi-chain launch are not rejected
-  // as duplicates of chain 1.
-  const availability = checkSymbolAvailable(symbol, chain.chainId, body.creator);
-  if (!availability.available) {
-    return NextResponse.json({ error: availability.reason, code: "SYMBOL_UNAVAILABLE" }, { status: 409 });
-  }
-
+  /**
+   * PEMERIKSAAN KETERSEDIAAN TICKER SENGAJA TIDAK DI SINI LAGI.
+   *
+   * Dulu ia berjalan di titik ini dengan `body.creator` — nilai dari badan permintaan — dan
+   * itulah lubangnya. `checkSymbolAvailable` memakai creator untuk dua pengecualian: ticker
+   * yang direservasi protokol, dan hak creator asal memperluas tickernya ke chain lain. Dengan
+   * creator yang bisa diklaim bebas, keduanya terbuka untuk siapa saja:
+   *
+   *   - luncurkan token ber-ticker `ADEXTO` lewat factory publik (symbolRegistry on-chain
+   *     tidak mereservasi nama protokol), lalu POST `confirm` dengan creator = deployer kami
+   *     -> halaman `/token/adexto` resmi menampilkan token orang lain
+   *   - ambil alamat creator proyek mana pun yang terdaftar, POST token sendiri di chain yang
+   *     tickernya belum terdaftar -> listing palsu atas nama proyek itu
+   *
+   * Stage ini juga tidak pernah memeriksa tanda tangan: `verifyLaunchAttestation` hanya
+   * dipanggil oleh `handlePrepare`. Jadi tidak ada apa pun yang mengikat pemanggil ke alamat
+   * yang diklaimnya.
+   *
+   * Pemeriksaannya kini berjalan SESUDAH event factory diurai, memakai creator dari chain.
+   * Harganya satu pembacaan receipt untuk permintaan yang akhirnya ditolak — dan itu memang
+   * harga yang harus dibayar, sebab keputusan otorisasi tidak boleh bergantung pada nilai yang
+   * dikirim pemanggil.
+   *
+   * Dilaporkan sebagai temuan 2 di GHSA-g589-wjqq-86f2.
+   */
   const provider = readProvider(chain);
   const receipt = await provider.getTransactionReceipt(txHash);
   if (!receipt) {
@@ -658,6 +724,7 @@ async function handleConfirm(body: any) {
   let tokenAddress: string | null = null;
   let poolAddress: string | null = null;
   let onChainSymbol: string | null = null;
+  let onChainCreator: string | null = null;
   let poolNative = 0;
   let poolTokens = 0;
 
@@ -666,6 +733,10 @@ async function handleConfirm(body: any) {
       const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
       if (parsed?.name === "TrinityProjectDeployed") {
         tokenAddress = parsed.args.token;
+        // `creator` di event ini adalah `msg.sender` dari `deployTrinity`
+        // (AdextoCurveFactory.sol:336). Ia datang dari chain, jadi pemanggil tidak bisa
+        // memilihnya — itulah sebabnya identitas dibaca dari sini dan bukan dari body.
+        onChainCreator = parsed.args.creator ?? null;
         // v3 names the venue `curve`; v2 named it `pool`. Accept either so a
         // registry written by one generation is still readable by the other.
         poolAddress = parsed.args.curve ?? parsed.args.pool;
@@ -696,6 +767,44 @@ async function handleConfirm(body: any) {
       { error: `Ticker mismatch: transaction minted ${onChainSymbol}, request claimed ${symbol}.` },
       { status: 400 }
     );
+  }
+
+  /**
+   * Identitas creator, DARI CHAIN.
+   *
+   * `receipt.from` dipakai sebagai cadangan, bukan sebagai pilihan utama: kalau launch dikirim
+   * lewat kontrak perantara, pengirim transaksi dan `msg.sender` yang dilihat factory bisa
+   * berbeda, dan yang benar adalah yang factory catat. Keduanya berasal dari chain, jadi tidak
+   * ada jalur di mana pemanggil memilih nilai ini.
+   */
+  const creator = onChainCreator ?? receipt.from;
+
+  /**
+   * `body.creator` DITOLAK kalau tidak cocok, bukan diabaikan diam-diam.
+   *
+   * Mengabaikannya akan membuat klien lama yang mengirim alamat berbeda tetap berhasil dengan
+   * identitas yang bukan miliknya, dan tidak ada yang tahu. Menjawab 409 memberi tahu persis
+   * apa yang tidak cocok, dan studio memang selalu mengirim alamat penanda tangannya sendiri —
+   * jadi jalur normal tidak pernah menyentuh cabang ini.
+   */
+  if (body.creator && String(body.creator).toLowerCase() !== creator.toLowerCase()) {
+    return NextResponse.json(
+      {
+        error:
+          `The launch transaction was sent by ${creator}, but the request claims ${body.creator}. ` +
+          `Creator identity is read from the factory event, not from the request.`,
+        code: "CREATOR_MISMATCH",
+        creator,
+      },
+      { status: 409 }
+    );
+  }
+
+  // Scoped to this chain, so chains 2..4 of a multi-chain launch are not rejected
+  // as duplicates of chain 1. Lihat catatan panjang di atas: creator-nya sekarang dari chain.
+  const availability = checkSymbolAvailable(symbol, chain.chainId, creator);
+  if (!availability.available) {
+    return NextResponse.json({ error: availability.reason, code: "SYMBOL_UNAVAILABLE" }, { status: 409 });
   }
 
   const code = await provider.getCode(tokenAddress);
@@ -776,7 +885,10 @@ async function handleConfirm(body: any) {
     record = registerProject({
     tokenAddress,
     poolAddress,
-    creator: /^0x[a-fA-F0-9]{40}$/.test(String(body.creator || "")) ? String(body.creator) : receipt.from,
+    // Dari event factory, bukan dari body. Baris ini dulu lebih memilih `body.creator` dan
+    // hanya jatuh ke `receipt.from` bila formatnya salah — jadi alamat berformat benar milik
+    // orang lain selalu menang. Temuan 2 di GHSA-g589-wjqq-86f2.
+    creator,
     name: String(body.name || symbol),
     symbol,
     chainId: chain.chainId,

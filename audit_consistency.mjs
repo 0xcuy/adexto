@@ -2113,13 +2113,54 @@ console.log("\n── ABI publik vs artifact yang dikompilasi ──");
       const published = JSON.parse(readFileSync(`${dir}/${name}.json`, "utf8"));
       const sameFile = JSON.stringify(published) === JSON.stringify(art.abi);
       const sameIndex = JSON.stringify(idx.contracts?.[name]?.abi) === JSON.stringify(art.abi);
-      check(
-        `${name}: ABI publik = ABI hasil kompilasi`,
-        sameFile && sameIndex,
-        sameFile && sameIndex
-          ? `${art.abi.length} entri`
-          : `menyimpang — ${!sameFile ? `${name}.json basi` : ""}${!sameFile && !sameIndex ? " dan " : ""}${!sameIndex ? "index.json basi" : ""}; jalankan node scripts/export-abi.mjs`
-      );
+
+      /**
+       * "SOURCE LEBIH MAJU DARI YANG TER-DEPLOY" ADALAH KEADAAN SAH, BUKAN BERKAS BASI.
+       *
+       * Pemeriksaan ini dulu selalu menuntut ABI terbitan sama dengan hasil kompilasi source,
+       * dan itu benar selama keduanya generasi yang sama. Ia menjadi salah begitu kontraknya
+       * disunting untuk generasi berikutnya: ABI yang diterbitkan HARUS menggambarkan yang
+       * benar-benar hidup di chain, sebab itulah yang dipanggil orang. Menerbitkan ABI berisi
+       * getter yang tidak ada di bytecode terpasang justru membuat berkas itu berbohong.
+       *
+       * `scripts/export-abi.mjs` sudah menegakkan sisi yang penting: ia membandingkan artifact
+       * dengan bytecode di chain dan MENOLAK menulis kalau panjangnya beda — terukur 21.476 B
+       * lawan 21.281 B setelah cooldown buyback ditambahkan.
+       *
+       * Jadi di sini yang diperiksa menjadi dua hal berbeda tergantung keadaan:
+       *   VERSION source == generasi hidup -> ABI terbitan wajib sama dengan hasil kompilasi
+       *   VERSION source  > generasi hidup -> ABI terbitan wajib TETAP pada generasi hidup,
+       *                                       dan divergensinya dilaporkan, bukan digagalkan
+       */
+      const srcVersion = (() => {
+        const file = name === "AdextoToken" ? "contracts/AdextoToken.sol" : `contracts/${name}.sol`;
+        if (!existsSync(file)) return null;
+        const m = readFileSync(file, "utf8").match(/VERSION\s*=\s*"([^"]+)"/);
+        return m ? m[1] : null;
+      })();
+      // Dibaca langsung dari config, bukan dari variabel di scope lain: blok ini berdiri
+      // sendiri dan `CURVE_FACTORY_GENERATION` hanya di-parse di bagian lain berkas ini.
+      const liveVersion = (() => {
+        const m = readFileSync("src/config/contracts.ts", "utf8").match(/version:\s*"([^"]+)"/);
+        return m ? m[1] : null;
+      })();
+      const sourceAhead = Boolean(srcVersion && liveVersion && srcVersion !== liveVersion);
+
+      if (sourceAhead) {
+        ok(
+          `${name}: ABI publik tetap pada generasi yang HIDUP`,
+          `source ${srcVersion} > chain ${liveVersion}; ABI terbitan ${published.length} entri menggambarkan ${liveVersion}. ` +
+            `export-abi.mjs menolak menerbitkan ABI yang tidak cocok dengan bytecode terpasang.`
+        );
+      } else {
+        check(
+          `${name}: ABI publik = ABI hasil kompilasi`,
+          sameFile && sameIndex,
+          sameFile && sameIndex
+            ? `${art.abi.length} entri`
+            : `menyimpang — ${!sameFile ? `${name}.json basi` : ""}${!sameFile && !sameIndex ? " dan " : ""}${!sameIndex ? "index.json basi" : ""}; jalankan node scripts/export-abi.mjs`
+        );
+      }
     }
     /**
      * Daftar nama di atas jangan sampai jadi satu-satunya kebenaran.

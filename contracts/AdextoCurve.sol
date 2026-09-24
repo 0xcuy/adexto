@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 /**
  * @dev Kedua interface ini dinamai berbeda dari yang ada di `SovereignCurve.sol`.
@@ -154,7 +154,19 @@ interface IAdextoBurnable {
  * curve payouts automatically.
  */
 contract AdextoCurve {
-    string public constant VERSION = "0.11.0";
+    /**
+     * 0.12.0 KARENA PERILAKUNYA BERUBAH, dan nomor ini tidak boleh berbohong.
+     *
+     * `executeBuyback` mendapat cooldown (lihat catatan panjang pada fungsinya, temuan 1 di
+     * GHSA-g589-wjqq-86f2). Bytecode-nya ikut berubah — terukur: artifact 21.476 B lawan
+     * 21.281 B di chain — jadi membiarkan nomornya tetap 0.11.0 berarti dua bytecode berbeda
+     * mengaku sebagai generasi yang sama, dan tidak akan ada cara membedakannya dari luar.
+     *
+     * `src/config/contracts.ts` SENGAJA tetap 0.11.0: berkas itu mencatat generasi yang
+     * benar-benar HIDUP di keempat chain, dan `audit_consistency.mjs` membacanya lalu
+     * membandingkannya dengan `VERSION()` on-chain. Ia baru naik ketika 0.12.0 di-deploy.
+     */
+    string public constant VERSION = "0.12.0";
 
     // ─── Immutable wiring ────────────────────────────────────────────────────
     address public immutable factory;
@@ -193,6 +205,16 @@ contract AdextoCurve {
 
     uint256 public constant MAX_TOTAL_FEE_BPS = 500; // hard cap 5%
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    /**
+     * @notice Minimum gap between two buybacks on this curve.
+     * @dev One hour, and the figure is a trade-off rather than a magic number. What the
+     *      cooldown has to break is ATOMICITY: the profitable attack buys, loops the buyback
+     *      and sells inside one transaction, so the price it moved never reaches anyone else.
+     *      Any non-zero gap breaks that. An hour then also bounds the patient version — at most
+     *      24 buybacks a day, each capped at 1% of the reserve — while leaving the feature
+     *      usable, since a buyback is meant to run periodically and not per block.
+     */
+    uint256 public constant BUYBACK_COOLDOWN = 1 hours;
 
     // ─── Curve state ─────────────────────────────────────────────────────────
     bool public initialized;
@@ -212,6 +234,14 @@ contract AdextoCurve {
     uint256 public creatorOwed;
     /// @notice Native accrued for the agent buyback vault. Excluded from the curve.
     uint256 public treasuryNative;
+    /**
+     * @notice Block timestamp of the most recent buyback. Zero until the first one.
+     * @dev Makes `executeBuyback`'s per-call cap a budget instead of a step size. Without it
+     *      the whole treasury could be pushed into the curve in a single transaction, since
+     *      each call raises the reserve and therefore the 1% ceiling. See the long note on
+     *      `executeBuyback`. Finding 1 in GHSA-g589-wjqq-86f2.
+     */
+    uint256 public lastBuybackAt;
     /// @notice Native owed to the protocol treasury, claimable. Excluded from the curve.
     uint256 public protocolOwed;
 
@@ -346,18 +376,30 @@ contract AdextoCurve {
      *         point is that no native seed is required.
      * @dev Caller must have approved `tokenAmount` first.
      */
-    function initializeCurve(uint256 tokenAmount) external onlyFactory nonReentrant {
+    function initializeCurve(uint256 tokenAmount) external nonReentrant onlyFactory {
         require(!initialized, "AdextoCurve: already initialized");
         require(targetToken != address(0), "AdextoCurve: token not bound");
         require(tokenAmount > 0, "AdextoCurve: token seed required");
+
+        /**
+         * State DULU, transfer sesudahnya — checks-effects-interactions.
+         *
+         * Urutan lama menulis `curveTokens` dan `initialized` setelah `transferFrom`, yang
+         * dilaporkan Aderyn sebagai High "Reentrancy: State change after external call".
+         * `nonReentrant` dan `onlyFactory` sudah menutup jalurnya, tetapi bergantung pada guard
+         * ketika urutannya bisa dibuat benar berarti pembaca harus memverifikasi guard itu dulu
+         * untuk menyimpulkan fungsi ini aman.
+         *
+         * Aman ditukar: kalau transfernya gagal, seluruh transaksi revert dan kedua nilai ini
+         * kembali seperti semula.
+         */
+        curveTokens = tokenAmount;
+        initialized = true;
 
         require(
             IERC20Curve(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
             "AdextoCurve: token transfer failed"
         );
-
-        curveTokens = tokenAmount;
-        initialized = true;
 
         emit CurveInitialized(virtualNative, tokenAmount, (virtualNative * 1e18) / tokenAmount);
     }
@@ -599,6 +641,17 @@ contract AdextoCurve {
         creatorOwed = 0;
         totalCreatorFeesPaid += amount;
 
+                /**
+         * Redundan secara konstruksi, DAN DISENGAJA TETAP ADA.
+         *
+         * `creator` itu `immutable` dan konstruktor sudah menolak alamat nol, jadi cabang ini
+         * tidak akan pernah diambil. Yang dibelinya bukan keamanan tambahan melainkan
+         * keterbacaan: titik transfer menjadi jelas aman tanpa pembaca harus melacak ke
+         * konstruktor, dan Aderyn tidak lagi melaporkan "ETH transferred without address
+         * checks" sebagai High — temuan yang benar sebagai pembacaan statis, dan yang
+         * sebelumnya hanya bisa dijawab dengan prosa di halaman /security.
+         */
+        require(creator != address(0), "AdextoCurve: zero creator");
         (bool sent, ) = payable(creator).call{value: amount}("");
         require(sent, "AdextoCurve: creator transfer failed");
 
@@ -631,6 +684,17 @@ contract AdextoCurve {
         protocolOwed = 0;
         totalProtocolFeesPaid += amount;
 
+                /**
+         * Redundan secara konstruksi, DAN DISENGAJA TETAP ADA.
+         *
+         * `protocolTreasury` itu `immutable` dan konstruktor sudah menolak alamat nol, jadi cabang ini
+         * tidak akan pernah diambil. Yang dibelinya bukan keamanan tambahan melainkan
+         * keterbacaan: titik transfer menjadi jelas aman tanpa pembaca harus melacak ke
+         * konstruktor, dan Aderyn tidak lagi melaporkan "ETH transferred without address
+         * checks" sebagai High — temuan yang benar sebagai pembacaan statis, dan yang
+         * sebelumnya hanya bisa dijawab dengan prosa di halaman /security.
+         */
+        require(protocolTreasury != address(0), "AdextoCurve: zero protocol treasury");
         (bool sent, ) = payable(protocolTreasury).call{value: amount}("");
         require(sent, "AdextoCurve: protocol transfer failed");
 
@@ -673,10 +737,36 @@ contract AdextoCurve {
      * succeeded.
      *
      * Hence the cap: at most 1% of the native reserve per call. That holds the
-     * sandwich's ceiling near its 60bps cost, and each further attempt must wait
-     * for the treasury to refill from real volume. The real constraint is size per
+     * sandwich's ceiling near its 60bps cost. The real constraint is size per
      * call, not the identity of the caller — so once the size is bounded,
      * permission buys nothing and costs the feature its only working caller.
+     *
+     * THE CAP ALONE WAS NOT ENOUGH, AND THIS PARAGRAPH USED TO CLAIM IT WAS.
+     *
+     * It said "each further attempt must wait for the treasury to refill from real
+     * volume". The cap was here; the waiting was not. A cap on one step does not
+     * bound how many steps a single transaction takes, and each call raises the
+     * reserve, so the 1% ceiling rises as a loop runs. The whole accrued treasury
+     * could be pushed into the curve in one transaction, in the middle of a
+     * buy-then-sell round trip.
+     *
+     * Measured by the reporter against a treasury built by real trades, using only
+     * this public entry point: 101.32 native drained in 3 calls, 65.96 profit on
+     * 3,000 of capital — about 65% of the bucket. A pre-buy five times the reserve
+     * captures closer to 98%. Solvency held throughout and `_assertSolvent()`
+     * passed, so what was extracted is fee revenue rather than user principal,
+     * which is why it was rated High and not Critical.
+     *
+     * `BUYBACK_COOLDOWN` is what makes the sentence true. It does not make the
+     * sandwich unprofitable by itself — it makes it non-atomic, which is the part
+     * that mattered: the attacker can no longer buy, drain and sell inside one
+     * transaction, so the moved price is exposed to everyone else before they can
+     * close. Reported as finding 1 in GHSA-g589-wjqq-86f2.
+     *
+     * THIS DOES NOT REACH THE MARKETS THAT ARE ALREADY LIVE. Their bytecode is
+     * frozen and has no owner, so there is no upgrade path. The fix applies to
+     * curves deployed by the next factory generation, and `/security` says so
+     * rather than implying the live ones carry it.
      *
      * `minTokensBurned` stays a parameter: an honest caller should still be able
      * to protect their own call, and the cap already bounds what a dishonest one
@@ -704,6 +794,22 @@ contract AdextoCurve {
             nativeAmount * 100 <= virtualNative + _curveNative,
             "AdextoCurve: buyback exceeds 1% of reserve"
         );
+        /**
+         * Turns the per-call cap into a budget. Checked before any state moves so a second
+         * call in the same transaction reverts rather than partially running.
+         *
+         * `lastBuybackAt == 0` is tested explicitly, and the first version of this fix did
+         * not. Zero means "never run", not "ran at the epoch": comparing
+         * `block.timestamp >= 0 + BUYBACK_COOLDOWN` blocks the very FIRST buyback on any
+         * chain whose timestamp is below the cooldown. Caught by
+         * `test/AdextoBuybackCooldown.t.sol`, where Foundry starts the clock at 1 and all
+         * five tests failed on the opening call.
+         */
+        require(
+            lastBuybackAt == 0 || block.timestamp >= lastBuybackAt + BUYBACK_COOLDOWN,
+            "AdextoCurve: buyback cooldown"
+        );
+        lastBuybackAt = block.timestamp;
 
         (uint256 tokensOut, uint256 depthFee, , , ) = getBuyQuote(nativeAmount);
         require(tokensOut > 0, "AdextoCurve: buyback output zero");
@@ -717,9 +823,14 @@ contract AdextoCurve {
         totalDepthFeesRetained += depthFee;
         swapCount += 1;
 
+        // Penghitung dinaikkan SEBELUM pembakaran, alasan yang sama seperti di
+        // `initializeCurve`: kalau pembakarannya gagal, transaksinya revert dan penghitungnya
+        // ikut kembali. Urutan lama membuat satu-satunya tulisan state di fungsi ini terjadi
+        // setelah panggilan eksternal.
+        totalTokensBurned += tokensOut;
         // Tokens bought are burned by the token contract, permanently reducing supply.
         IAdextoBurnable(targetToken).executeTreasuryBuyback(tokensOut);
-        totalTokensBurned += tokensOut;
+
 
         _assertSolvent();
         emit AutoBuybackExecuted(

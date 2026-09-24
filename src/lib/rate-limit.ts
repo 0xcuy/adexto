@@ -1,3 +1,5 @@
+import { isCloudflareIp } from "@/lib/cloudflare-ips";
+
 /**
  * Pembatas laju untuk endpoint publik yang membelanjakan uang.
  *
@@ -52,26 +54,56 @@ function store(): Map<string, Hits> {
 const MAX_KEYS = 5_000;
 
 /**
- * IP pemanggil, dibaca dari header proxy.
+ * IP pemanggil, dan header mana yang boleh dipercaya untuk menentukannya.
  *
- * Situs ini di belakang Cloudflare lalu nginx, jadi `cf-connecting-ip` adalah satu-satunya
- * yang tidak bisa dipalsukan pemanggil: Cloudflare menuliskannya sendiri dan menimpa apa pun
- * yang dikirim klien. `x-forwarded-for` BISA dipalsukan, jadi ia hanya dipakai sebagai
- * cadangan dan entri PERTAMA yang diambil — entri paling kanan ditulis proxy kita, entri
- * paling kiri diklaim klien, dan untuk pembatasan laju kita justru ingin identitas yang
- * paling spesifik walau bisa dibohongi. Pemalsuannya hanya merugikan si pemalsu sendiri
- * kecuali ia memutar nilainya, dan itu yang ditangani `MAX_KEYS` di atas.
+ * VERSI SEBELUMNYA SALAH, DAN INI ALASANNYA
  *
- * Tanpa header apa pun — misalnya permintaan langsung ke port kontainer — semuanya jatuh ke
- * satu keranjang `"unknown"`. Itu disengaja: satu keranjang bersama lebih aman daripada
- * tanpa batas sama sekali.
+ * Dulu baris pertamanya mengembalikan `cf-connecting-ip` apa adanya, dengan komentar bahwa
+ * Cloudflare menimpanya sehingga klien tidak bisa memalsukannya. Itu benar hanya untuk
+ * permintaan yang memang melewati Cloudflare, dan dua hal membatalkannya:
+ *
+ *   - `deploy/Caddyfile` menulis ulang `X-Real-IP` dan `X-Forwarded-For` dari `{remote_host}`
+ *     tetapi tidak menyentuh `cf-connecting-ip`, jadi satu-satunya header yang tidak
+ *     disanitasi justru yang paling dipercaya
+ *   - origin melayani permintaan langsung di IP publiknya — terukur 200, dan `ufw` mengizinkan
+ *     443 dari mana saja — sehingga pada jalur itu tidak ada Cloudflare yang menimpa apa pun
+ *
+ * Hasilnya kunci keranjang bisa dipilih penyerang: 200 permintaan dengan header diputar lolos
+ * semuanya di PoC pelapor. Temuan 4 di GHSA-g589-wjqq-86f2.
+ *
+ * KENAPA BUKAN SEKADAR MENUKAR URUTANNYA
+ *
+ * Karena lewat Cloudflare, `{remote_host}` adalah IP edge Cloudflare, bukan IP pengunjung —
+ * memakai `x-real-ip` lebih dulu akan menaruh SEMUA pengunjung di beberapa keranjang bersama
+ * dan mulai menolak orang yang tidak bersalah. Itu sebabnya `cf-connecting-ip` dipilih sejak
+ * awal, dan kesalahannya bukan pada pilihan itu melainkan pada tidak adanya pemeriksaan siapa
+ * yang mengirimnya.
+ *
+ * Jadi Caddy sekarang menuliskan peer sebenarnya ke `X-Peer-IP` — menimpa nilai apa pun yang
+ * dikirim klien — dan `cf-connecting-ip` hanya dipercaya kalau peer itu memang berada di
+ * rentang Cloudflare. Di luar itu, yang dipakai adalah peer-nya sendiri, yang tidak bisa
+ * dipalsukan karena proxy yang menuliskannya.
+ *
+ * `unknown` tetap ada sebagai jalur terakhir, misalnya permintaan langsung ke port kontainer.
+ * Satu keranjang bersama lebih aman daripada tanpa batas sama sekali.
  */
 export function clientIp(req: Request): string {
   const h = req.headers;
-  const cf = h.get("cf-connecting-ip");
-  if (cf) return cf.trim();
-  const real = h.get("x-real-ip");
-  if (real) return real.trim();
+
+  // Ditulis Caddy dari `{remote_host}`. Kalau ia tidak ada, permintaannya tidak lewat proxy
+  // kita dan tidak ada apa pun di sini yang boleh dipercaya sebagai identitas.
+  const peer = h.get("x-peer-ip")?.trim() || h.get("x-real-ip")?.trim() || "";
+
+  if (isCloudflareIp(peer)) {
+    const cf = h.get("cf-connecting-ip")?.trim();
+    if (cf) return cf;
+  }
+
+  // Peer-nya bukan Cloudflare: pemanggil menyambung langsung, jadi yang mengidentifikasinya
+  // adalah peer itu sendiri. `cf-connecting-ip` DIABAIKAN di jalur ini justru karena di sinilah
+  // ia bisa dipalsukan.
+  if (peer) return peer;
+
   const fwd = h.get("x-forwarded-for");
   if (fwd) {
     const first = fwd.split(",")[0]?.trim();

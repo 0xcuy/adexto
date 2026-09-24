@@ -1,20 +1,21 @@
 {
-  "generatedAt": "2026-09-21T10:35:12.880Z",
-  "commit": "c14c62446e4ee4ce0e56a9e31d1edeb0603dbb6a",
-  "commitTime": "2026-09-21T17:04:07+07:00",
+  "generatedAt": "2026-09-24T12:21:55.486Z",
+  "commit": "e6fda2db133f1b78837fb4398c049938cdbdd3b6",
+  "commitTime": "2026-09-24T17:14:55+07:00",
   "dirty": true,
   "contractHashes": {
-    "contracts/AdextoCCIPReceiver.sol": "534cd35d2d8936c4",
-    "contracts/AdextoCCIPTreasuryRouter.sol": "7185806125e075b8",
-    "contracts/AdextoCurve.sol": "4671289bad779434",
-    "contracts/AdextoCurveFactory.sol": "dd83495e91407353",
-    "contracts/AdextoFactory.sol": "8e436060c8f99af1",
-    "contracts/AdextoGovernor.sol": "f4ff48c1adb8217f",
-    "contracts/AdextoToken.sol": "86a2678cb15a8267",
-    "contracts/AdextoTrinityFactory.sol": "e02933aa8f7fbe44",
-    "contracts/IIdentityRegistry.sol": "f81b03d63679a015",
-    "contracts/SovereignCurve.sol": "093ed92ab6ccc838",
-    "contracts/SovereignHook.sol": "07781e29b560d093"
+    "contracts/AdextoCCIPReceiver.sol": "0f7329b9dac81741",
+    "contracts/AdextoCCIPTreasuryRouter.sol": "6ef1852421395a2b",
+    "contracts/AdextoCurve.sol": "82299dcff0d5e8eb",
+    "contracts/AdextoCurveFactory.sol": "ac70f981b7edb6c7",
+    "contracts/AdextoFactory.sol": "3c165230341b2f56",
+    "contracts/AdextoGovernor.sol": "11c9fc64d656c528",
+    "contracts/AdextoToken.sol": "8728f5d436a81619",
+    "contracts/AdextoTrinityFactory.sol": "874b48dfcab16bac",
+    "contracts/IIdentityRegistry.sol": "b87d4e38c8916738",
+    "contracts/ISovereignLegacy.sol": "754f26409d4d8314",
+    "contracts/SovereignCurve.sol": "e92d92245fa01320",
+    "contracts/SovereignHook.sol": "f4f24b105579f355"
   },
   "scope": {
     "launchPath": [
@@ -38,7 +39,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "46 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "44 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -97,18 +98,18 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 77,
-        "Medium": 36,
-        "Low": 28,
-        "Informational": 8,
+        "total": 68,
+        "Medium": 30,
+        "Low": 24,
+        "Informational": 9,
         "Optimization": 5
       },
       "launchPathCounts": {
-        "Medium": 17,
-        "Low": 15,
+        "Medium": 13,
+        "Low": 11,
         "Informational": 6
       },
-      "detail": "77 findings across 102 detectors · 0 High on the launch path"
+      "detail": "68 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -118,15 +119,15 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "highKinds": 4,
-        "highInstances": 39,
-        "lowKinds": 13,
-        "lowInstances": 87
+        "highKinds": 1,
+        "highInstances": 13,
+        "lowKinds": 10,
+        "lowInstances": 43
       },
       "launchPathCounts": {
-        "HighInstances": 27
+        "HighInstances": 8
       },
-      "detail": "4 High kinds / 13 Low kinds · 88 detectors"
+      "detail": "1 High kinds / 10 Low kinds · 88 detectors"
     },
     {
       "id": "solhint",
@@ -137,9 +138,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 909
+        "warnings": 904
       },
-      "detail": "0 errors, 909 warnings (style & gas rules)"
+      "detail": "0 errors, 904 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -150,10 +151,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 12,
+        "filesScanned": 13,
         "configErrors": 0
       },
-      "detail": "0 findings across 12 files · general p/security-audit ruleset"
+      "detail": "0 findings across 13 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -165,10 +166,10 @@
       "counts": {
         "properties": 4,
         "failed": 0,
-        "totalCalls": 50161,
-        "uniqueInstructions": 7252
+        "totalCalls": 50086,
+        "uniqueInstructions": 7195
       },
-      "detail": "4/4 properties passed · 50,161 calls",
+      "detail": "4/4 properties passed · 50,086 calls",
       "cases": [
         "echidna_solvent",
         "echidna_tokensSoldWithinCurve",

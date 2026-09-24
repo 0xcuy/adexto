@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 /**
  * Token EIP-3009 minimal, HANYA untuk pengujian facilitator x402.

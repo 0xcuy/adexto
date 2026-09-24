@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {AdextoToken} from "./AdextoToken.sol";
 
@@ -37,7 +37,14 @@ contract AdextoTrinityFactory {
         uint256 swapFeeBps,
         uint256 treasuryShareBps,
         bytes32 teeAttestationRoot
-    ) external payable returns (address) {
+    )
+        external
+        // `payable` DICABUT. `msg.value` tidak pernah dibaca di fungsi ini dan kontrak ini
+        // tidak punya penarikan, jadi native yang ikut terkirim akan terperangkap selamanya.
+        // Peluncuran memang hanya berbiaya gas — menerima nilai tidak pernah ada gunanya di
+        // sini. Aderyn High "Contract locks Ether without a withdraw function".
+        returns (address)
+    {
         AdextoToken newToken = new AdextoToken(
             name,
             symbol,

@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
-interface IERC20Minimal {
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function totalSupply() external view returns (uint256);
-}
-
-interface IAdextoToken {
-    function executeTreasuryBuyback(uint256 amountToBurn) external;
-}
+// `IERC20Minimal` dan `IAdextoToken` dipindah ke berkas bersama.
+//
+// Keduanya dulu dideklarasikan di sini DAN di berkas generasi ini yang lain, dengan isi
+// identik tetapi format berbeda — yang justru memperkuat masalahnya: dua definisi satu nama
+// sudah mulai menyimpang bentuknya. Aderyn High "Contract Name Reused in Different Files".
+import {IERC20Minimal, IAdextoToken} from "./ISovereignLegacy.sol";
 
 /**
  * @title SovereignCurve
@@ -132,6 +127,10 @@ contract SovereignCurve {
     /// @notice Native accrued for the agent buyback vault. Excluded from the curve.
     uint256 public treasuryNative;
 
+    /// @notice Block timestamp of the most recent buyback. Zero until the first one.
+    uint256 public lastBuybackAt;
+    /// @notice Minimum gap between two buybacks. Breaks the single-transaction drain loop.
+    uint256 public constant BUYBACK_COOLDOWN = 1 hours;
     uint256 public totalCreatorFeesPaid;
     uint256 public totalTreasuryFeesCollected;
     uint256 public totalDepthFeesRetained;
@@ -255,18 +254,20 @@ contract SovereignCurve {
      *      reuse with any other deployment flow, and an access modifier cannot be
      *      added after broadcast.
      */
-    function initializeCurve(uint256 tokenAmount) external onlyFactory nonReentrant {
+    function initializeCurve(uint256 tokenAmount) external nonReentrant onlyFactory {
         require(!initialized, "SovereignCurve: already initialized");
         require(targetToken != address(0), "SovereignCurve: token not bound");
         require(tokenAmount > 0, "SovereignCurve: token seed required");
+
+                // State DULU, transfer sesudahnya. Cermin dari perbaikan yang sama di
+        // `AdextoCurve.initializeCurve`; alasan lengkapnya ada di sana.
+curveTokens = tokenAmount;
+        initialized = true;
 
         require(
             IERC20Minimal(targetToken).transferFrom(msg.sender, address(this), tokenAmount),
             "SovereignCurve: token transfer failed"
         );
-
-        curveTokens = tokenAmount;
-        initialized = true;
 
         emit CurveInitialized(virtualNative, tokenAmount, (virtualNative * 1e18) / tokenAmount);
     }
@@ -493,6 +494,17 @@ contract SovereignCurve {
         creatorOwed = 0;
         totalCreatorFeesPaid += amount;
 
+                /**
+         * Redundan secara konstruksi, DAN DISENGAJA TETAP ADA.
+         *
+         * `creator` itu `immutable` dan konstruktor sudah menolak alamat nol, jadi cabang ini
+         * tidak akan pernah diambil. Yang dibelinya bukan keamanan tambahan melainkan
+         * keterbacaan: titik transfer menjadi jelas aman tanpa pembaca harus melacak ke
+         * konstruktor, dan Aderyn tidak lagi melaporkan "ETH transferred without address
+         * checks" sebagai High — temuan yang benar sebagai pembacaan statis, dan yang
+         * sebelumnya hanya bisa dijawab dengan prosa di halaman /security.
+         */
+        require(creator != address(0), "SovereignCurve: zero creator");
         (bool sent, ) = payable(creator).call{value: amount}("");
         require(sent, "SovereignCurve: creator transfer failed");
 
@@ -557,6 +569,20 @@ contract SovereignCurve {
             nativeAmount * 100 <= virtualNative + _curveNative,
             "SovereignCurve: buyback exceeds 1% of reserve"
         );
+        /**
+         * Same cooldown as AdextoCurve, and it is here for a reason worth stating: this
+         * generation is SUPERSEDED, but `scripts/compile-contracts.mjs` compiles every file in
+         * `contracts/`, so its bytecode is still published and still deployable. Leaving the
+         * known-vulnerable version in the repo would mean shipping it.
+         *
+         * Zero means "never run", not "ran at the epoch" — see the note in AdextoCurve.
+         * Finding 1 in GHSA-g589-wjqq-86f2.
+         */
+        require(
+            lastBuybackAt == 0 || block.timestamp >= lastBuybackAt + BUYBACK_COOLDOWN,
+            "SovereignCurve: buyback cooldown"
+        );
+        lastBuybackAt = block.timestamp;
 
         (uint256 tokensOut, uint256 depthFee, , ) = getBuyQuote(nativeAmount);
         require(tokensOut > 0, "SovereignCurve: buyback output zero");
@@ -571,8 +597,10 @@ contract SovereignCurve {
         swapCount += 1;
 
         // Tokens bought are burned by the token contract, permanently reducing supply.
-        IAdextoToken(targetToken).executeTreasuryBuyback(tokensOut);
+        // Penghitung dinaikkan sebelum pembakaran. Cermin dari `AdextoCurve.executeBuyback`.
         totalTokensBurned += tokensOut;
+        IAdextoToken(targetToken).executeTreasuryBuyback(tokensOut);
+
 
         _assertSolvent();
         emit AutoBuybackExecuted(

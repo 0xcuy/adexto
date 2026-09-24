@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 interface ICCIPReceiver {
     struct ClientAny2EVMMessage {
@@ -82,5 +82,16 @@ contract AdextoCCIPReceiver {
         );
     }
 
-    receive() external payable {}
+    /**
+     * `receive() external payable {}` DIHAPUS.
+     *
+     * Kontrak ini tidak punya fungsi penarikan dan tidak pernah membaca `msg.value`, jadi
+     * setiap native yang masuk terperangkap selamanya — tidak ada pemilik, tidak ada penyelamat.
+     * Aderyn menandainya High "Contract locks Ether without a withdraw function", dan itu benar.
+     *
+     * Jalan keluarnya dua: tambahkan penarikan, atau tutup pintunya. Yang kedua dipilih karena
+     * penarikan berarti menambah permukaan istimewa ke kontrak yang justru dirancang tanpa itu,
+     * demi kemampuan yang tidak dibutuhkan satu jalur pun. Tanpa `receive()`, transfer biasa
+     * ke sini akan revert — dan revert jauh lebih baik daripada uang yang hilang tanpa suara.
+     */
 }

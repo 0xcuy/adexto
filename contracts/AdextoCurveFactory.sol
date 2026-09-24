@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 import {AdextoToken} from "./AdextoToken.sol";
 import {SovereignCurve} from "./SovereignCurve.sol";
@@ -290,19 +290,19 @@ contract AdextoCurveFactory {
             agentRegistry
         );
         token = address(newToken);
-
-        // 3. Bind and load the curve atomically with 100% of supply. No native
-        //    changes hands, so a launch costs the creator gas only.
-        sovereignCurve.bindToken(token);
-        uint256 minted = IERC20Approve(token).balanceOf(address(this));
-        require(minted > 0, "Factory: nothing minted");
-        require(IERC20Approve(token).approve(curve, minted), "Factory: approve failed");
-        sovereignCurve.initializeCurve(minted);
-
-        // 4. Nothing is forwarded to the creator on purpose: no free allocation
-        //    means no supply to dump. The creator earns from `creatorShareBps`.
-        require(IERC20Approve(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
-
+        /**
+         * REGISTRY DITULIS DI SINI, bukan setelah kurva diisi.
+         *
+         * `curve` dan `token` sudah final pada titik ini, jadi menunda penulisannya sampai
+         * setelah `bindToken` dan `initializeCurve` tidak memberi apa pun — sementara itu
+         * membuat setiap tulisan terjadi SESUDAH panggilan eksternal, yang dilaporkan Aderyn
+         * sebagai High "Reentrancy: State change after external call", 6 instance di berkas ini.
+         *
+         * Dipindah ke depan, urutannya menjadi checks-effects-interactions. Dan ini lebih ketat
+         * daripada sekadar rapi: pada urutan lama `symbolRegistry[symbolKey]` masih nol selama
+         * kontrak lain dipanggil, jadi panggilan yang masuk kembali bisa mengklaim ticker yang
+         * sama. Sekarang klaim kedua menabrak `require` yang sudah ada di atas.
+         */
         symbolRegistry[symbolKey] = token;
         curveOf[token] = curve;
         tokenOf[curve] = token;
@@ -329,6 +329,20 @@ contract AdextoCurveFactory {
             agentIdOf[token] = agentId;
             emit AgentBound(token, agentId, agentRegistry, msg.sender);
         }
+
+
+        // 3. Bind and load the curve atomically with 100% of supply. No native
+        //    changes hands, so a launch costs the creator gas only.
+        sovereignCurve.bindToken(token);
+        uint256 minted = IERC20Approve(token).balanceOf(address(this));
+        require(minted > 0, "Factory: nothing minted");
+        require(IERC20Approve(token).approve(curve, minted), "Factory: approve failed");
+        sovereignCurve.initializeCurve(minted);
+
+        // 4. Nothing is forwarded to the creator on purpose: no free allocation
+        //    means no supply to dump. The creator earns from `creatorShareBps`.
+        require(IERC20Approve(token).balanceOf(address(this)) == 0, "Factory: supply not fully seeded");
+
 
         emit TrinityProjectCreated(token, msg.sender, symbol, metadataRoot);
         emit TrinityProjectDeployed(

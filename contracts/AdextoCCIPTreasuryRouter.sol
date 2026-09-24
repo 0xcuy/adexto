@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.26;
 
 interface IRouterClient {
     struct EVMTokenAmount {
@@ -84,5 +84,22 @@ contract AdextoCCIPTreasuryRouter {
 
         messageId = IRouterClient(router).ccipSend{value: fee}(destinationChainSelector, message);
         emit CrossChainTreasurySynced(messageId, destinationChainSelector, receiver, fee);
+        /**
+         * Kelebihan di atas fee DIKEMBALIKAN, dan sebelumnya tidak.
+         *
+         * Fee CCIP baru diketahui setelah `getFee`, jadi pemanggil harus melebihkan kiriman.
+         * Tanpa pengembalian, selisihnya mengendap di kontrak yang tidak punya fungsi penarikan
+         * — terperangkap selamanya. Itulah High "Contract locks Ether without a withdraw
+         * function" dari Aderyn, dan ia menunjuk cacat yang nyata, bukan pembacaan statis.
+         *
+         * Dikembalikan ke `msg.sender` dan bukan ke `owner`: yang melebihkan bayarannya adalah
+         * pemanggil, jadi kepada dialah kelebihan itu milik. Dikirim SETELAH `ccipSend` supaya
+         * kegagalan pengiriman membatalkan seluruh transaksi alih-alih membayar balik lebih dulu.
+         */
+        uint256 refund = msg.value - fee;
+        if (refund > 0) {
+            (bool sent, ) = payable(msg.sender).call{value: refund}("");
+            require(sent, "CCIP fee refund failed");
+        }
     }
 }
