@@ -551,6 +551,117 @@ console.log("\n── jalur WalletConnect, tanpa wallet tersuntik ──");
   await page.close();
 }
 
+// ── Disconnect harus BERARTI disconnect ─────────────────────────────────────
+/**
+ * Dilaporkan pengguna: "sudah disconnect, di-reload malah connect lagi, dan connect terus."
+ *
+ * Dua sebab, keduanya di sisi kami:
+ *
+ *   1. "Disconnect" di dapp tidak mencabut izin di ekstensi, jadi `eth_accounts` TERUS
+ *      mengembalikan alamatnya dan efek pemulihan menyambungkan ulang saat halaman dimuat.
+ *   2. `disconnectWallet()` memanggil `setActiveWallet(null)`, yang mengubah dependensi efek
+ *      pemulihan — jadi efeknya jalan ulang dan menyambungkan kembali **dalam 1 detik, tanpa
+ *      reload**. Itu bagian "connect terus".
+ *
+ * Diuji DUA ARAH, karena perbaikan yang menghormati niat memutus bisa dengan mudah berubah menjadi
+ * bug yang mengunci pengguna keluar:
+ *   A. disconnect harus bertahan — tanpa reload maupun sesudah reload
+ *   B. connect lagi harus berhasil, dan bertahan melewati reload
+ *
+ * Shim-nya meniru ekstensi sungguhan: izin bertahan di sessionStorage, jadi `eth_accounts` tetap
+ * menjawab dengan alamat sesudah "disconnect" — persis keadaan yang memicu bug ini.
+ */
+console.log("\n── disconnect harus bertahan, dan connect lagi harus bisa ──");
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.on("dialog", async (d) => await d.dismiss());
+  await page.addInitScript(({ addr }) => {
+    const granted = () => sessionStorage.getItem("__granted") === "1";
+    const p = {
+      isMetaMask: true,
+      request: async ({ method }) => {
+        if (method === "eth_chainId") return "0x4115";
+        if (method === "eth_requestAccounts") {
+          sessionStorage.setItem("__granted", "1");
+          return [addr];
+        }
+        if (method === "eth_accounts") return granted() ? [addr] : [];
+        // Ekstensi yang mendukung pencabutan izin; yang tidak mendukung melempar, dan itu sah.
+        if (method === "wallet_revokePermissions") {
+          sessionStorage.removeItem("__granted");
+          return null;
+        }
+        return null;
+      },
+      on: () => {},
+      removeListener: () => {},
+    };
+    window.ethereum = p;
+    const d = Object.freeze({ info: { uuid: "io.metamask", name: "MetaMask", rdns: "io.metamask", icon: "" }, provider: p });
+    const fire = () => window.dispatchEvent(new CustomEvent("eip6963:announceProvider", { detail: d }));
+    window.addEventListener("eip6963:requestProvider", fire);
+    fire();
+    try {
+      localStorage.setItem("adexto_cookie_choice", "essential");
+    } catch {}
+  }, { addr: ADDR });
+
+  const shown = async () => (await page.locator("body").innerText()).includes("0x8a3c");
+  const connect = async () => {
+    const btn = page.locator('button:visible:has-text("Connect wallet"), button:visible:has-text("Choose wallet")').first();
+    await btn.click();
+    await page.waitForTimeout(1200);
+    const item = page.locator('[role="menuitem"]:has-text("MetaMask")').first();
+    if ((await item.count()) > 0) await item.click();
+    await page.waitForTimeout(2500);
+  };
+  const disconnect = async () => {
+    const addrBtn = page.locator('button:visible:has-text("0x8a3c")').first();
+    if ((await addrBtn.count()) > 0) {
+      await addrBtn.click();
+      await page.waitForTimeout(900);
+    }
+    const dis = page.locator('button:visible:has-text("Disconnect")').first();
+    if ((await dis.count()) > 0) await dis.click();
+    await page.waitForTimeout(2500);
+  };
+
+  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForTimeout(5000);
+
+  await connect();
+  check("tersambung lebih dulu", await shown());
+
+  await disconnect();
+  check("sesudah Disconnect → terputus", !(await shown()));
+
+  // Bagian "connect terus": tanpa reload sama sekali.
+  let crept = false;
+  for (const t of [1, 2, 4]) {
+    await page.waitForTimeout(t * 1000);
+    if (await shown()) {
+      crept = true;
+      break;
+    }
+  }
+  check("tidak menyambung ulang sendiri tanpa reload", !crept, crept ? "tersambung lagi sendiri" : "diam selama 7s");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(6000);
+  check("tetap terputus sesudah reload", !(await shown()));
+
+  // Arah kedua: penandanya tidak boleh mengunci pengguna keluar.
+  await connect();
+  check("bisa menyambung lagi sesudah disconnect", await shown());
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(6000);
+  check("sambungan baru bertahan melewati reload", await shown());
+  const flag = await page.evaluate(() => localStorage.getItem("adexto_wallet_disconnected"));
+  check("penanda disconnect dihapus saat menyambung", flag === null, flag === null ? "" : `masih "${flag}"`);
+
+  await page.close();
+}
+
 await browser.close();
 console.log(`\n${fail === 0 ? "semua lolos" : `${fail} GAGAL`}`);
 process.exit(fail === 0 ? 0 : 1);

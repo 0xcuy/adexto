@@ -130,6 +130,46 @@ function injected(): any | null {
   return getActiveEip1193();
 }
 
+/**
+ * Niat pengguna untuk MEMUTUS, disimpan karena tidak ada tempat lain yang menyimpannya.
+ *
+ * "Disconnect" di sebuah dapp tidak mencabut izin di ekstensi — MetaMask tetap menganggap situs ini
+ * tersambung, jadi `eth_accounts` TERUS mengembalikan alamatnya. Tanpa penanda ini, efek pemulihan
+ * membaca alamat itu dan menyambungkan ulang, sehingga tombol Disconnect tidak pernah benar-benar
+ * memutus apa pun.
+ *
+ * Dan bukan hanya saat reload. `disconnectWallet()` memanggil `setActiveWallet(null)`, yang mengubah
+ * `activeWallet?.rdns` — salah satu dependensi efek pemulihan. Jadi efeknya langsung jalan ulang dan
+ * menyambungkan kembali. Terukur: tersambung lagi **dalam 1 detik, tanpa reload**. Itu gejala
+ * "connect terus" yang dilaporkan.
+ */
+const DISCONNECTED_KEY = "adexto_wallet_disconnected";
+
+function userDisconnected(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(DISCONNECTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markDisconnected() {
+  try {
+    localStorage.setItem(DISCONNECTED_KEY, "1");
+  } catch {
+    // Mode privat bisa menolak. Keadaan dalam memori tetap terputus untuk tab ini.
+  }
+}
+
+function clearDisconnected() {
+  try {
+    localStorage.removeItem(DISCONNECTED_KEY);
+  } catch {
+    // tidak ada yang rusak karenanya
+  }
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [walletChainId, setWalletChainId] = useState<number | null>(null);
@@ -156,6 +196,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedChain = localStorage.getItem("adexto_selected_chain") as ChainKey | null;
     if (savedChain && CHAINS[savedChain]) setSelectedChainState(savedChain);
+
+    /**
+     * Niat pengguna menang atas izin yang masih hidup di ekstensi.
+     *
+     * Tanpa penjaga ini, alamat yang masih dikembalikan `eth_accounts` akan menyambungkan ulang
+     * orang yang baru saja menekan Disconnect — baik saat reload maupun saat efek ini jalan ulang
+     * karena `setActiveWallet(null)` mengubah dependensinya.
+     *
+     * Pendengar `accountsChanged`/`chainChanged` juga tidak dipasang di sini, dan itu disengaja:
+     * dalam keadaan terputus, pergantian akun di ekstensi tidak boleh menarik pengguna kembali
+     * tersambung tanpa ia meminta.
+     */
+    if (userDisconnected()) return;
 
     const ethereum = injected();
     if (!ethereum) return;
@@ -292,6 +345,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const hexChainId: string = await ethereum.request({ method: "eth_chainId" });
       const id = parseInt(hexChainId, 16);
 
+      // Sambungan yang BERHASIL membatalkan niat memutus sebelumnya. Dihapus di sini, bukan di
+      // awal fungsi: kalau pemilih dibuka lalu ditutup tanpa memilih, niat memutus harus tetap
+      // berlaku — pengguna belum menyambung apa pun.
+      clearDisconnected();
+
       setAddress(accounts[0]);
       setWalletChainId(id);
       localStorage.setItem("adexto_wallet_address", accounts[0]);
@@ -322,6 +380,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         { uuid: WALLETCONNECT_RDNS, rdns: WALLETCONNECT_RDNS, name: "WalletConnect", icon: "" },
         provider
       );
+      clearDisconnected();
       setActiveWalletInfo(getActiveWalletInfo());
       setAddress(accounts[0]);
       localStorage.setItem("adexto_wallet_address", accounts[0]);
@@ -357,6 +416,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
    * providernya, yaitu membayar bundelnya untuk semua orang.
    */
   useEffect(() => {
+    // Niat memutus juga berlaku untuk sesi WalletConnect yang masih tersimpan.
+    if (userDisconnected()) return;
     if (!walletConnectConfigured() || !walletConnectWasUsed()) return;
     let alive = true;
     void (async () => {
@@ -381,6 +442,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const disconnectWallet = useCallback(() => {
+    /**
+     * Niatnya dicatat LEBIH DULU, sebelum state apa pun berubah.
+     *
+     * `setActiveWallet(null)` di bawah memicu `emit()`, yang mengubah dependensi efek pemulihan
+     * dan membuatnya jalan ulang pada render berikutnya. Kalau penanda ini belum ada pada saat itu,
+     * efek itu membaca `eth_accounts` yang masih mengembalikan alamat dan menyambungkan ulang.
+     */
+    markDisconnected();
+
+    /**
+     * Izin di ekstensi dicabut kalau wallet-nya mendukung, dengan usaha terbaik.
+     *
+     * Ini yang membuat Disconnect berarti sesuatu di luar situs ini: tanpanya MetaMask tetap
+     * mencantumkan adexto.xyz sebagai situs tersambung, dan sambungan berikutnya tidak akan
+     * meminta izin lagi. Wallet yang tidak mengenal metode ini melempar, dan itu bukan kegagalan —
+     * penanda lokal di atas sudah menjamin perilaku yang benar di sisi kami.
+     */
+    const provider = injected();
+    if (provider?.request) {
+      void provider
+        .request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] })
+        .catch(() => {});
+    }
+
     setAddress(null);
     setWalletChainId(null);
     localStorage.removeItem("adexto_wallet_address");
