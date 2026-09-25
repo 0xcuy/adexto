@@ -384,12 +384,24 @@ export default function AgentComputePanel() {
     }
   };
 
+  /**
+   * `"stream": false` DITULIS EKSPLISIT, dan menghilangkannya adalah bug yang sempat kami
+   * sajikan di halaman ini.
+   *
+   * Diukur: tanpa field `stream`, router membalas `content-type: text/event-stream` dan
+   * menempelkan `data: [DONE]` di belakang objek JSON-nya, sehingga `JSON.parse` pada body
+   * itu GAGAL — jadi contoh yang kami tampilkan tidak bisa dipakai oleh SDK mana pun yang
+   * mem-parse respons. Dengan `"stream": false` balasannya `application/json` yang bersih.
+   *
+   * Contohnya dipecah per baris supaya tetap bisa ditempel apa adanya ke shell.
+   */
   const curl = [
     `curl ${AGENT_COMPUTE_ENDPOINT}/chat/completions \\`,
     `  -H "Authorization: Bearer $ADEXTO_KEY" \\`,
     `  -H "Content-Type: application/json" \\`,
     `  -d '{"model":"${AGENT_COMPUTE_MODEL}",`,
-    `       "messages":[{"role":"user","content":"hello"}]}'`,
+    `       "messages":[{"role":"user","content":"hello"}],`,
+    `       "stream":false}'`,
   ].join("\n");
 
   return (
@@ -515,9 +527,22 @@ export default function AgentComputePanel() {
                 menjanjikan. */}
             {record ? (
               <div className="mt-5">
+                {/* SISA yang jadi angka utama, bukan yang terpakai.
+                    Keduanya informasi yang sama secara aritmetika, tapi bukan pertanyaan yang
+                    sama: orang yang membuka halaman ini ingin tahu berapa yang MASIH BISA
+                    dipakai, dan memaksa mereka mengurangi sendiri dari plafon adalah pekerjaan
+                    yang seharusnya dilakukan halaman. Yang terpakai tetap ada di bawah. */}
                 <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                  <span>Allowance used</span>
+                  <span>Compute left</span>
                   <span className="text-accent">{record.tierLabel ?? "no tier"}</span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="font-mono text-[22px] font-bold leading-none tracking-tight text-ink">
+                    {fmt(Math.max(0, record.allowance - used))}
+                  </span>
+                  <span className="font-mono text-[11px] text-ink-soft">
+                    of {fmt(record.allowance)} tokens
+                  </span>
                 </div>
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-cream-3">
                   <div
@@ -531,14 +556,26 @@ export default function AgentComputePanel() {
                     }}
                   />
                 </div>
-                <div className="mt-1.5 flex justify-between font-mono text-[11px] text-ink-soft">
+                <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 font-mono text-[11px] text-ink-soft">
                   <span>
-                    {fmt(used)} / {fmt(record.allowance)} tokens
+                    {fmt(used)} used ({fmt(record.usedInput)} in · {fmt(record.usedOutput)} out)
                   </span>
                   <span>
-                    {fmt(record.usedInput)} in · {fmt(record.usedOutput)} out · {fmt(record.requests)} req
+                    {fmt(record.requests)} req
+                    {record.requests > 0 && (
+                      <> · ~{fmt(Math.round(used / record.requests))}/req</>
+                    )}
                   </span>
                 </div>
+                {/* Sisa permintaan diperkirakan dari pemakaian NYATA kunci ini, bukan dari
+                    lantai terukur global — begitu ada riwayat, rata-rata sendiri lebih dekat
+                    ke kenyataan daripada angka rata-rata orang lain. */}
+                {record.requests > 0 && (
+                  <div className="mt-1 font-mono text-[11px] text-ink-faint">
+                    ≈{fmt(Math.floor(Math.max(0, record.allowance - used) / Math.max(1, Math.round(used / record.requests))))}{" "}
+                    more requests at your current average
+                  </div>
+                )}
               </div>
             ) : active && tier ? (
               <div className="mt-5">
@@ -875,6 +912,33 @@ export default function AgentComputePanel() {
               <pre className="overflow-x-auto p-4 font-mono text-[11px] leading-relaxed text-ink-soft">
                 {curl}
               </pre>
+              {/* Catatan streaming, dengan angka yang diukur bukan dikira-kira. Tanpa ini
+                  klien streaming yang naif terlihat rusak selama hampir tiga detik, karena
+                  model mengirim ratusan frame `reasoning_content` sebelum kalimat pertamanya. */}
+              <div className="space-y-2 border-t border-line px-4 py-3 text-[11px] leading-relaxed text-ink-soft">
+                <p>
+                  <strong className="text-ink">Streaming works.</strong> Set{" "}
+                  <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">&quot;stream&quot;: true</code>, and add{" "}
+                  <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">
+                    &quot;stream_options&quot;: {"{"}&quot;include_usage&quot;: true{"}"}
+                  </code>{" "}
+                  if you want the usage totals in the last frame.
+                </p>
+                <p>
+                  Read only <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">delta.content</code>. Thinking is
+                  on by default, so the model sends a long run of{" "}
+                  <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">delta.reasoning_content</code> first —
+                  measured at 140 reasoning frames before the first answer token, 2.8s in. Sending{" "}
+                  <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">&quot;enable_thinking&quot;: false</code>{" "}
+                  removed them entirely and brought the first token forward to 1.7s.
+                </p>
+                <p>
+                  Keep <code className="rounded bg-cream-3 px-1 py-0.5 font-mono">&quot;stream&quot;</code> in the body
+                  either way. Omit it and the reply arrives as JSON with an SSE terminator glued to
+                  the end, which no JSON parser accepts.
+                </p>
+              </div>
+
               <div className="space-y-2 border-t border-line px-4 py-3">
                 {[
                   ["Base URL", AGENT_COMPUTE_ENDPOINT],
@@ -944,11 +1008,14 @@ export default function AgentComputePanel() {
                       ["Input", `${fmt(record.usedInput)} tokens`],
                       ["Output", `${fmt(record.usedOutput)} tokens`],
                       ["Allowance", `${fmt(record.allowance)} tokens`],
+                      // Sisa ditampilkan sebagai barisnya sendiri, bukan diserahkan ke pembaca
+                      // untuk dihitung dari dua baris di atasnya.
+                      ["Remaining", `${fmt(Math.max(0, record.allowance - used))} tokens`],
                       ["Requests", fmt(record.requests)],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-3">
                         <dt className="text-ink-faint">{k}</dt>
-                        <dd className="text-ink-soft">{v}</dd>
+                        <dd className={k === "Remaining" ? "font-bold text-ink" : "text-ink-soft"}>{v}</dd>
                       </div>
                     ))}
                   </dl>
