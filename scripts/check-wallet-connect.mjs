@@ -165,6 +165,155 @@ console.log("\n── tanpa wallet sama sekali ──");
   await page.close();
 }
 
+// ── wallet yang TIDAK mengumumkan diri lewat EIP-6963 ────────────────────────
+/**
+ * Dilaporkan pengguna OKX, dan perilaku OKX memang tidak seragam antar versi: ada yang mengambil
+ * alih `window.ethereum`, ada yang tidak, dan versi baru mengumumkan diri lewat EIP-6963. Jadi
+ * yang diuji di sini bukan "OKX" sebagai merek, melainkan tiga bentuk suntikan yang mungkin.
+ *
+ * Skenario C yang paling berbahaya: wallet lain mengumumkan diri sementara OKX tidak. Daftar 6963
+ * berisi tepat satu entri, jadi sebelum perbaikan aplikasi memakainya TANPA BERTANYA — pengguna
+ * OKX disambungkan ke wallet yang tidak pernah ia pilih, dan tidak ada galat apa pun.
+ */
+const okxScenarios = [
+  {
+    label: "A. OKX mengumumkan diri (6963) + window.okxwallet, objek sama",
+    expectNames: ["OKX Wallet"],
+    setup: ({ addr }) => ({ announce: [["OKX Wallet", "com.okex.wallet"]], globals: { okxwallet: 0 }, windowEthereum: 0 }),
+  },
+  {
+    label: "B. OKX TANPA 6963, hanya window.okxwallet + window.ethereum",
+    expectNames: ["OKX Wallet"],
+    setup: () => ({ announce: [], globals: { okxwallet: 0 }, windowEthereum: 0, flags: [{ isOkxWallet: true }] }),
+  },
+  {
+    label: "C. MetaMask mengumumkan diri, OKX hanya menyuntik — harus TETAP terlihat",
+    expectNames: ["MetaMask", "OKX Wallet"],
+    setup: () => ({
+      announce: [["MetaMask", "io.metamask"]],
+      globals: { okxwallet: 1 },
+      windowEthereum: 0,
+      flags: [{ isMetaMask: true }, { isOkxWallet: true }],
+    }),
+  },
+];
+
+console.log("\n── wallet yang menyuntik tanpa mengumumkan diri ──");
+for (const sc of okxScenarios) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.addInitScript(
+    ({ addr, plan }) => {
+      window.__granted = false;
+      const mk = (flags) => ({
+        ...flags,
+        request: async ({ method }) => {
+          if (method === "eth_chainId") return "0x4115";
+          if (method === "eth_requestAccounts") {
+            window.__granted = true;
+            return [addr];
+          }
+          if (method === "eth_accounts") return window.__granted ? [addr] : [];
+          return null;
+        },
+        on: () => {},
+        removeListener: () => {},
+      });
+      // Satu kolam objek provider; indeks di `plan` menunjuk ke kolam ini supaya dua sumber bisa
+      // berbagi objek yang SAMA (itu yang membuat dedupe bisa diuji).
+      const pool = (plan.flags || [{}]).map(mk);
+      if (plan.windowEthereum !== undefined) window.ethereum = pool[plan.windowEthereum];
+      for (const [key, idx] of Object.entries(plan.globals || {})) window[key] = pool[idx];
+      const details = (plan.announce || []).map(([name, rdns], i) => ({
+        info: { uuid: rdns, name, rdns, icon: "" },
+        provider: pool[i],
+      }));
+      const fire = () =>
+        details.forEach((d) => window.dispatchEvent(new CustomEvent("eip6963:announceProvider", { detail: Object.freeze(d) })));
+      window.addEventListener("eip6963:requestProvider", fire);
+      fire();
+      try {
+        localStorage.setItem("adexto_cookie_choice", "essential");
+      } catch {}
+    },
+    { addr: ADDR, plan: sc.setup({ addr: ADDR }) }
+  );
+
+  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForTimeout(5000);
+
+  const btn = page.locator('button:has-text("Connect wallet"), button:has-text("Choose wallet")').first();
+  const label = (await btn.count()) > 0 ? (await btn.innerText()).trim() : "(tidak ada tombol)";
+
+  if (sc.expectNames.length === 1) {
+    // Satu wallet: harus langsung menyambung tanpa memaksa memilih.
+    if ((await btn.count()) > 0) await btn.click();
+    await page.waitForTimeout(2000);
+    const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
+    check(`${sc.label} → tersambung`, connected, `tombol: "${label}"`);
+  } else {
+    await btn.click();
+    await page.waitForTimeout(1500);
+    const items = await page.locator('[role="menuitem"]').allInnerTexts();
+    const found = items.map((t) => t.trim()).filter(Boolean);
+    const ok = sc.expectNames.every((n) => found.some((f) => f.includes(n)));
+    check(`${sc.label} → pemilih memuat ${sc.expectNames.join(" + ")}`, ok, `terlihat: ${found.join(", ") || "kosong"}`);
+    // Dan memilih OKX harus benar-benar memakai OKX.
+    const okxItem = page.locator('[role="menuitem"]:has-text("OKX")').first();
+    if ((await okxItem.count()) > 0) {
+      await okxItem.click();
+      await page.waitForTimeout(2000);
+      const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
+      check(`${sc.label} → memilih OKX menyambung`, connected);
+    }
+  }
+  await page.close();
+}
+
+// ── wallet yang menyuntik TERLAMBAT ─────────────────────────────────────────
+/**
+ * Ekstensi menyuntik dirinya pada waktu yang tidak dikendalikan halaman, dan sebagian tiba setelah
+ * React mount. EIP-6963 aman karena pengumumannya sebuah event; wallet yang hanya menyuntik tidak
+ * punya event apa pun, jadi satu pembacaan saat mount bisa melewatkannya selamanya.
+ */
+console.log("\n── wallet menyuntik terlambat (1,2s setelah muat) ──");
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.addInitScript(({ addr }) => {
+    window.__granted = false;
+    const p = {
+      isOkxWallet: true,
+      request: async ({ method }) => {
+        if (method === "eth_chainId") return "0x4115";
+        if (method === "eth_requestAccounts") {
+          window.__granted = true;
+          return [addr];
+        }
+        if (method === "eth_accounts") return window.__granted ? [addr] : [];
+        return null;
+      },
+      on: () => {},
+      removeListener: () => {},
+    };
+    setTimeout(() => {
+      window.okxwallet = p;
+      window.ethereum = p;
+    }, 1200);
+    try {
+      localStorage.setItem("adexto_cookie_choice", "essential");
+    } catch {}
+  }, { addr: ADDR });
+  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForTimeout(6000);
+  const btn = page.locator('button:has-text("Connect wallet")').first();
+  if ((await btn.count()) > 0) {
+    await btn.click();
+    await page.waitForTimeout(2000);
+  }
+  const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
+  check("wallet yang menyuntik terlambat tetap bisa menyambung", connected);
+  await page.close();
+}
+
 await browser.close();
 console.log(`\n${fail === 0 ? "semua lolos" : `${fail} GAGAL`}`);
 process.exit(fail === 0 ? 0 : 1);

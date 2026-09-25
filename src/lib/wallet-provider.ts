@@ -36,9 +36,41 @@ function emit() {
   listeners.forEach((fn) => fn(list));
 }
 
-/** Wallet yang terdeteksi, diurutkan menurut nama agar daftarnya stabil. */
+/**
+ * Wallet yang terdeteksi: hasil EIP-6963 DITAMBAH wallet yang hanya menyuntik diri.
+ *
+ * EIP-6963 tetap otoritatif — ia membawa nama dan ikon resmi wallet, dan identitasnya tidak
+ * bertabrakan. Lapisan suntikan hanya mengisi kekosongan, dan dua aturan dedupe menjaga daftarnya
+ * tidak berisi wallet yang sama dua kali:
+ *
+ *   1. objek provider yang IDENTIK — OKX versi baru mengumumkan diri LEWAT 6963 sekaligus tetap
+ *      mengisi `window.okxwallet`, dan keduanya biasanya objek yang sama;
+ *   2. nama yang sama setelah dinormalkan — kalau objeknya ternyata berbeda, entri 6963 yang
+ *      menang, karena namanya datang dari wallet itu sendiri dan bukan dari sniffing bendera.
+ *
+ * Diurutkan menurut nama supaya daftarnya stabil antar render.
+ */
 export function wallets(): DiscoveredWallet[] {
-  return [...discovered.values()].sort((a, b) => a.info.name.localeCompare(b.info.name));
+  const announced = [...discovered.values()];
+  const providers = new Set(announced.map((w) => w.provider));
+  const names = new Set(announced.map((w) => w.info.name.toLowerCase().replace(/\s+/g, "")));
+
+  const extra = legacyWallets().filter((w) => {
+    if (providers.has(w.provider)) return false;
+    const key = w.info.name.toLowerCase().replace(/\s+/g, "");
+    if (names.has(key)) return false;
+    names.add(key);
+    return true;
+  });
+
+  return [...announced, ...extra].sort((a, b) => a.info.name.localeCompare(b.info.name));
+}
+
+/** Sidik jari daftar wallet, dipakai untuk memutuskan apakah perlu memberi tahu pendengar. */
+function fingerprint(): string {
+  return wallets()
+    .map((w) => w.info.rdns)
+    .join("|");
 }
 
 /**
@@ -62,6 +94,29 @@ export function startWalletDiscovery(): void {
   });
 
   window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+  /**
+   * Pemindaian ulang, karena wallet yang hanya MENYUNTIK tidak punya event untuk diikuti.
+   *
+   * Ekstensi menyuntik dirinya pada waktu yang tidak kita kendalikan, dan sebagian tiba setelah
+   * React selesai mount. Untuk EIP-6963 itu tidak masalah — pengumumannya memicu `emit()`. Untuk
+   * `window.okxwallet` dan kerabatnya tidak ada apa pun yang memberi tahu, jadi satu pembacaan di
+   * saat mount bisa melewatkannya dan pemilih tetap kosong.
+   *
+   * `requestProvider` ikut dikirim ulang: wallet yang belum siap saat permintaan pertama akan
+   * menjawab yang kedua. Emit hanya terjadi kalau daftarnya BERUBAH, supaya ini tidak memicu
+   * render berulang tanpa sebab.
+   */
+  let last = fingerprint();
+  const rescan = () => {
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    const now = fingerprint();
+    if (now !== last) {
+      last = now;
+      emit();
+    }
+  };
+  for (const delay of [250, 800, 2000]) setTimeout(rescan, delay);
 }
 
 export function onWalletsChanged(fn: (wallets: DiscoveredWallet[]) => void): () => void {
@@ -75,9 +130,111 @@ function legacyProvider(): any | null {
   return (window as any).ethereum ?? null;
 }
 
+/**
+ * Nama wallet dari bendera pada providernya.
+ *
+ * `isMetaMask` DIPERIKSA PALING AKHIR, dan urutan itu bukan selera. Banyak wallet menyetel
+ * `isMetaMask: true` demi kompatibilitas dengan situs yang hanya mengenal MetaMask — OKX pernah
+ * begitu, begitu juga beberapa wallet lain. Memeriksanya lebih dulu akan menamai hampir semua
+ * wallet "MetaMask", dan pemilih menjadi daftar berisi nama yang sama berulang kali.
+ */
+function nameFromFlags(p: any): string {
+  if (!p || typeof p !== "object") return "Injected wallet";
+  if (p.isOkxWallet || p.isOKExWallet || p.isOkxwallet) return "OKX Wallet";
+  if (p.isRabby) return "Rabby";
+  if (p.isCoinbaseWallet || p.isCoinbaseBrowser) return "Coinbase Wallet";
+  if (p.isTrust || p.isTrustWallet) return "Trust Wallet";
+  if (p.isBraveWallet) return "Brave Wallet";
+  if (p.isPhantom) return "Phantom";
+  if (p.isBitKeep || p.isBitget) return "Bitget Wallet";
+  if (p.isTokenPocket) return "TokenPocket";
+  if (p.isOneKey) return "OneKey";
+  if (p.isZerion) return "Zerion";
+  if (p.isExodus) return "Exodus";
+  if (p.isSafePal) return "SafePal";
+  if (p.isMathWallet) return "MathWallet";
+  if (p.isBybit) return "Bybit Wallet";
+  if (p.isFrame) return "Frame";
+  if (p.isBackpack) return "Backpack";
+  if (p.isMetaMask) return "MetaMask";
+  return "Injected wallet";
+}
+
+/**
+ * Wallet yang MENYUNTIK diri tapi belum tentu MENGUMUMKAN diri lewat EIP-6963.
+ *
+ * KENAPA LAPISAN INI ADA
+ *
+ * Penemuan kita dulu hanya EIP-6963, dan akibatnya wallet yang tidak mengumumkan diri tidak
+ * pernah muncul di pemilih sama sekali. Itu dilaporkan sebagai "wallet connect tidak berfungsi"
+ * oleh pengguna OKX, dan perilaku OKX memang tidak seragam antar versi: ada versi yang mengambil
+ * alih `window.ethereum` (sehingga connect membuka OKX padahal user memilih wallet lain), ada
+ * versi yang tidak lagi melakukannya, dan versi baru mengumumkan diri lewat EIP-6963.
+ *
+ * Yang lebih buruk dari tidak terlihat: kalau wallet LAIN mengumumkan diri sementara OKX tidak,
+ * daftar 6963 berisi tepat satu entri, dan `getActiveEip1193()` memakainya tanpa bertanya. Jadi
+ * pengguna OKX diam-diam disambungkan ke wallet yang tidak ia pilih.
+ *
+ * Tiga sumber dipindai, dan semuanya digabung dengan hasil 6963:
+ *   1. `window.ethereum.providers` — konvensi multi-provider sebelum 6963; beberapa wallet masih
+ *      mengisinya.
+ *   2. global khusus per wallet (`window.okxwallet` dan kerabatnya) — satu-satunya cara melihat
+ *      wallet yang tidak mengumumkan diri DAN tidak memenangkan `window.ethereum`.
+ *   3. `window.ethereum` apa adanya, dinamai dari benderanya.
+ */
+function legacyWallets(): DiscoveredWallet[] {
+  if (typeof window === "undefined") return [];
+  const w = window as any;
+  const out: DiscoveredWallet[] = [];
+  const seen = new Set<any>();
+
+  const push = (provider: any, name: string, rdns: string) => {
+    if (!provider || typeof provider.request !== "function") return;
+    if (seen.has(provider)) return;
+    seen.add(provider);
+    out.push({ info: { uuid: rdns, name, icon: "", rdns }, provider });
+  };
+
+  // 1. Array multi-provider gaya lama.
+  const arr = w.ethereum?.providers;
+  if (Array.isArray(arr)) {
+    arr.forEach((p: any, i: number) => {
+      const name = nameFromFlags(p);
+      push(p, name, `injected:${name.toLowerCase().replace(/\s+/g, "-")}:${i}`);
+    });
+  }
+
+  // 2. Global khusus per wallet.
+  const probes: [any, string, string][] = [
+    [w.okxwallet, "OKX Wallet", "injected:okx"],
+    [w.okexchain?.request ? w.okexchain : null, "OKX Wallet", "injected:okx-legacy"],
+    [w.rabby, "Rabby", "injected:rabby"],
+    [w.trustwallet, "Trust Wallet", "injected:trust"],
+    [w.coinbaseWalletExtension, "Coinbase Wallet", "injected:coinbase"],
+    [w.phantom?.ethereum, "Phantom", "injected:phantom"],
+    [w.bitkeep?.ethereum, "Bitget Wallet", "injected:bitget"],
+    [w.tokenpocket?.ethereum, "TokenPocket", "injected:tokenpocket"],
+    [w.bybitWallet, "Bybit Wallet", "injected:bybit"],
+    [w.safepalProvider ?? w.safepal, "SafePal", "injected:safepal"],
+    [w.onekey?.ethereum, "OneKey", "injected:onekey"],
+    [w.zerionWallet, "Zerion", "injected:zerion"],
+    [w.exodus?.ethereum, "Exodus", "injected:exodus"],
+  ];
+  for (const [provider, name, rdns] of probes) push(provider, name, rdns);
+
+  // 3. `window.ethereum` apa adanya.
+  const bare = legacyProvider();
+  if (bare) push(bare, nameFromFlags(bare), "injected:window-ethereum");
+
+  return out;
+}
+
 export function getActiveWallet(): DiscoveredWallet | null {
-  if (activeRdns && discovered.has(activeRdns)) return discovered.get(activeRdns)!;
-  return null;
+  if (!activeRdns) return null;
+  // Dicari di SELURUH daftar, bukan hanya di peta EIP-6963: wallet yang ditemukan lewat lapisan
+  // suntikan juga bisa dipilih pengguna, dan kalau pencarian ini tidak melihatnya, memilih OKX
+  // akan tersimpan lalu diabaikan.
+  return wallets().find((x) => x.info.rdns === activeRdns) ?? null;
 }
 
 export function getActiveWalletInfo(): WalletInfo | null {
