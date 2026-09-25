@@ -328,6 +328,28 @@ console.log("\n── jalur WalletConnect, tanpa wallet tersuntik ──");
     check("pemilih menyatakan tidak ada wallet di peramban ini", /no wallet in this browser/i.test(menuText));
     check("barisnya menjelaskan caranya", /scan with your phone/i.test(menuText), JSON.stringify(menuText.replace(/\n/g, " · ").slice(0, 80)));
 
+    /**
+     * Sambungan relay diawasi SEBELUM diklik, supaya buktinya tertangkap.
+     *
+     * Project id yang ditolak membuat relay menutup sambungan (401) tanpa mengirim frame apa pun,
+     * jadi "ada frame masuk" adalah pembeda paling langsung antara id yang sah dan yang tidak —
+     * lebih dapat diandalkan daripada menebak isi modal, yang hidup di shadow DOM tertutup.
+     */
+    const sockets = [];
+    page.on("websocket", (ws) => {
+      if (!/relay|walletconnect|reown/i.test(ws.url())) return;
+      const rec = { url: ws.url(), frames: 0, closed: false };
+      sockets.push(rec);
+      ws.on("framereceived", () => rec.frames++);
+      ws.on("close", () => (rec.closed = true));
+    });
+    const relayErrors = [];
+    page.on("console", (m) => {
+      if (m.type() === "error" && /project id|projectid|unauthorized|401|403|invalid key/i.test(m.text())) {
+        relayErrors.push(m.text().slice(0, 160));
+      }
+    });
+
     await wcRow.first().click();
     // Pohon paketnya besar dan dimuat malas; yang diperiksa di sini adalah ia BENAR-BENAR dimuat
     // saat diklik, bukan sebelumnya.
@@ -336,6 +358,60 @@ console.log("\n── jalur WalletConnect, tanpa wallet tersuntik ──");
     const crashed = await page.evaluate(() => !document.body || document.body.innerText.length < 50);
     check("halaman tidak rusak sesudahnya", !crashed);
     check("tidak ada alert yang mengklaim tidak ada wallet", !alerts.some((a) => /no wallet detected/i.test(a)));
+
+    // Menunggu bukti, bukan menunggu sekadar lewat.
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(1000);
+      if (sockets.some((s) => s.frames > 0)) break;
+    }
+    const live = sockets.filter((s) => s.frames > 0);
+    check("relay Reown menerima sambungan (project id sah)", live.length > 0, live[0] ? `${live[0].url.slice(0, 44)}… frame ${live[0].frames}` : "tidak ada frame");
+    check("tidak ada galat project id ditolak", relayErrors.length === 0, relayErrors[0] || "");
+
+    const modalTag = await page.evaluate(() => document.querySelector("w3m-modal, wcm-modal, appkit-modal")?.tagName.toLowerCase() || "");
+    check("modal Reown dirender", Boolean(modalTag), modalTag);
+    /**
+     * Isi modalnya TIDAK di-assert lewat DOM. Ia berada di shadow root tertutup — penelusuran
+     * atribut mengembalikan nol di ponsel padahal potret memperlihatkan grid wallet yang penuh.
+     * Jadi yang dijadikan bukti di sini hanya hal yang bisa diukur andal: node di dalam modal
+     * memang terbentuk.
+     */
+    const modalNodes = await page.evaluate(() => {
+      const m = document.querySelector("w3m-modal");
+      if (!m?.shadowRoot) return 0;
+      let n = 0;
+      const walk = (r) => {
+        for (const el of r.querySelectorAll("*")) {
+          n++;
+          if (el.shadowRoot) walk(el.shadowRoot);
+        }
+      };
+      walk(m.shadowRoot);
+      return n;
+    });
+    check("modal terisi, bukan kerangka kosong", modalNodes > 100, `${modalNodes} node`);
+
+    // URI pairing hanya dicari di desktop: di ponsel modal membuka daftar wallet lebih dulu, jadi
+    // belum ada elemen yang membawa URI pada saat itu. Itu perilaku benar, bukan kekurangan.
+    const uri = await page.evaluate(() => {
+      const found = new Set();
+      const walk = (root) => {
+        for (const el of root.querySelectorAll("*")) {
+          for (const a of el.getAttributeNames?.() || []) {
+            const v = el.getAttribute(a);
+            if (typeof v === "string" && v.startsWith("wc:")) found.add(v);
+          }
+          if (el.shadowRoot) walk(el.shadowRoot);
+        }
+      };
+      walk(document);
+      return [...found];
+    });
+    if (uri.length) {
+      check("URI pairing wc: sah (relay-protocol + symKey)", /relay-protocol=irn/.test(uri[0]) && /symKey=/.test(uri[0]), `${uri[0].slice(0, 44)}…`);
+    } else {
+      console.log("  catatan: URI tidak terbaca dari DOM di viewport ini — modal membuka daftar wallet, bukan QR");
+    }
 
     /**
      * VIEWPORT PONSEL, karena inilah seluruh alasan fitur ini ada.
