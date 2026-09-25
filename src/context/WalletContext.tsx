@@ -252,20 +252,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
      * render pertama — yaitu array kosong, karena pengumuman EIP-6963 datang asinkron setelah
      * mount. Closure basi itu akan membuat perbaikan ini tidak pernah aktif.
      */
-    if (!rdns && !getActiveWalletInfo() && discoveredWallets().length > 1) {
-      setWalletPickerOpen(true);
-      return;
-    }
-
     /**
-     * Tidak ada wallet yang menyuntik diri, TAPI WalletConnect tersedia: tawarkan, jangan menolak.
+     * Ada yang perlu dipilih: buka pemilih, SEKALI KLIK, dari tombol Connect mana pun.
      *
-     * Ini jalur pengguna ponsel yang membuka adexto.xyz di Chrome atau Safari biasa. Sebelum
-     * WalletConnect ada, satu-satunya jawaban yang bisa kami berikan adalah "pasang ekstensi" —
-     * saran yang tidak mungkin dijalankan di peramban ponsel. Sekarang pemilihnya dibuka dan
-     * memuat satu pilihan yang benar-benar bekerja di sana.
+     * Syaratnya menyertakan WalletConnect, bukan hanya jumlah wallet tersuntik. Tanpa itu, PC
+     * dengan satu ekstensi terpasang akan langsung menyambung ke ekstensi itu dan pengguna tidak
+     * pernah melihat WalletConnect sama sekali — terukur di produksi sebelum perbaikan ini.
+     *
+     * Ini juga jalur pengguna ponsel yang membuka adexto.xyz di Chrome atau Safari biasa, di mana
+     * jumlah wallet tersuntik NOL: sebelumnya satu-satunya jawaban yang bisa kami berikan adalah
+     * "pasang ekstensi", saran yang tidak mungkin dijalankan di sana.
      */
-    if (!rdns && !injected() && walletConnectConfigured()) {
+    if (!rdns && !getActiveWalletInfo() && (discoveredWallets().length > 1 || walletConnectConfigured())) {
       setWalletPickerOpen(true);
       return;
     }

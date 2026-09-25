@@ -78,6 +78,38 @@ const ROUTES = ["/agent-compute", "/swap", "/token/adexto?chain=16661", "/studio
 
 const browser = await chromium.launch();
 
+/**
+ * Apakah WalletConnect terpasang di build ini, dideteksi SEKALI di awal.
+ *
+ * Nilainya ter-inline saat build, jadi skripnya tidak bisa membacanya dari env. Ia harus
+ * ditanyakan ke halaman, dan hasilnya mengubah apa yang BENAR untuk kasus satu wallet: dengan
+ * WalletConnect aktif, satu ekstensi berarti DUA pilihan, jadi pemilih harus terbuka. Tanpanya,
+ * satu ekstensi memang tidak ada yang perlu dipilih dan sambungan langsung itu benar.
+ *
+ * Dideteksi di muka, bukan ditebak per kasus, supaya setiap pemeriksaan menuntut satu hal yang
+ * pasti alih-alih menerima dua kemungkinan — penjaga yang menerima keduanya tidak menjaga apa pun.
+ */
+let wcEnabled = false;
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.on("dialog", async (d) => await d.dismiss());
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("adexto_cookie_choice", "essential");
+    } catch {}
+  });
+  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForTimeout(4500);
+  const btn = page.locator('button:visible:has-text("Connect wallet"), button:visible:has-text("Choose wallet")').first();
+  if ((await btn.count()) > 0) {
+    await btn.click();
+    await page.waitForTimeout(1200);
+    wcEnabled = (await page.locator('[role="menuitem"]:has-text("WalletConnect")').count()) > 0;
+  }
+  await page.close();
+  console.log(`WalletConnect di build ini: ${wcEnabled ? "AKTIF" : "tidak aktif"}\n`);
+}
+
 for (const names of [["MetaMask"], ["MetaMask", "Phantom"], ["MetaMask", "Phantom", "Rabby"]]) {
   console.log(`\n── ${names.length} wallet terpasang: ${names.join(", ")} ──`);
   for (const route of ROUTES) {
@@ -104,8 +136,29 @@ for (const names of [["MetaMask"], ["MetaMask", "Phantom"], ["MetaMask", "Phanto
       await target.click();
       await page.waitForTimeout(1200);
 
-      // Dengan beberapa wallet, pemilih harus terbuka. Dengan satu, harus langsung tersambung.
-      if (names.length === 1) {
+      /**
+       * SATU wallet: yang benar tergantung WalletConnect.
+       *
+       * WalletConnect aktif → satu ekstensi + WalletConnect = dua pilihan, jadi pemilih WAJIB
+       * terbuka pada klik pertama. Kegagalan di sini adalah bug yang dilaporkan pengguna: di PC
+       * dengan satu ekstensi, satu klik langsung menyambung dan WalletConnect tidak pernah
+       * ditawarkan.
+       *
+       * WalletConnect mati → tidak ada yang perlu dipilih, sambungan langsung itu benar.
+       */
+      if (names.length === 1 && wcEnabled) {
+        const menu = page.locator('[role="menu"]:visible').first();
+        const opened = (await menu.count()) > 0;
+        check(`${route} satu wallet + WalletConnect → pemilih terbuka`, opened);
+        if (opened) {
+          const txt = await menu.innerText();
+          check(`${route} pemilih memuat ekstensi DAN WalletConnect`, /metamask/i.test(txt) && /walletconnect/i.test(txt), JSON.stringify(txt.replace(/\n/g, " · ").slice(0, 70)));
+          await page.locator('[role="menuitem"]:has-text("MetaMask")').first().click();
+          await page.waitForTimeout(1800);
+          const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
+          check(`${route} memilih ekstensi menyambung`, connected);
+        }
+      } else if (names.length === 1) {
         const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
         const asked = await page.evaluate(() => window.__rpcCalls.some((c) => c.endsWith("eth_requestAccounts")));
         check(`${route} tersambung dengan satu wallet`, connected && asked, asked ? "" : "eth_requestAccounts tidak dipanggil");
@@ -212,9 +265,23 @@ for (const sc of okxScenarios) {
   const label = (await btn.count()) > 0 ? (await btn.innerText()).trim() : "(tidak ada tombol)";
 
   if (sc.expectNames.length === 1) {
-    // Satu wallet: harus langsung menyambung tanpa memaksa memilih.
+    /**
+     * Satu wallet. Dengan WalletConnect aktif itu berarti DUA pilihan, jadi pemilih terbuka lebih
+     * dulu dan wallet-nya dipilih — bukan kegagalan, melainkan perilaku yang diminta pengguna
+     * ("langsung ngebuka pilihan"). Tanpa WalletConnect, sambungan langsung yang benar.
+     */
     if ((await btn.count()) > 0) await btn.click();
     await page.waitForTimeout(2000);
+    if (wcEnabled) {
+      const menu = page.locator('[role="menu"]:visible').first();
+      const opened = (await menu.count()) > 0;
+      check(`${sc.label} → pemilih terbuka`, opened, `tombol: "${label}"`);
+      if (opened) {
+        const item = page.locator(`[role="menuitem"]:has-text("${sc.expectNames[0]}")`).first();
+        if ((await item.count()) > 0) await item.click();
+        await page.waitForTimeout(2000);
+      }
+    }
     const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
     check(`${sc.label} → tersambung`, connected, `tombol: "${label}"`);
   } else {
@@ -271,10 +338,19 @@ console.log("\n── wallet menyuntik terlambat (1,2s setelah muat) ──");
   }, { addr: ADDR });
   await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
   await page.waitForTimeout(6000);
-  const btn = page.locator('button:has-text("Connect wallet")').first();
+  const btn = page.locator('button:visible:has-text("Connect wallet"), button:visible:has-text("Choose wallet")').first();
   if ((await btn.count()) > 0) {
     await btn.click();
     await page.waitForTimeout(2000);
+    // Dengan WalletConnect aktif, pemilih terbuka lebih dulu; wallet yang terlambat menyuntik
+    // harus SUDAH ada di dalamnya, dan itu justru yang membuktikan pemindaian ulang bekerja.
+    if (wcEnabled) {
+      const item = page.locator('[role="menuitem"]:has-text("OKX")').first();
+      if ((await item.count()) > 0) {
+        await item.click();
+        await page.waitForTimeout(2000);
+      }
+    }
   }
   const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
   check("wallet yang menyuntik terlambat tetap bisa menyambung", connected);

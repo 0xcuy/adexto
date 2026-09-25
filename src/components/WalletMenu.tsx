@@ -140,15 +140,25 @@ export default function WalletMenu({
   // ── Belum tersambung ──────────────────────────────────────────────────────
   if (!isConnected) {
     /**
-     * Pemilih dibuka ketika ADA yang perlu dipilih, dan itu termasuk keadaan nol wallet.
+     * Pemilih dibuka ketika ADA yang perlu dipilih — dan begitu WalletConnect tersedia, itu
+     * SELALU benar.
      *
-     * Dulu syaratnya `availableWallets.length > 1` saja. Di ponsel jumlahnya NOL — tidak ada
-     * ekstensi yang menyuntik apa pun di Chrome atau Safari — jadi tombolnya langsung memanggil
-     * `connectWallet()` dan berakhir di pesan "pasang MetaMask", saran yang tidak mungkin
-     * dijalankan di sana. Dengan WalletConnect tersedia, nol wallet tetap berarti ada satu
-     * pilihan yang bekerja, jadi ia harus ditawarkan.
+     * Dua versi sebelumnya salah, masing-masing dengan cara sendiri:
+     *
+     *   `length > 1` saja → di ponsel jumlahnya NOL, jadi tombolnya langsung ke `connectWallet()`
+     *   dan berakhir di "pasang MetaMask", saran yang tidak mungkin dijalankan di peramban ponsel.
+     *
+     *   `length > 1 || (wc && length === 0)` → memperbaiki ponsel tetapi melewatkan keadaan PC yang
+     *   paling umum: SATU ekstensi terpasang. Di sana `many` kembali false, sekali klik langsung
+     *   menyambung ke ekstensi itu, dan WalletConnect TIDAK PERNAH ditawarkan. Terukur di produksi:
+     *   di /agent-compute dan /swap dengan MetaMask terpasang, satu klik → "LANGSUNG TERSAMBUNG",
+     *   pemilih tidak terbuka, WalletConnect tidak disebut.
+     *
+     * Aturannya sekarang sesederhana kenyataannya: satu ekstensi + WalletConnect = dua pilihan,
+     * jadi tanyakan. Satu ekstensi TANPA WalletConnect tetap langsung menyambung, karena di situ
+     * memang tidak ada yang perlu dipilih.
      */
-    const many = availableWallets.length > 1 || (walletConnectReady && availableWallets.length === 0);
+    const many = availableWallets.length > 1 || walletConnectReady;
     return (
       <div className="relative" ref={boxRef}>
         <button
