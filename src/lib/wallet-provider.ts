@@ -266,6 +266,27 @@ export function getActiveEip1193(): any | null {
   return null;
 }
 
+/**
+ * Mendaftarkan provider yang TIDAK ditemukan di halaman, lalu menjadikannya aktif.
+ *
+ * Dipakai WalletConnect: providernya baru ada setelah pengguna memindai QR, jadi ia tidak bisa
+ * ditemukan lewat pemindaian seperti wallet yang menyuntik diri. Mendaftarkannya ke peta yang sama
+ * membuat seluruh jalur hilir — `getActiveEip1193`, penandatanganan, pengiriman transaksi,
+ * pergantian chain — tidak perlu tahu bedanya.
+ */
+export function registerExternalWallet(info: WalletInfo, provider: any): void {
+  discovered.set(info.rdns, { info, provider });
+  setActiveWallet(info.rdns);
+  emit();
+}
+
+/** Melepas provider yang didaftarkan manual, mis. saat sesi WalletConnect diputus. */
+export function unregisterExternalWallet(rdns: string): void {
+  discovered.delete(rdns);
+  if (activeRdns === rdns) setActiveWallet(null);
+  emit();
+}
+
 export function setActiveWallet(rdns: string | null): void {
   activeRdns = rdns;
   if (typeof window === "undefined") return;

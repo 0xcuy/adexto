@@ -8,12 +8,22 @@ import {
   getActiveWalletInfo,
   onWalletsChanged,
   requestAccountChange,
+  registerExternalWallet,
   setActiveWallet,
   startWalletDiscovery,
+  unregisterExternalWallet,
   wallets as discoveredWallets,
   type DiscoveredWallet,
   type WalletInfo,
 } from "@/lib/wallet-provider";
+import {
+  WALLETCONNECT_RDNS,
+  connectWalletConnect,
+  disconnectWalletConnect,
+  restoreWalletConnect,
+  walletConnectConfigured,
+  walletConnectWasUsed,
+} from "@/lib/walletconnect";
 
 /**
  * Wallet state.
@@ -76,6 +86,16 @@ interface WalletContextType {
    */
   walletPickerOpen: boolean;
   setWalletPickerOpen: (open: boolean) => void;
+  /**
+   * True bila WalletConnect tersedia, yaitu bila project id Reown terpasang.
+   *
+   * Dibedakan dari "ada wallet" karena ia satu-satunya jalur yang tidak menuntut wallet menyuntik
+   * diri ke halaman — dan karena itu satu-satunya jalur bagi pengguna ponsel yang membuka situs ini
+   * di Chrome atau Safari biasa.
+   */
+  walletConnectReady: boolean;
+  /** Membuka QR WalletConnect (desktop) atau deep link ke aplikasi wallet (ponsel). */
+  connectViaWalletConnect: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -98,6 +118,8 @@ const WalletContext = createContext<WalletContextType>({
   changeAccount: async () => {},
   walletPickerOpen: false,
   setWalletPickerOpen: () => {},
+  walletConnectReady: false,
+  connectViaWalletConnect: async () => {},
 });
 
 /**
@@ -235,6 +257,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    /**
+     * Tidak ada wallet yang menyuntik diri, TAPI WalletConnect tersedia: tawarkan, jangan menolak.
+     *
+     * Ini jalur pengguna ponsel yang membuka adexto.xyz di Chrome atau Safari biasa. Sebelum
+     * WalletConnect ada, satu-satunya jawaban yang bisa kami berikan adalah "pasang ekstensi" —
+     * saran yang tidak mungkin dijalankan di peramban ponsel. Sekarang pemilihnya dibuka dan
+     * memuat satu pilihan yang benar-benar bekerja di sana.
+     */
+    if (!rdns && !injected() && walletConnectConfigured()) {
+      setWalletPickerOpen(true);
+      return;
+    }
+
     const ethereum = injected();
     if (!ethereum) {
       /**
@@ -275,10 +310,93 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * WalletConnect: buka QR (desktop) atau deep link (ponsel), lalu daftarkan providernya.
+   *
+   * Sesudah terdaftar, tidak ada satu pun jalur hilir yang perlu tahu bahwa wallet ini tidak
+   * menyuntik diri ke halaman — `getActiveEip1193()` mengembalikannya seperti wallet lain.
+   */
+  const connectViaWalletConnect = useCallback(async () => {
+    setIsConnecting(true);
+    try {
+      const { provider, accounts } = await connectWalletConnect();
+      registerExternalWallet(
+        { uuid: WALLETCONNECT_RDNS, rdns: WALLETCONNECT_RDNS, name: "WalletConnect", icon: "" },
+        provider
+      );
+      setActiveWalletInfo(getActiveWalletInfo());
+      setAddress(accounts[0]);
+      localStorage.setItem("adexto_wallet_address", accounts[0]);
+      try {
+        const hex: string = await provider.request({ method: "eth_chainId" });
+        const id = parseInt(hex, 16);
+        setWalletChainId(id);
+        const known = chainFromId(id);
+        if (known) {
+          setSelectedChainState(known.key);
+          localStorage.setItem("adexto_selected_chain", known.key);
+        }
+      } catch {
+        // Chain tidak terbaca bukan alasan menggagalkan sambungan; UI akan meminta pindah chain
+        // saat transaksi pertama.
+      }
+    } catch (error: any) {
+      // Menutup modal QR adalah pembatalan, bukan kegagalan yang perlu dilaporkan.
+      const msg = String(error?.message || "");
+      if (error?.code !== 4001 && !/closed|cancel|reject/i.test(msg)) {
+        console.error("[adexto] WalletConnect failed:", error);
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  /**
+   * Memulihkan sesi WalletConnect saat halaman dimuat ulang.
+   *
+   * Dijaga penanda localStorage supaya pengunjung yang tidak pernah memakainya TIDAK pernah memuat
+   * pohon paketnya. Tanpa penjaga itu, satu-satunya cara mengetahui ada sesi adalah meng-init
+   * providernya, yaitu membayar bundelnya untuk semua orang.
+   */
+  useEffect(() => {
+    if (!walletConnectConfigured() || !walletConnectWasUsed()) return;
+    let alive = true;
+    void (async () => {
+      const restored = await restoreWalletConnect();
+      if (!alive || !restored) return;
+      registerExternalWallet(
+        { uuid: WALLETCONNECT_RDNS, rdns: WALLETCONNECT_RDNS, name: "WalletConnect", icon: "" },
+        restored.provider
+      );
+      setActiveWalletInfo(getActiveWalletInfo());
+      setAddress(restored.accounts[0]);
+      try {
+        const hex: string = await restored.provider.request({ method: "eth_chainId" });
+        setWalletChainId(parseInt(hex, 16));
+      } catch {
+        // biarkan null; bukan alasan membuang sesi yang sah
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const disconnectWallet = useCallback(() => {
     setAddress(null);
     setWalletChainId(null);
     localStorage.removeItem("adexto_wallet_address");
+    /**
+     * Sesi WalletConnect diputus di KEDUA sisi.
+     *
+     * Hanya melupakan alamatnya akan meninggalkan pairing hidup di aplikasi wallet: pengguna
+     * melihat ADEXTO masih tersambung di daftar sesinya, dan tidak ada apa pun di situs ini yang
+     * bisa membersihkannya lagi.
+     */
+    if (getActiveWalletInfo()?.rdns === WALLETCONNECT_RDNS) {
+      void disconnectWalletConnect();
+      unregisterExternalWallet(WALLETCONNECT_RDNS);
+    }
     // Lepaskan juga pilihan wallet, supaya "Connect" berikutnya kembali menawarkan
     // daftar wallet dan bukan diam-diam memakai yang terakhir.
     setActiveWallet(null);
@@ -345,6 +463,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       changeAccount,
       walletPickerOpen,
       setWalletPickerOpen,
+      walletConnectReady: walletConnectConfigured(),
+      connectViaWalletConnect,
     }),
     [
       address,
@@ -362,6 +482,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       switchWallet,
       changeAccount,
       walletPickerOpen,
+      connectViaWalletConnect,
     ]
   );
 

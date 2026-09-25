@@ -29,6 +29,11 @@ services:
         # string kosong dan terus mengatakan "staking belum hidup" setelah kontraknya
         # hidup.
         NEXT_PUBLIC_AGENT_STAKE_0G: ${NEXT_PUBLIC_AGENT_STAKE_0G:-}
+        # Project id Reown untuk WalletConnect. Dibaca komponen klien, jadi ter-inline
+        # saat build — dan `audit_consistency.mjs` menggagalkan build kalau ia tidak
+        # punya ARG + ENV di Dockerfile, penjaga yang dipasang setelah kelas bug ini
+        # menggigit tiga kali.
+        NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID:-}
         # Bawaannya dulu `https://edge.adexto.xyz`, hostname yang tidak pernah diikat ke
         # apa pun dan membalas HTTP 525 selama berbulan-bulan. Gerbang x402 sekarang
         # dilayani di x402.adexto.xyz, terikat langsung ke Worker sebagai custom domain.

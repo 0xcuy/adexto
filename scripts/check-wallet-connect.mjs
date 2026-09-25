@@ -132,39 +132,6 @@ for (const names of [["MetaMask"], ["MetaMask", "Phantom"], ["MetaMask", "Phanto
   }
 }
 
-// ── benar-benar tanpa wallet: pesannya harus menyebut jalur ponsel ───────────
-console.log("\n── tanpa wallet sama sekali ──");
-{
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const alerts = [];
-  page.on("dialog", async (d) => {
-    alerts.push(d.message());
-    await d.dismiss();
-  });
-  await page.addInitScript(({ }) => {
-    try {
-      localStorage.setItem("adexto_cookie_choice", "essential");
-    } catch {}
-  }, {});
-  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
-  await page.waitForTimeout(4500);
-  const btn = page.locator('button:has-text("Connect wallet")').first();
-  if ((await btn.count()) > 0) {
-    await btn.click();
-    await page.waitForTimeout(1200);
-  }
-  const msg = alerts[0] || "";
-  check("memberi tahu bahwa tidak ada wallet", /no wallet detected/i.test(msg), JSON.stringify(msg.slice(0, 50)));
-  /**
-   * Jalur ponsel HARUS disebut. Situs ini tidak mendukung WalletConnect, jadi menyuruh pengguna
-   * ponsel "memasang MetaMask" adalah saran yang tidak menyelesaikan apa pun: ekstensi tidak ada
-   * di peramban ponsel dan tidak ada pemasangan QR untuk dipakai.
-   */
-  check("menyebut jalur ponsel (peramban dalam aplikasi wallet)", /phone|wallet app/i.test(msg));
-  check("menyatakan WalletConnect belum didukung", /walletconnect/i.test(msg));
-  await page.close();
-}
-
 // ── wallet yang TIDAK mengumumkan diri lewat EIP-6963 ────────────────────────
 /**
  * Dilaporkan pengguna OKX, dan perilaku OKX memang tidak seragam antar versi: ada yang mengambil
@@ -311,6 +278,124 @@ console.log("\n── wallet menyuntik terlambat (1,2s setelah muat) ──");
   }
   const connected = await page.evaluate(() => document.body.innerText.includes("0x8a3c"));
   check("wallet yang menyuntik terlambat tetap bisa menyambung", connected);
+  await page.close();
+}
+
+// ── jalur WalletConnect (Reown) ──────────────────────────────────────────────
+/**
+ * Ini satu-satunya jalur yang tidak menuntut wallet menyuntik diri ke halaman, jadi ia satu-satunya
+ * yang bekerja di peramban ponsel biasa. Diperiksa DENGAN NOL wallet tersuntik, karena itu keadaan
+ * pengguna ponsel yang sesungguhnya.
+ *
+ * Skripnya tidak tahu apakah `NEXT_PUBLIC_REOWN_PROJECT_ID` terpasang — nilainya ter-inline saat
+ * build. Jadi ia MEMBACA keadaan dari halaman lalu menuntut hal yang benar untuk keadaan itu,
+ * alih-alih menuntut satu keadaan dan gagal di lingkungan yang sah.
+ */
+console.log("\n── jalur WalletConnect, tanpa wallet tersuntik ──");
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const alerts = [];
+  page.on("dialog", async (d) => {
+    alerts.push(d.message());
+    await d.dismiss();
+  });
+  const lateChunks = [];
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("adexto_cookie_choice", "essential");
+    } catch {}
+  });
+  await page.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForTimeout(4500);
+
+  // Dipasang SESUDAH halaman tenang, supaya hanya chunk yang dimuat oleh klik yang tercatat.
+  page.on("request", (r) => {
+    const u = r.url();
+    if (/\/_next\/static\/chunks\/.*\.js/.test(u)) lateChunks.push(u.split("/").pop());
+  });
+
+  const btn = page.locator('button:has-text("Connect wallet"), button:has-text("Choose wallet")').first();
+  await btn.click();
+  await page.waitForTimeout(1500);
+
+  const wcRow = page.locator('[role="menuitem"]:has-text("WalletConnect")');
+  const configured = (await wcRow.count()) > 0;
+  console.log(`  WalletConnect terpasang di build ini: ${configured ? "YA" : "tidak"}`);
+
+  if (configured) {
+    check("pemilih terbuka walau NOL wallet tersuntik", true, "keadaan pengguna ponsel");
+    const menuText = await page.locator('[role="menu"]').first().innerText();
+    check("pemilih menyatakan tidak ada wallet di peramban ini", /no wallet in this browser/i.test(menuText));
+    check("barisnya menjelaskan caranya", /scan with your phone/i.test(menuText), JSON.stringify(menuText.replace(/\n/g, " · ").slice(0, 80)));
+
+    await wcRow.first().click();
+    // Pohon paketnya besar dan dimuat malas; yang diperiksa di sini adalah ia BENAR-BENAR dimuat
+    // saat diklik, bukan sebelumnya.
+    await page.waitForTimeout(6000);
+    check("mengklik WalletConnect memuat chunk-nya saat itu juga", lateChunks.length > 0, `${lateChunks.length} chunk`);
+    const crashed = await page.evaluate(() => !document.body || document.body.innerText.length < 50);
+    check("halaman tidak rusak sesudahnya", !crashed);
+    check("tidak ada alert yang mengklaim tidak ada wallet", !alerts.some((a) => /no wallet detected/i.test(a)));
+
+    /**
+     * VIEWPORT PONSEL, karena inilah seluruh alasan fitur ini ada.
+     *
+     * `:visible` WAJIB di sini. Pada 390px ada DUA WalletMenu di DOM — versi grouped untuk desktop
+     * yang disembunyikan CSS, dan versi ponsel — dan `.first()` mengambil yang tersembunyi, lalu
+     * kliknya timeout dengan "element is not visible". Terlihat saat memotret, bukan saat membaca
+     * kode.
+     */
+    const phone = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    });
+    await phone.addInitScript(() => {
+      try {
+        localStorage.setItem("adexto_cookie_choice", "essential");
+      } catch {}
+    });
+    await phone.goto(`${BASE}/agent-compute`, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await phone.waitForTimeout(5000);
+    const phoneBtn = phone
+      .locator('button:visible:has-text("Connect wallet"), button:visible:has-text("Choose wallet")')
+      .first();
+    const phoneHasBtn = (await phoneBtn.count()) > 0;
+    check("ponsel 390px: tombol wallet terlihat", phoneHasBtn, phoneHasBtn ? (await phoneBtn.innerText()).trim() : "");
+    if (phoneHasBtn) {
+      await phoneBtn.click();
+      await phone.waitForTimeout(1500);
+      const phoneMenu = phone.locator('[role="menu"]:visible').first();
+      const opened = (await phoneMenu.count()) > 0;
+      check("ponsel 390px: pemilih terbuka", opened);
+      if (opened) {
+        const txt = await phoneMenu.innerText();
+        check("ponsel 390px: WalletConnect ditawarkan", /walletconnect/i.test(txt), JSON.stringify(txt.replace(/\n/g, " · ").slice(0, 70)));
+      }
+    }
+    await phone.close();
+  } else {
+    /**
+     * Tanpa project id, fitur ini MATI TOTAL dan tidak boleh disebut di UI: relay Reown menolak
+     * setiap sambungan tanpa id, jadi menampilkan tombolnya hanya menawarkan kegagalan.
+     *
+     * Dalam keadaan ini pesan teksnya yang harus menanggung beban, dan ia harus menyebut jalur
+     * yang BENAR-BENAR bekerja di ponsel: membuka situs di dalam peramban aplikasi wallet.
+     * Menyuruh memasang ekstensi tidak mungkin dijalankan di peramban ponsel.
+     */
+    const menu = await page.locator('[role="menu"]').count();
+    check(
+      "tidak menawarkan WalletConnect saat project id kosong",
+      menu === 0 || !/walletconnect/i.test(await page.locator('[role="menu"]').first().innerText())
+    );
+    const msg = alerts[0] || "";
+    check("memberi tahu bahwa tidak ada wallet", /no wallet detected/i.test(msg), JSON.stringify(msg.slice(0, 50)));
+    check("menyebut jalur ponsel (peramban dalam aplikasi wallet)", /phone|wallet app/i.test(msg));
+    check("menyatakan WalletConnect belum didukung", /walletconnect/i.test(msg));
+  }
   await page.close();
 }
 
