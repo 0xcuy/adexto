@@ -82,11 +82,31 @@ export default function WalletMenu({
     changeAccount,
     chainName,
     walletChainId,
+    walletPickerOpen,
+    setWalletPickerOpen,
   } = useWallet();
 
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Tombol Connect di halaman mana pun bisa meminta pemilih ini dibuka.
+   *
+   * Pemilihnya hanya ada di sini, sementara tombol Connect ada di enam tempat. Sebelum ini
+   * kelima tombol lainnya tidak punya cara menanyakan wallet mana, jadi mereka menampilkan
+   * "No Web3 wallet detected" kepada orang yang memasang dua wallet. Satu flag di context
+   * membuat satu pemilih menjawab semuanya, tanpa menyalin daftar wallet ke lima berkas.
+   */
+  useEffect(() => {
+    if (walletPickerOpen) setOpen(true);
+  }, [walletPickerOpen]);
+
+  // Ditutup dengan cara apa pun -- klik luar, Escape, memilih wallet -- permintaannya juga
+  // dilepas, supaya ia tidak membuka ulang sendiri pada render berikutnya.
+  useEffect(() => {
+    if (!open && walletPickerOpen) setWalletPickerOpen(false);
+  }, [open, walletPickerOpen, setWalletPickerOpen]);
 
   useEffect(() => {
     if (!open) return;

@@ -246,6 +246,15 @@ export default function AgentComputePanel() {
   const active = Boolean(stakeAddress) && staked !== null && effective >= MIN_STAKE_ADEXTO;
   const record = status?.key ?? null;
   const used = record ? record.usedInput + record.usedOutput : 0;
+  const remaining = record ? Math.max(0, record.allowance - used) : 0;
+  /**
+   * Persentase sisa, dibulatkan ke BAWAH.
+   *
+   * Dua alasan. Pertama, melebih-lebihkan jatah yang tersisa adalah arah salah yang lebih mahal
+   * daripada mengurangkannya. Kedua, `Math.round` akan menampilkan "100% left" saat masih ada
+   * 0,4% terpakai, yang membuat pemakaian pertama seseorang seolah tidak tercatat.
+   */
+  const leftPct = record && record.allowance > 0 ? Math.floor((remaining / record.allowance) * 100) : 0;
   const headline = stakeAddress && staked !== null ? effective : balance ?? 0;
 
   const zeroG = ZERO_G;
@@ -536,24 +545,39 @@ export default function AgentComputePanel() {
                   <span>Compute left</span>
                   <span className="text-accent">{record.tierLabel ?? "no tier"}</span>
                 </div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="font-mono text-[22px] font-bold leading-none tracking-tight text-ink">
-                    {fmt(Math.max(0, record.allowance - used))}
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-soft">
-                    of {fmt(record.allowance)} tokens
+                <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-[22px] font-bold leading-none tracking-tight text-ink">
+                      {fmt(remaining)}
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-soft">
+                      of {fmt(record.allowance)} tokens
+                    </span>
+                  </div>
+                  {/* Persentase DINYATAKAN, tidak diserahkan ke pembaca untuk ditaksir dari
+                      panjang bar. Dibulatkan ke BAWAH: melebih-lebihkan sisa jatah seseorang
+                      adalah arah salah yang lebih mahal daripada mengurangkannya. */}
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-mono text-[11px] font-bold ${
+                      record.active ? "bg-accent-soft text-accent" : "bg-danger/10 text-danger"
+                    }`}
+                  >
+                    {leftPct}% left
                   </span>
                 </div>
+                {/* Bar-nya menggambarkan SISA, bukan yang terpakai.
+                    Judulnya "Compute left" dan angka besarnya sisa, jadi bar yang terisi seiring
+                    pemakaian akan bertentangan dengan keduanya — 4% terisi di sebelah tulisan
+                    "95,506 left" memaksa pembaca memutuskan mana yang dipercaya. Sekarang ia
+                    menyusut: penuh saat utuh, kosong saat habis. */}
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-cream-3">
                   <div
-                    className={`h-full rounded-full ${
+                    className={`h-full rounded-full transition-[width] duration-500 ${
                       record.active
                         ? "bg-[linear-gradient(90deg,#7c3aed,#a78bfa)]"
                         : "bg-[linear-gradient(90deg,#b91c1c,#ef4444)]"
                     }`}
-                    style={{
-                      width: `${record.allowance > 0 ? Math.min(100, (used / record.allowance) * 100) : 100}%`,
-                    }}
+                    style={{ width: `${leftPct}%` }}
                   />
                 </div>
                 <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 font-mono text-[11px] text-ink-soft">
@@ -572,26 +596,43 @@ export default function AgentComputePanel() {
                     ke kenyataan daripada angka rata-rata orang lain. */}
                 {record.requests > 0 && (
                   <div className="mt-1 font-mono text-[11px] text-ink-faint">
-                    ≈{fmt(Math.floor(Math.max(0, record.allowance - used) / Math.max(1, Math.round(used / record.requests))))}{" "}
+                    ≈{fmt(Math.floor(remaining / Math.max(1, Math.round(used / record.requests))))}{" "}
                     more requests at your current average
                   </div>
                 )}
               </div>
             ) : active && tier ? (
               <div className="mt-5">
+                {/* KEADAAN BELUM ADA KUNCI.
+                    Bar di sini dulu menggambar `jatah tingkatan / plafon beta` — Starter jadi
+                    terisi 10% padahal belum ada satu token pun terpakai. Perbandingan itu tidak
+                    pernah ditanyakan siapa pun dan terbaca sebagai "baru 10% tersisa", yang
+                    justru kebalikan dari kenyataannya. Sekarang bar-nya penuh dengan persentase
+                    yang dinyatakan, karena memang belum ada yang terpakai. */}
                 <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-                  <span>Allowance this stake opens</span>
+                  <span>Compute available</span>
                   <span className="text-accent">{tier.label}</span>
                 </div>
-                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-cream-3">
-                  <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,#7c3aed,#a78bfa)]"
-                    style={{ width: `${Math.min(100, (tier.allowance / BETA_TOKEN_CEILING) * 100)}%` }}
-                  />
+                <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-[22px] font-bold leading-none tracking-tight text-ink">
+                      {fmt(tier.allowance)}
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-soft">tokens, input plus output</span>
+                  </div>
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[11px] font-bold text-accent">
+                    100% left
+                  </span>
                 </div>
-                <div className="mt-1.5 flex justify-between font-mono text-[11px] text-ink-soft">
-                  <span>{fmt(tier.allowance)} tokens, input plus output</span>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-cream-3">
+                  <div className="h-full w-full rounded-full bg-[linear-gradient(90deg,#7c3aed,#a78bfa)]" />
+                </div>
+                <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 font-mono text-[11px] text-ink-soft">
+                  <span>0 used so far</span>
                   <span>≈{fmt(approxRequests(tier.allowance))} requests</span>
+                </div>
+                <div className="mt-1 text-[11px] text-ink-faint">
+                  Metering starts when you issue a key below.
                 </div>
               </div>
             ) : (
@@ -1008,9 +1049,9 @@ export default function AgentComputePanel() {
                       ["Input", `${fmt(record.usedInput)} tokens`],
                       ["Output", `${fmt(record.usedOutput)} tokens`],
                       ["Allowance", `${fmt(record.allowance)} tokens`],
-                      // Sisa ditampilkan sebagai barisnya sendiri, bukan diserahkan ke pembaca
-                      // untuk dihitung dari dua baris di atasnya.
-                      ["Remaining", `${fmt(Math.max(0, record.allowance - used))} tokens`],
+                      // Sisa ditampilkan sebagai barisnya sendiri BESERTA persentasenya, bukan
+                      // diserahkan ke pembaca untuk dihitung dari dua baris di atasnya.
+                      ["Remaining", `${fmt(remaining)} tokens · ${leftPct}%`],
                       ["Requests", fmt(record.requests)],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-3">

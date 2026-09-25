@@ -56,6 +56,26 @@ interface WalletContextType {
   switchWallet: (rdns: string) => Promise<void>;
   /** Membuka pemilih akun milik wallet (ganti akun tanpa ganti wallet). */
   changeAccount: () => Promise<void>;
+  /**
+   * True bila ada tombol Connect di halaman yang meminta pemilih wallet dibuka.
+   *
+   * KENAPA INI ADA, dan bug yang ditutupnya:
+   *
+   * `getActiveEip1193()` sengaja mengembalikan null ketika beberapa wallet terdeteksi tetapi
+   * belum ada yang dipilih — supaya aplikasi tidak diam-diam memakai pemenang lomba injeksi.
+   * Yang terlewat: hanya WalletMenu di navbar yang tahu cara MENANYAKAN. Lima tombol Connect
+   * lain (swap, terminal token, studio ×3, agent compute) memanggil `connectWallet()` tanpa
+   * rdns, jatuh ke cabang "tidak ada provider", dan menampilkan alert **"No Web3 wallet
+   * detected. Install MetaMask…"** kepada orang yang memasang DUA wallet.
+   *
+   * Diukur sebelum perbaikan: dengan MetaMask + Phantom terpasang, keempat halaman itu
+   * menolak menyambung dan `eth_requestAccounts` tidak pernah dipanggil sekali pun.
+   *
+   * Jadi flag ini membuat satu pemilih yang sudah ada — di navbar, hadir di setiap halaman —
+   * menjadi jawaban untuk semua tombol Connect, alih-alih menambah pemilih di lima tempat.
+   */
+  walletPickerOpen: boolean;
+  setWalletPickerOpen: (open: boolean) => void;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -76,6 +96,8 @@ const WalletContext = createContext<WalletContextType>({
   activeWallet: null,
   switchWallet: async () => {},
   changeAccount: async () => {},
+  walletPickerOpen: false,
+  setWalletPickerOpen: () => {},
 });
 
 /**
@@ -92,6 +114,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [selectedChain, setSelectedChainState] = useState<ChainKey>(DEFAULT_CHAIN.key);
   const [isConnecting, setIsConnecting] = useState(false);
   const [availableWallets, setAvailableWallets] = useState<DiscoveredWallet[]>([]);
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [activeWallet, setActiveWalletInfo] = useState<WalletInfo | null>(null);
 
   const chainInfo = CHAINS[selectedChain] ?? DEFAULT_CHAIN;
@@ -198,9 +221,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Bila user menyebut wallet tertentu, jadikan aktif LEBIH DULU supaya
     // permintaan izin dan seluruh transaksi setelahnya lewat provider itu.
     if (rdns) setActiveWallet(rdns);
+
+    /**
+     * Beberapa wallet terpasang dan belum ada yang dipilih: TANYAKAN, jangan menolak.
+     *
+     * Dibaca dari modul, bukan dari state React, dengan sengaja: callback ini punya daftar
+     * dependensi kosong, jadi membaca `availableWallets` di sini akan menangkap nilai dari
+     * render pertama — yaitu array kosong, karena pengumuman EIP-6963 datang asinkron setelah
+     * mount. Closure basi itu akan membuat perbaikan ini tidak pernah aktif.
+     */
+    if (!rdns && !getActiveWalletInfo() && discoveredWallets().length > 1) {
+      setWalletPickerOpen(true);
+      return;
+    }
+
     const ethereum = injected();
     if (!ethereum) {
-      alert("No Web3 wallet detected. Install MetaMask, Rabby or Coinbase Wallet to continue.");
+      /**
+       * Pesannya menyebut jalur PONSEL, karena situs ini tidak mendukung WalletConnect.
+       *
+       * Tanpa itu, pengguna ponsel yang membuka adexto.xyz di Chrome diberi tahu untuk
+       * "memasang MetaMask" — saran yang tidak menyelesaikan apa pun, sebab ekstensi tidak ada
+       * di peramban ponsel dan tidak ada pemasangan QR untuk dipakai. Yang benar-benar bekerja
+       * hari ini adalah membuka situsnya di dalam peramban aplikasi wallet.
+       */
+      alert(
+        "No wallet detected in this browser.\n\n" +
+          "On desktop: install MetaMask, Rabby or Coinbase Wallet, then reload.\n\n" +
+          "On a phone: open adexto.xyz inside your wallet app's own browser. " +
+          "WalletConnect QR pairing is not supported yet."
+      );
       return;
     }
     setIsConnecting(true);
@@ -293,6 +343,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       activeWallet,
       switchWallet,
       changeAccount,
+      walletPickerOpen,
+      setWalletPickerOpen,
     }),
     [
       address,
@@ -309,6 +361,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       activeWallet,
       switchWallet,
       changeAccount,
+      walletPickerOpen,
     ]
   );
 
