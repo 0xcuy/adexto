@@ -38,8 +38,50 @@ const FILE = "fx-history.json";
 /** Jarak minimum antar sampel. Lebih rapat dari ini tidak menambah informasi, hanya berkas. */
 const MIN_SAMPLE_GAP_MS = 60_000;
 
-/** Umur simpan. Lebih lama dari ini dan berkasnya tumbuh tanpa ada yang membacanya. */
-const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Retensi BERTINGKAT, bukan satu batas umur.
+ *
+ * Batas tujuh hari yang lama membuat rentang "All" di chart mustahil: pasar tertua di situs ini
+ * berumur 23 hari, jadi dua pertiga riwayatnya tidak punya kurs dan dibuang dari sumbu USD.
+ * Menyimpan resolusi satu menit untuk setahun penuh juga salah arah — 525 ribu titik per simbol
+ * per tahun yang ditulis ulang setiap menit.
+ *
+ * Jadi kerapatannya mengikuti kebutuhan chart: satu menit selama dua hari (cukup untuk 600 bar
+ * satu menit), lima menit sampai tujuh hari, satu jam sampai 400 hari — sekitar 13 ribu titik per
+ * simbol. Rentang "1y"/"All" memakai bucket empat jam atau lebih lebar, jadi titik per jam lebih
+ * dari cukup di sana.
+ */
+const TIERS: Array<{ olderThanMs: number; stepSeconds: number }> = [
+  { olderThanMs: 2 * 24 * 3600_000, stepSeconds: 300 },
+  { olderThanMs: 7 * 24 * 3600_000, stepSeconds: 3600 },
+];
+const RETENTION_MS = 400 * 24 * 3600_000;
+
+/**
+ * Terapkan retensi: buang yang terlalu tua, lalu pada tiap tingkat simpan SATU titik per langkah —
+ * yang TERAKHIR di langkah itu, karena ia pengamatan terbaru di sana. Rata-rata tidak dipakai:
+ * titik yang disimpan harus kurs yang benar-benar pernah teramati, bukan hasil hitungan.
+ */
+export function thin(series: FxPoint[], nowMs: number = Date.now()): FxPoint[] {
+  const cutoff = Math.floor((nowMs - RETENTION_MS) / 1000);
+  const sorted = [...series].filter((p) => p[0] >= cutoff).sort((a, b) => a[0] - b[0]);
+  const fine: FxPoint[] = [];
+  const lastInStep = new Map<string, number>();
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i][0];
+    const ageMs = nowMs - t * 1000;
+    let step = 0;
+    for (const tier of TIERS) if (ageMs > tier.olderThanMs) step = tier.stepSeconds;
+    if (step === 0) {
+      fine.push(sorted[i]);
+      continue;
+    }
+    // Kunci memuat langkahnya, supaya titik di perbatasan dua tingkat tidak saling menimpa.
+    lastInStep.set(`${step}:${Math.floor(t / step)}`, i);
+  }
+  const coarse = [...lastInStep.values()].map((i) => sorted[i]);
+  return [...coarse, ...fine].sort((a, b) => a[0] - b[0]);
+}
 
 /** Titik: [detik epoch, harga USD]. Array, bukan objek, karena ia disimpan puluhan ribu kali. */
 export type FxPoint = [number, number];
@@ -120,13 +162,12 @@ export function recordFx(
 
     // Pemangkasan dilakukan di sini, bukan lewat tugas terpisah: satu-satunya saat berkas ini
     // tumbuh adalah saat baris ini berjalan.
-    const cutoff = Math.floor((now - RETENTION_MS) / 1000);
-    store[symbol] = series.filter((p) => p[0] >= cutoff);
+    store[symbol] = thin(series, now);
     changed = true;
   }
 
   if (changed) {
-    writeJson(FILE, store);
+    writeJson(FILE, store, { compact: true });
     globalThis.__ADEXTO_FX_CACHE__ = undefined;
   }
 }

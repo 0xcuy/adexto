@@ -41,6 +41,8 @@ import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
 
 export interface TerminalProject {
   symbol: string;
+  /** Detik epoch transaksi peluncuran; awal rentang "All" di chart. */
+  deployedAt: number;
   slug: string;
   name: string;
   tokenAddress: string;
@@ -637,6 +639,7 @@ export default function TokenTerminal({
               symbol={project.symbol}
               chainId={project.chainId}
               fallbackPriceNative={project.priceNative}
+              launchedAt={project.deployedAt}
               nativeSymbol={chain.nativeSymbol}
               nativeUsd={nativeUsd}
               poolLive={swap.tradable}

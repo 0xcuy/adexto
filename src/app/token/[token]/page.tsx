@@ -80,6 +80,7 @@ export default async function TokenPage({ params, searchParams }: PageProps) {
 
   const serialized: TerminalProject = {
     symbol: project.symbol,
+    deployedAt: project.deployedAt,
     slug: project.slug,
     name: project.name,
     tokenAddress: project.tokenAddress,

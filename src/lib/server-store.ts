@@ -78,12 +78,14 @@ export function readJson<T>(file: string, fallback: T): T {
 }
 
 /** Atomic write: temp file + rename, so a crash cannot truncate the store. */
-export function writeJson(file: string, value: unknown): boolean {
+export function writeJson(file: string, value: unknown, opts: { compact?: boolean } = {}): boolean {
   try {
     const dir = dataDir();
     const full = path.join(dir, file);
     const tmp = `${full}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: "utf8" });
+    // `compact` untuk berkas besar yang ditulis sering (riwayat kurs): indentasi dua spasi
+    // melipatgandakan ukurannya tanpa ada manusia yang membacanya.
+    fs.writeFileSync(tmp, opts.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2), { encoding: "utf8" });
     fs.renameSync(tmp, full);
     return true;
   } catch (error) {

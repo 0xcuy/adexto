@@ -137,6 +137,8 @@ interface Props {
    * swap-nya sudah ada di blok ketika pengambilan ulang berjalan.
    */
   refreshKey?: string | null;
+  /** Detik epoch transaksi peluncuran. Menentukan awal rentang "All". */
+  launchedAt?: number;
   /**
    * Suplai token utuh, dipakai toggle MCAP untuk mengubah sumbu harga menjadi kapitalisasi.
    *
@@ -186,8 +188,39 @@ const INTERVALS = [
    * satu bar tidak diregangkan selebar pane.
    */
   { label: "1d", seconds: 86400 },
-  { label: "1y", seconds: 31536000 },
 ];
+
+/**
+ * "1y" dan "All" adalah RENTANG, bukan lebar bar.
+ *
+ * "1y" dulu berarti satu bar selebar 31.536.000 detik. Pasar tertua di situs ini berumur 23 hari,
+ * jadi hasilnya selalu SATU bar — dan di sumbu USD bar itu datar, karena seluruh isinya dinilai
+ * dengan satu kurs. Di layar itu terbaca "1y tidak ada candle". Trader tidak pernah meminta satu
+ * candle setahun; yang diminta saat menekan 1Y adalah "tunjukkan tahun terakhir", dengan candle
+ * selebar yang membuat tahun itu terbaca.
+ *
+ * Jadi keduanya sekarang memilih RENTANG, lalu lebar bar dipilih otomatis dari `AUTO_BUCKETS`:
+ * yang terkecil yang memuat rentang itu dalam `RANGE_TARGET_BARS` bar. "All" = sejak peluncuran;
+ * "1y" = 365 hari terakhir, atau sejak peluncuran kalau pasarnya lebih muda. Untuk semua pasar hari
+ * ini keduanya sama, dan itu jujur: riwayat pasar-pasar itu memang lebih pendek dari setahun.
+ */
+const RANGES = [
+  { label: "1y", seconds: 365 * 86400 },
+  { label: "All", seconds: Number.POSITIVE_INFINITY },
+] as const;
+type RangeLabel = (typeof RANGES)[number]["label"];
+
+/** Lebar bar yang boleh dipilih otomatis untuk sebuah rentang. */
+const AUTO_BUCKETS = [300, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400, 259200, 604800];
+
+/** Target jumlah bar untuk rentang: cukup rapat untuk dibaca, cukup sedikit untuk muat di pane. */
+const RANGE_TARGET_BARS = 160;
+
+/** Lebar bar untuk rentang `spanSeconds`. Yang terkecil yang tidak melebihi target jumlah bar. */
+function autoBucket(spanSeconds: number): number {
+  for (const b of AUTO_BUCKETS) if (spanSeconds / b <= RANGE_TARGET_BARS) return b;
+  return AUTO_BUCKETS[AUTO_BUCKETS.length - 1];
+}
 
 /**
  * Di atas ambang ini, sumbu waktu menampilkan TANGGAL saja, tanpa jam.
@@ -270,6 +303,7 @@ export default function RealtimeCandleChart({
   poolLive,
   refreshKey,
   supply,
+  launchedAt,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   /**
@@ -331,6 +365,14 @@ export default function RealtimeCandleChart({
    * penyebab, bukan cuma korbannya.
    */
   const [interval, setIntervalSeconds] = useState(60);
+  /**
+   * Rentang yang sedang aktif ("1y"/"All"), atau null bila yang dipilih lebar bar biasa.
+   *
+   * Saat rentang aktif, `interval` diisi lebar bar hasil `autoBucket`, jadi seluruh jalur data di
+   * bawah — pengambilan, konversi USD, indikator — tidak perlu tahu bedanya. Yang berbeda hanya
+   * cara jendelanya dipasang: rentang memperlihatkan SELURUH isinya.
+   */
+  const [range, setRange] = useState<RangeLabel | null>(null);
   /** Menu interval sub-menit. Tertutup secara bawaan; lihat catatan di barnya. */
   const [showSubMinute, setShowSubMinute] = useState(false);
   /**
@@ -387,8 +429,18 @@ export default function RealtimeCandleChart({
    * menumpuk riwayat sehingga tombol Kembali harus ditekan berkali-kali.
    */
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get("tf");
-    if (raw) {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("tf");
+    const rawRange = params.get("range");
+    const pickedRange = RANGES.find((r) => r.label.toLowerCase() === rawRange);
+    if (pickedRange) {
+      // Lebar bar rentang dihitung ulang dari umur sekarang, bukan dipercaya dari `tf` di URL:
+      // pasar yang makin tua butuh bar yang makin lebar untuk tetap muat.
+      const nowSec = Math.floor(Date.now() / 1000);
+      const age = launchedAt ? Math.max(3600, nowSec - launchedAt) : 30 * 86400;
+      setRange(pickedRange.label);
+      setIntervalSeconds(autoBucket(Math.min(pickedRange.seconds, age)));
+    } else if (raw) {
       const wanted = Number(raw);
       if (INTERVALS.some((i) => i.seconds === wanted)) setIntervalSeconds(wanted);
     }
@@ -403,10 +455,15 @@ export default function RealtimeCandleChart({
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.get("tf") === String(interval)) return;
+    const wantedRange = range ? range.toLowerCase() : null;
+    if (url.searchParams.get("tf") === String(interval) && url.searchParams.get("range") === wantedRange) return;
     url.searchParams.set("tf", String(interval));
+    // Rentang ikut ditulis: tanpa ini tautan "All" dibuka ulang sebagai bar 4 jam biasa, dan
+    // jendelanya tidak lagi memperlihatkan seluruh riwayat.
+    if (wantedRange) url.searchParams.set("range", wantedRange);
+    else url.searchParams.delete("range");
     window.history.replaceState(null, "", url.toString());
-  }, [interval]);
+  }, [interval, range]);
 
   /**
    * Sumbu waktu ikut interval. Tanpa ini, bar harian berlabel jam.
@@ -1004,6 +1061,37 @@ export default function RealtimeCandleChart({
         if (cancelled) return null;
 
         let candles: Candle[] = Array.isArray(data.candles) ? data.candles : [];
+        /**
+         * Rentang menyesuaikan lebar barnya dengan riwayat yang BENAR-BENAR ada.
+         *
+         * Lebar awal dipilih dari umur sejak peluncuran, karena itu satu-satunya yang diketahui
+         * sebelum data datang. Tapi riwayat harga dimulai di perdagangan pertama, dan keduanya
+         * bisa berjarak jauh: $ADEXTO berumur 23 hari, perdagangan pertamanya 5,5 hari lalu. Bar
+         * 4 jam untuk 5,5 hari hanya 33 candle gemuk; bar 1 jam memberi 132 yang terbaca.
+         *
+         * Hanya BOLEH menyempit (`want < interval`), jadi ini selalu berhenti setelah satu
+         * langkah: perdagangan pertama tidak bergeser karena lebar bar berubah.
+         */
+        if (range && candles.length > 0) {
+          const spanDef = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
+          const firstT = Math.min(...candles.map((c) => c.time));
+          const dataSpan = Math.max(3600, Math.floor(Date.now() / 1000) - firstT);
+          const want = autoBucket(Math.min(spanDef, dataSpan));
+          if (want < interval) {
+            // Efek ini dibangun ulang dengan lebar baru dan memuat sendiri; hitungan trade
+            // tetap dikembalikan supaya pengejar pasca-trade punya syarat berhenti.
+            setIntervalSeconds(want);
+            return Number(data.totalTrades || 0);
+          }
+        }
+        // Rentang "1y" memotong apa pun yang lebih tua dari setahun.
+        if (range) {
+          const spanDef = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
+          if (Number.isFinite(spanDef)) {
+            const from = Math.floor(Date.now() / 1000) - spanDef;
+            candles = candles.filter((c) => c.time >= from);
+          }
+        }
         const totalTrades = Number(data.totalTrades || 0);
 
         /**
@@ -1111,7 +1199,20 @@ export default function RealtimeCandleChart({
           drawIndicators(sorted);
           setLegend(sorted[sorted.length - 1]);
 
-          const fitKey = `${symbol}:${chainId}:${interval}`;
+          const fitKey = `${symbol}:${chainId}:${interval}:${range ?? ""}`;
+          if (range && fittedFor.current !== fitKey) {
+            /**
+             * Rentang memperlihatkan SELURUH isinya — dan itu aman di sini, tidak di tempat lain.
+             *
+             * `fitContent()` dilarang untuk lebar bar biasa (lihat penjaga di audit_consistency):
+             * riwayatnya tak terbatas, jadi memerasnya ke satu pane membuat candle mengecil setiap
+             * hari. Rentang berbeda karena jumlah barnya DIBATASI oleh konstruksinya sendiri —
+             * `autoBucket` melebarkan bar seiring pasar menua sehingga jumlahnya tidak pernah
+             * melewati `RANGE_TARGET_BARS`. Lebar candle karena itu punya batas bawah yang tetap.
+             */
+            chartRef.current?.timeScale().setVisibleLogicalRange({ from: -0.5, to: sorted.length - 0.5 });
+            fittedFor.current = fitKey;
+          }
           if (fittedFor.current !== fitKey) {
             /**
              * SATU aturan, bukan dua mode. Jendela selalu selebar `slots`, yang dihitung
@@ -1288,7 +1389,7 @@ export default function RealtimeCandleChart({
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [tfResolved, symbol, chainId, interval, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
+  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -1506,6 +1607,7 @@ export default function RealtimeCandleChart({
                     key={i.label}
                     type="button"
                     onClick={() => {
+                      setRange(null);
                       setIntervalSeconds(i.seconds);
                       setShowSubMinute(false);
                     }}
@@ -1524,9 +1626,13 @@ export default function RealtimeCandleChart({
             <button
               key={i.label}
               type="button"
-              onClick={() => setIntervalSeconds(i.seconds)}
+              onClick={() => {
+                setRange(null);
+                setIntervalSeconds(i.seconds);
+              }}
+              aria-pressed={!range && interval === i.seconds}
               className={`px-2 py-0.5 rounded font-bold border transition-colors ${
-                interval === i.seconds
+                !range && interval === i.seconds
                   ? "bg-accent-soft text-accent border-accent/30"
                   : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
               }`}
@@ -1534,6 +1640,48 @@ export default function RealtimeCandleChart({
               {i.label}
             </button>
           ))}
+          {/* Rentang, dipisah garis tipis dari lebar bar: keduanya menjawab pertanyaan berbeda
+              ("seberapa jauh ke belakang" vs "seberapa lebar tiap candle"), dan meletakkannya
+              sejajar tanpa pemisah membuat 1y terbaca sebagai candle setahun. */}
+          <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-line-strong" />
+          {RANGES.map((r) => {
+            const nowSec = Math.floor(Date.now() / 1000);
+            /**
+             * Umur sejak PELUNCURAN, dari registry — bukan dari bar yang kebetulan termuat.
+             *
+             * Versi pertama menebaknya dari bar pertama yang dikirim endpoint, dan itu salah
+             * secara halus: pada bar 1 menit endpoint hanya menjangkau 240 menit, jadi "All"
+             * akan menganggap pasar berumur 23 hari itu berumur 4 jam dan menampilkan 4 jam
+             * terakhir saja. Kurva memberi harga sejak transaksi peluncuran, jadi tanggal itulah
+             * awal riwayat harga yang sebenarnya.
+             */
+            const age = launchedAt ? Math.max(3600, nowSec - launchedAt) : 30 * 86400;
+            const span = Math.min(r.seconds, age);
+            const bucket = autoBucket(span);
+            return (
+              <button
+                key={r.label}
+                type="button"
+                onClick={() => {
+                  setRange(r.label);
+                  setIntervalSeconds(bucket);
+                }}
+                aria-pressed={range === r.label}
+                title={
+                  r.label === "All"
+                    ? "Everything since the first trade, with the candle width picked to fit"
+                    : "The last 365 days, with the candle width picked to fit"
+                }
+                className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+                  range === r.label
+                    ? "bg-accent-soft text-accent border-accent/30"
+                    : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
 
           <div className="relative ml-1">
             <button

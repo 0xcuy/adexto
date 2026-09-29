@@ -23,13 +23,13 @@
  * mengisi lubang.
  *
  * Pakai:
- *   node scripts/backfill-fx-history.mjs                     # semua simbol, 7 hari
+ *   node scripts/backfill-fx-history.mjs                     # semua simbol, 30 hari
  *   node scripts/backfill-fx-history.mjs --symbol=MON --days=2
  *   node scripts/backfill-fx-history.mjs --dry-run
  *
  * Di VPS, di dalam kontainer (image tidak membawa folder scripts/, jadi dikirim lewat stdin):
  *   docker exec -i -e ADEXTO_DATA_DIR=/app/data adexto-production \
- *     node --input-type=module - --days=7 < scripts/backfill-fx-history.mjs
+ *     node --input-type=module - --days=30 < scripts/backfill-fx-history.mjs
  */
 import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -40,7 +40,12 @@ const args = new Map(
     return [k, v.length ? v.join("=") : "true"];
   })
 );
-const DAYS = Math.max(1, Math.min(7, Number(args.get("days") || 7)));
+/**
+ * Sampai 400 hari, sama dengan retensi `fx-history.ts`. Batas lama tujuh hari membuat rentang
+ * "All" di chart tidak bisa digambar dalam dolar: pasar tertua berumur 23 hari, jadi dua pertiga
+ * riwayatnya tidak punya kurs.
+ */
+const DAYS = Math.max(1, Math.min(400, Number(args.get("days") || 30)));
 const ONLY = args.get("symbol")?.toUpperCase() || null;
 const DRY = args.has("dry-run");
 
@@ -123,7 +128,6 @@ function nearestGap(sortedTimes, t) {
 
 const store = existsSync(FILE) ? JSON.parse(readFileSync(FILE, "utf8")) : {};
 const nowMs = Date.now();
-const dayAgo = nowMs - 24 * 3600_000;
 const rangeStart = nowMs - DAYS * 24 * 3600_000;
 
 // Satu pengambilan per PASANGAN; 0G dan A0GI berbagi pasangan yang sama.
@@ -136,11 +140,17 @@ for (const [symbol, pair] of Object.entries(PAIRS)) {
   let points = fetched.get(pair);
   if (!points) {
     try {
-      // Hari terakhir 1 menit (chart 1m butuh itu), sisanya 5 menit (cukup untuk 5m ke atas).
-      const recent = await klines(pair, 1, dayAgo, nowMs);
+      // Kerapatan mengikuti tingkat retensi `fx-history.ts`: 1 menit untuk dua hari terakhir,
+      // 5 menit sampai tujuh hari, 1 jam sebelumnya. Mengambil lebih rapat dari itu hanya untuk
+      // dipangkas lagi oleh perekam adalah permintaan yang terbuang.
+      const twoDaysAgo = nowMs - 2 * 24 * 3600_000;
+      const weekAgo = nowMs - 7 * 24 * 3600_000;
+      const recent = await klines(pair, 1, Math.max(rangeStart, twoDaysAgo), nowMs);
       await sleep(250);
-      const older = rangeStart < dayAgo ? await klines(pair, 5, rangeStart, dayAgo) : [];
-      points = [...older, ...recent];
+      const middle = rangeStart < twoDaysAgo ? await klines(pair, 5, Math.max(rangeStart, weekAgo), twoDaysAgo) : [];
+      await sleep(250);
+      const oldest = rangeStart < weekAgo ? await klines(pair, 60, rangeStart, weekAgo) : [];
+      points = [...oldest, ...middle, ...recent];
       fetched.set(pair, points);
     } catch (e) {
       console.log(`${symbol.padEnd(5)} DILEWATI — ${e.message}`);
