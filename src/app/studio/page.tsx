@@ -17,7 +17,7 @@ import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
-import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/native-price";
+import { OPENING_MARKET_CAP_USD, openingVirtualNative } from "@/lib/opening-cap";
 import {
   ACCEPT_ATTR,
   ACCEPTED_MIME,

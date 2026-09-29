@@ -1,4 +1,6 @@
-import { readJson, writeJson } from "@/lib/server-store";
+import { statSync } from "node:fs";
+import { join } from "node:path";
+import { dataDir, readJson, writeJson } from "@/lib/server-store";
 
 /**
  * Riwayat kurs aset native terhadap USD, DIREKAM — bukan direkonstruksi.
@@ -44,9 +46,31 @@ export type FxPoint = [number, number];
 
 type Store = Record<string, FxPoint[]>;
 
+declare global {
+  var __ADEXTO_FX_CACHE__: { mtimeMs: number; store: Store } | undefined;
+}
+
+/**
+ * Isi berkas, di-cache di memori dan dimuat ulang HANYA bila berkasnya berubah.
+ *
+ * `recordFx` dipanggil pada setiap `/api/prices`, dan setelah backfill berkas ini memuat
+ * ribuan titik; membaca dan mengurai seluruhnya pada setiap permintaan harga adalah kerja yang
+ * tidak perlu. Kuncinya `mtime`, bukan umur: backfill berjalan di PROSES LAIN, jadi cache yang
+ * hanya kedaluwarsa oleh waktu akan terus menyajikan riwayat lama sampai servernya dimulai ulang.
+ */
 function load(): Store {
+  let mtimeMs = -1;
+  try {
+    mtimeMs = statSync(join(dataDir(), FILE)).mtimeMs;
+  } catch {
+    mtimeMs = -1;
+  }
+  const hit = globalThis.__ADEXTO_FX_CACHE__;
+  if (hit && hit.mtimeMs === mtimeMs) return hit.store;
   const raw = readJson<Store>(FILE, {});
-  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const store = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  globalThis.__ADEXTO_FX_CACHE__ = { mtimeMs, store };
+  return store;
 }
 
 /**
@@ -60,7 +84,7 @@ export function recordFx(
   prices: Record<string, number>,
   live: Record<string, boolean>,
   /**
-   * Asal bacaan ini. HANYA `"coingecko"` yang direkam.
+   * Asal bacaan ini. Bacaan dari CACHE tidak pernah direkam; per simbol, hanya yang `live`.
    *
    * Ini memperbaiki cacat yang terukur dan cukup halus: perekam dulu menulis satu sampel per
    * menit setiap kali `/api/prices` dilayani, tanpa memeriksa apakah angkanya baru. Karena
@@ -73,9 +97,12 @@ export function recordFx(
    * satu bar tegak. Merekam hanya bacaan upstream yang sungguhan membuat lubang menjadi lubang
    * yang jujur — dan `toUsdCandles` sudah tahu cara tidak menggambar lubang.
    */
-  source: "coingecko" | "fallback" | "cache"
+  source: "coingecko" | "exchange" | "last-known" | "fallback" | "cache"
 ): void {
-  if (source !== "coingecko") return;
+  // Pemutaran ulang cache adalah pengamatan YANG SAMA dibaca lagi. Simbol dari `last-known`
+  // dan `fallback` sudah tersaring oleh `live[symbol]` di bawah, jadi yang lolos hanyalah
+  // bacaan langsung dari CoinGecko atau bursa.
+  if (source === "cache") return;
 
   const now = Date.now();
   const store = load();
@@ -98,7 +125,25 @@ export function recordFx(
     changed = true;
   }
 
-  if (changed) writeJson(FILE, store);
+  if (changed) {
+    writeJson(FILE, store);
+    globalThis.__ADEXTO_FX_CACHE__ = undefined;
+  }
+}
+
+/**
+ * Pengamatan TERAKHIR untuk satu simbol, atau null.
+ *
+ * Dipakai `nativePrices()` sebagai pengganti bacaan langsung saat semua sumber gagal: kurs
+ * yang teramati beberapa jam lalu jauh lebih dekat ke kenyataan daripada angka yang dipaku di
+ * kode, yang sempat berbulan-bulan basi.
+ */
+export function lastObserved(symbol: string): FxPoint | null {
+  const series = load()[symbol];
+  if (!series || series.length === 0) return null;
+  let latest = series[0];
+  for (const p of series) if (p[0] > latest[0]) latest = p;
+  return latest;
 }
 
 /** Seri satu simbol, terurut naik menurut waktu. */

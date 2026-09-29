@@ -1,25 +1,35 @@
 /**
- * Isi riwayat kurs native/USD dari data historis CoinGecko.
+ * Isi riwayat kurs native/USD dari kline bursa yang benar-benar terjadi.
  *
  * KENAPA INI ADA
  *
- * `src/lib/fx-history.ts` merekam kurs saat `/api/prices` dilayani, jadi riwayatnya mulai
- * dari nol pada pemasangan baru — dan chart USD dengan benar MENOLAK menggambar bucket yang
- * tidak punya kurs tersimpan. Itu perilaku yang diinginkan, tetapi artinya sebuah pemasangan
- * baru harus menunggu berjam-jam sebelum sumbu dolarnya berguna.
+ * `src/lib/fx-history.ts` merekam kurs saat `/api/prices` dilayani, jadi riwayatnya mulai dari
+ * nol pada pemasangan baru — dan chart USD dengan benar MENOLAK menggambar bucket tanpa kurs
+ * tersimpan. Artinya pemasangan baru menampilkan chart datar berjam-jam. Skrip ini memotong
+ * penantian itu dengan data yang TERJADI, bukan karangan.
  *
- * Skrip ini memotong penantian itu dengan data yang BENAR-BENAR TERJADI, bukan karangan:
- * `market_chart` CoinGecko mengembalikan kurs historis yang mereka amati. Sumbernya pihak
- * ketiga, jadi ia tidak sekelas pengamatan kita sendiri — tapi ia juga bukan angka yang
- * dibuat-buat, dan itu perbedaan yang menentukan di berkas yang dipakai menggambar harga.
+ * KENAPA BYBIT, BUKAN COINGECKO
  *
- * Titik yang sudah ada TIDAK ditimpa. Pengamatan kita sendiri selalu menang; skrip ini hanya
+ * Versi pertama memakai `market_chart` CoinGecko. Dua hal membuatnya salah pilihan:
+ *   1. CoinGecko memblokir IP server produksi (403 CloudFront), jadi skrip ini tidak bisa
+ *      dijalankan tepat di tempat yang paling membutuhkannya.
+ *   2. Resolusinya ditentukan rentang: per jam di luar 24 jam terakhir. Pada chart 1 menit itu
+ *      satu bar per jam, dan setiap langkah jam tergambar sebagai bar tegak.
+ * Kline Bybit memberi 1 menit untuk hari terakhir dan 5 menit untuk sisanya, memuat KELIMA aset
+ * (termasuk MON, yang tidak ada di Binance), dan bisa dijangkau dari VPS. Nilainya harga
+ * penutupan tiap candle — perdagangan nyata di bursa, bukan interpolasi.
+ *
+ * Titik yang sudah ada TIDAK ditimpa. Pengamatan situs sendiri selalu menang; skrip ini hanya
  * mengisi lubang.
  *
  * Pakai:
- *   node scripts/backfill-fx-history.mjs                  # semua simbol, 7 hari
- *   node scripts/backfill-fx-history.mjs --symbol=0G --days=2
+ *   node scripts/backfill-fx-history.mjs                     # semua simbol, 7 hari
+ *   node scripts/backfill-fx-history.mjs --symbol=MON --days=2
  *   node scripts/backfill-fx-history.mjs --dry-run
+ *
+ * Di VPS, di dalam kontainer (image tidak membawa folder scripts/, jadi dikirim lewat stdin):
+ *   docker exec -i -e ADEXTO_DATA_DIR=/app/data adexto-production \
+ *     node --input-type=module - --days=7 < scripts/backfill-fx-history.mjs
  */
 import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -30,84 +40,130 @@ const args = new Map(
     return [k, v.length ? v.join("=") : "true"];
   })
 );
-const DAYS = Number(args.get("days") || 7);
+const DAYS = Math.max(1, Math.min(7, Number(args.get("days") || 7)));
 const ONLY = args.get("symbol")?.toUpperCase() || null;
 const DRY = args.has("dry-run");
 
 const DATA_DIR = process.env.ADEXTO_DATA_DIR || ".data";
 const FILE = join(DATA_DIR, "fx-history.json");
 
-/** Sama dengan `COINGECKO_IDS` di src/lib/native-price.ts. Dua daftar, dan itu diakui: yang
- *  satu dipakai runtime, yang satu skrip sekali-jalan. Kalau berbeda, gejalanya jelas —
- *  skrip ini mengembalikan "coin not found" untuk simbol yang ditambahkan di satu tempat. */
-const IDS = {
-  ETH: "ethereum",
-  "0G": "zero-gravity",
-  A0GI: "zero-gravity",
-  MON: "monad",
-  ARB: "arbitrum",
+/**
+ * Sama dengan `BYBIT_PAIRS` di src/lib/native-price.ts. Dua daftar, dan itu diakui: yang satu
+ * runtime, yang satu skrip sekali-jalan yang juga dikirim lewat stdin ke kontainer tanpa
+ * `node_modules` aplikasi. Kalau berbeda, gejalanya jelas: simbol yang hanya ada di satu daftar
+ * tidak pernah terisi.
+ */
+const PAIRS = {
+  ETH: "ETHUSDT",
+  "0G": "0GUSDT",
+  A0GI: "0GUSDT",
+  MON: "MONUSDT",
+  ARB: "ARBUSDT",
+  cbBTC: "BTCUSDT",
 };
 
-/** Sama dengan resolusi perekam. Titik 5-menit CoinGecko lolos; duplikat tidak. */
+/** Sama dengan resolusi perekam. Dua titik lebih rapat dari ini tidak menambah informasi. */
 const MIN_GAP_SECONDS = 60;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Kline satu pasangan dalam rentang [fromMs, toMs], diurutkan naik.
+ *
+ * Bybit mengembalikan paling banyak 1000 candle per permintaan, TERBARU LEBIH DULU, jadi rentang
+ * panjang ditelusuri mundur dengan menggeser `end` ke candle tertua yang sudah diterima.
+ *
+ * Titiknya dicap waktu AKHIR candle, bukan awalnya: harga penutupan baru diketahui saat candle
+ * selesai. Mencapnya di awal berarti bucket pukul 10:00 dinilai dengan harga pukul 10:00:59 —
+ * angka yang belum ada saat bucket itu dimulai. Candle yang masih berjalan dilewati karena alasan
+ * yang sama.
+ */
+async function klines(pair, intervalMin, fromMs, toMs) {
+  const out = [];
+  const nowMs = Date.now();
+  let end = toMs;
+  for (let guard = 0; guard < 20 && end > fromMs; guard++) {
+    const url =
+      `https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}` +
+      `&interval=${intervalMin}&start=${fromMs}&end=${end}&limit=1000`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) throw new Error(`Bybit menjawab ${res.status}`);
+    const json = await res.json();
+    const list = json?.result?.list ?? [];
+    if (list.length === 0) break;
+    for (const k of list) {
+      const startMs = Number(k[0]);
+      const endMs = startMs + intervalMin * 60_000;
+      const close = Number(k[4]);
+      if (endMs > nowMs) continue; // candle yang masih berjalan
+      if (Number.isFinite(close) && close > 0) out.push([Math.floor(endMs / 1000), close]);
+    }
+    const oldest = Math.min(...list.map((k) => Number(k[0])));
+    if (oldest <= fromMs || list.length < 1000) break;
+    end = oldest - 1;
+    await sleep(250);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
+/** Cari indeks titik dengan waktu terdekat di seri yang sudah terurut. */
+function nearestGap(sortedTimes, t) {
+  let lo = 0;
+  let hi = sortedTimes.length - 1;
+  if (hi < 0) return Infinity;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sortedTimes[mid] < t) lo = mid + 1;
+    else hi = mid;
+  }
+  const a = Math.abs(sortedTimes[lo] - t);
+  const b = lo > 0 ? Math.abs(sortedTimes[lo - 1] - t) : Infinity;
+  return Math.min(a, b);
+}
+
 const store = existsSync(FILE) ? JSON.parse(readFileSync(FILE, "utf8")) : {};
+const nowMs = Date.now();
+const dayAgo = nowMs - 24 * 3600_000;
+const rangeStart = nowMs - DAYS * 24 * 3600_000;
+
+// Satu pengambilan per PASANGAN; 0G dan A0GI berbagi pasangan yang sama.
+const fetched = new Map();
 let added = 0;
 
-for (const [symbol, id] of Object.entries(IDS)) {
+for (const [symbol, pair] of Object.entries(PAIRS)) {
   if (ONLY && symbol !== ONLY) continue;
 
-  /**
-   * DUA permintaan, dan itu bukan pemborosan.
-   *
-   * Resolusi CoinGecko ditentukan rentangnya: `days=1` mengembalikan titik tiap ~5 menit,
-   * `days>=2` hanya per jam. Sekali tarik 7 hari berarti 168 titik — pada chart satu menit itu
-   * satu bar per jam, dan chart-nya tampak berlubang. Jadi rentang panjang diambil untuk
-   * cakupan, lalu satu hari terakhir diambil lagi untuk kerapatan.
-   */
-  const ranges = DAYS > 1 ? [DAYS, 1] : [1];
-  const rows = [];
-  let failed = null;
-  for (const days of ranges) {
-    const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      failed = res.status;
+  let points = fetched.get(pair);
+  if (!points) {
+    try {
+      // Hari terakhir 1 menit (chart 1m butuh itu), sisanya 5 menit (cukup untuk 5m ke atas).
+      const recent = await klines(pair, 1, dayAgo, nowMs);
+      await sleep(250);
+      const older = rangeStart < dayAgo ? await klines(pair, 5, rangeStart, dayAgo) : [];
+      points = [...older, ...recent];
+      fetched.set(pair, points);
+    } catch (e) {
+      console.log(`${symbol.padEnd(5)} DILEWATI — ${e.message}`);
       continue;
     }
-    const json = await res.json();
-    if (Array.isArray(json?.prices)) rows.push(...json.prices);
-    // Jeda antar permintaan: batas laju CoinGecko-lah yang melewatkan MON dan ARB pada
-    // jalannya yang pertama, bukan simbolnya yang tidak ada.
-    await new Promise((r) => setTimeout(r, 2500));
   }
-  if (rows.length === 0) {
-    console.log(`${symbol.padEnd(5)} DILEWATI — ${failed ? `CoinGecko menjawab ${failed}` : "tidak ada titik harga"}`);
-    continue;
-  }
-  rows.sort((a, b) => a[0] - b[0]);
 
   const existing = Array.isArray(store[symbol]) ? store[symbol] : [];
-  const seen = new Set(existing.map((p) => p[0]));
+  const times = existing.map((p) => p[0]).sort((a, b) => a - b);
   const merged = [...existing];
-
   let mine = 0;
-  for (const [ms, price] of rows) {
-    const t = Math.floor(ms / 1000);
-    if (!Number.isFinite(t) || !Number.isFinite(price) || price <= 0) continue;
-    if (seen.has(t)) continue;
-    // Jangan menaruh dua titik lebih rapat dari resolusi perekam itu sendiri.
-    if (merged.some((p) => Math.abs(p[0] - t) < MIN_GAP_SECONDS)) continue;
+  for (const [t, price] of points) {
+    if (nearestGap(times, t) < MIN_GAP_SECONDS) continue;
     merged.push([t, price]);
-    seen.add(t);
     mine++;
   }
   merged.sort((a, b) => a[0] - b[0]);
   store[symbol] = merged;
   added += mine;
+
   const first = merged[0] ? new Date(merged[0][0] * 1000).toISOString().slice(0, 16) : "-";
-  const last = merged[merged.length - 1] ? new Date(merged[merged.length - 1][0] * 1000).toISOString().slice(0, 16) : "-";
-  console.log(`${symbol.padEnd(5)} +${String(mine).padStart(4)} titik  total ${String(merged.length).padStart(4)}  ${first} → ${last}`);
+  const last = merged.at(-1) ? new Date(merged.at(-1)[0] * 1000).toISOString().slice(0, 16) : "-";
+  console.log(`${symbol.padEnd(5)} +${String(mine).padStart(5)} titik  total ${String(merged.length).padStart(5)}  ${first} → ${last}`);
 }
 
 if (DRY) {
@@ -119,4 +175,4 @@ mkdirSync(DATA_DIR, { recursive: true });
 if (existsSync(FILE)) copyFileSync(FILE, `${FILE}.bak`);
 writeFileSync(FILE, JSON.stringify(store));
 console.log(`\nditulis ${FILE} — ${added} titik baru`);
-console.log("Sumber: CoinGecko market_chart (kurs historis yang mereka amati), bukan angka yang dibuat skrip ini.");
+console.log("Sumber: kline spot Bybit (harga penutupan perdagangan nyata), bukan angka yang dibuat skrip ini.");
