@@ -28,15 +28,28 @@ abstract contract AdextoCurveFixture is Test {
     /// EOA tanpa kode, jadi `call` bernilai ke sini pasti berhasil.
     address internal constant PROTOCOL_TREASURY = address(0xBEEF);
 
-    /// Nilai yang sama dengan preset "standard" di studio: total 30 bps yang dikonfigurasi.
-    uint256 internal constant SWAP_FEE_BPS = 30;
-    uint256 internal constant CREATOR_BPS = 10;
-    uint256 internal constant TREASURY_BPS = 5;
-    /// depth = 30 - 10 - 5 = 15, dihitung oleh factory, bukan diteruskan.
-    uint256 internal constant DEPTH_BPS = 15;
-    /// Aditif, konstanta di factory. 30 bps yang dikonfigurasi jadi 40 bps yang dibayar.
+    /**
+     * Model peluncuran 0.12.0: total 100 bps, dan 100 bps itu yang dibayar trader.
+     *
+     * Angkanya sengaja sama dengan preset studio, bukan angka yang enak untuk test.
+     * Fixture yang memakai tarif berbeda dari produksi akan membuktikan properti pada
+     * pembagian fee yang tidak pernah dipakai siapa pun — dan pembagian itulah yang
+     * paling mungkin salah, karena ia satu-satunya tempat keempat kaki berinteraksi.
+     *
+     * Naik dari 30 bps (0.11.0) dan pembagiannya berubah arah: dulu `PROTOCOL_BPS`
+     * ADITIF sehingga 30 yang dikonfigurasi menjadi 40 yang dibayar, sekarang ia
+     * DIPOTONG DARI DALAM sehingga yang dikonfigurasi dan yang dibayar adalah angka
+     * yang sama. `TOTAL_PAID_BPS` karena itu kini sama dengan `SWAP_FEE_BPS`, dan
+     * dibiarkan sebagai konstanta terpisah justru supaya test nomor 1 bisa gagal kalau
+     * suatu saat keduanya berpisah lagi tanpa disengaja.
+     */
+    uint256 internal constant SWAP_FEE_BPS = 100;
+    uint256 internal constant CREATOR_BPS = 70;
+    uint256 internal constant TREASURY_BPS = 10;
     uint256 internal constant PROTOCOL_BPS = 10;
-    uint256 internal constant TOTAL_PAID_BPS = 40;
+    /// depth = 100 - 70 - 10 - 10 = 10, dihitung oleh factory sebagai sisa, bukan diteruskan.
+    uint256 internal constant DEPTH_BPS = 10;
+    uint256 internal constant TOTAL_PAID_BPS = 100;
 
     /**
      * Generasi yang ditulis SOURCE, bukan yang ter-deploy.
@@ -52,8 +65,46 @@ abstract contract AdextoCurveFixture is Test {
     /// Sama besaran dengan pembukaan 0G di produksi.
     uint256 internal constant VIRTUAL_NATIVE = 1500 ether;
 
+    /**
+     * Ticker yang dicadangkan di constructor factory 0.12.0.
+     *
+     * SATU SUMPER KEBENARAN untuk fixture dan test, dan harus sama dengan yang dikirim
+     * `scripts/deploy-sovereign-curve.mjs` saat broadcast. Kalau keduanya berpisah, test
+     * membuktikan perlindungan atas daftar yang tidak pernah ter-deploy.
+     *
+     * Enam pertama adalah pasar yang hidup di UI. Sepuluh sisanya nama aset besar, yang
+     * dicadangkan bukan untuk melindungi kami tetapi supaya token kurva tidak bisa
+     * disalahbaca sebagai aset sungguhan — alasan yang berlaku sama kuat untuk token yang
+     * kami luncurkan sendiri, jadi tidak ada pengecualian untuk siapa pun.
+     */
+    function reservedSymbols() internal pure returns (string[] memory list) {
+        list = new string[](16);
+        // Pasar yang live di UI.
+        list[0] = "ADEXTO";
+        list[1] = "ADT";
+        list[2] = "ZEEBO";
+        list[3] = "WOMBO";
+        list[4] = "BLOOP";
+        list[5] = "PARCEL";
+        // Nama aset besar.
+        list[6] = "ETH";
+        list[7] = "WETH";
+        list[8] = "USDC";
+        list[9] = "USDT";
+        list[10] = "BTC";
+        list[11] = "WBTC";
+        list[12] = "0G";
+        list[13] = "A0GI";
+        list[14] = "MON";
+        list[15] = "ARB";
+    }
+
     function _launchCurve() internal {
-        factory = new AdextoFactory(PROTOCOL_TREASURY);
+        // Daftar cadangan PRODUKSI, bukan daftar kosong. Fixture yang men-deploy factory
+        // tanpa cadangan akan menguji kontrak yang tidak pernah di-broadcast, dan
+        // "FUZZ2" di bawah justru membuktikan ticker di luar daftar tetap bisa
+        // diluncurkan — properti yang hilang kalau daftarnya kosong.
+        factory = new AdextoFactory(PROTOCOL_TREASURY, reservedSymbols());
         (address t, address c) = factory.deployTrinity(
             "Adexto Curve Fuzz Agent",
             "FUZZ2",

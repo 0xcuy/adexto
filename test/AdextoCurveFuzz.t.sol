@@ -32,12 +32,23 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
     // Angka-angka ini dipublikasikan, jadi kontraknya yang harus membuktikannya,
     // bukan dokumentasinya.
     function test_feeLegsMatchPublishedNumbers() public view {
-        assertEq(curve.depthFeeBps(), DEPTH_BPS, "depth bukan 15 bps");
-        assertEq(curve.creatorFeeBps(), CREATOR_BPS, "creator bukan 10 bps");
-        assertEq(curve.treasuryBuybackBps(), TREASURY_BPS, "buyback bukan 5 bps");
+        assertEq(curve.depthFeeBps(), DEPTH_BPS, "depth bukan 10 bps");
+        assertEq(curve.creatorFeeBps(), CREATOR_BPS, "creator bukan 70 bps");
+        assertEq(curve.treasuryBuybackBps(), TREASURY_BPS, "buyback bukan 10 bps");
         assertEq(curve.protocolFeeBps(), PROTOCOL_BPS, "protokol bukan 10 bps");
-        assertEq(curve.totalFeeBps(), TOTAL_PAID_BPS, "total yang dibayar bukan 40 bps");
+        assertEq(curve.totalFeeBps(), TOTAL_PAID_BPS, "total yang dibayar bukan 100 bps");
         assertEq(factory.PROTOCOL_FEE_BPS(), PROTOCOL_BPS, "konstanta factory bukan 10 bps");
+        /**
+         * Keempat kaki HARUS berjumlah tepat `swapFeeBps`, dan ini yang membedakan 0.12.0
+         * dari 0.11.0 dalam satu baris. Di 0.11.0 jumlahnya `swapFeeBps + 10` karena kaki
+         * protokol ditagih di atasnya; di sini tidak ada apa pun yang ditagih di atas, jadi
+         * angka yang dikutip ke trader adalah angka yang dikonfigurasi pembuat pasar.
+         */
+        assertEq(
+            curve.depthFeeBps() + curve.creatorFeeBps() + curve.treasuryBuybackBps() + curve.protocolFeeBps(),
+            SWAP_FEE_BPS,
+            "keempat kaki tidak berjumlah swapFeeBps: ada yang ditagih di luar kuotasi"
+        );
         assertEq(curve.protocolTreasury(), PROTOCOL_TREASURY, "treasury protokol salah");
         // Dibandingkan dengan SATU konstanta, dan satu sama lain. Yang kedua itu invarian
         // sebenarnya: factory menanam creation code kurva, jadi dua nomor berbeda berarti
@@ -100,14 +111,30 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         assertLe(depthFee + creatorFee + treasuryFee + protocolFee, nativeIn, "total fee melebihi masukan");
     }
 
-    // ── 5. Fee protokol ADITIF, bukan diambil dari kaki lain ──────────────────
+    // ── 5. Fee protokol DIPOTONG DARI DALAM, bukan ditagih di atas ────────────
     //
-    // Ini klaim yang paling mudah dilanggar tanpa sadar, jadi diuji dengan
-    // membandingkan langsung terhadap kurva v0.10.0 yang dikonfigurasi identik.
-    // Kalau 10 bps itu diam-diam diambil dari depth atau creator, kedua kaki itu akan
-    // berbeda dan pembeli akan menerima jumlah token yang SAMA — yang justru menandai
-    // klaim "aditif" itu bohong.
-    function testFuzz_protocolFeeIsAdditiveNotCarvedOut(uint256 rawIn) public {
+    // DIBALIK DI 0.12.0. Properti ini dulu bernama `testFuzz_protocolFeeIsAdditiveNotCarvedOut`
+    // dan membuktikan kebalikan persis dari yang sekarang: bahwa 10 bps protokol ditagih
+    // DI ATAS `swapFeeBps`, sehingga pembeli 0.11.0 menerima lebih sedikit token daripada
+    // pembeli 0.10.0 pada konfigurasi yang sama.
+    //
+    // Dibalik dan bukan dihapus, karena properti yang dihapus tidak meninggalkan jejak
+    // bahwa perilakunya pernah berbeda. Yang dibuktikan sekarang, masih dengan cara yang
+    // sama — membandingkan langsung terhadap kurva 0.10.0 yang dikonfigurasi identik:
+    //
+    //   1. `depthFeeBps` BERBEDA, tepat sebesar `PROTOCOL_BPS`. Depth adalah sisa, jadi
+    //      di situlah kaki protokol diambil pada `swapFeeBps` yang sama.
+    //   2. creator dan buyback IDENTIK. Carve-out tidak boleh menyentuh dua kaki yang
+    //      sudah dijanjikan ke orang: creator dibayar, buyback dibakar.
+    //   3. total yang dibayar IDENTIK, jadi pembeli menerima jumlah token yang SAMA.
+    //      Ini pembuktian "tidak ada tambahan di luar kuotasi", dan di 0.11.0 justru
+    //      assertion inilah yang gagal.
+    //
+    // Perhatikan bahwa (1) hanya berlaku saat `swapFeeBps` kedua kurva disetel sama.
+    // Pada model peluncuran 0.12.0 yang sebenarnya, `swapFeeBps` naik 30 -> 100, sehingga
+    // creator justru naik 10 -> 70 bps. Tidak ada yang dibayar lebih sedikit; yang berubah
+    // adalah angka yang fee-nya dipotong dari situ.
+    function testFuzz_protocolFeeIsCarvedOutNotAdditive(uint256 rawIn) public {
         AdextoCurveFactory legacyFactory = new AdextoCurveFactory();
         (address lt, address lc) = legacyFactory.deployTrinity(
             "Legacy Curve",
@@ -126,20 +153,56 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         AdextoToken(lt);
         vm.roll(block.number + 6);
 
-        // Kaki yang dikonfigurasi harus IDENTIK di kedua versi.
-        assertEq(legacy.depthFeeBps(), curve.depthFeeBps(), "depth berbeda: protokol mengambil dari depth");
+        // 1. Depth menyerap kaki protokol, tepat sebesar PROTOCOL_BPS dan tidak lebih.
+        assertEq(
+            legacy.depthFeeBps() - curve.depthFeeBps(),
+            PROTOCOL_BPS,
+            "selisih depth bukan tepat PROTOCOL_BPS: carve-out mengambil dari tempat lain"
+        );
+
+        // 2. Dua kaki yang sudah dijanjikan ke orang tidak boleh tersentuh.
         assertEq(legacy.creatorFeeBps(), curve.creatorFeeBps(), "creator berbeda: protokol mengambil dari creator");
         assertEq(
             legacy.treasuryBuybackBps(), curve.treasuryBuybackBps(), "buyback berbeda: protokol mengambil dari buyback"
         );
 
+        // 3. Total dalam bps identik, jadi tidak ada satu pun kaki yang ditagih di atas.
+        assertEq(
+            curve.totalFeeBps(),
+            legacy.lpFeeBps() + legacy.creatorFeeBps() + legacy.treasuryBuybackBps(),
+            "total 0.12.0 != total 0.10.0 pada swapFeeBps yang sama: ada kaki yang ditagih di atas"
+        );
+
         uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
-        (uint256 legacyOut,,,) = legacy.getBuyQuote(nativeIn);
-        (uint256 v2Out,,,, uint256 protocolFee) = curve.getBuyQuote(nativeIn);
+        (uint256 legacyOut, uint256 lDepth, uint256 lCreator, uint256 lTreasury) = legacy.getBuyQuote(nativeIn);
+        (uint256 v2Out, uint256 nDepth, uint256 nCreator, uint256 nTreasury, uint256 protocolFee) =
+            curve.getBuyQuote(nativeIn);
         vm.assume(legacyOut > 0 && v2Out > 0);
 
         assertGt(protocolFee, 0, "fee protokol nol pada pembelian berukuran nyata");
-        assertLt(v2Out, legacyOut, "pembeli v0.11.0 menerima >= v0.10.0: fee protokol tidak benar-benar ditagih");
+
+        /**
+         * Total dalam WEI tidak persis sama, dan itu benar — bukan toleransi yang dikarang.
+         *
+         * Tiap kaki dipotong sendiri-sendiri: `(nativeIn * bps) / 10_000`, membulat ke bawah.
+         * 0.10.0 memotong TIGA kali, 0.12.0 memotong EMPAT kali karena depth 20 bps terbelah
+         * menjadi depth 10 + protokol 10. Dan `floor(x*20)` bisa lebih besar 1 wei daripada
+         * `floor(x*10) + floor(x*10)`. Jadi selisih maksimumnya tepat 1 wei, bisa dihitung,
+         * bukan diperkirakan — dan batas ketat inilah yang akan gagal kalau suatu saat sebuah
+         * kaki benar-benar bergeser, yang tidak akan terdeteksi oleh `assertApproxEq` berpagu
+         * longgar.
+         *
+         * Arahnya juga ditegaskan: pembulatan ekstra membuat fee LEBIH KECIL, jadi selisihnya
+         * menguntungkan trader. Kalau tandanya terbalik, kurva memungut lebih dari yang
+         * dikonfigurasi dan itu temuan, bukan pembulatan.
+         */
+        uint256 legacyTotalFee = lDepth + lCreator + lTreasury;
+        uint256 newTotalFee = nDepth + nCreator + nTreasury + protocolFee;
+        assertLe(newTotalFee, legacyTotalFee, "fee 0.12.0 melebihi 0.10.0: carve-out memungut lebih");
+        assertLe(legacyTotalFee - newTotalFee, 1, "selisih fee > 1 wei: ada kaki yang benar-benar bergeser");
+
+        // Konsekuensi langsung dari kalimat di atas: pembeli tidak pernah lebih buruk.
+        assertGe(v2Out, legacyOut, "pembeli 0.12.0 menerima lebih sedikit: fee protokol bukan carve-out murni");
     }
 
     // ── 6. Fee protokol hanya bisa mendarat di treasury yang immutable ────────
@@ -250,23 +313,142 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
     // siapa pun, dan karena tidak ada yang mutable, uang itu terkunci selamanya.
     function test_zeroProtocolTreasuryRejected() public {
         vm.expectRevert(bytes("Factory: zero protocol treasury"));
-        new AdextoFactory(address(0));
+        new AdextoFactory(address(0), new string[](0));
     }
 
     // ── 11. Batas 5% dihitung atas apa yang BENAR-BENAR dibayar pedagang ──────
     //
-    // 500 bps yang dikonfigurasi ditambah 10 bps protokol adalah 510 bps, jadi harus
-    // ditolak di factory — bukan diteruskan lalu gagal di konstruktor kurva.
+    // Klaimnya tidak berubah di 0.12.0 — batasnya tetap atas yang dibayar trader — tetapi
+    // ARITMETIKANYA berubah, jadi angka di test ini pun berubah. Karena kaki protokol
+    // sekarang dipotong dari dalam, `swapFeeBps` ITU SENDIRI adalah yang dibayar: 500 bps
+    // sekarang SAH dan tepat di batas, sementara di 0.11.0 ia ditolak karena 500 + 10 = 510.
+    //
+    // Batas itu diuji dari kedua sisi dengan sengaja. Menguji hanya sisi yang ditolak akan
+    // tetap lolos kalau batasnya diam-diam bergeser ke bawah, dan pasar yang sah jadi
+    // mustahil diluncurkan tanpa ada satu pun test yang mengeluh.
     function test_capCountsProtocolLeg() public {
         vm.expectRevert(bytes("Factory: fee too high"));
         factory.deployTrinity(
-            "Over Cap", "OVER", SUPPLY, address(this), VIRTUAL_NATIVE, 500, 10, 5, bytes32(0), false, 0
+            "Over Cap", "OVER", SUPPLY, address(this), VIRTUAL_NATIVE, 501, 10, 5, bytes32(0), false, 0
         );
 
-        // 490 + 10 = 500, tepat di batas, harus lolos.
+        // 500 tepat di batas, dan protokol ada DI DALAMnya: depth = 500 - 10 - 5 - 10 = 475.
         (, address c) = factory.deployTrinity(
-            "At Cap", "ATCAP", SUPPLY, address(this), VIRTUAL_NATIVE, 490, 10, 5, bytes32(0), false, 0
+            "At Cap", "ATCAP", SUPPLY, address(this), VIRTUAL_NATIVE, 500, 10, 5, bytes32(0), false, 0
         );
         assertEq(AdextoCurve(payable(c)).totalFeeBps(), 500, "total di batas bukan 500 bps");
+        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 475, "depth di batas bukan 475 bps");
+    }
+
+    // ── 12. `swapFeeBps` yang tidak menyisakan ruang untuk kaki protokol ditolak ─
+    //
+    // Konsekuensi langsung dari carve-out, dan satu-satunya cara ia bisa gagal buruk.
+    // Tanpa `PROTOCOL_FEE_BPS` di dalam require pembagian share, subtraksi yang menghitung
+    // `depthFeeBps` akan underflow — di solc 0.8.x itu panic tanpa pesan, jadi pembuat pasar
+    // melihat revert tak berpenjelasan untuk pembagian fee yang bagi dia terlihat benar.
+    //
+    // Dua kasus, karena keduanya gagal lewat jalan yang berbeda: fee yang lebih kecil dari
+    // kaki protokol, dan fee yang cukup besar tetapi sudah dihabiskan dua share lainnya.
+    function test_feeTooSmallForProtocolLegRejected() public {
+        vm.expectRevert(bytes("Factory: shares exceed fee"));
+        factory.deployTrinity(
+            "Tiny Fee", "TINY", SUPPLY, address(this), VIRTUAL_NATIVE, 5, 0, 0, bytes32(0), false, 0
+        );
+
+        vm.expectRevert(bytes("Factory: shares exceed fee"));
+        factory.deployTrinity(
+            "No Room", "NOROOM", SUPPLY, address(this), VIRTUAL_NATIVE, 100, 70, 30, bytes32(0), false, 0
+        );
+
+        // Tepat menyisakan ruang: 70 + 20 + 10 = 100, depth 0. Sah, dan depth nol memang
+        // diizinkan — yang tidak diizinkan adalah kaki protokol yang tidak kebagian.
+        (, address c) = factory.deployTrinity(
+            "Exact Room", "EXACT", SUPPLY, address(this), VIRTUAL_NATIVE, 100, 70, 20, bytes32(0), false, 0
+        );
+        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 0, "depth bukan nol saat ruang habis tepat");
+        assertEq(AdextoCurve(payable(c)).protocolFeeBps(), PROTOCOL_BPS, "kaki protokol hilang saat ruang habis tepat");
+    }
+
+    // ── 13. Ticker yang dicadangkan di constructor tidak bisa diluncurkan siapa pun ──
+    //
+    // Ini yang menutup lubang nyata: `symbolRegistry` adalah state MILIK SATU FACTORY,
+    // jadi factory baru lahir dengan buku kosong dan setiap nama yang sudah dipakai
+    // generasi sebelumnya bebas diklaim lagi. Terukur pada keempat factory 0.11.0 yang
+    // live sebelum perubahan ini: "ETH", "USDC" dan "BTC" bebas di keempat chain, dan
+    // "ADEXTO" bebas di Base, Arbitrum dan Monad.
+    //
+    // Diuji dari DUA alamat, dan itu bukan pengulangan: `deployTrinity` tidak punya access
+    // control sama sekali, jadi yang harus dibuktikan bukan "orang lain ditolak" melainkan
+    // "SEMUA ORANG ditolak, termasuk yang men-deploy factory ini". Kalau suatu saat
+    // pengecualian untuk deployer diselipkan, assertion kedua yang menangkapnya.
+    function test_reservedSymbolsCannotBeLaunchedByAnyone() public {
+        string[] memory reserved = reservedSymbols();
+        address stranger = address(0xC0FFEE);
+
+        for (uint256 i = 0; i < reserved.length; i++) {
+            // Dari alamat yang men-deploy factory.
+            vm.expectRevert(bytes("Factory: symbol already taken"));
+            factory.deployTrinity(
+                "Squat", reserved[i], SUPPLY, address(this), VIRTUAL_NATIVE,
+                SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
+            );
+
+            // Dari alamat asing.
+            vm.prank(stranger);
+            vm.expectRevert(bytes("Factory: symbol already taken"));
+            factory.deployTrinity(
+                "Squat", reserved[i], SUPPLY, stranger, VIRTUAL_NATIVE,
+                SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
+            );
+
+            assertFalse(factory.isSymbolAvailable(reserved[i]), "isSymbolAvailable masih true untuk ticker cadangan");
+            assertEq(
+                factory.symbolRegistry(keccak256(abi.encodePacked(reserved[i]))),
+                factory.SYMBOL_RESERVED(),
+                "slot cadangan tidak berisi penanda"
+            );
+        }
+    }
+
+    // ── 14. Cadangan tidak peka huruf besar-kecil ─────────────────────────────
+    //
+    // `_toUpper` dipakai di constructor DAN di `deployTrinity`. Tanpa itu, mencadangkan
+    // "ETH" tidak akan menghalangi peluncuran "eth" — nama yang sama bagi setiap pembaca
+    // manusia, dan justru bentuk penyerobotan yang paling mudah dilewatkan.
+    function test_reservedSymbolIsCaseInsensitive() public {
+        vm.expectRevert(bytes("Factory: symbol already taken"));
+        factory.deployTrinity(
+            "lowercase eth", "eth", SUPPLY, address(this), VIRTUAL_NATIVE,
+            SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
+        );
+        assertFalse(factory.isSymbolAvailable("eth"), "eth huruf kecil masih tersedia");
+        assertFalse(factory.isSymbolAvailable("EtH"), "EtH campuran masih tersedia");
+    }
+
+    // ── 15. Ticker DI LUAR daftar cadangan tetap bisa diluncurkan ─────────────
+    //
+    // Pasangan wajib dari test 13. Cadangan yang terlalu lebar akan mematikan produknya,
+    // dan kegagalan seperti itu tidak akan tertangkap oleh test yang hanya memastikan
+    // penolakan. Fixture sendiri sudah meluncurkan "FUZZ2" dengan daftar produksi
+    // terpasang, jadi ini menegaskannya untuk ticker kedua yang tidak dipakai fixture.
+    function test_unreservedSymbolStillLaunches() public {
+        (address t, address c) = factory.deployTrinity(
+            "Not Reserved", "NOTRSV", SUPPLY, address(this), VIRTUAL_NATIVE,
+            SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
+        );
+        assertTrue(t != address(0) && c != address(0), "peluncuran ticker bebas gagal");
+        assertFalse(factory.isSymbolAvailable("NOTRSV"), "ticker tidak terklaim setelah diluncurkan");
+        assertEq(factory.symbolRegistry(keccak256(abi.encodePacked("NOTRSV"))), t, "slot tidak berisi alamat token");
+    }
+
+    // ── 16. Penanda cadangan tidak bisa tertukar dengan token sungguhan ───────
+    //
+    // `symbolRegistry` memetakan ticker ke ALAMAT TOKEN, dan slot cadangan tidak punya
+    // token. Yang dijaga di sini: penandanya adalah alamat tanpa kode, jadi tidak ada
+    // pembaca yang bisa memperlakukannya sebagai ERC-20 dan mendapat jawaban.
+    function test_reservedMarkerIsNotAContract() public view {
+        address marker = factory.SYMBOL_RESERVED();
+        assertEq(marker.code.length, 0, "penanda cadangan punya kode: bisa disalahbaca sebagai token");
+        assertTrue(marker != address(0), "penanda cadangan nol: slot akan terbaca sebagai tersedia");
     }
 }

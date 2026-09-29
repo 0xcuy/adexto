@@ -152,10 +152,36 @@ const SUGGESTED_PROMPTS = [
  * enforces server-side as well.
  */
 const FEE_TIERS = {
-  low: { fee: 0.1, creator: 0.04, cut: 0.02, label: "0.10% Low" },
-  standard: { fee: 0.3, creator: 0.1, cut: 0.05, label: "0.30% Standard" },
-  meme: { fee: 0.5, creator: 0.2, cut: 0.1, label: "0.50% Meme" },
+  low: { fee: 0.6, creator: 0.4, cut: 0.05, label: "0.60% Low" },
+  standard: { fee: 1.0, creator: 0.7, cut: 0.1, label: "1.00% Standard" },
+  meme: { fee: 2.0, creator: 1.5, cut: 0.2, label: "2.00% Meme" },
 } as const;
+
+/**
+ * KENAPA TIER LAMA TIDAK BISA DIPERTAHANKAN, bukan sekadar dinaikkan karena selera.
+ *
+ * Nilai sebelumnya adalah 0.10 / 0.30 / 0.50 dengan kaki protokol 0.10% DITAMBAHKAN di
+ * atasnya. Sejak 0.12.0 kaki itu DIPOTONG DARI DALAM `swapFeeBps`, dan konsekuensinya
+ * aritmetis, bukan estetis: tier 0.10% berarti seluruh tarif habis oleh kaki protokol
+ * sendiri, sehingga `creator + buyback + 0.10 <= 0.10` mustahil dipenuhi dan factory
+ * menolak peluncurannya. Tier itu bukan jadi kurang menarik, ia jadi tidak bisa dipakai.
+ *
+ * Batas bawah yang sesungguhnya: creator 70% + buyback 10% dari total menyisakan 20%
+ * untuk protokol dan depth, jadi depth baru positif ketika total melewati 0.50%. Karena
+ * itu tier terendah 0.60% dan bukan 0.50% — pada 0.50% depth-nya tepat nol, dan lantai
+ * harga berhenti naik selamanya untuk pasar itu.
+ *
+ * Tiap baris dihitung ulang di sini supaya bisa diperiksa tanpa menjalankan apa pun.
+ * depth = fee - creator - cut - 0.10:
+ *
+ *   low       0.60 - 0.40 - 0.05 - 0.10 = 0.05
+ *   standard  1.00 - 0.70 - 0.10 - 0.10 = 0.10
+ *   meme      2.00 - 1.50 - 0.20 - 0.10 = 0.20
+ *
+ * `standard` adalah model 0.12.0 yang diputuskan: 1% total, creator 70%, buyback 10%,
+ * protokol 10%, depth 10%. Dua tier lainnya mengikuti bentuk yang sama dengan depth
+ * tetap positif.
+ */
 
 type FeeTier = keyof typeof FEE_TIERS;
 
@@ -200,10 +226,17 @@ export default function StudioPage() {
   const logoFileRef = useRef<HTMLInputElement | null>(null);
 
   const [feeTier, setFeeTier] = useState<FeeTier>("standard");
-  const [totalSwapFee, setTotalSwapFee] = useState(0.3);
+  /** Nilai awal HARUS sama dengan FEE_TIERS.standard, kalau tidak layar buka dengan tier
+   *  yang tersorot tidak cocok dengan angka di sebelahnya sampai seseorang mengkliknya. */
+  /**
+   * `<number>` WAJIB eksplisit. `FEE_TIERS` memakai `as const`, jadi
+   * `useState(FEE_TIERS.standard.fee)` menyimpulkan tipe literal `1` dan bukan `number` —
+   * lalu `applyFeeTier` gagal dikompilasi ketika mencoba menyetel 0.6 atau 2.
+   */
+  const [totalSwapFee, setTotalSwapFee] = useState<number>(FEE_TIERS.standard.fee);
   /** Streamed to the creator on every swap — the reason no free token allocation is needed. */
-  const [creatorCut, setCreatorCut] = useState(0.1);
-  const [treasuryCut, setTreasuryCut] = useState(0.05);
+  const [creatorCut, setCreatorCut] = useState<number>(FEE_TIERS.standard.creator);
+  const [treasuryCut, setTreasuryCut] = useState<number>(FEE_TIERS.standard.cut);
   /** Harga native USD, untuk menampilkan market cap buka yang sama di tiap chain. */
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
@@ -292,11 +325,6 @@ export default function StudioPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const supplyNumber = Number(tokenSupply.replace(/[^0-9]/g, "")) || 0;
-  /**
-   * Depth, creator and buyback all come out of the SAME configured total, so paying
-   * the creator never costs the trader extra. Depth is whatever is left over.
-   */
-  const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut);
 
   /**
    * Jumlah native untuk market cap buka, HANYA untuk ilustrasi di layar.
@@ -351,6 +379,16 @@ export default function StudioPage() {
    * — bukan menebak kaki keempat yang mungkin tidak ada.
    */
   const [protocolFeeBpsByChain, setProtocolFeeBpsByChain] = useState<Record<number, number>>({});
+  /**
+   * Apakah kaki protokol chain itu dipotong DARI DALAM total yang dikonfigurasi.
+   *
+   * Dibaca dari server, bukan disimpulkan dari string versi di sini. Angka ini menentukan
+   * apakah `depthCut` harus menyisihkan ruang untuk kaki protokol, dan server memakai
+   * jawaban yang sama untuk menyusun `lpFeeBps` yang masuk calldata. Dua penalaran
+   * terpisah atas hal yang sama adalah cara paling mudah membuat layar dan calldata
+   * berselisih — dan selisih itu tersimpan permanen, karena tiap kaki `immutable`.
+   */
+  const [protocolCarvedByChain, setProtocolCarvedByChain] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     let alive = true;
@@ -359,10 +397,14 @@ export default function StudioPage() {
       .then((d) => {
         if (!alive || !Array.isArray(d?.factories)) return;
         const map: Record<number, number> = {};
+        const carved: Record<number, boolean> = {};
         for (const f of d.factories) {
-          if (Number.isFinite(Number(f?.chainId))) map[Number(f.chainId)] = Number(f?.protocolFeeBps ?? 0);
+          if (!Number.isFinite(Number(f?.chainId))) continue;
+          map[Number(f.chainId)] = Number(f?.protocolFeeBps ?? 0);
+          carved[Number(f.chainId)] = Boolean(f?.protocolLegCarvedOut);
         }
         setProtocolFeeBpsByChain(map);
+        setProtocolCarvedByChain(carved);
       })
       .catch(() => {
         // Tidak terbaca: panel tetap menampilkan kaki yang diketahui pasti.
@@ -583,6 +625,104 @@ export default function StudioPage() {
       setTokenSupply("500,000,000");
       applyFeeTier("low");
       setAgentPersona("Delta-neutral yield hedging and institutional LP routing");
+    }
+  };
+
+  /**
+   * Register an ERC-8004 agent from the CREATOR'S OWN WALLET, per chain.
+   *
+   * The wallet that registers must be the wallet that launches:
+   * `AdextoFactory.deployTrinity` requires `ownerOf(agentId) == msg.sender`, so an agent
+   * registered by anyone else — including us — makes the launch revert. That is why this
+   * is a wallet signature and not a server action like logo generation, even though both
+   * appear as one button in this panel.
+   *
+   * The id is read from the mint `Transfer` event rather than assumed sequential. Reading
+   * `totalSupply()` afterwards would look equivalent and is not: two registrations landing
+   * in the same block would both see the later number.
+   */
+  const [creatingAgent, setCreatingAgent] = useState<number | null>(null);
+
+  const handleCreateAgent = async (chain: ChainInfo) => {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    const symbol = tokenTicker.trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,12}$/.test(symbol)) {
+      setGlobalError("Enter the ticker first — the agent's registration file names the market it serves.");
+      return;
+    }
+    setCreatingAgent(chain.chainId);
+    setGlobalError(null);
+    try {
+      // Built on the server: the CIDv1 helper needs `node:crypto`, and pinning needs a
+      // key that must never reach the browser.
+      const res = await fetch("/api/agent/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chainId: chain.chainId,
+          symbol,
+          marketName: tokenName.trim(),
+          persona: agentPersona.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Could not build the registration file.");
+
+      const ethereum = getActiveEip1193();
+      await ensureWalletChain(ethereum, chain);
+      const provider = new ethers.BrowserProvider(ethereum);
+      const signer = await provider.getSigner();
+      const registry = new ethers.Contract(
+        data.registry,
+        [
+          "function register(string agentURI) returns (uint256)",
+          "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+        ],
+        signer
+      );
+
+      const tx = await registry.register(data.uri);
+      const receipt = await tx.wait();
+      if (!receipt || receipt.status !== 1) throw new Error("The registration transaction reverted.");
+
+      const iface = new ethers.Interface([
+        "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+      ]);
+      let newId: bigint | null = null;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+          if (parsed?.name === "Transfer" && parsed.args.from === ethers.ZeroAddress) {
+            newId = parsed.args.tokenId as bigint;
+          }
+        } catch {
+          // not the registry's event
+        }
+      }
+      if (newId === null) {
+        /**
+         * The transaction succeeded but we cannot name the id, so the field stays empty
+         * rather than being filled with a guess. An agent bound by a wrong id is permanent,
+         * and the creator can still read the id from the explorer link below.
+         */
+        throw new Error(
+          `Registered in ${tx.hash} but the mint event could not be read, so the id is unknown. ` +
+            `Open the transaction on ${chain.blockExplorer} and paste the token id manually.`
+        );
+      }
+
+      setAgentBinding((p) => ({
+        ...p,
+        enabled: true,
+        agentIds: { ...p.agentIds, [chain.chainId]: String(newId) },
+      }));
+    } catch (e) {
+      setGlobalError(describeTxError(e));
+    } finally {
+      setCreatingAgent(null);
     }
   };
 
@@ -1129,8 +1269,49 @@ export default function StudioPage() {
    */
   const protocolCut =
     launchTargets.reduce((max, c) => Math.max(max, protocolFeeBpsByChain[c.chainId] ?? 0), 0) / 100;
-  /** Yang benar-benar keluar dari dompet trader: total yang dikonfigurasi + kaki protokol. */
-  const totalPaidPct = totalSwapFee + protocolCut;
+  /**
+   * Apakah SEMUA chain tujuan memotong kaki protokol dari dalam total.
+   *
+   * `every`, bukan `some`, dan defaultnya false lewat `length > 0`. Kalau ada satu chain
+   * yang masih aditif, layar harus memakai aritmetika aditif — angka yang lebih besar —
+   * karena itulah yang benar-benar dibayar trader di chain tersebut. Menampilkan total
+   * yang lebih kecil akan mengecilkan biaya yang sebenarnya, arah kesalahan yang paling
+   * tidak boleh diambil di halaman yang mengutip harga.
+   *
+   * `/api/deploy` menolak campuran generasi saat peluncuran, jadi keadaan campuran tidak
+   * bisa berakhir sebagai transaksi. Layar tetap harus jujur selama campuran itu terpilih.
+   */
+  const protocolCarvedOut =
+    launchTargets.length > 0 && launchTargets.every((c) => protocolCarvedByChain[c.chainId] === true);
+  /**
+   * Yang benar-benar keluar dari dompet trader. SEJAK 0.12.0 INI SAMA DENGAN
+   * `totalSwapFee`, karena kaki protokol dipotong dari dalamnya alih-alih ditambahkan.
+   *
+   * Dibiarkan sebagai variabel tersendiri dan bukan diganti `totalSwapFee` di semua
+   * pemakaiannya: ia dipakai sebagai PEMBAGI untuk lebar keempat segmen bar fee di bawah,
+   * dan sebuah pembagi yang bernama "total yang dibayar" menjelaskan kenapa segmen-segmen
+   * itu berjumlah 100% lebar. Menggantinya dengan `totalSwapFee` akan membuat baris-baris
+   * itu terbaca seperti kebetulan.
+   */
+  const totalPaidPct = totalSwapFee + (protocolCarvedOut ? 0 : protocolCut);
+  /**
+   * Depth adalah SISA setelah tiga kaki bernama, dan sejak 0.12.0 kaki protokol adalah
+   * salah satunya.
+   *
+   * Sukunya BERSYARAT, bukan selalu ada: pada factory 0.11.0 kaki protokol ditagih di atas
+   * total, jadi depth tidak perlu memberi ruang untuknya, dan menguranginya di sana akan
+   * melaporkan depth 10 bps lebih kecil daripada yang benar-benar ter-deploy.
+   *
+   * Dipindahkan ke sini dari atas berkas dengan sengaja: ia sekarang bergantung pada
+   * `protocolCut`, yang butuh `launchTargets`. Menaruhnya di atas akan membuatnya membaca
+   * `protocolCut` sebelum variabel itu ada.
+   *
+   * `Math.max(0, ...)` DIPERTAHANKAN sebagai penjaga tampilan, bukan sebagai perbaikan:
+   * ia menahan layar dari menampilkan depth negatif selagi creator menggeser slider. Yang
+   * menolak pembagian mustahil adalah factory dan /api/deploy, bukan baris ini — dan itu
+   * pembagian kerja yang benar, karena angka negatif di sini berarti calldata-nya salah.
+   */
+  const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut - (protocolCarvedOut ? protocolCut : 0));
 
   return (
     <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
@@ -1674,11 +1855,16 @@ export default function StudioPage() {
                 </div>
 
                 <div className="p-2 rounded-xl bg-cream-2 space-y-1">
-                  {/* Lebar tiap segmen diukur terhadap TOTAL YANG DIBAYAR, bukan
-                      terhadap total yang dikonfigurasi. Kalau kaki protokol ada tapi
-                      pembaginya tetap `totalSwapFee`, ketiga segmen pertama akan
-                      menjumlah 100% dan segmen keempat meluber keluar batang — batang
-                      yang menyatakan sesuatu yang aritmetikanya tidak mungkin. */}
+                  {/* Lebar tiap segmen diukur terhadap TOTAL YANG DIBAYAR. Sejak 0.12.0
+                      angka itu sama dengan total yang dikonfigurasi, karena kaki protokol
+                      dipotong dari dalam dan `depthCut` sudah memberi ruang untuknya —
+                      jadi keempat segmen berjumlah tepat 100% lebar batang.
+
+                      Pembaginya tetap ditulis `totalPaidPct` dan bukan `totalSwapFee`
+                      supaya kalau suatu saat ada kaki yang kembali ditagih di luar
+                      kuotasi, satu variabel itu yang berubah dan batangnya ikut benar
+                      sendiri. Di 0.11.0 justru inilah yang menahan segmen keempat dari
+                      meluber keluar batang. */}
                   <div className="flex flex-wrap justify-between gap-x-3 text-[10px]">
                     <span className="text-accent font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
                     <span className="text-ok font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
@@ -1697,10 +1883,11 @@ export default function StudioPage() {
                   </div>
                   {protocolCut > 0 ? (
                     <span className="block text-[9px] text-ink-soft">
-                      Traders pay <span data-numeric>{totalPaidPct.toFixed(2)}%</span> in total: your{" "}
-                      <span data-numeric>{totalSwapFee.toFixed(2)}%</span> plus the protocol&apos;s{" "}
-                      <span data-numeric>{protocolCut.toFixed(2)}%</span>, which is charged on top rather than taken out
-                      of your share. It is immutable per market, like every other leg.
+                      Traders pay <span data-numeric>{totalPaidPct.toFixed(2)}%</span> in total, and nothing is added on
+                      top of it. The protocol&apos;s <span data-numeric>{protocolCut.toFixed(2)}%</span> is one of the
+                      four legs inside that figure, alongside your{" "}
+                      <span data-numeric>{creatorCut.toFixed(2)}%</span>. It is immutable per market, like every other
+                      leg.
                     </span>
                   ) : null}
                   <span className="block text-[9px] text-ok/80">
@@ -1776,20 +1963,36 @@ export default function StudioPage() {
                                   : "muted"
                               }
                             >
-                              <input
-                                value={agentBinding.agentIds[chain.chainId] ?? ""}
-                                onChange={(e) =>
-                                  setAgentBinding((p) => ({
-                                    ...p,
-                                    agentIds: {
-                                      ...p.agentIds,
-                                      [chain.chainId]: e.target.value.replace(/[^0-9]/g, ""),
-                                    },
-                                  }))
-                                }
-                                placeholder={`id on ${chain.name}`}
-                                className={`${FIELD_CLASS} font-mono`}
-                              />
+                              <div className="flex gap-1.5">
+                                <input
+                                  value={agentBinding.agentIds[chain.chainId] ?? ""}
+                                  onChange={(e) =>
+                                    setAgentBinding((p) => ({
+                                      ...p,
+                                      agentIds: {
+                                        ...p.agentIds,
+                                        [chain.chainId]: e.target.value.replace(/[^0-9]/g, ""),
+                                      },
+                                    }))
+                                  }
+                                  placeholder={`id on ${chain.name}`}
+                                  className={`${FIELD_CLASS} font-mono`}
+                                />
+                                {/* Muncul hanya saat kolomnya kosong. Sesudah terisi, tombol
+                                    "buat" di sebelah id yang sudah ada adalah undangan untuk
+                                    mendaftar dua kali dan membayar gas untuk agent kedua yang
+                                    tidak akan dipakai. */}
+                                {!(agentBinding.agentIds[chain.chainId] ?? "").trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCreateAgent(chain)}
+                                    disabled={creatingAgent !== null}
+                                    className="shrink-0 rounded-lg border border-line-strong px-2.5 py-2 text-[10px] font-medium text-ink transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+                                  >
+                                    {creatingAgent === chain.chainId ? "registering…" : "Create"}
+                                  </button>
+                                )}
+                              </div>
                             </Field>
                           );
                         })}
@@ -1797,10 +2000,11 @@ export default function StudioPage() {
                         {/* Stated because the number 0 is a live agent here, and a
                             blank field must not be read as agent 0. */}
                         One id per chain: the registry sits at the same address everywhere but keeps separate state, so
-                        the same agent has a different id on each chain. Register with{" "}
-                        <code className="font-mono text-accent">node scripts/register-agent-8004.mjs --chain base --broadcast</code>{" "}
-                        and repeat per chain. The registries exist on mainnet only. Agent id 0 is a real agent, so
-                        leaving a field blank is not the same as entering 0.
+                        the same agent has a different id on each chain. <strong className="font-medium text-ink-soft">Create</strong>{" "}
+                        registers one from your own wallet and fills the field — it costs gas, and it has to be your
+                        wallet because the factory checks that you own the agent before it binds it. The registries
+                        exist on mainnet only. Agent id 0 is a real agent, so leaving a field blank is not the same as
+                        entering 0.
                       </p>
                     </div>
                   )}

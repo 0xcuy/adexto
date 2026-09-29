@@ -578,6 +578,34 @@ export interface FactoryGeneration {
   protocolTreasury: string | null;
 }
 
+/**
+ * Apakah kaki protokol DIPOTONG DARI DALAM `swapFeeBps`, atau ditagih di atasnya.
+ *
+ * Satu fungsi, satu sumber kebenaran, karena jawabannya mengubah aritmetika depth di
+ * DUA tempat yang berbeda proses: `/api/deploy` menyusun calldata di server, dan studio
+ * menggambar bar fee di peramban. Kalau keduanya menyimpulkan sendiri, salah satu akan
+ * menampilkan depth yang berbeda dari yang benar-benar ter-deploy — dan angka yang salah
+ * itu kemudian tersimpan permanen di registry sebelah pasar yang tarifnya lain.
+ *
+ * 0.12.0 ke atas: dipotong dari dalam, jadi `swapFeeBps` adalah seluruh yang dibayar.
+ * 0.11.0 dan sebelumnya: aditif, jadi yang dibayar `swapFeeBps + protocolFeeBps`.
+ *
+ * `version` null berarti factory tidak punya `VERSION()` sama sekali — itu generasi
+ * 0.10.0, yang tidak punya kaki protokol, jadi pertanyaannya tidak berlaku dan `false`
+ * adalah jawaban yang benar sekaligus tidak berbahaya: `protocolFeeBps` di sana nol,
+ * sehingga aditif dan carve-out menghasilkan angka yang sama.
+ *
+ * Perbandingannya numerik per komponen, BUKAN `>=` atas string. "0.9.0" >= "0.12.0"
+ * bernilai true secara leksikografis, dan perbandingan seperti itu akan menyatakan
+ * factory lama sebagai generasi baru — lalu mengurangi kaki protokol dari depth pada
+ * kurva yang justru menagihnya di atas.
+ */
+export function protocolLegIsCarvedOut(version: string | null): boolean {
+  if (!version) return false;
+  const [major = 0, minor = 0] = version.split(".").map((p) => Number.parseInt(p, 10) || 0);
+  return major > 0 || minor >= 12;
+}
+
 export async function readFactoryGeneration(chain: ChainInfo): Promise<FactoryGeneration> {
   const empty: FactoryGeneration = { version: null, protocolFeeBps: 0, protocolTreasury: null };
   if (!chain.curveFactoryAddress) return empty;

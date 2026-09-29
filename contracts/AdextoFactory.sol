@@ -80,21 +80,36 @@ contract AdextoFactory {
     /**
      * @notice Protocol fee charged on every swap, in basis points. 10 bps = 0.10%.
      *
-     * @dev A CONSTANT, AND ADDITIVE TO `swapFeeBps` RATHER THAN CARVED OUT OF IT
+     * @dev A CONSTANT, AND CARVED OUT OF `swapFeeBps` RATHER THAN ADDITIVE TO IT.
+     *      THIS REVERSED IN 0.12.0 — read on, because the old behaviour is what the
+     *      deployed 0.11.0 markets still do and they will do it forever.
      *
-     * A market configured as 0.30% total therefore charges 0.40%: depth 0.15%,
-     * creator 0.10%, buyback 0.05%, protocol 0.10%.
+     * `swapFeeBps` is now the WHOLE fee a trader pays. The 0.12.0 launch model is
+     * 100 bps split four ways:
      *
-     * Carving it out of the existing 0.30% was the alternative and it was rejected.
-     * Taking it from depth weakens the rising price floor, which is the reason the
-     * curve can never be drained. Taking it from the creator's share guts the one
-     * mechanism that replaces a free token allocation, and the creator's 0.10% has
-     * already been published as it stands. Charging 10bps more is the only option
-     * that is visible at the point of trade rather than quietly reallocating money
-     * somebody was already promised.
+     *   creator  70 bps    streamed to the creator
+     *   depth    10 bps    stays in the curve, raising the floor
+     *   buyback  10 bps    buys and burns, never leaves the curve
+     *   protocol 10 bps    claimable only to `protocolTreasury`
+     *   -----------------
+     *   total   100 bps    = 1.00%, which is what the trader is quoted
      *
-     * 0.10% matches the creator's share on purpose: the protocol should not earn
-     * more from a market than the person who launched it.
+     * In 0.11.0 this constant was ADDITIVE: a market configured as 0.30% charged
+     * 0.40%. That was the right call at the time and for a reason worth keeping on
+     * record — carving the protocol leg out of an already-published 0.30% would
+     * have reallocated money that depth and the creator had already been promised,
+     * where charging 10 bps more was at least visible at the point of trade.
+     *
+     * What changed is not the reasoning, it is the number the fee is carved from.
+     * At a 100 bps total there is room for a 10 bps protocol leg without taking
+     * anything from the two legs that carry the product's guarantees: depth still
+     * gets its own 10 bps so the floor still rises, and the creator's share goes UP
+     * from 10 bps to 70 bps rather than down. Nobody is quietly paid less; the
+     * trader is quoted one number and that number is the truth.
+     *
+     * The consequence to state plainly: a market deployed by a 0.11.0 factory pays
+     * its own rates permanently, because every leg is `immutable` and there is no
+     * proxy. This change reaches new markets only.
      *
      * A constant, not a parameter, so every market this factory deploys charges the
      * same and the figure is readable here before anyone trades. It cannot be
@@ -149,6 +164,27 @@ contract AdextoFactory {
     mapping(address => address) public curveOf;
     mapping(address => address) public tokenOf;
     mapping(bytes32 => address) public symbolRegistry;
+
+    /**
+     * @notice Penanda untuk ticker yang dicadangkan di constructor, bukan oleh peluncuran.
+     *
+     * @dev `symbolRegistry` memetakan ticker ke ALAMAT TOKEN, dan ticker yang dicadangkan
+     *      belum punya token. Nilai ini menempati slotnya supaya
+     *      `require(symbolRegistry[key] == address(0))` di `deployTrinity` menolaknya
+     *      lewat jalur yang sudah ada — tanpa fungsi baru, tanpa daftar kedua, tanpa
+     *      owner.
+     *
+     *      Dibuat KONSTANTA BERNAMA dan bukan `address(1)` telanjang supaya pembaca
+     *      `symbolRegistry` bisa membedakan "dicadangkan" dari "token rusak". Aman
+     *      dipakai karena tidak ada apa pun di luar Solidity yang membaca mapping ini:
+     *      aplikasi hanya memanggil `isSymbolAvailable` dan `curveOf`, dan keduanya
+     *      berperilaku benar — `isSymbolAvailable` mengembalikan false, `curveOf`
+     *      tidak pernah dikunci oleh ticker.
+     *
+     *      Alamat ini tidak bisa jadi token sungguhan: ia tidak punya kode, dan
+     *      `deployTrinity` hanya pernah menulis alamat hasil `new AdextoToken`.
+     */
+    address public constant SYMBOL_RESERVED = address(1);
     mapping(address => address[]) public userDeployments;
     mapping(address => uint256) public agentIdOf;
 
@@ -179,6 +215,16 @@ contract AdextoFactory {
         uint256 treasuryBuybackBps,
         bytes32 metadataRoot
     );
+    /**
+     * @notice Satu ticker yang dicadangkan saat factory dibuat.
+     *
+     * @dev Ada supaya daftar cadangan bisa dibaca dari log tanpa memindai `symbolRegistry`
+     *      kunci demi kunci — mapping tidak bisa dienumerasi, dan `isSymbolAvailable`
+     *      menuntut penanya sudah tahu nama yang mau diperiksa. Tanpa event ini,
+     *      satu-satunya cara mengetahui apa saja yang dicadangkan adalah membaca calldata
+     *      transaksi deployment, yang tidak dilayani setiap explorer.
+     */
+    event SymbolReserved(string symbol);
     event AgentBound(
         address indexed token,
         uint256 indexed agentId,
@@ -186,15 +232,58 @@ contract AdextoFactory {
         address owner
     );
 
-    constructor(address _protocolTreasury) {
+    /**
+     * @param _protocolTreasury Tujuan permanen fee protokol dari setiap pasar factory ini.
+     * @param reservedSymbols Ticker yang dicadangkan saat kelahiran, tidak akan pernah bisa
+     *        diluncurkan di factory ini oleh siapa pun.
+     *
+     * @dev KENAPA PENCADANGAN HARUS TERJADI DI SINI, BUKAN LEWAT FUNGSI
+     *
+     * `symbolRegistry` adalah state MILIK SATU FACTORY, bukan daftar global. Jadi factory
+     * baru lahir dengan buku ticker kosong, dan setiap nama yang sudah dipakai generasi
+     * sebelumnya bebas diklaim lagi di sini — termasuk nama pasar yang sedang hidup dan
+     * nama aset besar. Terukur sebelum perubahan ini, lewat `isSymbolAvailable` pada
+     * keempat factory 0.11.0 yang live: "ETH", "USDC" dan "BTC" bebas di keempat chain,
+     * dan "ADEXTO" bebas di Base, Arbitrum dan Monad.
+     *
+     * Daftar reserved off-chain di `src/lib/registry.ts` tidak menutup itu, dan tidak bisa:
+     * `deployTrinity` tidak punya access control sama sekali, jadi siapa pun boleh
+     * memanggil factory langsung tanpa melewati situs. Yang dihalangi daftar off-chain
+     * hanyalah PENDAFTARAN di situs — pasarnya tetap lahir di chain.
+     *
+     * Constructor adalah satu-satunya tempat yang benar. Sebuah fungsi `reserve()` akan
+     * menuntut alamat yang berwenang memanggilnya, dan kunci itu bisa hilang atau
+     * dipakai untuk mencadangkan nama orang lain setelah factory hidup. Di sini
+     * daftarnya ditetapkan sekali, terbaca di calldata deployment selamanya, dan tidak
+     * ada yang bisa menambah maupun mengurangi sesudahnya.
+     *
+     * TETAP TIDAK ADA FUNGSI UNTUK MELEPAS. Ticker yang dicadangkan atau diklaim di sini
+     * permanen. Jadi satu salah ketik di daftar ini mengunci nama itu selamanya di
+     * factory ini — periksa daftarnya sebelum broadcast, bukan sesudahnya.
+     *
+     * Duplikat DIIZINKAN dan tidak berbahaya: penulisan kedua menimpa slot dengan nilai
+     * yang sama. Menolaknya akan menambah biaya dan risiko revert saat deployment demi
+     * masalah yang tidak ada akibatnya.
+     */
+    constructor(address _protocolTreasury, string[] memory reservedSymbols) {
         require(_protocolTreasury != address(0), "Factory: zero protocol treasury");
         protocolTreasury = _protocolTreasury;
+
+        for (uint256 i = 0; i < reservedSymbols.length; i++) {
+            // `_toUpper` dipakai di sini DAN di `deployTrinity`, jadi "eth" dan "ETH"
+            // menghasilkan kunci yang sama. Tanpa itu, mencadangkan "ETH" tidak akan
+            // menghalangi peluncuran "eth" — nama yang sama bagi setiap pembaca manusia.
+            symbolRegistry[keccak256(abi.encodePacked(_toUpper(reservedSymbols[i])))] = SYMBOL_RESERVED;
+            emit SymbolReserved(reservedSymbols[i]);
+        }
     }
 
     /**
      * @notice Deploy a token and its bonding curve in one transaction.
-     * @param swapFeeBps Creator-configured total, split three ways by the two share
-     *        parameters. `PROTOCOL_FEE_BPS` is charged in addition to this.
+     * @param swapFeeBps The WHOLE fee a trader pays, split four ways: the two share
+     *        parameters, the `PROTOCOL_FEE_BPS` constant, and depth as the remainder.
+     *        Nothing is charged on top of this. Changed in 0.12.0 — in 0.11.0 the
+     *        protocol leg was additive, so the real total was `swapFeeBps + 10`.
      * @param creatorShareBps Portion of `swapFeeBps` streamed to the creator.
      * @param treasuryShareBps Portion of `swapFeeBps` routed to the agent vault.
      * @param metadataRoot 0G DA storage root of the launch metadata.
@@ -225,13 +314,29 @@ contract AdextoFactory {
         require(initialSupply > 0 && initialSupply <= MAX_SUPPLY, "Factory: bad supply");
         require(agentIdentity != address(0), "Factory: zero agent");
         require(virtualNative > 0, "Factory: zero virtual reserve");
-        // The 5% cap applies to what a trader actually pays, so the protocol leg is
-        // inside the comparison. Checking `swapFeeBps` alone would let a 5% market
-        // deploy a curve whose true total is 5.1%, and the curve's own constructor
-        // would then revert — turning a bad request into a confusing failure late
-        // in the call instead of a clear one here.
-        require(swapFeeBps + PROTOCOL_FEE_BPS <= 500, "Factory: fee too high");
-        require(creatorShareBps + treasuryShareBps <= swapFeeBps, "Factory: shares exceed fee");
+        // The 5% cap applies to what a trader actually pays, and since 0.12.0 that is
+        // `swapFeeBps` on its own — the protocol leg is carved out of it, not added to
+        // it, so adding `PROTOCOL_FEE_BPS` here again would cap the real total at 4.9%
+        // while claiming 5%.
+        require(swapFeeBps <= 500, "Factory: fee too high");
+        /**
+         * The protocol leg is INSIDE this comparison, and that is the check that makes
+         * the carve-out real rather than nominal.
+         *
+         * Without `PROTOCOL_FEE_BPS` on the left, a launch could set
+         * `creatorShareBps + treasuryShareBps == swapFeeBps` and leave nothing for the
+         * protocol leg — and the subtraction computing `depthFeeBps` below would then
+         * underflow and revert, which in 0.8.x is a panic with no message. The failure
+         * would be correct but unreadable: a creator would see an unexplained revert
+         * for a fee split that looks arithmetically fine to them.
+         *
+         * It also enforces the floor: `swapFeeBps` can never be less than
+         * `PROTOCOL_FEE_BPS`, because the two shares cannot be negative.
+         */
+        require(
+            creatorShareBps + treasuryShareBps + PROTOCOL_FEE_BPS <= swapFeeBps,
+            "Factory: shares exceed fee"
+        );
 
         bytes32 symbolKey = keccak256(abi.encodePacked(_toUpper(symbol)));
         require(symbolRegistry[symbolKey] == address(0), "Factory: symbol already taken");
@@ -252,7 +357,11 @@ contract AdextoFactory {
             require(agentId == 0, "Factory: agentId set without bindAgent");
         }
 
-        uint256 depthFeeBps = swapFeeBps - creatorShareBps - treasuryShareBps;
+        // Depth is the REMAINDER after the three named legs, so the four always sum to
+        // exactly `swapFeeBps` and the trader's quote cannot drift from the split. The
+        // `PROTOCOL_FEE_BPS` term is what changed in 0.12.0; the require above
+        // guarantees this cannot underflow.
+        uint256 depthFeeBps = swapFeeBps - creatorShareBps - treasuryShareBps - PROTOCOL_FEE_BPS;
 
         // 1. Deploy the curve first so the token can bind to it immutably.
         AdextoCurve sovereignCurve = new AdextoCurve(

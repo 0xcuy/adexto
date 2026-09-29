@@ -20,7 +20,12 @@ import {
   listProjects,
   RegistryLimitError,
 } from "@/lib/registry";
-import { CURVE_FACTORY_ABI, SOVEREIGN_CURVE_ABI, readFactoryGeneration } from "@/lib/dex";
+import {
+  CURVE_FACTORY_ABI,
+  SOVEREIGN_CURVE_ABI,
+  protocolLegIsCarvedOut,
+  readFactoryGeneration,
+} from "@/lib/dex";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 
 /**
@@ -74,6 +79,16 @@ export async function GET(req: Request) {
           dexLive: c.dexLive,
           factoryVersion: gen.version,
           protocolFeeBps: gen.protocolFeeBps,
+          /**
+           * Apakah kaki protokol sudah termasuk di dalam total yang dikonfigurasi.
+           *
+           * Dikirim, bukan disimpulkan ulang di peramban dari `factoryVersion`: studio
+           * menghitung `depthCut` untuk digambar di bar fee, dan server menghitung
+           * `lpFeeBps` untuk dimasukkan ke calldata. Kalau keduanya memakai penalaran
+           * masing-masing atas string versi, keduanya bisa berpisah — dan yang muncul di
+           * layar akan berbeda dari yang ter-deploy permanen.
+           */
+          protocolLegCarvedOut: protocolLegIsCarvedOut(gen.version),
           protocolTreasury: gen.protocolTreasury,
           // Factory generasi sebelumnya di chain ini, kalau ada. Hanya untuk
           // verifikasi — pasar lamanya tetap bisa diperdagangkan dan tetap memakai
@@ -309,16 +324,32 @@ async function handlePrepare(body: any) {
    * no idea the market they own does not match what they asked for.
    */
   const FEE_BOUNDS = {
-    // Floor keeps a market from launching with no depth accrual at all; ceiling stays
-    // under the 1% that pump.fun charges, which is the comparison this product invites.
-    swapFee: { min: 0.05, max: 1.0 },
-    creatorCut: { min: 0, max: 0.5 },
-    treasuryCut: { min: 0, max: 0.5 },
+    /**
+     * Plafon dinaikkan 1.0 -> 2.0, dan alasan lamanya memang sudah tidak berlaku.
+     *
+     * Komentar sebelumnya berbunyi "ceiling stays under the 1% that pump.fun charges,
+     * which is the comparison this product invites". Sejak 0.12.0 tarif standar KAMI
+     * adalah 1%, jadi plafon 1.0 akan menolak tier "Meme" milik studio sendiri —
+     * pembandingnya sudah bukan pembatas yang relevan.
+     *
+     * 2.0 dipilih karena itu tier tertinggi yang benar-benar ada di studio, bukan 5.0
+     * yang merupakan batas kontrak. Plafon yang longgar sampai batas kontrak akan
+     * mengizinkan pasar 5% diluncurkan lewat POST langsung dan terdaftar di situs ini
+     * dengan pembingkaian "gas only" kami di sekelilingnya.
+     *
+     * `creatorCut` dinaikkan 0.5 -> 1.6 dengan logika yang sama: tier Meme menuntut 1.5.
+     * Ia TIDAK dinaikkan sampai 2.0, supaya sisa untuk kaki protokol dan depth tidak bisa
+     * dihabiskan lewat satu angka saja — maksud asli bound ini, menahan skim bermusuhan,
+     * tetap utuh.
+     */
+    swapFee: { min: 0.2, max: 2.0 },
+    creatorCut: { min: 0, max: 1.6 },
+    treasuryCut: { min: 0, max: 1.0 },
   } as const;
 
-  const swapFeeRaw = Number(body.swapFee ?? 0.3);
-  const creatorCut = Number(body.creatorCut ?? 0.1);
-  const treasuryCut = Number(body.treasuryCut ?? 0.05);
+  const swapFeeRaw = Number(body.swapFee ?? 1.0);
+  const creatorCut = Number(body.creatorCut ?? 0.7);
+  const treasuryCut = Number(body.treasuryCut ?? 0.1);
 
   for (const [name, value] of [
     ["swapFee", swapFeeRaw],
@@ -337,36 +368,19 @@ async function handlePrepare(body: any) {
     }
   }
 
-  // Depth is what remains, so the parts may never exceed the whole. Without this the
-  // subtraction below goes negative and `Math.round` hands the factory a nonsense depth.
-  if (creatorCut + treasuryCut > swapFeeRaw) {
-    return NextResponse.json(
-      {
-        error:
-          `creatorCut (${creatorCut}%) + treasuryCut (${treasuryCut}%) cannot exceed the ` +
-          `total swapFee (${swapFeeRaw}%). Depth fee is whatever is left over.`,
-        code: "FEE_SPLIT_INVALID",
-      },
-      { status: 400 }
-    );
-  }
-
-  const lpFeeBps = Math.round((swapFeeRaw - creatorCut - treasuryCut) * 100);
-  const treasuryBuybackBps = Math.round(treasuryCut * 100);
-  const creatorFeeBps = Math.round(creatorCut * 100);
-
   /**
    * Kaki protokol dibaca dari factory tiap chain yang benar-benar dituju.
    *
-   * `swapFeeBps` yang dikirim creator BUKAN lagi yang dibayar trader: sejak factory
-   * 0.11.0 `PROTOCOL_FEE_BPS` dipungut DI ATAS total itu, jadi konfigurasi 0.30%
-   * menghasilkan 0.40% yang benar-benar keluar dari dompet. Angka itu harus dilaporkan,
-   * bukan dibiarkan tersirat — kalau tidak, satu-satunya tempat kaki keempat muncul
-   * adalah di dalam kontrak, dan creator baru mengetahuinya setelah pasarnya permanen.
+   * DIPINDAHKAN KE ATAS perhitungan depth, karena sejak 0.12.0 depth bergantung padanya:
+   * kaki protokol dipotong dari dalam `swapFeeBps`, jadi `depthFeeBps` tidak bisa dihitung
+   * sebelum diketahui berapa besar kaki itu dan apakah ia memang dipotong dari dalam.
    *
-   * Dibaca PER CHAIN karena rollout-nya bisa bertahap: satu chain sudah 0.11.0
-   * sementara yang lain masih 0.10.0, dan satu angka gabungan akan salah di salah satu
-   * sisi. Nol berarti factory chain itu memang tidak punya kaki protokol.
+   * Angka ini harus dilaporkan, bukan dibiarkan tersirat — kalau tidak, satu-satunya
+   * tempat kaki keempat muncul adalah di dalam kontrak, dan creator baru mengetahuinya
+   * setelah pasarnya permanen.
+   *
+   * Dibaca PER CHAIN karena generasinya bisa berbeda: satu chain 0.12.0 sementara yang
+   * lain masih 0.11.0. Nol berarti factory chain itu memang tidak punya kaki protokol.
    */
   const protocolLegs = await Promise.all(
     deployable.map(async (c) => [c.chainId, await readFactoryGeneration(c)] as const)
@@ -378,21 +392,96 @@ async function handlePrepare(body: any) {
   const maxProtocolFeeBps = protocolLegs.reduce((m, [, gen]) => Math.max(m, gen.protocolFeeBps), 0);
 
   /**
-   * Cap 5% diperiksa di sini juga, terhadap total yang SUDAH termasuk kaki protokol.
+   * SEMUA chain tujuan harus sepakat soal cara kaki protokol dipungut. Kalau tidak,
+   * permintaan ditolak — bukan diluncurkan dengan depth yang salah di salah satu chain.
    *
-   * Factory sendiri sudah menuntut `swapFeeBps + PROTOCOL_FEE_BPS <= 500`, tapi kalau
-   * pemeriksaannya hanya di sana, permintaan yang melewati batas baru gagal di tengah
-   * transaksi launch — setelah metadata di-anchor ke 0G DA dan setelah pengguna
-   * menandatangani. Menolaknya lebih awal membuat kegagalannya bisa dijelaskan.
+   * Alasannya struktural, bukan kehati-hatian: `lpFeeBps` di bawah adalah SATU angka yang
+   * dikirim ke semua chain dalam satu peluncuran. Pada factory carve-out depth yang benar
+   * adalah `swap - creator - buyback - protokol`, pada factory aditif `swap - creator -
+   * buyback`. Tidak ada satu nilai pun yang benar untuk keduanya, jadi meluncurkan ke
+   * campuran generasi berarti satu chain PASTI mendapat kaki depth yang salah — dan setiap
+   * kaki `immutable`, jadi kesalahan itu permanen untuk pasar tersebut.
+   *
+   * Menolak lebih jujur daripada memilih salah satu. Yang hilang hanya kemampuan
+   * meluncurkan serentak selama jendela rollout, dan itu memang keadaan sementara.
    */
-  const totalPaidBps = Math.round(swapFeeRaw * 100) + maxProtocolFeeBps;
+  const carveStates = new Set(protocolLegs.map(([, gen]) => protocolLegIsCarvedOut(gen.version)));
+  if (carveStates.size > 1) {
+    const carved = protocolLegs
+      .filter(([, gen]) => protocolLegIsCarvedOut(gen.version))
+      .map(([chainId, gen]) => `${chainId} (${gen.version})`);
+    const additive = protocolLegs
+      .filter(([, gen]) => !protocolLegIsCarvedOut(gen.version))
+      .map(([chainId, gen]) => `${chainId} (${gen.version ?? "no VERSION"})`);
+    return NextResponse.json(
+      {
+        error:
+          `Target chains disagree on how the protocol fee is charged, so one depth value cannot be ` +
+          `correct for all of them. Carved out of the total: ${carved.join(", ")}. Charged on top: ` +
+          `${additive.join(", ")}. Launch these groups separately.`,
+        code: "FEE_GENERATION_MIXED",
+      },
+      { status: 400 }
+    );
+  }
+  const protocolCarvedOut = carveStates.values().next().value === true;
+  /** Kaki protokol yang harus disisihkan dari total, dalam persen. Nol saat ia aditif. */
+  const carvedProtocolPct = protocolCarvedOut ? maxProtocolFeeBps / 100 : 0;
+
+  // Depth is what remains, so the parts may never exceed the whole. Without this the
+  // subtraction below goes negative and `Math.round` hands the factory a nonsense depth.
+  //
+  // Kaki protokol masuk ke sisi kiri saat ia dipotong dari dalam, persis seperti
+  // `require(creatorShareBps + treasuryShareBps + PROTOCOL_FEE_BPS <= swapFeeBps)` di
+  // AdextoFactory 0.12.0. Tanpa itu, pembagian yang ditolak factory baru gagal setelah
+  // metadata di-anchor ke 0G DA dan setelah pengguna menandatangani.
+  if (creatorCut + treasuryCut + carvedProtocolPct > swapFeeRaw) {
+    return NextResponse.json(
+      {
+        error:
+          `creatorCut (${creatorCut}%) + treasuryCut (${treasuryCut}%)` +
+          (carvedProtocolPct > 0 ? ` + the protocol leg (${carvedProtocolPct}%)` : "") +
+          ` cannot exceed the total swapFee (${swapFeeRaw}%). Depth fee is whatever is left over.`,
+        code: "FEE_SPLIT_INVALID",
+      },
+      { status: 400 }
+    );
+  }
+
+  // Persis seperti AdextoFactory menghitung `depthFeeBps`, termasuk suku protokolnya.
+  //
+  // Formula lama di sini `swapFee - treasuryCut` LUPA mengurangi bagian creator, jadi ia
+  // melaporkan depth 0.25% untuk peluncuran 0.30% Standard yang on-chain depth-nya 0.15%.
+  // Angka itu lalu ditimpa balik ke studio dan disimpan di registry, sehingga terminal
+  // menampilkan "Curve depth (0.25%)" bersebelahan dengan nilai dolar yang justru dihitung
+  // dari 0.15% — kontradiksi di satu layar. Kaki protokol adalah suku ketiga yang sama
+  // mudahnya terlupakan, dengan akibat yang sama bentuknya.
+  const lpFeeBps = Math.round((swapFeeRaw - creatorCut - treasuryCut - carvedProtocolPct) * 100);
+  const treasuryBuybackBps = Math.round(treasuryCut * 100);
+  const creatorFeeBps = Math.round(creatorCut * 100);
+
+  /**
+   * Cap 5% diperiksa di sini juga, terhadap total yang BENAR-BENAR dibayar trader.
+   *
+   * Saat kaki protokol dipotong dari dalam, yang dibayar adalah `swapFeeBps` itu sendiri
+   * dan menambahkan kaki protokol lagi akan membatasi total sebenarnya di 4.9% sambil
+   * mengaku 5%. Saat ia aditif, ia memang harus ditambahkan. Karena itu sukunya
+   * bersyarat, bukan selalu ada.
+   *
+   * Factory sendiri sudah menuntut batas ini, tapi kalau pemeriksaannya hanya di sana,
+   * permintaan yang melewati batas baru gagal di tengah transaksi launch — setelah
+   * metadata di-anchor ke 0G DA dan setelah pengguna menandatangani.
+   */
+  const totalPaidBps = Math.round(swapFeeRaw * 100) + (protocolCarvedOut ? 0 : maxProtocolFeeBps);
   if (totalPaidBps > 500) {
     return NextResponse.json(
       {
         error:
           `Total fee a trader would pay is ${(totalPaidBps / 100).toFixed(2)}%, above the 5% cap the ` +
-          `curve enforces. swapFee is ${swapFeeRaw}% and the protocol leg on the target chains adds ` +
-          `${(maxProtocolFeeBps / 100).toFixed(2)}%.`,
+          `curve enforces. swapFee is ${swapFeeRaw}%` +
+          (protocolCarvedOut
+            ? ` and the protocol leg is already inside it.`
+            : ` and the protocol leg on the target chains adds ${(maxProtocolFeeBps / 100).toFixed(2)}%.`),
         code: "FEE_OUT_OF_RANGE",
       },
       { status: 400 }
