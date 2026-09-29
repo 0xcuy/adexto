@@ -91,7 +91,7 @@ const PREV_CURVE_FACTORY = {
  */
 export const CURVE_FACTORY_GENERATION = {
   contract: "AdextoFactory",
-  version: "0.11.0",
+  version: "0.12.0",
 } as const;
 
 /**
@@ -101,9 +101,100 @@ export const CURVE_FACTORY_GENERATION = {
  * perlu mengubah dua tempat sekaligus.
  */
 export const SUPERSEDED_CURVE_FACTORY_GENERATION = {
-  contract: "AdextoCurveFactory",
-  version: "0.10.0",
+  contract: "AdextoFactory",
+  version: "0.11.0",
 } as const;
+
+/**
+ * GENERASI 0.10.0 BERHENTI DISEBUT DI SINI, DAN ITU PILIHAN YANG DIAMBIL SADAR.
+ *
+ * Sejak 0.12.0 hidup ada TIGA generasi factory di chain sekaligus:
+ *
+ *   0.10.0  AdextoCurveFactory  0xaA85bc0c… (0G) dan tiga lainnya — pasarnya masih trading
+ *   0.11.0  AdextoFactory       0x51c41682… (0G) dan tiga lainnya — enam pasar hidup
+ *   0.12.0  AdextoFactory       0x06C80fD2… (0G) dan tiga lainnya — melayani peluncuran baru
+ *
+ * Konfigurasi ini hanya punya dua tempat: satu yang sedang dipakai meluncurkan, satu yang
+ * digantikan. Jadi 0.10.0 tidak lagi muncul di halaman verifikasi, sementara pasar-pasarnya
+ * TETAP hidup, tetap bisa diperdagangkan, dan tetap membayar tarifnya sendiri selamanya.
+ *
+ * Yang hilang bukan pasarnya, hanya penyebutan factory yang melahirkannya. Kalau suatu saat
+ * itu dianggap terlalu mahal untuk kejujuran halaman verifikasi, yang dibutuhkan adalah
+ * DAFTAR generasi, bukan slot ketiga — karena masalah yang sama akan terulang di 0.13.0.
+ *
+ * Alamat 0.10.0 sengaja ditulis di komentar ini supaya tidak hilang dari repo begitu env-nya
+ * ditimpa: 0G 0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e, Base
+ * 0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56, Monad 0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39,
+ * Arbitrum 0x8F3948902c48489fc9E7287590E7eb8A8E915A64.
+ */
+
+/**
+ * RIWAYAT PENUKARAN — 0.12.0 SUDAH DI-BROADCAST DAN DITUKAR (2026-09-29).
+ *
+ * Ditinggalkan sebagai catatan urutan, bukan sebagai instruksi yang menunggu dikerjakan.
+ * Langkah 1 sampai 3 selesai; alamat 0.12.0 ada di tabel di bawah.
+ *
+ * Ditulis di sini dan bukan di runbook karena kedua konstanta di atas adalah yang harus
+ * berubah, dan siapa pun yang menyuntingnya akan membaca baris ini lebih dulu.
+ *
+ * Sumber dan bytecode sekarang SEJALAN di 0.12.0, jadi celah yang dulu dinyatakan di
+ * `audit/README.md` sudah tertutup — `AdextoFactory.VERSION` dan `AdextoCurve.VERSION`
+ * menyatakan 0.12.0, dan keempat alamat produksi menjawab hal yang sama. Terverifikasi:
+ * bytecode runtime IDENTIK di keempat chain, keccak
+ * `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f`, 21.403 byte.
+ *
+ * ATURAN YANG TETAP BERLAKU UNTUK 0.13.0: jangan menaikkan label di sini lebih dulu.
+ * `audit_consistency.mjs` membaca `VERSION()` dari setiap alamat factory di chain dan
+ * membandingkannya dengan `CURVE_FACTORY_GENERATION`, jadi menaikkannya sebelum broadcast
+ * membuat situs mengiklankan versi yang tidak ada di alamat mana pun — dan auditnya gagal,
+ * yang justru perilaku yang benar.
+ *
+ *   1. Broadcast AdextoFactory 0.12.0 ke KEEMPAT chain (0G, Base, Arbitrum, Monad).
+ *      Serentak, bukan bertahap: `/api/deploy` menolak peluncuran ke campuran generasi
+ *      karena satu `lpFeeBps` tidak bisa benar untuk factory aditif dan carve-out
+ *      sekaligus, jadi rollout bertahap mematikan peluncuran multi-chain selama jendelanya.
+ *   2. Pindahkan alamat: `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` diisi alamat 0.11.0 yang
+ *      sekarang ada di `NEXT_PUBLIC_CURVE_FACTORY_*`, lalu yang belakangan diisi alamat
+ *      0.12.0 yang baru. Dua env per chain, delapan seluruhnya.
+ *   3. Baru setelah itu: `CURVE_FACTORY_GENERATION` -> AdextoFactory 0.12.0, dan
+ *      `SUPERSEDED_CURVE_FACTORY_GENERATION` -> AdextoFactory 0.11.0.
+ *   4. Copy publik yang menyatakan model ADITIF harus ikut di langkah 3, tidak lebih awal.
+ *      Sekarang ia BENAR untuk yang hidup, jadi menyuntingnya lebih dulu akan membuat situs
+ *      salah selama jendela sebelum broadcast, bukan sesudahnya. Kalimat yang harus dicari
+ *      adalah "charged on top", "added on top", dan angka 0.30% / 0.40% / 0.15%:
+ *
+ *        src/app/page.tsx                  ~123, 139-140, 630-632
+ *        src/app/whitepaper/page.tsx       ~77-78, 193-194, 207
+ *        src/app/_pitch/page.tsx           ~83, 143-144
+ *        src/components/PillarCards.tsx    ~133-134, 144
+ *        src/components/swap-parts.tsx     ~321, 365
+ *
+ *      Nilai barunya: trader membayar 1.00% dan tidak ada apa pun di atasnya — creator
+ *      0.70%, depth 0.10%, buyback 0.10%, protokol 0.10%.
+ *
+ *      `swap-parts.tsx` KHUSUS: ia menggambar rincian fee untuk pasar yang SEDANG dibuka,
+ *      dan pasar 0.11.0 akan tetap ada setelah broadcast. Label di sana harus mengikuti
+ *      `protocolFeeBps` kurva itu sendiri, bukan diganti jadi teks 0.12.0 — kalau tidak,
+ *      pasar lama akan dilabeli dengan model yang tidak berlaku untuknya.
+ *
+ * ALAMAT 0.12.0 YANG DI-BROADCAST 2026-09-29, dicatat di sumber supaya tidak hanya hidup di
+ * env. Keempatnya diverifikasi: VERSION 0.12.0, PROTOCOL_FEE_BPS 10, protocolTreasury
+ * `0x24268Fff…`, `SYMBOL_RESERVED` `address(1)`, dan 16/16 ticker terkunci termasuk yang
+ * huruf kecil:
+ *
+ *   0G       16661   0x06C80fD2d5d9365C20aC468c15874DBE748877e2   blok 45602744
+ *   Base      8453   0xe5B9555fbbcE72A5739dD29c3939A23fd230136F   blok 51922828
+ *   Arbitrum 42161   0x75EeDEd196D2BE283d815D52F617eB70bCe865bC   blok 509845969
+ *   Monad      143   0xcA9c77f050CD1e0685b03D0236579966DA9B39B9   blok 108871845
+ *
+ * SATU FACTORY TERBUANG DI BASE, dan dicatat supaya tidak membingungkan pembaca explorer:
+ * `0x5a2f13f1efb86bd1e1814a5212690a2b765c85c8`. Ia sah dan lengkap, tetapi tidak dipakai —
+ * deployment pertama gagal di pemeriksaan cadangan karena `base-rpc.publicnode.com`
+ * membatasi laju pada `eth_call` ketiga, yang terbaca seperti kontraknya revert. Penyebabnya
+ * sudah diperbaiki di `scripts/deploy-sovereign-curve.mjs` (jeda 150 ms per pembacaan, dan
+ * galat baca sekarang berhenti dengan pesan alih-alih dihitung sebagai ticker bebas).
+ * JANGAN memasukkan alamat itu ke konfigurasi mana pun.
+ */
 
 
 export const ADEXTO_CONTRACTS = {

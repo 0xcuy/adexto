@@ -317,9 +317,13 @@ interface FeeProps {
  * harus menjumlah tepat ke total.
  *
  * Total ditampilkan karena itulah satu-satunya angka yang benar-benar dibayar
- * trader. Sebelum ini pembaca harus menjumlahkan sendiri, dan sejak kaki protokol
- * ditambahkan DI ATAS total yang dikonfigurasi creator, "0.30%" di studio bukan
- * lagi angka yang sama dengan yang keluar dari dompet.
+ * trader, dan karena ia dihitung dari keempat kaki yang dibaca dari kurva, ia benar
+ * untuk generasi mana pun tanpa komponen ini perlu tahu yang mana.
+ *
+ * Itu penting sejak 0.12.0: pasar 0.11.0 menagih kaki protokol DI ATAS total yang
+ * dikonfigurasi creator, sementara pasar 0.12.0 memotongnya dari dalam. Keduanya hidup
+ * bersamaan selamanya karena tiap kaki `immutable`, jadi satu-satunya cara jujur adalah
+ * menjumlahkan apa yang kurvanya sendiri laporkan — bukan menjelaskan modelnya di teks.
  */
 export function FeeLines({
   lpFeeBps,
@@ -362,7 +366,19 @@ export function FeeLines({
       {protocolFeeBps ? (
         <div className="flex items-start justify-between gap-3 text-ink-soft">
           <span>
-            Protocol <span data-numeric>({pct(protocolFeeBps)})</span> — charged on top
+            {/* Anotasi "charged on top" DICABUT, dan itu membuat komponen ini benar untuk
+                DUA generasi sekaligus alih-alih satu.
+
+                Di 0.11.0 kaki protokol memang ditagih di atas total yang dikonfigurasi
+                creator; sejak 0.12.0 ia dipotong dari dalamnya. Komponen ini menggambar
+                pasar yang SEDANG dibuka, dan pasar kedua generasi itu akan hidup
+                bersamaan selamanya karena tiap kaki `immutable` — jadi teks statis apa pun
+                soal aditif-atau-tidak pasti salah di separuh pasar.
+
+                Yang tidak perlu dibedakan: keempat kaki dibaca dari kurva itu sendiri dan
+                baris total di bawah menjumlahkannya. Jadi angka yang dibayar trader sudah
+                benar tanpa komponen ini pernah tahu generasi mana yang sedang dilihat. */}
+            Protocol <span data-numeric>({pct(protocolFeeBps)})</span>
           </span>
           <span className="shrink-0 font-medium" data-numeric>
             {formatUsd(feeUsd.protocol ?? 0)}

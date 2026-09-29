@@ -104,7 +104,7 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
     title: "No owner, no admin",
     where: "AdextoToken.sol · AdextoCurve.sol · SovereignCurve.sol",
     how:
-      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. Both curve generations have a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native. The 0.11.0 curve adds a protocol fee leg and no setter for it, so it stays ownerless.",
+      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. Every curve generation has a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native. The 0.11.0 and 0.12.0 curves add a protocol fee leg and no setter for it, so they stay ownerless.",
   },
   {
     title: "No upgradeability",
@@ -122,7 +122,7 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
     title: "No arbitrary withdrawal",
     where: "AdextoCurve.sol · SovereignCurve.sol",
     how:
-      "On the 0.11.0 curve exactly three functions send native out: `sell` pays the seller, `claimCreatorFees` pays the immutable creator, and `claimProtocolFees` pays the immutable protocol treasury. The 0.10.0 curve has the first two. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback in either. Anyone may trigger either claim, and that is safe precisely because both destinations are immutable — a caller cannot redirect the money, only push it where it was always going.",
+      "On the 0.11.0 and 0.12.0 curves exactly three functions send native out: `sell` pays the seller, `claimCreatorFees` pays the immutable creator, and `claimProtocolFees` pays the immutable protocol treasury. The 0.10.0 curve has the first two. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback in either. Anyone may trigger either claim, and that is safe precisely because both destinations are immutable — a caller cannot redirect the money, only push it where it was always going.",
   },
   {
     title: "100% of supply enters the curve",
@@ -202,7 +202,7 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
     engine: "Slither · Medium (32 instances across both generations)",
     where: "AdextoCurve and SovereignCurve — sell, initializeCurve, receive · both factories — deployTrinity",
     why:
-      "Every one of those curve functions carries the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. `claimProtocolFees` on the 0.11.0 curve is flagged for the same reason and is guarded the same way, with the added property that its destination is immutable. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines and never broke.",
+      "Every one of those curve functions carries the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. `claimProtocolFees` on the 0.11.0 and 0.12.0 curves is flagged for the same reason and is guarded the same way, with the added property that its destination is immutable. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines and never broke.",
   },
   {
     finding: "nonReentrant is not the first modifier",

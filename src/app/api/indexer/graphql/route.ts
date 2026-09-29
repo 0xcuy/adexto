@@ -76,7 +76,7 @@ export async function GET() {
       indexer: "Envio HyperIndex",
       chainId: CHAIN_ID,
       chain: "Monad mainnet",
-      indexes: "AdextoFactory 0.11.0 and every bonding curve it deploys, from its deploy block",
+      indexes: "AdextoFactory 0.11.0 and every bonding curve it deploys, from its deploy block. The 0.12.0 factory is not indexed here yet — its markets are read by the RPC scan path in src/lib/onchain-trades.ts until the subgraph manifest adds it.",
       entities: [
         "Project",
         "Curve",

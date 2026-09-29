@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T05:10:40.560Z",
+  "generatedAt": "2026-09-28T23:35:21.885Z",
   "note": "ABI for the AdextoFactory 0.11.0 generation. Verified against deployed runtime bytecode by function selector and event topic presence, which is immune to immutable values baked into the code.",
   "contracts": {
     "AdextoFactory": {
@@ -11,6 +11,11 @@
               "internalType": "address",
               "name": "_protocolTreasury",
               "type": "address"
+            },
+            {
+              "internalType": "string[]",
+              "name": "reservedSymbols",
+              "type": "string[]"
             }
           ],
           "stateMutability": "nonpayable",
@@ -45,6 +50,19 @@
             }
           ],
           "name": "AgentBound",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            }
+          ],
+          "name": "SymbolReserved",
           "type": "event"
         },
         {
@@ -217,6 +235,19 @@
               "internalType": "uint256",
               "name": "",
               "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "SYMBOL_RESERVED",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
             }
           ],
           "stateMutability": "view",
@@ -830,6 +861,19 @@
         },
         {
           "inputs": [],
+          "name": "BUYBACK_COOLDOWN",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
           "name": "MAX_TOTAL_FEE_BPS",
           "outputs": [
             {
@@ -1167,6 +1211,19 @@
               "internalType": "bool",
               "name": "",
               "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "lastBuybackAt",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
             }
           ],
           "stateMutability": "view",
@@ -1982,63 +2039,56 @@
   "networks": {
     "0g": {
       "chainId": 16661,
-      "factory": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
-      "factoryVersion": "0.11.0",
+      "factory": "0x06C80fD2d5d9365C20aC468c15874DBE748877e2",
+      "factoryVersion": "0.12.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21281,
-      "runtimeBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8",
+      "runtimeBytecodeBytes": 21403,
+      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
       "immutableRegions": 2,
       "immutableBytes": 40
     },
     "base": {
       "chainId": 8453,
-      "factory": "0x216E7880D64D94335B583c539802d3e61958d4A2",
-      "factoryVersion": "0.11.0",
+      "factory": "0xe5B9555fbbcE72A5739dD29c3939A23fd230136F",
+      "factoryVersion": "0.12.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21281,
-      "runtimeBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8",
+      "runtimeBytecodeBytes": 21403,
+      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
       "immutableRegions": 2,
       "immutableBytes": 40
     },
     "arbitrum": {
       "chainId": 42161,
-      "factory": "0xE17f1027FC5f294327D701829baeD9d6519e922C",
-      "factoryVersion": "0.11.0",
+      "factory": "0x75EeDEd196D2BE283d815D52F617eB70bCe865bC",
+      "factoryVersion": "0.12.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21281,
-      "runtimeBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8",
+      "runtimeBytecodeBytes": 21403,
+      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
       "immutableRegions": 2,
       "immutableBytes": 40
     },
     "monad": {
       "chainId": 143,
-      "factory": "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
-      "factoryVersion": "0.11.0",
+      "factory": "0xcA9c77f050CD1e0685b03D0236579966DA9B39B9",
+      "factoryVersion": "0.12.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21281,
-      "runtimeBytecodeKeccak": "0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8",
+      "runtimeBytecodeBytes": 21403,
+      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
       "immutableRegions": 2,
       "immutableBytes": 40
     }
   },
   "liveMarkets": [
     {
-      "symbol": "ADEXTO",
-      "token": "0xA1358C17004469C7CA5365AbafD294F9b2c11DF7",
-      "curve": "0xc80e0659D2Fc29e62605C9DF6182a85372652B60",
-      "network": "0g",
-      "chainId": 16661
-    },
-    {
-      "symbol": "ADT",
-      "token": "0x27F3117679680e0a85951BF4a1ca44Bd67D1E5a5",
-      "curve": "0x75148E905a31F7f5dD2f3Fe8fea4588a08ebF966",
-      "network": "0g",
-      "chainId": 16661
+      "symbol": "VOLT",
+      "token": "0x5A5578cc297b397a7dE68b46FB495Fe1AC8c529F",
+      "curve": "0xb251Bc7261e72B1Bc222cf5B94B54b842eB84fce",
+      "network": "monad",
+      "chainId": 143
     }
   ],
   "events": {
@@ -2069,6 +2119,10 @@
     "AdextoFactory.AgentBound": {
       "signature": "AgentBound(address,uint256,address,address)",
       "topic0": "0xaec7e04f15edcfed8c454189cedd3e9d325faf7a514f0a2808db83935e754f2b"
+    },
+    "AdextoFactory.SymbolReserved": {
+      "signature": "SymbolReserved(string)",
+      "topic0": "0x4dab45ff1e9bcc5a58968dd1fb136d8954394e9482a833f080ab16dce37bff76"
     },
     "AdextoFactory.TrinityProjectCreated": {
       "signature": "TrinityProjectCreated(address,address,string,bytes32)",

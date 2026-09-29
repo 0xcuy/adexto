@@ -130,21 +130,24 @@ const PILLARS: Pillar[] = [
     body: (
       <>
         A curve that opens against a virtual reserve, so a launch needs no liquidity deposit. On the default
-        tier a trader pays 0.40%: 0.15% depth stays in the curve, 0.10% to the creator, 0.05% to the buyback
-        vault, and 0.10% to the protocol, charged on top of the creator&apos;s 0.30% rather than taken out of
-        it.
+        tier a trader pays 1.00%, and nothing is added on top of it: 0.70% to the creator, 0.10% depth that
+        stays in the curve, 0.10% to the buyback vault, and 0.10% to the protocol.
       </>
     ),
-    // Bukan "100% Fee Retained": creator menerima 0.10% dari total fee, bukan seluruh
+    // Bukan "100% Fee Retained": creator menerima 0.70% dari total fee, bukan seluruh
     // fee. Sisanya mengendap di kurva sebagai depth, ke buyback token itu sendiri, dan
     // ke protokol.
     //
-    // Angka di atas berubah dari tiga kaki menjadi empat ketika AdextoFactory 0.11.0
-    // di-broadcast ke keempat mainnet. `PROTOCOL_FEE_BPS` adalah konstanta di factory
-    // dan immutable di tiap kurva, jadi 0.40% itu tetap — dan pasar yang lahir dari
-    // factory 0.10.0 tetap memungut tiga kaki saja, selamanya, karena tarifnya juga
-    // immutable. Kedua pernyataan itu benar sekaligus; yang salah adalah menuliskan
-    // salah satunya sebagai satu-satunya.
+    // Angka di atas berubah DUA KALI. Tiga kaki menjadi empat saat AdextoFactory 0.11.0
+    // di-broadcast, lalu di 0.12.0 kaki protokol berpindah dari ditagih DI ATAS total
+    // menjadi dipotong DARI DALAMnya, sementara totalnya naik 0.40% -> 1.00% dan bagian
+    // creator 0.10% -> 0.70%.
+    //
+    // Ketiga generasi tetap benar untuk pasarnya masing-masing: `PROTOCOL_FEE_BPS` adalah
+    // konstanta di tiap factory dan immutable di tiap kurva, jadi pasar dari factory 0.10.0
+    // selamanya memungut tiga kaki, pasar 0.11.0 selamanya 0.40%, dan hanya peluncuran baru
+    // yang kena 1.00%. Yang salah bukan menyebut salah satunya, tapi menyebutnya sebagai
+    // satu-satunya.
     //
     // Komentar ini sebelumnya menulis "Protokol mengambil 0.05% (lihat /pitch)", dan
     // itu keliru: 0.05% adalah buyback token, bukan irisan protokol.

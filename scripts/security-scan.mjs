@@ -52,22 +52,43 @@ const BIN = {
 const LAUNCH_PATH = [
   "contracts/AdextoCurveFactory.sol",
   "contracts/SovereignCurve.sol",
-  // Generasi v0.11.0. DIMASUKKAN MESKIPUN BELUM DI-BROADCAST.
+  // Generasi 0.11.0, SEKARANG SUDAH HIDUP di keempat mainnet — ia yang melayani setiap
+  // peluncuran baru, sementara AdextoCurveFactory/SovereignCurve di atas tetap dipindai
+  // karena pasar yang sudah dibuatnya masih diperdagangkan.
   //
-  // Menunggu sampai ter-deploy adalah pilihan yang salah arah: selama jeda itu, dua
-  // kontrak yang seluruh gunanya menjalankan peluncuran akan berada di repo tanpa
-  // tercakup klaim "0 High di jalur peluncuran" — dan tidak ada di halaman yang
-  // memberi tahu pembaca soal lubang itu. Memasukkannya sekarang membuat klaimnya
-  // harus berlaku untuk DUA generasi, yang hanya bisa memperketat, bukan melonggarkan.
+  // Dulu baris-baris ini dimasukkan justru SEBELUM di-broadcast, dengan alasan yang masih
+  // benar: menunggu sampai ter-deploy akan membiarkan dua kontrak yang seluruh gunanya
+  // menjalankan peluncuran berada di repo tanpa tercakup klaim "0 High di jalur
+  // peluncuran". Keputusan itu tidak berubah, hanya kenyataannya yang sudah menyusul.
   //
-  // Status deploy-nya urusan terpisah dan dinyatakan di tempat lain (/pitch dan
-  // /whitepaper menyebut v0.11.0 ditulis tapi belum di-deploy). Berkas ini soal kode
-  // mana yang dipindai, bukan kode mana yang sudah hidup.
+  // Satu hal yang tetap perlu diketahui pembaca: sumber di `contracts/` menyatakan VERSION
+  // 0.12.0 sementara bytecode yang hidup 0.11.0. Jadi yang dipindai berkas ini adalah
+  // generasi BERIKUTNYA, bukan byte-per-byte yang ada di alamat produksi. Dinyatakan penuh
+  // di audit/README.md.
   "contracts/AdextoFactory.sol",
   "contracts/AdextoCurve.sol",
   "contracts/AdextoToken.sol",
   "contracts/IIdentityRegistry.sol",
+  "contracts/ISovereignLegacy.sol",
 ];
+
+/**
+ * `AdextoAgentStake.sol` SENGAJA TIDAK ADA DI ATAS, dan itu perlu dinyatakan.
+ *
+ * Ia hidup di 0G dan memegang token sungguhan — 10.000 ADEXTO ter-stake saat baris ini
+ * ditulis — jadi naluri pertama adalah memasukkannya. Tapi daftar ini bernama LAUNCH_PATH
+ * dan angkanya diterbitkan sebagai `launchPathCounts` yang menyuapi klaim "0 High di jalur
+ * peluncuran" di /security. Sebuah peluncuran tidak pernah memanggil kontrak stake, jadi
+ * memasukkannya akan membuat klaim itu mengukur sesuatu yang bukan namanya — bentuk
+ * kesalahan yang sama dengan `factoryV2Address` yang dulu ikut dihitung sebagai "bisa
+ * meluncurkan".
+ *
+ * Ia TETAP DIPINDAI: slither dan aderyn berjalan atas seluruh direktori, jadi temuan di
+ * dalamnya masuk hitungan total. Yang tidak berlaku untuknya hanyalah klaim jalur
+ * peluncuran, dan kalau suatu saat butuh klaim sendiri, ia butuh bucket sendiri — bukan
+ * diselipkan ke bucket yang namanya sudah berarti hal lain. Cakupannya dinyatakan di
+ * audit/README.md.
+ */
 const inLaunchPath = (f) => LAUNCH_PATH.some((p) => String(f || "").endsWith(p.replace(/^contracts\//, "contracts/")));
 
 function sh(cmd, args, opts = {}) {

@@ -247,7 +247,7 @@ export default function SwapTerminal() {
         <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Swap</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
           Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee on-chain —
-          curve depth, the creator&apos;s share, the agent buyback vault, and on 0.11.0 markets a protocol share charged
+          curve depth, the creator&apos;s share, the agent buyback vault, and on markets from 0.11.0 onward a protocol share charged
           on top. The exact legs for the market you pick are listed before you confirm.
         </p>
         {!loading && (

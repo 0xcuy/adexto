@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "_protocolTreasury",
         "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "reservedSymbols",
+        "type": "string[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -39,6 +44,19 @@
       }
     ],
     "name": "AgentBound",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "symbol",
+        "type": "string"
+      }
+    ],
+    "name": "SymbolReserved",
     "type": "event"
   },
   {
@@ -211,6 +229,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SYMBOL_RESERVED",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

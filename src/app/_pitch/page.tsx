@@ -80,8 +80,7 @@ export default function PitchDeckPage() {
               <span className="text-ink font-semibold text-sm block">1. The creator gets no allocation</span>
               <p className="text-ink-soft leading-relaxed">
                 100% of supply enters the curve, so there is no position to sell and nothing to vest. Income is
-                0.10% of every swap, taken from inside the 0.30% the creator configures rather than added on
-                top of it.
+                0.70% of every swap, taken from inside the 1.00% a trader pays rather than added on top of it.
                 <strong className="text-ink block mt-1">
                   Tradeoff: a creator who wanted a fast exit has no reason to pick this.
                 </strong>
@@ -140,9 +139,9 @@ export default function PitchDeckPage() {
             <div className="card card-hover p-4 border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
               <span className="text-ink">
-                A per-token bonding curve over a virtual reserve. On the default tier a trader pays 0.40%:
-                0.15% depth stays in the curve, 0.10% pays the creator, 0.05% funds agent buybacks, and 0.10%
-                goes to the protocol on top of the other three.
+                A per-token bonding curve over a virtual reserve. On the default tier a trader pays 1.00% and
+                nothing more: 0.70% pays the creator, 0.10% depth stays in the curve, 0.10% funds agent
+                buybacks, and 0.10% goes to the protocol — all four inside that 1.00%.
               </span>
             </div>
             <div className="card card-hover p-4 border-accent/30">
@@ -256,7 +255,7 @@ export default function PitchDeckPage() {
                   "sangat kecil" adalah dua klaim berbeda, dan yang pertama sudah salah.
                   Dibaca dari chain: $ADEXTO 0,0000372 dibayar + 0,0000288 mengendap,
                   $ADT 0,00001 dibayar. Total seumur hidup 0,000076 0G. */}
-              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, charged on top of the creator&apos;s configured total. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. It has been collecting since the first swap — 0.000076 0G so far, on 14 swaps.</p>
+              <p className="text-ink-soft">A 0.10% protocol take-rate on swap volume, carved out of the 1.00% a trader pays rather than added on top of it. Live on all four mainnets: <code className="text-accent">PROTOCOL_FEE_BPS</code> is a constant on each factory and the destination is immutable on every curve they create, so it cannot be redirected and there is no setter. It has been collecting since the first swap — 0.000076 0G so far, on 14 swaps.</p>
               <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 0.10% of swap volume · destination immutable · no setter exists</span>
             </div>
 
@@ -340,7 +339,7 @@ export default function PitchDeckPage() {
                   <td className="py-3 pr-4 font-bold text-ink">Where creator revenue comes from</td>
                   <td className="py-3 px-4 text-ink-soft">Extra fee added for traders</td>
                   <td className="py-3 px-4 text-ink-soft">Share of pool fees</td>
-                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">0.10% from inside the existing fee</td>
+                  <td className="py-3 pl-4 font-bold text-ink bg-accent-soft">0.70% from inside the existing fee</td>
                 </tr>
                 <tr>
                   <td className="py-3 pr-4 font-bold text-ink">Cost to open a market</td>

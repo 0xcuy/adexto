@@ -131,6 +131,16 @@
       "token": "0x36Eb56AF0ad34e8F39774E53ee681298E1848721",
       "curve": "0xBCdDE7f6071da3fc33f959F6A8B919dd921af49A",
       "why": "Launched on camera for the 0G Atlas Founder House demo recording, on 0G mainnet so the same market could then be bought by an external agent over x402 -- the gateway resolves through the production registry, so a local-only launch could not have been bought. Five manual swaps from the web UI, then one buy from the x402 relayer at block 44560323."
+    },
+    {
+      "symbol": "VOLT",
+      "status": "test",
+      "chainId": 143,
+      "factoryVersion": "0.12.0",
+      "factory": "0xcA9c77f050CD1e0685b03D0236579966DA9B39B9",
+      "token": "0x5A5578cc297b397a7dE68b46FB495Fe1AC8c529F",
+      "curve": "0xb251Bc7261e72B1Bc222cf5B94B54b842eB84fce",
+      "why": "The first market from the 0.12.0 factory, opened so the published AdextoCurve ABI could be verified against a curve that generation actually produces. No 0.11.0 market can ever do that: the 0.12.0 curve adds BUYBACK_COOLDOWN() and lastBuybackAt() -- finding 1 of GHSA-g589-wjqq-86f2 -- and every curve is immutable, so the older ones will never carry them. export-abi.mjs refuses to publish an ABI it has not matched against a live instance, which blocked the whole site deploy until this existed. DELIBERATELY NOT REGISTERED in the site registry: deployTrinity was called directly rather than through /api/deploy, so metadataRoot is bytes32(0), nothing is anchored to 0G DA, and the market does not appear in the explorer, the x402 gateway or the MCP tools -- all three read the registry. Monad was chosen because it is the cheapest of the four: 3,249,106 gas at 102 gwei, about 0.66 MON. Fee legs confirmed on chain as the 0.12.0 model: depth 10 / creator 70 / buyback 10 / protocol 10, summing to the 100 bps a trader pays with nothing added on top. No ERC-8004 agent bound (bindAgent false, agentId 0)."
     }
   ]
 }

@@ -136,13 +136,18 @@ export default async function HomePage() {
 
             Angka kaki fee lain dikeluarkan dari kalimat ini supaya ia tidak membawa
             beberapa persentase sekaligus. Semuanya tidak hilang dari halaman — kartu
-            pilar "Sovereign DEX" memuat pembagiannya utuh (trader membayar 0.40%:
-            0.15% depth / 0.10% creator / 0.05% buyback / 0.10% protokol), dan di sana
+            pilar "Sovereign DEX" memuat pembagiannya utuh (trader membayar 1.00%:
+            0.70% creator / 0.10% depth / 0.10% buyback / 0.10% protokol), dan di sana
             angka itu punya konteks yang membuatnya berarti.
 
-            Yang di kalimat ini TETAP 0.10%, dan itu bukan kelalaian: kaki protokol
-            ditambahkan DI ATAS total yang dikonfigurasi creator, bukan dipotong dari
-            bagiannya. Jadi penghasilan creator tidak berubah sedikit pun. */}
+            NAIK 0.10% -> 0.70% DI 0.12.0, dan arah perubahannya perlu dicatat karena
+            mudah dibaca terbalik: kaki protokol sekarang DIPOTONG dari dalam total,
+            bukan ditambahkan di atasnya, tetapi totalnya sendiri naik 0.30% -> 1.00%.
+            Jadi creator justru dibayar tujuh kali lebih banyak, bukan lebih sedikit.
+
+            Angka di halaman ini berlaku untuk PELUNCURAN BARU. Enam pasar yang lahir dari
+            factory 0.10.0 dan 0.11.0 tetap di tarifnya sendiri selamanya karena tiap kaki
+            `immutable` — dan itu dinyatakan di /docs, bukan disamarkan di sini. */}
         {/* Tiga kalimat pendek, dan urutannya disengaja: apa yang terjadi, apa yang kamu
             dapat, lalu kenapa pembeli boleh percaya. Tidak ada jargon di kalimat pertama.
 
@@ -152,7 +157,7 @@ export default async function HomePage() {
         <p className="mx-auto mb-9 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg xl:mx-0">
           One transaction, gas only, no liquidity deposit. It opens as a working venue: live candles, an order
           book, an agent that answers for it, and a price any machine can pay from another chain. You hold none
-          of the supply, and <span data-numeric>0.10%</span> of every trade is yours for as long as it trades.
+          of the supply, and <span data-numeric>0.70%</span> of every trade is yours for as long as it trades.
         </p>
 
         <div className="flex flex-col items-center justify-center gap-5 sm:flex-row xl:justify-start">
@@ -218,7 +223,7 @@ export default async function HomePage() {
           </div>
           <div>
             <dt className="text-[11px] uppercase tracking-wider text-ink-faint">Creator take</dt>
-            <dd className="mt-1.5 text-lg font-semibold text-ink" data-numeric>0.10%</dd>
+            <dd className="mt-1.5 text-lg font-semibold text-ink" data-numeric>0.70%</dd>
             <dd className="text-[11px] text-ink-soft mt-0.5">of every swap, forever</dd>
           </div>
           <div>
@@ -492,7 +497,7 @@ export default async function HomePage() {
                   function anywhere on the path.
                 </li>
                 <li>
-                  <strong className="text-ink">0.10% of every swap, to you, forever.</strong> Immutable at
+                  <strong className="text-ink">0.70% of every swap, to you, forever.</strong> Immutable at
                   deployment, with no setter and no admin. You hold zero tokens, so there is nothing to unlock
                   and nothing to dump.
                 </li>
@@ -627,9 +632,9 @@ export default async function HomePage() {
                 <span className="text-ok font-bold">✓</span>
                 <span>
                   <strong>The creator holds nothing.</strong> 100% of supply enters the curve, so there is no
-                  allocation to sell. Income arrives as 0.10% of each swap, taken from inside the 0.30% the
-                  creator configures rather than added to it. The protocol&apos;s own 0.10% is the leg that is
-                  added on top, which is why a trader pays 0.40% and the creator still keeps 0.10%.
+                  allocation to sell. Income arrives as 0.70% of each swap, and it comes from inside the 1.00% a
+                  trader pays rather than being added to it. The protocol&apos;s own 0.10% sits inside that same
+                  1.00%, so the figure quoted at the point of trade is the whole cost.
                 </span>
               </li>
               <li className="flex items-start gap-2">

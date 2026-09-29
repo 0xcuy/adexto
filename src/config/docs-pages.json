@@ -266,14 +266,14 @@
     },
     "chains": {
       "title": "Chains and deployments",
-      "lede": "The ADEXTO factory contract operates across four EVM mainnets under version 0.11.0. Each deployment contains exactly 21281 bytes of runtime bytecode with an identical keccak256 hash across all four networks.",
+      "lede": "The ADEXTO factory contract operates across four EVM mainnets under version 0.12.0. Each deployment contains exactly 21403 bytes of runtime bytecode with an identical keccak256 hash across all four networks.",
       "sections": [
         {
           "heading": "Factory Deployments",
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, and Monad Mainnet. Each network executes factory version 0.11.0 at a dedicated contract address."
+              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, and Monad Mainnet. Each network executes factory version 0.12.0 at a dedicated contract address."
             },
             {
               "type": "factsTable",
@@ -290,7 +290,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The deployed factory contracts share the exact keccak256 hash of `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8` across all four mainnets. This confirms that the deployed instruction sets are identical across all targets."
+              "text": "The deployed factory contracts share the exact keccak256 hash of `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f` across all four mainnets. This confirms that the deployed instruction sets are identical across all targets."
             },
             {
               "type": "code",
@@ -614,7 +614,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "All four networks run factory version 0.11.0. The deployed bytecode is identical across each chain, measuring 21281 bytes with the keccak hash `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8`."
+              "text": "All four networks run factory version 0.12.0. The deployed bytecode is identical across each chain, measuring 21403 bytes with the keccak hash `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f`."
             },
             {
               "type": "factsTable",
@@ -660,7 +660,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol deploys without proxies, fallback upgrade patterns, or delegatecall modifications. Across all deployed chains, the factory contract bytecode comprises 21281 bytes with a keccak hash of 0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8."
+              "text": "The protocol deploys without proxies, fallback upgrade patterns, or delegatecall modifications. Across all deployed chains, the factory contract bytecode comprises 21403 bytes with a keccak hash of 0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f."
             },
             {
               "type": "p",

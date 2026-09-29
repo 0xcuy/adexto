@@ -42,6 +42,8 @@ const FACTORY_MIN = [
   "function projectAt(uint256) view returns (address token, address curve, address creator, string symbol, uint256 deployedAt)",
   "function MAX_SUPPLY() view returns (uint256)",
   "function ANTI_SNIPER_BPS() view returns (uint256)",
+  // Dipakai memeriksa cadangan ticker sebagai PERILAKU, bukan sebagai keberadaan fungsi.
+  "function isSymbolAvailable(string symbol) view returns (bool)",
 ];
 const CURVE_MIN = [
   "function agentTreasury() view returns (address)",
@@ -127,16 +129,53 @@ if (deployedNets[0]) {
   for (const sig of ADMIN_SIGS) {
     console.log(`  ${hasSelector(runtime, sig) ? "ada  " : "TIDAK"} ${sig}`);
   }
-  if (!hasSelector(runtime, "reserveSymbol(string,address)")) {
+  /**
+   * DIUJI SEBAGAI PERILAKU, BUKAN SEBAGAI KEBERADAAN FUNGSI.
+   *
+   * Versi sebelumnya memeriksa apakah selector `reserveSymbol(string,address)` ada, dan
+   * melaporkan TINGGI kalau tidak. Sejak 0.12.0 pemeriksaan itu MENJAWAB PERTANYAAN YANG
+   * SALAH: pencadangan terjadi di constructor, yang tidak meninggalkan selector apa pun,
+   * jadi factory yang sudah menutup lubang ini akan tetap dilaporkan bocor — dan factory
+   * yang punya `reserveSymbol()` justru lebih buruk, karena fungsi itu menuntut alamat
+   * berwenang yang bisa hilang atau dipakai mencadangkan nama orang lain.
+   *
+   * Yang benar-benar perlu dijawab: apakah ticker yang kami lindungi masih bisa diklaim?
+   * `isSymbolAvailable` adalah fungsi yang dipakai studio dan /api/deploy untuk
+   * memutuskan, jadi ia yang ditanya.
+   *
+   * Daftar di bawah HARUS sama dengan `RESERVED_SYMBOLS` di
+   * scripts/deploy-sovereign-curve.mjs dan `reservedSymbols()` di
+   * test/AdextoCurveFixture.sol.
+   */
+  const SHOULD_BE_RESERVED = [
+    "ADEXTO", "ADT", "ZEEBO", "WOMBO", "BLOOP", "PARCEL",
+    "ETH", "WETH", "USDC", "USDT", "BTC", "WBTC", "0G", "A0GI", "MON", "ARB",
+  ];
+  const fRes = new ethers.Contract(
+    deployedNets[0].dep.curveFactory,
+    FACTORY_MIN,
+    deployedNets[0].provider
+  );
+  const claimable = [];
+  for (const sym of SHOULD_BE_RESERVED) {
+    try {
+      if (await fRes.isSymbolAvailable(sym)) claimable.push(sym);
+    } catch {
+      claimable.push(`${sym}?`); // tidak terbaca dihitung sebagai belum terbukti aman
+    }
+  }
+  console.log(`\n  ticker cadangan: ${SHOULD_BE_RESERVED.length - claimable.length}/${SHOULD_BE_RESERVED.length} terkunci`);
+  if (claimable.length > 0) {
     add(
       "TINGGI",
-      "Tidak ada cara mencadangkan ticker on-chain, dan deployTrinity tanpa access control",
-      `symbolRegistry first-come-first-served dan permanen; tidak ada fungsi untuk mencadangkan atau melepas. ` +
-        `deployTrinity juga sama sekali tanpa access control, jadi RESERVED_SYMBOLS di src/lib/registry.ts ` +
-        `hanya berlaku untuk peluncuran yang lewat /api/deploy. ` +
-        `Siapa pun bisa memanggil factory langsung dan mengklaim ADEXTO, AEGIS, atau USDC on-chain, permanen. ` +
-        `Peluncuran hanya berbiaya gas, jadi menyerobot ticker itu murah.`,
-      "Klaim ticker milik proyek di keempat mainnet SEGERA setelah broadcast, di transaksi yang sama kalau bisa.",
+      `${claimable.length} ticker yang dilindungi masih bisa diklaim on-chain`,
+      `Masih bebas: ${claimable.join(", ")}. ` +
+        `deployTrinity sama sekali tanpa access control, jadi RESERVED_SYMBOLS di src/lib/registry.ts ` +
+        `hanya menahan PENDAFTARAN lewat /api/deploy — pasarnya tetap lahir di chain. ` +
+        `Peluncuran hanya berbiaya gas, jadi menyerobot ticker itu murah. ` +
+        `symbolRegistry juga permanen: tidak ada fungsi untuk melepas, jadi klaim orang lain tidak bisa dibatalkan.`,
+      "Factory ini lahir tanpa cadangan yang benar. Pencadangan HANYA terjadi di constructor, " +
+        "jadi tidak bisa ditambal — deploy ulang dengan RESERVED_SYMBOLS terisi.",
     );
   }
   if (!hasSelector(runtime, "pause()")) {

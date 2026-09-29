@@ -101,13 +101,60 @@ const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
  */
 const ctor = artifact.abi.find((f) => f.type === "constructor");
 const ctorInputs = ctor?.inputs ?? [];
-if (ctorInputs.length !== 1 || ctorInputs[0].type !== "address") {
+if (ctorInputs.length !== 2 || ctorInputs[0].type !== "address" || ctorInputs[1].type !== "string[]") {
   console.error(
-    `Unexpected ${CONTRACT_NAME} constructor: expected exactly one address (the protocol treasury), got ` +
+    `Unexpected ${CONTRACT_NAME} constructor: expected (address protocolTreasury, string[] reservedSymbols), got ` +
       `[${ctorInputs.map((i) => `${i.type} ${i.name}`).join(", ")}]. Recompile, or update this script deliberately.`
   );
   process.exit(1);
 }
+
+/**
+ * Ticker yang dicadangkan di buku factory saat kelahirannya. PERMANEN.
+ *
+ * KENAPA DAFTAR INI ADA. `symbolRegistry` adalah state milik SATU factory, bukan daftar
+ * global, jadi factory baru lahir dengan buku kosong dan setiap nama yang sudah dipakai
+ * generasi sebelumnya bebas diklaim lagi. Diukur pada keempat factory 0.11.0 yang live
+ * sebelum ini dibuat: "ETH", "USDC" dan "BTC" bebas di keempat chain, dan "ADEXTO" bebas
+ * di Base, Arbitrum dan Monad. Daftar reserved off-chain tidak menutup itu karena
+ * `deployTrinity` tidak punya access control — ia hanya menahan PENDAFTARAN di situs.
+ *
+ * HARUS SAMA dengan `reservedSymbols()` di test/AdextoCurveFixture.sol. Kalau keduanya
+ * berpisah, test membuktikan perlindungan atas daftar yang tidak pernah ter-deploy.
+ *
+ * Enam pertama adalah pasar yang hidup di UI, diambil dari registry produksi. Sepuluh
+ * sisanya nama aset besar. `CURB` sengaja TIDAK ada: ia terklaim on-chain di Monad tetapi
+ * bukan pasar kami dan tidak pernah tampil di situs, jadi mencadangkannya berarti
+ * mengunci nama orang lain di keempat chain.
+ *
+ * Lima ticker protokol yang belum diluncurkan — ADX, AEGIS, QNOVA, CSENT, MQUANT — juga
+ * TIDAK di-seed, atas permintaan: mencadangkannya di sini berarti kami sendiri tidak akan
+ * pernah bisa memakainya. Keduanya tetap terlindung off-chain lewat `RESERVED_SYMBOLS`,
+ * jadi tidak bisa tampil di situs walau bisa diklaim on-chain.
+ *
+ * SATU SALAH KETIK MENGUNCI NAMA ITU SELAMANYA di factory ini. Tidak ada fungsi untuk
+ * melepas. Periksa daftarnya sebelum --broadcast, bukan sesudahnya.
+ */
+const RESERVED_SYMBOLS = [
+  // Pasar yang live di UI.
+  "ADEXTO",
+  "ADT",
+  "ZEEBO",
+  "WOMBO",
+  "BLOOP",
+  "PARCEL",
+  // Nama aset besar. Tidak ada pengecualian, termasuk untuk kami.
+  "ETH",
+  "WETH",
+  "USDC",
+  "USDT",
+  "BTC",
+  "WBTC",
+  "0G",
+  "A0GI",
+  "MON",
+  "ARB",
+];
 
 const provider = new ethers.JsonRpcProvider(net.rpc);
 const wallet = new ethers.Wallet(PK, provider);
@@ -187,7 +234,7 @@ const feeData = await provider.getFeeData();
 const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("1", "gwei");
 
 const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet);
-const deployTx = await factory.getDeployTransaction(PROTOCOL_TREASURY);
+const deployTx = await factory.getDeployTransaction(PROTOCOL_TREASURY, RESERVED_SYMBOLS);
 let gasEstimate;
 try {
   gasEstimate = await provider.estimateGas({ from: wallet.address, data: deployTx.data });
@@ -203,6 +250,10 @@ console.log(`deployer     : ${wallet.address}`);
 console.log(`treasury     : ${PROTOCOL_TREASURY}${treasuryIsContract ? "  [CONTRACT — allowed by flag]" : "  [EOA]"}`);
 console.log(`balance      : ${ethers.formatEther(balance)} ${net.native}`);
 console.log(`bytecode     : ${(artifact.bytecode.length / 2 / 1024).toFixed(2)} KiB`);
+// Dicetak UTUH, bukan sebagai jumlah. Daftar ini permanen dan tidak bisa dilepas, jadi
+// dry run harus menampilkan setiap namanya supaya salah ketik terlihat sebelum broadcast
+// dan bukan setelah ticker itu terkunci selamanya.
+console.log(`reserved     : ${RESERVED_SYMBOLS.length} ticker — ${RESERVED_SYMBOLS.join(", ")}`);
 console.log(`gas estimate : ${gasEstimate}`);
 console.log(`gas price    : ${ethers.formatUnits(gasPrice, "gwei")} gwei`);
 console.log(`max cost     : ~${ethers.formatEther(cost)} ${net.native}`);
@@ -221,7 +272,7 @@ if (!BROADCAST) {
 }
 
 console.log("\nBroadcasting...");
-const contract = await factory.deploy(PROTOCOL_TREASURY);
+const contract = await factory.deploy(PROTOCOL_TREASURY, RESERVED_SYMBOLS);
 const tx = contract.deploymentTransaction();
 console.log(`tx: ${tx.hash}`);
 await contract.waitForDeployment();
@@ -246,6 +297,12 @@ const deployed = new ethers.Contract(
     "function VERSION() view returns (string)",
     "function protocolTreasury() view returns (address)",
     "function PROTOCOL_FEE_BPS() view returns (uint256)",
+    // WAJIB ADA DI SINI. Pemeriksaan cadangan ticker di bawah memanggilnya, dan tanpa
+    // baris ini ia gagal dengan `is not a function` SETELAH factory ter-deploy —
+    // terbukti pada deployment 0G 0x06C80fD2: kontraknya benar, verifikasinya yang
+    // patah, dan `build/deployments.json` tidak ikut tertulis karena prosesnya mati
+    // sebelum sampai ke sana.
+    "function isSymbolAvailable(string symbol) view returns (bool)",
   ],
   provider
 );
@@ -256,7 +313,7 @@ const [onChainVersion, onChainTreasury, onChainFeeBps] = await Promise.all([
 ]);
 console.log(`  VERSION : ${onChainVersion}`);
 console.log(`  treasury: ${onChainTreasury}`);
-console.log(`  protocol fee: ${onChainFeeBps} bps (${(Number(onChainFeeBps) / 100).toFixed(2)}%, charged on top)`);
+console.log(`  protocol fee: ${onChainFeeBps} bps (${(Number(onChainFeeBps) / 100).toFixed(2)}%, carved out of swapFeeBps)`);
 
 if (ethers.getAddress(onChainTreasury) !== PROTOCOL_TREASURY) {
   console.error(
@@ -265,6 +322,66 @@ if (ethers.getAddress(onChainTreasury) !== PROTOCOL_TREASURY) {
   );
   process.exit(1);
 }
+
+/**
+ * Cadangan ticker DIBACA ULANG DARI CHAIN, bukan dianggap berhasil karena tx tidak revert.
+ *
+ * Constructor bisa jalan tanpa galat sambil mencadangkan daftar yang salah — argumen
+ * tertukar, array kosong karena satu typo di nama variabel, atau `_toUpper` yang tidak
+ * berlaku sehingga "eth" dan "ETH" jadi dua kunci berbeda. Tidak satu pun dari itu memicu
+ * revert, dan semuanya menghasilkan factory yang tampak sehat dengan lubang di dalamnya.
+ *
+ * Diperiksa lewat `isSymbolAvailable`, yaitu fungsi yang BENAR-BENAR dipakai studio dan
+ * /api/deploy untuk memutuskan, bukan lewat `symbolRegistry` mentah. Kalau ada satu saja
+ * yang masih tersedia, factory ini tidak boleh masuk konfigurasi.
+ */
+/**
+ * DIBERI JEDA, dan itu memperbaiki kegagalan nyata yang membuang satu deployment.
+ *
+ * Enam belas `eth_call` berurutan tanpa jeda membuat `base-rpc.publicnode.com` menjawab
+ * dengan galat tanpa data pada panggilan ketiga — `missing revert data`, `data: null`.
+ * Itu terbaca seperti kontraknya revert padahal RPC-nya yang membatasi laju, dan karena
+ * pemeriksaan ini berjalan SETELAH broadcast, kegagalannya berarti satu factory sudah
+ * terbayar lalu dianggap gagal. Terjadi dua kali di Base sebelum jeda ini dipasang:
+ * 0x5a2f13f1 terbuang, 0xe5B9555f yang dipakai.
+ *
+ * 150 ms per panggilan menambah ~2,4 detik pada seluruh deployment. Itu harga yang jauh
+ * lebih murah daripada satu deployment ulang, dan di chain dengan saldo tipis seperti
+ * Arbitrum perbedaannya bukan soal biaya tapi soal bisa atau tidak.
+ */
+const stillFree = [];
+for (const sym of RESERVED_SYMBOLS) {
+  await new Promise((r) => setTimeout(r, 150));
+  try {
+    if (await deployed.isSymbolAvailable(sym)) stillFree.push(sym);
+  } catch (e) {
+    /**
+     * Galat baca TIDAK dihitung sebagai ticker bebas, dan tidak pula diabaikan.
+     *
+     * Keduanya salah: menghitungnya bebas akan menyuruh deploy ulang factory yang sudah
+     * benar, sementara mengabaikannya akan meloloskan factory yang cadangannya memang
+     * gagal. Jadi prosesnya berhenti dengan menyebut apa yang tidak bisa dibuktikan, dan
+     * alamatnya tetap dilaporkan supaya bisa diverifikasi manual lewat RPC lain.
+     */
+    console.error(
+      `\nCANNOT VERIFY. Reading isSymbolAvailable("${sym}") failed: ` +
+        `${(e.shortMessage ?? e.message).slice(0, 120)}\n` +
+        `The factory at ${address} IS deployed — this is a read failure, not a deployment ` +
+        `failure. Verify the ${RESERVED_SYMBOLS.length} reservations against another RPC before ` +
+        `putting it in NEXT_PUBLIC_CURVE_FACTORY_*. Do not deploy again yet.`
+    );
+    process.exit(1);
+  }
+}
+if (stillFree.length > 0) {
+  console.error(
+    `\nRESERVATION FAILED. ${stillFree.length} of ${RESERVED_SYMBOLS.length} tickers are still claimable: ` +
+      `${stillFree.join(", ")}.\nDo NOT put this factory into NEXT_PUBLIC_CURVE_FACTORY_*. ` +
+      "Reservations happen only in the constructor, so this cannot be repaired — deploy again."
+  );
+  process.exit(1);
+}
+console.log(`  reserved: ${RESERVED_SYMBOLS.length}/${RESERVED_SYMBOLS.length} ticker terkonfirmasi tidak bisa diklaim`);
 
 const outFile = path.join(process.cwd(), "build", "deployments.json");
 const existing = fs.existsSync(outFile) ? JSON.parse(fs.readFileSync(outFile, "utf8")) : {};

@@ -27,19 +27,61 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local', quiet: true });
 const CHECK_ONLY = process.argv.includes('--check');
 
+/**
+ * Alamat factory DIBACA DARI ENV, bukan ditulis mati di sini.
+ *
+ * Sebelumnya keempatnya hardcode, dan itu bukan ketidakrapian melainkan bug yang pasti
+ * muncul: setiap kali generasi factory ditukar, berkas ini membandingkan artifact BARU
+ * dengan bytecode LAMA dan melaporkan "panjang beda" untuk empat chain sekaligus. Terjadi
+ * persis begitu saat 0.12.0 di-broadcast — artifact 21.403 B vs chain 21.281 B, empat
+ * GAGAL, padahal artifact-nya benar dan alamat yang diperiksa yang salah.
+ *
+ * `NEXT_PUBLIC_CURVE_FACTORY_*` adalah satu-satunya tempat yang menentukan factory mana
+ * yang sedang dipakai meluncurkan, dan `src/lib/chains.ts` sudah membacanya dari situ.
+ * Dengan berkas ini ikut membacanya, penukaran generasi berikutnya tidak menuntut
+ * suntingan di sini sama sekali.
+ */
+const envFactory = (name) => {
+  const v = process.env[`NEXT_PUBLIC_CURVE_FACTORY_${name}`];
+  if (!v || !/^0x[a-fA-F0-9]{40}$/.test(v)) {
+    console.error(
+      `NEXT_PUBLIC_CURVE_FACTORY_${name} kosong atau bukan alamat. ` +
+        `Berkas ini memverifikasi ABI terhadap factory yang SEDANG dipakai meluncurkan, ` +
+        `jadi tanpa alamatnya tidak ada yang bisa dibuktikan.`
+    );
+    process.exit(1);
+  }
+  return v;
+};
 const CHAINS = {
-  '0g': { chainId: 16661, rpc: process.env.OG_RPC_URL || 'https://evmrpc.0g.ai', factory: '0x51c4168226463F7e5A141e1c6D30520734BC840a' },
-  base: { chainId: 8453, rpc: 'https://mainnet.base.org', factory: '0x216E7880D64D94335B583c539802d3e61958d4A2' },
-  arbitrum: { chainId: 42161, rpc: 'https://arb1.arbitrum.io/rpc', factory: '0xE17f1027FC5f294327D701829baeD9d6519e922C' },
-  monad: { chainId: 143, rpc: 'https://rpc.monad.xyz', factory: '0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3' },
+  '0g': { chainId: 16661, rpc: process.env.OG_RPC_URL || 'https://evmrpc.0g.ai', factory: envFactory('0G') },
+  base: { chainId: 8453, rpc: 'https://mainnet.base.org', factory: envFactory('BASE') },
+  arbitrum: { chainId: 42161, rpc: 'https://arb1.arbitrum.io/rpc', factory: envFactory('ARBITRUM') },
+  monad: { chainId: 143, rpc: 'https://rpc.monad.xyz', factory: envFactory('MONAD') },
 };
 
-/** Pasar hidup, dipakai untuk memverifikasi ABI kurva dan token terhadap instance nyata. */
+/**
+ * Pasar hidup, dipakai memverifikasi ABI kurva dan token terhadap instance NYATA.
+ *
+ * HARUS BERASAL DARI GENERASI YANG SEDANG DIEKSPOR, dan itu yang membuat daftar ini
+ * berpindah chain saat 0.12.0 hidup. Sebelumnya isinya $ADEXTO dan $ADT di 0G, keduanya
+ * lahir dari factory 0.11.0 — jadi begitu artifact naik ke 0.12.0, perbandingannya
+ * melaporkan "panjang beda: artifact 9614 B vs chain 9250 B" untuk dua pasar sekaligus.
+ * Itu bukan ABI yang salah, itu instance dari generasi yang salah.
+ *
+ * Selisihnya nyata dan bukan cuma nomor versi: kurva 0.12.0 menambah `BUYBACK_COOLDOWN()`
+ * dan `lastBuybackAt()` — perbaikan temuan 1 di GHSA-g589-wjqq-86f2 — yang TIDAK ada pada
+ * kurva 0.11.0 yang sudah hidup. Jadi tidak ada satu pun pasar lama yang bisa membuktikan
+ * ABI ini, selamanya, karena tiap kurva immutable.
+ *
+ * $VOLT di Monad adalah pasar pertama dari factory 0.12.0, dibuka justru supaya ABI ini
+ * bisa diverifikasi terhadap kurva yang benar-benar dihasilkannya. Ia SENGAJA tidak
+ * didaftarkan di registry situs — lihat catatan §Sesi 2026-09-29 di runbook.
+ */
 const LIVE = {
-  network: '0g',
+  network: 'monad',
   markets: [
-    { symbol: 'ADEXTO', token: '0xA1358C17004469C7CA5365AbafD294F9b2c11DF7', curve: '0xc80e0659D2Fc29e62605C9DF6182a85372652B60' },
-    { symbol: 'ADT', token: '0x27F3117679680e0a85951BF4a1ca44Bd67D1E5a5', curve: '0x75148E905a31F7f5dD2f3Fe8fea4588a08ebF966' },
+    { symbol: 'VOLT', token: '0x5A5578cc297b397a7dE68b46FB495Fe1AC8c529F', curve: '0xb251Bc7261e72B1Bc222cf5B94B54b842eB84fce' },
   ],
 };
 
@@ -120,7 +162,29 @@ for (const [key, c] of Object.entries(CHAINS)) {
   );
   const [version, treasury, bps] = await Promise.all([f.VERSION(), f.protocolTreasury(), f.PROTOCOL_FEE_BPS()]);
   const r = accountForDiff(fac.deployedBytecode, code, [treasury, bps]);
-  check(`${key} ${c.factory}`, r.ok && version === '0.11.0', `VERSION ${version} · ${(code.length - 2) / 2} B · ${r.reason}`);
+  /**
+   * Versi yang diharapkan DIBACA DARI SUMBER KONTRAKNYA, bukan ditulis sebagai '0.11.0'.
+   *
+   * Angka mati di sini adalah pasangan dari alamat hardcode di atas, dan gagal dengan cara
+   * yang sama: saat 0.12.0 di-broadcast, keempat chain menjawab "0.12.0" dan pemeriksaan
+   * ini menolaknya walau setiap byte sudah terpertanggungjawabkan sebagai immutable.
+   *
+   * Diambil dari `VERSION` di `contracts/AdextoFactory.sol` — sumber yang SAMA yang
+   * dikompilasi menjadi artifact yang sedang dibandingkan. Jadi yang diuji tetap "chain
+   * menjalankan kode yang ada di repo ini", bukan sekadar "chain menjawab sesuatu".
+   */
+  const srcVersion = (readFileSync('contracts/AdextoFactory.sol', 'utf8').match(
+    /string\s+public\s+constant\s+VERSION\s*=\s*"([^"]+)"/,
+  ) ?? [])[1];
+  if (!srcVersion) {
+    console.error('Tidak bisa membaca VERSION dari contracts/AdextoFactory.sol — pemeriksaan versi tidak bisa dipercaya.');
+    process.exit(1);
+  }
+  check(
+    `${key} ${c.factory}`,
+    r.ok && version === srcVersion,
+    `VERSION ${version}${version === srcVersion ? '' : ` (sumber ${srcVersion})`} · ${(code.length - 2) / 2} B · ${r.reason}`,
+  );
   out.networks[key] = {
     chainId: c.chainId,
     factory: c.factory,
@@ -137,7 +201,23 @@ for (const [key, c] of Object.entries(CHAINS)) {
 console.log('\n── AdextoCurve & AdextoToken: bytecode instance pasar hidup vs artifact ──');
 const curveArt = artifact('AdextoCurve');
 const tokenArt = artifact('AdextoToken');
-const og = new ethers.JsonRpcProvider(CHAINS['0g'].rpc, 16661, { staticNetwork: true });
+/**
+ * Provider untuk chain tempat pasar verifikasi berada, DIPILIH DARI `LIVE.network`.
+ *
+ * Dulu bernama `og` dan dipaku ke 0G, sementara `LIVE.network` sudah ada sebagai field —
+ * jadi memindahkan pasar verifikasi ke chain lain membuat berkas ini membaca alamat Monad
+ * di 0G dan melaporkan "chain 0 B" untuk kurva yang sebenarnya ada. Gejalanya terbaca
+ * seperti kontraknya belum ter-deploy, padahal providernya yang salah chain.
+ *
+ * `batchMaxCount: 1` karena beberapa RPC gratis menolak batch (drpc: maksimum 3) atau
+ * membatasi laju, dan loop di bawah mengirim satu panggilan per getter immutable.
+ */
+const liveChain = CHAINS[LIVE.network];
+if (!liveChain) {
+  console.error(`LIVE.network "${LIVE.network}" tidak ada di CHAINS — pilih salah satu: ${Object.keys(CHAINS).join(', ')}`);
+  process.exit(1);
+}
+const og = new ethers.JsonRpcProvider(liveChain.rpc, liveChain.chainId, { staticNetwork: true, batchMaxCount: 1 });
 const CURVE_IMM = [
   'function creator() view returns (address)',
   'function factory() view returns (address)',
@@ -157,8 +237,22 @@ for (const m of LIVE.markets) {
     const v = await cc[n]().catch(() => null);
     if (v !== null) imm.push(v);
   }
-  // Kaki buyback tidak punya getter sendiri; nilainya total dikurangi tiga kaki lain.
-  imm.push(5n, 30n, 40n);
+  /**
+   * Kaki yang tersisa DIBACA DARI KURVA, bukan ditulis sebagai angka.
+   *
+   * Dulu `imm.push(5n, 30n, 40n)` — buyback 5 bps, swapFee 30, total 40. Itu tarif
+   * generasi 0.11.0, jadi begitu pasar verifikasi berpindah ke 0.12.0 (buyback 10,
+   * total 100) tiga nilai itu tidak lagi ada di bytecode dan blok yang memuatnya
+   * dilaporkan "tidak terjelaskan" — kegagalan yang menuduh kontraknya, bukan daftarnya.
+   *
+   * `treasuryBuybackBps()` dan `totalFeeBps()` memang punya getter di AdextoCurve;
+   * komentar lama yang menyatakan sebaliknya benar untuk SovereignCurve 0.10.0 saja.
+   */
+  for (const sig of ['function treasuryBuybackBps() view returns (uint256)', 'function totalFeeBps() view returns (uint256)']) {
+    const n = sig.match(/function (\w+)/)[1];
+    const v = await new ethers.Contract(m.curve, [sig], og)[n]().catch(() => null);
+    if (v !== null) imm.push(v);
+  }
   const rc = accountForDiff(curveArt.deployedBytecode, curveCode, imm);
   check(`$${m.symbol} curve ${m.curve}`, rc.ok, `${(curveCode.length - 2) / 2} B · ${rc.reason}`);
 
@@ -195,7 +289,7 @@ for (const m of LIVE.markets) {
   const rt = accountForDiff(tokenArt.deployedBytecode, tokenCode, timm);
   check(`$${m.symbol} token ${m.token}`, rt.ok, `${(tokenCode.length - 2) / 2} B · ${rt.reason}`);
 
-  out.liveMarkets.push({ ...m, network: LIVE.network, chainId: 16661 });
+  out.liveMarkets.push({ ...m, network: LIVE.network, chainId: liveChain.chainId });
 }
 
 console.log('\n── tanda tangan event yang dibutuhkan indexer ──');
