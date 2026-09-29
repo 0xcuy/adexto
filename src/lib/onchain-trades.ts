@@ -111,6 +111,11 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
 };
 const DEFAULT_LOG_SPAN = 2_000;
 
+/** Lebar rentang `getLogs` yang terukur diterima untuk sebuah chain. Dipakai juga oleh `market-index.ts`. */
+export function logSpanFor(chainId: number): number {
+  return LOG_SPAN_BY_CHAIN[chainId] ?? DEFAULT_LOG_SPAN;
+}
+
 /**
  * TIDAK ADA penimpaan endpoint berkunci untuk pembacaan log, dan ketiadaannya disengaja.
  *
@@ -235,8 +240,10 @@ const SWAP_IFACES = [
   new ethers.Interface(SOVEREIGN_CURVE_ABI),
   new ethers.Interface(SOVEREIGN_HOOK_ABI),
 ];
-const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
+export const SWAP_TOPICS = SWAP_IFACES.map((iface) => iface.getEvent("Swap")!.topicHash);
 const ifaceForTopic = (topic0: string) => SWAP_IFACES[SWAP_TOPICS.indexOf(topic0)];
+/** Interface yang bisa mendekode `Swap` dengan topic0 ini, dari ketiga generasi pool. */
+export const swapIfaceForTopic = ifaceForTopic;
 
 const emptyCoverage = (error: string | null = null): SwapCoverage => ({
   fromBlock: null,
@@ -600,6 +607,9 @@ export async function readOnChainSwaps(
         priceNative: amountToken > 0 ? amountNative / amountToken : 0,
         priceNativeAfter,
         trader: String(parsed.args.trader),
+        // Penerima dari event yang sama. Untuk pembelian lewat relai, token jatuh ke
+        // alamat INI, bukan ke `trader`.
+        recipient: parsed.args.recipient ? String(parsed.args.recipient) : null,
         timestamp: new Date(seconds * 1000).toISOString(),
         blockNumber: log.blockNumber,
         source: "onchain",

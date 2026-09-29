@@ -28,6 +28,7 @@ export const CARD_COLORS = {
   creamFaint: "#bdab95",
   violet: "#b193ff",
   ok: "#4ade80",
+  down: "#fb7185",
 } as const;
 
 const C = CARD_COLORS;
@@ -41,6 +42,8 @@ export interface CardImage {
 export interface CardStat {
   label: string;
   value: string;
+  /** Warna nilai untuk angka bertanda (PnL). Tanpa ini nilai memakai warna teks biasa. */
+  tone?: "up" | "down";
 }
 
 export interface ShareCardProps {
@@ -195,11 +198,12 @@ export function ShareCard(p: ShareCardProps) {
               </div>
               <div style={{ display: "flex", height: "70px", alignItems: "flex-end" }}>
                 <div
-                  style={
-                    i === 0
+                  style={{
+                    ...(i === 0
                       ? { display: "flex", fontSize: "56px", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.1 }
-                      : { display: "flex", fontSize: "34px", fontWeight: 600, color: C.creamSoft, lineHeight: 1.1, paddingBottom: "4px" }
-                  }
+                      : { display: "flex", fontSize: "34px", fontWeight: 600, color: C.creamSoft, lineHeight: 1.1, paddingBottom: "4px" }),
+                    ...(s.tone === "up" ? { color: C.ok } : s.tone === "down" ? { color: C.down } : {}),
+                  }}
                 >
                   {s.value}
                 </div>

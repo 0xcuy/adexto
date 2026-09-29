@@ -44,7 +44,18 @@ export interface TradeEvent {
    * Absent for agent-reported fills, which carry no reserve snapshot.
    */
   priceNativeAfter?: number | null;
+  /**
+   * `msg.sender` of the swap, straight from the event. For a relayed buy (x402, a
+   * router) this is the relayer, NOT the person who ends up holding the tokens.
+   */
   trader: string;
+  /**
+   * The beneficiary named in the `Swap` event: who received the tokens on a buy, and
+   * who received the native payout on a sell. Equal to `trader` for trades made in this
+   * app. Absent on records whose source did not carry it (older agent fills, indexer
+   * rows not yet matched against the market index).
+   */
+  recipient?: string | null;
   timestamp: string;
   blockNumber: number | null;
   chainId: number;

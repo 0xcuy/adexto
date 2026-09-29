@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
+import { readPoolState } from "@/lib/dex";
 import { nativePrices } from "@/lib/native-price";
 import { STABLE_PRICES, assetPriceUsd, formatUsd, type AssetPrices } from "@/lib/pricing";
 import { cardNative, cardUsd } from "@/lib/share-card-format";
@@ -73,7 +74,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     // kurs bawaan dipakai
   }
   const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
-  const priceUsd = project.priceNative * nativeUsd;
+  /**
+   * Harga SPOT kurva sekarang, bukan `project.priceNative`.
+   *
+   * `priceNative` di registry adalah harga PEMBUKAAN yang ditulis saat peluncuran dan tidak
+   * pernah diperbarui, jadi kartu dulu menyebut market cap hari peluncuran untuk pasar yang
+   * sudah bergerak. Kalau kurva tidak terbaca, harga pembukaan dipakai sebagai cadangan.
+   */
+  let priceNative = project.priceNative;
+  if (project.poolAddress) {
+    const pool = await readPoolState(chain, project.poolAddress);
+    if (pool && pool.initialized && pool.spotPriceNative > 0) priceNative = pool.spotPriceNative;
+  }
+  const priceUsd = priceNative * nativeUsd;
   const mcapUsd = priceUsd * project.supply;
 
   const marketUrl = `${publicOrigin()}/token/${project.slug}?chain=${project.chainId}`;
@@ -100,7 +113,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
             label: "market cap",
             value: mcapUsd >= 1 ? formatUsd(mcapUsd, { compact: true }) : mcapUsd > 0 ? cardUsd(mcapUsd) : "not priced yet",
           },
-          { label: "price", value: priceUsd > 0 ? cardUsd(priceUsd) : cardNative(project.priceNative, chain.nativeSymbol) },
+          { label: "price", value: priceUsd > 0 ? cardUsd(priceUsd) : cardNative(priceNative, chain.nativeSymbol) },
         ]}
         note={{ text: "Trading on a curve that has no withdrawal function.", color: CARD_COLORS.creamSoft }}
         marketUrl={marketUrl}

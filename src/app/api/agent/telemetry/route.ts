@@ -5,6 +5,16 @@ import { readOnChainSwaps, buildCandles, type SwapCoverage } from "@/lib/onchain
 import { appendTrade, authorizeTelemetryWrite, listTrades, validateTrade, type TradeEvent } from "@/lib/telemetry";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { readSubgraphSwaps, subgraphServesSwaps } from "@/lib/subgraph";
+import { ensureMarketIndex, indexable, indexedTrades, type IndexStatus } from "@/lib/market-index";
+import { computeMarketStats } from "@/lib/market-stats";
+import { fxAt, fxSeries, lastObserved } from "@/lib/fx-history";
+
+/** Batas baris yang dikirim. Candle dibangun dari SEMUA baris sebelum dipotong. */
+const MAX_TRADES_RETURNED = 5_000;
+/** Kurs terekam yang lebih tua dari ini tidak dianggap kurs "sekarang". */
+const FX_NOW_MAX_AGE_SECONDS = 3_600;
+
+const tradeKey = (t: Pick<TradeEvent, "txHash" | "type">) => `${t.txHash.toLowerCase()}:${t.type}`;
 
 /**
  * GET  — trade history for a symbol. Prefers real `Swap` events read from the
@@ -171,6 +181,65 @@ export async function GET(req: Request) {
      * perdagangan yang ada di dua sumber dihitung sekali. Yang dari CHAIN dimenangkan pada
      * tabrakan: ia dibaca langsung dari event, bukan disalin.
      */
+    /**
+     * Indeks pasar (`src/lib/market-index.ts`) mengisi riwayat yang TIDAK terjangkau sumber di
+     * atas, dan memberi `recipient` pada baris dari indexer yang tidak membawanya.
+     *
+     * Sumber di atas tetap didahulukan untuk ujung yang segar: indeks menunggu beberapa
+     * konfirmasi, jadi perdagangan beberapa detik terakhir datang dari pemindaian atau indexer.
+     * Yang ditambahkan dari indeks hanyalah yang belum ada, dengan kunci yang sama dengan
+     * penggabungan store di bawah.
+     *
+     * `waitMs` pendek: chart tidak boleh menunggu pemindaian awal sebuah pasar. Pemindaian itu
+     * tetap berjalan di belakang, dan permintaan berikutnya melihat hasilnya.
+     */
+    let indexStatus: IndexStatus | null = null;
+    if (indexable(project) && project.poolLive) {
+      try {
+        const { index, status } = await ensureMarketIndex(project, { waitMs: 1_500 });
+        indexStatus = status;
+        if (index) {
+          const fromIndex = indexedTrades(index, symbol, chain.nativeSymbol);
+          const byKey = new Map(fromIndex.map((t) => [tradeKey(t), t]));
+          trades = trades.map((t) => {
+            if (t.recipient) return t;
+            const hit = byKey.get(tradeKey(t));
+            return hit ? { ...t, recipient: hit.recipient } : t;
+          });
+          const seen = new Set(trades.map(tradeKey));
+          const missing = fromIndex.filter((t) => !seen.has(tradeKey(t)));
+          if (missing.length > 0) {
+            trades = [...trades, ...missing].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+            if (source === "empty") source = "onchain";
+          }
+          /**
+           * Riwayat UTUH bila indeks sudah menyambung ke bagian yang dibaca sumber segar: indeks
+           * menutup peluncuran→`scannedTo`, sumber segar menutup `fromBlock`→kepala. Indexer
+           * (Envio/subgraph) tidak punya `fromBlock` yang berarti di sini, jadi cukup indeksnya
+           * sudah mengejar kepala.
+           */
+          const freshFrom = coverage && coverage.calls > 0 ? coverage.fromBlock : null;
+          const joined = freshFrom !== null ? status.scannedTo + 1 >= freshFrom : status.complete;
+          if (joined) {
+            coverage = {
+              ...(coverage ?? {
+                toBlock: status.head,
+                blocksScanned: 0,
+                calls: 0,
+                estimatedTimes: 0,
+                error: null,
+              }),
+              fromBlock: status.launchBlock,
+              reachedLaunch: true,
+              truncated: false,
+            };
+          }
+        }
+      } catch {
+        // Indeks adalah pelengkap; tanpa dia jawaban tetap seperti sebelumnya.
+      }
+    }
+
     const stored = listTrades(symbol);
     if (stored.length > 0) {
       const seen = new Set(trades.map((t) => `${t.txHash}:${t.type}`));
@@ -244,6 +313,27 @@ export async function GET(req: Request) {
     const openingPrice = fallbackPrice > 0 ? fallbackPrice : candles.length > 0 ? candles[0].open : latestPrice;
     const changePct = openingPrice > 0 ? ((latestPrice - openingPrice) / openingPrice) * 100 : 0;
 
+    /**
+     * Strip statistik (5m/1h/6h/24h, volume, beli/jual, trader unik), dari himpunan yang SAMA
+     * dengan feed dan chart — jadi angka di strip tidak bisa berbeda dari baris di bawahnya.
+     *
+     * Kurs "sekarang" diambil dari rekaman terakhir, bukan dari `nativePrices()`: yang kedua
+     * bisa menunggu feed luar sampai delapan detik ketika cache-nya dingin, dan endpoint ini
+     * dipanggil setiap sepuluh detik oleh setiap penonton.
+     */
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const series = fxSeries(chain.nativeSymbol);
+    const lastFx = lastObserved(chain.nativeSymbol);
+    const stats = computeMarketStats({
+      trades,
+      openingPrice: fallbackPrice,
+      launchedAt: project?.deployedAt || null,
+      nowSeconds,
+      fxNow: lastFx && nowSeconds - lastFx[0] <= FX_NOW_MAX_AGE_SECONDS ? lastFx[1] : null,
+      fxAt: (s) => fxAt(series, s),
+      historyComplete: Boolean(coverage?.reachedLaunch && !coverage?.truncated),
+    });
+
     return NextResponse.json({
       success: true,
       symbol,
@@ -259,7 +349,10 @@ export async function GET(req: Request) {
       changePct,
       volumeNative: trades.reduce((sum, t) => sum + (t.amountNative || 0), 0),
       candles,
-      trades,
+      trades: trades.length > MAX_TRADES_RETURNED ? trades.slice(0, MAX_TRADES_RETURNED) : trades,
+      stats,
+      /** Keadaan indeks pasar: `complete` berarti riwayat sejak peluncuran sudah terpindai. */
+      index: indexStatus,
       /**
        * Seberapa jauh pembacaan benar-benar menjangkau.
        *
