@@ -372,4 +372,8 @@ The dry run checks the RPC chain ID, the deployer balance and `estimateGas` befo
 
 ## 📄 License
 
-MIT © 2026 ADEXTO Core Contributors · [adexto.xyz](https://adexto.xyz)
+Business Source License 1.1 (BUSL-1.1). See [LICENSE](LICENSE) for terms.
+
+Change Date: 2030-09-29 (MIT).
+
+© 2026 ADEXTO Core Contributors · [adexto.xyz](https://adexto.xyz)
