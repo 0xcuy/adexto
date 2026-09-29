@@ -208,3 +208,85 @@ deck/
 
 # Rekaman demo: hasil render, sumbernya record_openclaw_demo.mjs
 demo-out/
+
+# ── Skrip yang menjalankan peramban: alat lokal, bukan bagian produk ──
+#
+# Semuanya meng-import Playwright, membuka Chromium sungguhan terhadap situs yang
+# sedang jalan, lalu mengeklik. Yang dihasilkan adalah rekaman, tangkapan layar dan
+# laporan pemeriksaan — bukan kode yang dijalankan pengguna, dan bukan permukaan yang
+# bisa diaudit siapa pun tanpa lebih dulu menyalakan situsnya plus mengisi .env.local.
+#
+# Dikeluarkan karena repo ini dibaca untuk menilai protokol. Dua puluh satu skrip
+# pengemudi peramban di akar repo membuat `contracts/` dan `cloudflare-worker/` — yang
+# benar-benar memegang uang — tenggelam di antara perkakas. `audit/README.md` menyebut
+# langkah reproduksi yang MEMANG relevan, dan tidak satu pun dari daftar ini masuk situ.
+#
+# BERKASNYA TETAP ADA DI DISK dan tetap bisa dijalankan. Aturan ignore tidak menghapus
+# apa pun; ia hanya berhenti mengirimnya ke repo publik. Jadi `node audit_claims.mjs`
+# yang dipakai memeriksa teks Indonesia di web copy sebelum commit tetap jalan seperti
+# biasa — cuma tidak lagi ikut terbit.
+#
+# CATATAN: semuanya SUDAH pernah ter-commit, jadi baris-baris ini hanya menghentikan
+# perubahan BERIKUTNYA. `git rm --cached` mencabutnya dari HEAD sehingga tidak lagi
+# tampil di GitHub, tetapi isinya tetap terbaca lewat commit lama. Membersihkan riwayat
+# menuntut penulisan ulang plus force-push — destruktif, tidak dilakukan tanpa diminta.
+#
+# Diperiksa sebelum diputuskan: nol private key dan nol token di dalamnya. Yang ada
+# hanyalah alamat publik, hash transaksi yang sudah bisa dibaca di explorer, dan
+# pembacaan rahasia lewat process.env — bukan nilainya yang tertulis.
+#
+# `scripts/compile-contracts.mjs`, `scripts/security-scan.mjs`,
+# `scripts/test-erc8004-binding.mjs` dan `scripts/export-abi.mjs` SENGAJA TIDAK ADA di
+# sini: keempatnya dirujuk audit/README.md sebagai cara mereproduksi angka yang kami
+# klaim, jadi mengeluarkannya justru membuat klaim itu tidak bisa diperiksa.
+
+# Perekam demo. Keluarannya (public/adexto_*.mp4, demo-raw*/, deck/, demo-out/) sudah
+# diabaikan di blok-blok atas; ini pasangannya di sisi sumber.
+/record_agent_compute_demo.mjs
+/record_crisp.mjs
+/record_demo_testnet.mjs
+/record_openclaw_demo.mjs
+/record_x402_demo.mjs
+
+# Pemeriksa alur lewat peramban.
+/audit_claims.mjs
+/audit_consistency.mjs
+/audit_curve_ui_flow.mjs
+/audit_e2e_flow.mjs
+/audit_link_compat.mjs
+/audit_multichain_flow.mjs
+/audit_studio_testnet_flow.mjs
+/audit_swap_chain_switch.mjs
+/audit_wallet_picker.mjs
+
+# Probe dan pengukuran sekali pakai, plus tangkapan untuk materi pemasaran.
+scripts/capture-competitor.mjs
+scripts/capture-og-image.mjs
+scripts/check-navbar-menus.mjs
+scripts/check-wallet-connect.mjs
+scripts/measure-chain-switch.mjs
+scripts/probe-demo-opening.mjs
+scripts/probe-model-dropdown.mjs
+scripts/render-deck.mjs
+
+# ── Berkas kredensial yang ditaruh manual di akar repo ──
+#
+# Bukan hipotetis: `Pinata Key` benar-benar muncul di working tree sebagai untracked,
+# berisi JWT Pinata, dan TIDAK tertangkap satu pun pola di atas. `*token*github*` dan
+# `private key` menyebut nama yang sudah pernah dipakai, jadi keduanya tidak menjangkau
+# nama layanan berikutnya — dan satu `git add -A` sudah cukup untuk menerbitkannya.
+#
+# Polanya dibuat pada BENTUK NAMANYA, bukan pada nama layanannya, supaya kunci Alchemy
+# atau Cloudflare yang ditaruh dengan kebiasaan yang sama besok juga ikut tertutup tanpa
+# perlu menyunting berkas ini lagi. Diperiksa sebelum dipasang: nol berkas terlacak yang
+# cocok, jadi tidak ada sumber yang ikut hilang.
+#
+# Jangkar `/` WAJIB: tanpa itu `* [Kk]ey` akan cocok di kedalaman mana pun dan bisa
+# menelan berkas sah di src/ atau scripts/.
+/*[ _-][Kk]ey
+/*[ _-][Kk]ey.*
+/*[Kk]ey.txt
+/*[Ss]ecret
+/*[Ss]ecret.*
+*pinata*
+*PINATA*

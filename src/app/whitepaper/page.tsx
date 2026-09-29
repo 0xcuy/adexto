@@ -73,9 +73,9 @@ export default function WhitepaperPage() {
             <div className="p-4 rounded-xl bg-white border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
               <span className="text-ink">
-                A per-token bonding curve over a virtual reserve. The creator&apos;s configured fee splits three
-                ways (e.g. 0.15% depth / 0.10% creator / 0.05% buyback) and the protocol&apos;s 0.10% is charged
-                on top, so a trader on that tier pays 0.40% in total.
+                A per-token bonding curve over a virtual reserve. The configured fee is the whole fee a trader
+                pays and splits four ways — on the default tier 1.00% total: 0.70% creator / 0.10% depth /
+                0.10% buyback / 0.10% protocol. Nothing is charged on top of it.
               </span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-accent/30">
@@ -150,8 +150,11 @@ export default function WhitepaperPage() {
                  governance sudah dicabut seluruhnya. Tidak ada parameter yang bisa
                  diatur siapa pun, termasuk pemegang token.
               2. "subsidizes 0G TEE compute enclaves". Tidak ada whitelist compute dan
-                 tidak ada jalur subsidi di kontrak mana pun. Klaim yang sama sudah
-                 diralat di komentar `AdextoGovernor.sol`, tetapi terlewat di sini.
+                 tidak ada jalur subsidi di kontrak mana pun. Klaim yang sama dulu sudah
+                 diralat di komentar `AdextoGovernor.sol` tetapi terlewat di sini; berkas
+                 itu kini dihapus dari repo (lihat `audit/README.md`), jadi ralat ini yang
+                 tersisa — dan justru karena itu ia ditulis lengkap di sini, bukan sebagai
+                 rujukan ke tempat lain.
               3. "but not deployed". Sudah ter-deploy di keempat mainnet: 21.281 B kode,
                  VERSION 0.11.0, PROTOCOL_FEE_BPS 10 di 0G, Base, Arbitrum dan Monad.
               4. "Every curve now live ... with no protocol cut in the path". Kebalikannya.
@@ -184,12 +187,14 @@ export default function WhitepaperPage() {
           </p>
           <p className="text-ink">
             The 0.10% protocol fee is live, not planned. Factory{" "}
-            <code className="text-accent font-mono text-xs">0.11.0</code> is deployed on all four mainnets with{" "}
+            <code className="text-accent font-mono text-xs">0.12.0</code> is deployed on all four mainnets with{" "}
             <code className="text-accent font-mono text-xs">PROTOCOL_FEE_BPS = 10</code> and an immutable{" "}
-            <code className="text-accent font-mono text-xs">protocolTreasury</code>, and both live markets have already
-            paid it — 0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. It is added on top of the configured swap fee
-            rather than taken from it, so a market set to 0.30% costs a trader 0.40%. Markets launched on the earlier
-            0.10.0 factory carry no protocol leg and never can: their rates are immutable too.
+            <code className="text-accent font-mono text-xs">protocolTreasury</code>, and markets have already paid it —
+            0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. Since 0.12.0 it is carved out of the configured swap fee
+            rather than added to it, so a market set to 1.00% costs a trader exactly 1.00%. Three generations are live
+            at once and each keeps its own rates permanently: markets from the 0.10.0 factory carry no protocol leg and
+            never can, markets from 0.11.0 pay 0.40% because their leg was additive, and only launches from 0.12.0 pay
+            1.00%. Every leg is immutable per curve, so none of this can be changed retroactively.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-white border border-line">
@@ -201,7 +206,7 @@ export default function WhitepaperPage() {
               <div className="text-[11px] text-ink-soft font-bold">Pre-allocated</div>
             </div>
             <div className="p-3.5 rounded-lg bg-white border border-line">
-              <div className="text-xl font-semibold text-ink">0.40%</div>
+              <div className="text-xl font-semibold text-ink">1.00%</div>
               <div className="text-[11px] text-ink-soft font-bold">Paid per trade</div>
             </div>
             <div className="p-3.5 rounded-lg bg-white border border-line">

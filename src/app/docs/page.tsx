@@ -103,7 +103,7 @@ export default async function DocsPage() {
             owner, tanpa setter, tarif immutable — adalah JAMINAN, dan itulah alasan tidak
             ada yang bisa mengalihkan atau menguras apa pun. Ditulis sebagai kekuatan ia
             memberi tahu hal yang sama tanpa terbaca seperti fitur yang gagal dibangun. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: the curve factory <code className="text-accent">0.11.0</code> on all four mainnets with launching enabled, a 0.10% protocol fee charged on top of the creator&apos;s total, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: the curve factory <code className="text-accent">0.12.0</code> on all four mainnets with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -150,7 +150,7 @@ export default async function DocsPage() {
                 di chain dan masih melayani pasar yang lahir dari factory sebelumnya,
                 jadi keduanya disebut — mengganti nama lama akan membuat pembaca yang
                 memeriksa pasar lama tidak menemukan kontrak yang mereka lihat. */}
-            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The creator&apos;s configured fee splits three ways on-chain — depth stays in the curve, the creator is paid directly, and the rest funds buyback-and-burn that anyone can trigger — and a 0.10% protocol leg is charged on top of those three. Markets created before 0.11.0 run <code className="text-accent">SovereignCurve</code> and pay only the first three; their rates are immutable, so that will never change.</p>
+            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The configured fee is the whole fee a trader pays and splits four ways on-chain — depth stays in the curve, the creator is paid directly, buyback-and-burn that anyone can trigger, and a 0.10% protocol leg. Nothing is added on top. Three generations are live at once and each keeps its own rates permanently, because every rate is immutable: markets from before 0.11.0 run <code className="text-accent">SovereignCurve</code> with three legs and no protocol fee, markets from 0.11.0 pay 0.40% because their protocol leg was additive, and only launches from 0.12.0 pay 1.00%.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
@@ -231,10 +231,13 @@ export default async function DocsPage() {
                  satu kontrak, jadi mengirimkannya ke chain lain menuntut fungsi
                  penarikan yang justru dijanjikan tidak ada. Tapi ini JAWABAN ATAS
                  PERTANYAAN YANG TIDAK PERNAH DIAJUKAN halaman ini: CCIP nol kemunculan
-                 di seluruh situs. Yang bisa menimbulkan pertanyaan itu adalah
-                 `AdextoCCIPReceiver.sol` dan `AdextoCCIPTreasuryRouter.sol` di repo,
-                 dan pembaca repo dijawab di repo — bukan lewat kartu peringatan di
-                 halaman produk. Alasannya disimpan di runbook supaya tidak hilang.
+                 di seluruh situs. Dulu yang bisa menimbulkan pertanyaan itu adalah
+                 `AdextoCCIPReceiver.sol` dan `AdextoCCIPTreasuryRouter.sol` di repo, dan
+                 pembaca repo dijawab di repo — bukan lewat kartu peringatan di halaman
+                 produk. Sekarang kedua berkas itu pun sudah tidak ada: keduanya dihapus
+                 saat cakupan audit dirapikan, dan alasannya tercatat di `audit/README.md`
+                 beserta alamat yang tetap hidup di chain. Jadi pertanyaannya makin tidak
+                 mungkin muncul dari halaman ini, dan kartunya tetap tidak perlu kembali.
 
               3. Klaim `_mint` sekali di konstruktor, tanpa mint function, tanpa
                  `owner()`, tanpa proxy. Ini nyata dan berharga — dan sudah dinyatakan di

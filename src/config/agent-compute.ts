@@ -165,10 +165,16 @@ export function nextTier(staked: number): { tier: ComputeTier; shortfall: number
 /**
  * Alamat kontrak stake per chain, dari env.
  *
- * KOSONG ADALAH KEADAAN YANG SAH, dan itu keadaan hari ini: `AdextoAgentStake` ada di source tetapi
- * belum di-deploy — ia menunggu siaran generasi 0.12.0 bersama perubahan kontrak lain (lihat §1i
- * runbook). Halaman harus membaca ini dan mengatakan yang sebenarnya, bukan menampilkan nol sebagai
- * kalau-kalau posisinya kosong.
+ * KOSONG ADALAH KEADAAN YANG SAH — untuk chain yang kontraknya belum ada, BUKAN untuk 0G.
+ * `AdextoAgentStake` sudah di-deploy di 0G mainnet di `0x5b44AEA7AC49C7a6DA8f700D991852A2970b9231`
+ * (blok 45225259) dan `NEXT_PUBLIC_AGENT_STAKE_0G` terisi di produksi, jadi jalur stake di 0G
+ * hidup dan memegang token sungguhan. Tiga chain lain belum punya kontraknya, dan di sanalah
+ * kosong masih berarti kosong. Halaman harus membaca ini dan mengatakan yang sebenarnya, bukan
+ * menampilkan nol seolah-olah posisinya kosong.
+ *
+ * Komentar di sini pernah berbunyi "belum di-deploy" setelah kontraknya hidup. Itu bukan cuma basi:
+ * siapa pun yang membaca berkas ini untuk memutuskan kontrak mana yang perlu ditinjau akan
+ * MELEWATI satu kontrak yang menyimpan uang orang lain.
  *
  * Penerbitan kunci juga bergantung pada ini: tanpa kontrak, tidak ada angka stake yang bisa
  * dibaca, jadi tidak ada tingkatan yang bisa ditetapkan dan tidak ada kunci yang boleh keluar.
