@@ -4,6 +4,7 @@ import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { STABLE_PRICES, assetPriceUsd, formatUsd } from "@/lib/pricing";
 import { cardNative, cardUsd } from "@/lib/share-card-format";
+import { robotImage } from "@/lib/share-card-assets";
 
 /**
  * Kartu bagikan: gambar 1200x630 untuk sebuah pasar.
@@ -86,6 +87,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     : project.image.startsWith("data:")
     ? project.image
     : `${url.origin}${project.image.startsWith("/") ? "" : "/"}${project.image}`;
+
+  const robot = robotImage(330);
 
   return new ImageResponse(
     (
@@ -212,7 +215,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
           }}
         >
           <img src={qr} width={132} height={132} style={{ borderRadius: "14px", background: CREAM, padding: "6px" }} />
-          <img src={`${url.origin}/share/robot-celebrate.png`} height={330} style={{ objectFit: "contain" }} />
+          {robot ? (
+            // Dibaca dari disk dengan lebar DAN tinggi eksplisit. Alasannya di
+            // `src/lib/share-card-assets.ts`: mengambilnya lewat URL membuat satori
+            // mengukur berkasnya sendiri lewat jaringan, dan itu gagal di produksi.
+            <img src={robot.src} width={robot.width} height={robot.height} style={{ objectFit: "contain" }} />
+          ) : null}
         </div>
 
         <div
