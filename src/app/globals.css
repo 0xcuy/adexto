@@ -40,7 +40,12 @@
   --ink-faint-rgb: 115 101 80;
   --line-rgb: 231 220 199;
   --line-strong-rgb: 217 203 176;
-  --accent-rgb: 124 58 237;
+  /* Teks aksen tema terang diturunkan dari 124 58 237.
+     Nilai lama hanya 4,32:1 di atas chip `bg-accent-soft` (tint aksen di atas cream),
+     jadi label 10px seperti "ALL" di /explorer gagal AA justru di tempat ia dipakai
+     paling sering. Sekarang 5,4:1 di chip dan 6,5:1 di halaman. Isian tombol memakai
+     --accent-fill-rgb, jadi kontras tulisan putih tidak tersentuh. */
+  --accent-rgb: 109 40 217;
   --accent-strong-rgb: 109 40 217;
   --ok-rgb: 20 108 52;
   --warn-rgb: 154 68 8;
@@ -69,22 +74,141 @@
   /* SATU warna aksen. Dulu ada enam, dan karena warna dipakai sebagai hiasan,
      tidak ada warna tersisa untuk menandakan KEADAAN. Sekarang aksen dipakai
      hemat, dan hijau/amber/merah hanya untuk status sungguhan. */
-  --accent: #7c3aed;
+  --accent: #6d28d9;
   --accent-strong: #6d28d9;
   --accent-soft: rgba(124, 58, 237, 0.1);
   --ok: #146c34;
   --warn: #9a4408;
   --danger: #b91c1c;
 
-  /* tailwind.config memakai var(--font-sans) dan var(--font-mono), tetapi keduanya
-     tidak pernah didefinisikan — jadi setiap kelas font-sans/font-mono jatuh ke
-     font sistem. Di sini keduanya dipetakan ke Geist. */
-  --font-sans: var(--font-geist-sans);
+  /* Kanal tambahan untuk tema ganda.
+     --surface-2-rgb: permukaan kartu (dulu `bg-white` literal, yang tidak bisa ikut
+     tema). --accent-fill-*: warna ISIAN tombol. Dipisah dari --accent karena di tema
+     gelap satu violet tidak bisa sekaligus terbaca sebagai teks di atas latar gelap
+     DAN memikul tulisan putih di atasnya — lihat catatan di blok gelap. */
+  --surface-2-rgb: 255 255 255;
+  --accent-fill-rgb: 124 58 237;
+  --accent-fill-strong-rgb: 109 40 217;
+  --on-accent: #ffffff;
+  --ok-fill-rgb: 20 108 52;
+  --warn-fill-rgb: 154 68 8;
+  --danger-fill-rgb: 185 28 28;
+
+  /* Bayangan & efek yang dulu ditulis sebagai rgba cokelat literal di primitif. */
+  --shadow-sm: 0 1px 2px rgba(32, 24, 16, 0.05);
+  --shadow-panel: 0 1px 2px rgba(32, 24, 16, 0.04), 0 12px 32px -20px rgba(32, 24, 16, 0.18);
+  --shadow-lift: 0 18px 34px -20px rgba(32, 24, 16, 0.3), 0 2px 6px rgba(32, 24, 16, 0.04);
+  --shadow-card-hover: 0 2px 4px rgba(32, 24, 16, 0.05), 0 16px 36px -22px rgba(32, 24, 16, 0.22);
+  --row-hover: rgba(32, 24, 16, 0.025);
+  --selection-bg: rgba(124, 58, 237, 0.22);
+  --page-glow: radial-gradient(120% 70% at 50% -15%, var(--cream-2) 0%, rgba(251, 248, 241, 0) 55%);
+  --glow-accent: 0 8px 24px -10px rgba(124, 58, 237, 0.55);
+
+  /* Tipografi: display Bricolage Grotesque untuk judul, Inter untuk badan teks,
+     Geist Mono untuk angka dan alamat. Ketiganya dimuat lewat next/font/local dari
+     src/app/fonts, jadi build Docker tetap tidak butuh jaringan. */
+  --font-display: var(--font-bricolage), var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-inter), var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
+
+  /* Token bentuk & gerak — satu sumber, dipakai primitif di bawah. */
+  --r-card: 24px;
+  --r-panel: 14px;
+  --r-pill: 999px;
+  --control-h-touch: 44px;
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 150ms;
+  --t-med: 300ms;
+  --t-slow: 600ms;
+  --tabbar-h: 64px;
+
   /* Ritme vertikal tunggal, supaya seksi tidak lagi mengapung acak */
   --section-y: 4.5rem;
   --gap: 1rem;
   color-scheme: light;
+}
+
+/* ============================================================================
+   Tema gelap — BAWAAN
+   ----------------------------------------------------------------------------
+   <html data-theme="dark"> dirender server; skrip kecil di <head> menggantinya
+   ke "light" sebelum paint bila pengguna pernah memilih terang. Nama token TIDAK
+   berubah (cream = permukaan, ink = teks), jadi ±2.200 kelas yang sudah ada ikut
+   berbalik tanpa disentuh satu per satu.
+
+   Netralnya CHARCOAL HANGAT, bukan hitam keunguan. Versi sebelumnya #0d0b12 dan
+   teks abu-violet: keduanya berada di sisi dingin dan gelap, sehingga teks kecil
+   terbaca menyatu dengan latarnya. Polanya diambil dari charcoal hangat + cream
+   (comfy.fun memakai #120e0b/#1d1814 dengan teks #f7f1e8), tetapi setiap tingkatnya
+   dibuat SATU LANGKAH lebih terang daripada di sana, dan aksennya tetap violet ADEXTO.
+   Semua angka diukur, bukan disetel dengan mata — rasio WCAG terhadap permukaan
+   TERTERANG tempat teks berdiri (elevated #2b231b), yaitu kasus terburuknya:
+     ink 13,9 · ink-soft 10,1 · ink-faint 6,9 · accent (teks) 6,3
+     ok 8,9 · warn 9,3 · danger 5,6
+   Sebagai perbandingan, teks paling pucat comfy sendiri hanya 4,7:1 di permukaan
+   setaranya, jadi ini lebih terbaca daripada acuannya, bukan sekadar menyalinnya.
+   Isian tombol violet #7c3aed memikul teks putih 5,7:1. Itu sebabnya accent (teks)
+   dan accent-fill (isian) dipisah: violet #b193ff yang terbaca di atas latar gelap
+   hanya 3,1:1 bila dipakai sebagai latar tulisan putih.
+   ========================================================================== */
+:root[data-theme="dark"] {
+  --cream-rgb: 23 18 13;
+  --cream-2-rgb: 29 23 18;
+  --cream-3-rgb: 43 35 27;
+  --surface-2-rgb: 34 27 21;
+  --ink-rgb: 247 242 233;
+  --ink-soft-rgb: 219 207 189;
+  /* Diangkat dari 149 140 169.
+     Ukuran teks yang memakainya di panel padat adalah 9–11px, dan pada ukuran itu
+     5,3:1 terhadap --cream-3 lolos angka WCAG tetapi tetap terbaca sebagai abu di
+     atas abu. Nilai baru: 7,0:1 di --cream-3 dan 7,8:1 di --surface-2. */
+  --ink-faint-rgb: 189 171 149;
+  --line-rgb: 56 46 36;
+  --line-strong-rgb: 74 61 48;
+  /* Diangkat dari 160 123 255, alasan yang sama: ia dipakai sebagai TEKS pada chip
+     9–10px di atas --accent-soft, dan di sana 5,4:1 tidak cukup terang untuk dibaca
+     cepat. Sekarang 6,8:1 di --cream-3. Isian tombol tidak memakai token ini — itu
+     --accent-fill — jadi kontras tulisan putih di atas tombol tidak berubah. */
+  --accent-rgb: 177 147 255;
+  --accent-strong-rgb: 199 178 255;
+  --accent-fill-rgb: 124 58 237;
+  --accent-fill-strong-rgb: 139 92 246;
+  --ok-rgb: 74 222 128;
+  --warn-rgb: 251 191 36;
+  --danger-rgb: 248 113 113;
+  /* Isian status bertulisan putih: 5,0 · 5,0 · 4,8 : 1. */
+  --ok-fill-rgb: 21 128 61;
+  --warn-fill-rgb: 180 83 9;
+  --danger-fill-rgb: 220 38 38;
+  --on-accent: #ffffff;
+
+  --cream: #17120d;
+  --cream-2: #1d1712;
+  --cream-3: #2b231b;
+  --surface-2: #221b15;
+  --ink: #f7f2e9;
+  --ink-soft: #dbcfbd;
+  --ink-faint: #bdab95;
+  --line: #382e24;
+  --hairline: #382e24;
+  --hairline-strong: #4a3d30;
+  --accent: #b193ff;
+  --accent-strong: #c7b2ff;
+  --accent-soft: rgba(177, 147, 255, 0.14);
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+
+  --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 18px 40px -20px rgba(0, 0, 0, 0.7);
+  --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 22px 40px -18px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(177, 147, 255, 0.08);
+  --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 40px -20px rgba(0, 0, 0, 0.75);
+  --row-hover: rgba(247, 242, 233, 0.04);
+  --selection-bg: rgba(177, 147, 255, 0.35);
+  --page-glow: radial-gradient(90% 60% at 50% -12%, rgba(124, 58, 237, 0.13) 0%, rgba(124, 58, 237, 0) 62%);
+  --glow-accent: 0 10px 28px -8px rgba(124, 58, 237, 0.7);
+  color-scheme: dark;
 }
 
 @media (min-width: 1024px) {
@@ -103,11 +227,10 @@ body {
   /* Pengganti <Live3DBackground />. Satu sapuan terang di puncak halaman supaya
      hero terasa punya cahaya, lalu turun ke cream rata. Tidak beranimasi dan
      tidak ada canvas: latar tidak boleh bersaing dengan grafik harga. */
-  background: radial-gradient(120% 70% at 50% -15%, var(--cream-2) 0%, rgba(251, 248, 241, 0) 55%),
-    var(--cream);
+  background: var(--page-glow), var(--cream);
   background-attachment: fixed;
   /* Diisi oleh next/font di layout; fallback sistem hanya untuk keadaan darurat. */
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
   max-width: 100vw;
   -webkit-font-smoothing: antialiased;
@@ -153,6 +276,106 @@ h1 {
   letter-spacing: -0.035em;
 }
 
+/* Judul memakai display face (Bricolage Grotesque). Ketebalan tetap datang dari kelas
+   komponen, jadi judul halaman bisa tipis (300) sementara judul kartu tetap tegas. */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+
+/* Tinta logo #141110 hilang di atas latar gelap. Dibalik di SATU tempat, dan lewat
+   atribut src supaya ikut berlaku di setiap tempat logo dipakai sebagai gambar cadangan
+   token (explorer, terminal, studio) tanpa menyentuh komponennya. */
+[data-theme="dark"] img[src="/logo.svg"],
+[data-theme="dark"] img[src="/favicon.svg"] {
+  filter: invert(1) brightness(1.08);
+}
+
+/* Tombol utama yang "menyala": inset atas terang + cahaya violet di bawah. Dipakai
+   hanya pada SATU aksi per layar (Launch, Buy/Sell), sesuai aturan satu aksen. */
+.btn-glow {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -8px 16px -8px rgba(46, 16, 101, 0.55),
+    var(--glow-accent);
+  transition: box-shadow var(--t-med) var(--ease-settle), background-color var(--t-fast) var(--ease-settle),
+    transform var(--t-fast) var(--ease-settle);
+}
+.btn-glow:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -8px 16px -8px rgba(46, 16, 101, 0.45),
+    0 12px 32px -8px rgba(124, 58, 237, 0.75);
+}
+.btn-glow:active {
+  transform: translateY(1px);
+}
+.btn-glow:disabled {
+  box-shadow: none;
+}
+
+/* Skeleton shimmer untuk keadaan memuat. Hanya bentuk — teks "gagal" tetap ditulis
+   komponennya bila pembacaan memang gagal. */
+@keyframes adexto-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, rgb(var(--cream-3-rgb)) 0%, rgb(var(--line-strong-rgb) / 0.7) 50%, rgb(var(--cream-3-rgb)) 100%);
+  background-size: 200% 100%;
+  animation: adexto-shimmer 1.4s linear infinite;
+  border-radius: 999px;
+}
+
+/* Maskot: melayang pelan + cincin orbit. Hanya di halaman naratif, tidak di terminal. */
+@keyframes mascot-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -14px;
+  }
+}
+.mascot-float {
+  animation: mascot-float 6s var(--ease-settle) infinite;
+}
+@keyframes mascot-orbit {
+  to {
+    rotate: 360deg;
+  }
+}
+.mascot-orbit {
+  animation: mascot-orbit 40s linear infinite;
+}
+.mascot-orbit--slow {
+  animation-duration: 90s;
+  animation-direction: reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-float,
+  .mascot-orbit {
+    animation: none;
+  }
+}
+
+/* Watermark wordmark raksasa di dasar halaman (footer). Dekorasi murni. */
+.wordmark-watermark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.8;
+  color: transparent;
+  background: linear-gradient(180deg, rgb(var(--ink-rgb) / 0.07) 0%, rgb(var(--ink-rgb) / 0) 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  user-select: none;
+  pointer-events: none;
+}
+
 p,
 li {
   text-wrap: pretty;
@@ -195,12 +418,12 @@ input[type="number"] {
 }
 
 ::selection {
-  background: rgba(124, 58, 237, 0.22);
+  background: var(--selection-bg);
   color: var(--ink);
 }
 
 select option {
-  background-color: #ffffff;
+  background-color: var(--surface-2);
   color: var(--ink);
 }
 
@@ -219,7 +442,7 @@ select option {
   position: relative;
   background: var(--surface-2);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(32, 24, 16, 0.04), 0 12px 32px -20px rgba(32, 24, 16, 0.18);
+  box-shadow: var(--shadow-panel);
 }
 
 /* Pembungkus seksi halaman naratif: TANPA bingkai. */
@@ -258,7 +481,7 @@ select option {
 }
 .card-hover:hover {
   border-color: var(--hairline-strong);
-  box-shadow: 0 2px 4px rgba(32, 24, 16, 0.05), 0 16px 36px -22px rgba(32, 24, 16, 0.22);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* Kicker / eyebrow. Satu bentuk untuk semua halaman. */
@@ -332,7 +555,7 @@ select option {
   transition: background-color 140ms ease;
 }
 .table-clean tbody tr:hover {
-  background: rgba(32, 24, 16, 0.025);
+  background: var(--row-hover);
 }
 
 /* Alamat kontrak dan hash: monospace yang bisa dipilih dengan nyaman. */
@@ -466,7 +689,7 @@ select option {
 .adexto-lift {
   transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 260ms ease,
     border-color 260ms ease;
-  box-shadow: 0 1px 2px rgba(32, 24, 16, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .adexto-lift:hover {
@@ -476,7 +699,7 @@ select option {
      di CSS \u2014 deklarasi yang tidak sah dibuang tanpa pesan, jadi border hover-nya
      sekadar tidak berubah dan tidak ada yang memberi tahu. */
   border-color: rgb(var(--accent-rgb) / 0.3);
-  box-shadow: 0 18px 34px -20px rgba(32, 24, 16, 0.3), 0 2px 6px rgba(32, 24, 16, 0.04);
+  box-shadow: var(--shadow-lift);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -562,7 +785,7 @@ select option {
    z-index tidak ikut naik, sementara aturan di sebelahnya justru menaikkannya. */
 .adexto-card:hover .adexto-card-face {
   transform: translate3d(0, -10px, 0);
-  box-shadow: 0 12px 26px -14px rgba(32, 24, 16, 0.4);
+  box-shadow: var(--shadow-lift);
 }
 
 @media (prefers-reduced-motion: reduce) {

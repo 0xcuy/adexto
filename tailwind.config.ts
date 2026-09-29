@@ -6,7 +6,9 @@ export default {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  darkMode: "class",
+  // Tema dikendalikan atribut <html data-theme>, bukan kelas. Varian `dark:` diarahkan ke
+  // atribut yang sama supaya kalau suatu saat dibutuhkan, ia membaca sumber yang sama.
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
@@ -42,6 +44,8 @@ export default {
           strong: "rgb(var(--accent-strong-rgb) / <alpha-value>)",
           soft: "rgb(var(--accent-rgb) / 0.1)",
         },
+        /** Permukaan kartu. Pengganti `bg-white` literal yang tidak bisa ikut tema. */
+        surface: "rgb(var(--surface-2-rgb) / <alpha-value>)",
         ok: "rgb(var(--ok-rgb) / <alpha-value>)",
         warn: "rgb(var(--warn-rgb) / <alpha-value>)",
         danger: "rgb(var(--danger-rgb) / <alpha-value>)",
@@ -66,9 +70,39 @@ export default {
           emerald: "#10b981",
         }
       },
+      /**
+       * Isian aksen dipisah dari warna teks aksen.
+       *
+       * `bg-accent` memakai --accent-fill, `text-accent`/`border-accent` memakai --accent.
+       * Di tema terang keduanya sama (#7c3aed). Di tema gelap violet yang terbaca sebagai
+       * TEKS di atas latar gelap (#a07bff) terlalu terang untuk memikul tulisan putih
+       * (3,1:1), sementara isian #7c3aed memikulnya 5,7:1. Memisahkannya di sini berarti
+       * tidak ada satu pun komponen yang perlu tahu bahwa ada dua tema.
+       */
+      backgroundColor: {
+        accent: {
+          DEFAULT: "rgb(var(--accent-fill-rgb) / <alpha-value>)",
+          strong: "rgb(var(--accent-fill-strong-rgb) / <alpha-value>)",
+          soft: "rgb(var(--accent-rgb) / 0.1)",
+        },
+        // Alasan yang sama untuk warna status: hijau/amber/merah yang terbaca sebagai TEKS di
+        // tema gelap terlalu terang untuk isian tombol bertulisan putih ("Connect wallet to
+        // trade", Buy, Sell). Tint tipis (`bg-ok/10`) tetap memakai kanal isian ini.
+        ok: "rgb(var(--ok-fill-rgb) / <alpha-value>)",
+        warn: "rgb(var(--warn-fill-rgb) / <alpha-value>)",
+        danger: "rgb(var(--danger-fill-rgb) / <alpha-value>)",
+      },
       fontFamily: {
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+      },
+      borderRadius: {
+        card: "var(--r-card)",
+        panel: "var(--r-panel)",
+      },
+      transitionTimingFunction: {
+        settle: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',

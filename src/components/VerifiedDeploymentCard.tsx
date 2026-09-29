@@ -220,10 +220,10 @@ export default function VerifiedDeploymentCard() {
           </div>
 
           <div className="flex items-center gap-3 font-mono text-xs">
-            <div className="px-3 py-1.5 rounded-lg bg-white border border-line text-ink-soft">
+            <div className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink-soft">
               RPC: <span className="text-accent font-bold">evmrpc.0g.ai</span>
             </div>
-            <div className="px-3 py-1.5 rounded-lg bg-white border border-line text-ink-soft">
+            <div className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink-soft">
               DA: <span className="text-ok font-bold">indexer-turbo</span>
             </div>
           </div>

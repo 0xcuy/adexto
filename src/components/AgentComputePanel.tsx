@@ -119,7 +119,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
           // di halaman, jadi tidak ada yang hilang selain kenyamanannya.
         }
       }}
-      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
+      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
     >
       {done ? <Check className="h-3 w-3 text-ok" /> : <Copy className="h-3 w-3" />}
       {done ? "Copied" : "Copy"}
@@ -483,7 +483,7 @@ export default function AgentComputePanel() {
             z-index di sini, hero yang menang dan memotong tepi atas kartu, menutupi judul
             kartu kedua. Ketahuan dari potret, bukan dari kode. */}
         <div className="relative z-10 -mt-8 grid gap-4 lg:grid-cols-[1fr_360px]">
-          <div className="rounded-2xl border border-line bg-white p-5 shadow-[0_8px_24px_-12px_rgba(46,15,99,0.25)]">
+          <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_8px_24px_-12px_rgba(46,15,99,0.25)]">
             {!stakeAddress && (
               <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-warn/30 bg-warn/[0.07] p-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
@@ -694,7 +694,7 @@ export default function AgentComputePanel() {
                           className={`rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors ${
                             picked
                               ? "border-accent/40 bg-accent-soft text-accent"
-                              : "border-line bg-white text-ink-soft hover:text-ink"
+                              : "border-line bg-surface text-ink-soft hover:text-ink"
                           }`}
                           title={`${t.label} — ${fmt(t.stake)} ADEXTO`}
                         >
@@ -710,7 +710,7 @@ export default function AgentComputePanel() {
                         className={`rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors ${
                           Number(stakeAmount) === Math.floor(balance)
                             ? "border-accent/40 bg-accent-soft text-accent"
-                            : "border-line bg-white text-ink-soft hover:text-ink"
+                            : "border-line bg-surface text-ink-soft hover:text-ink"
                         }`}
                         title={`Everything you hold — ${fmt(Math.floor(balance))} ADEXTO`}
                       >
@@ -816,7 +816,7 @@ export default function AgentComputePanel() {
                       type="button"
                       onClick={doUnstake}
                       disabled={busy !== null}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-[13px] font-bold text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[13px] font-bold text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
                     >
                       {busy === "unstake" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -830,7 +830,7 @@ export default function AgentComputePanel() {
                     type="button"
                     onClick={read}
                     disabled={loading}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-[13px] font-bold text-ink transition-colors hover:border-line-strong disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[13px] font-bold text-ink transition-colors hover:border-line-strong disabled:opacity-50"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -859,7 +859,7 @@ export default function AgentComputePanel() {
           </div>
 
           {/* Model + infrastruktur, digabung jadi satu kartu alih-alih dua. */}
-          <div className="rounded-2xl border border-line bg-white p-5 shadow-[0_8px_24px_-12px_rgba(46,15,99,0.25)]">
+          <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_8px_24px_-12px_rgba(46,15,99,0.25)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">
               Runs on
             </div>
@@ -940,7 +940,7 @@ export default function AgentComputePanel() {
           </p>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_400px]">
-            <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
               <div className="flex items-center gap-2 border-b border-line bg-cream-2 px-4 py-2.5">
                 <Terminal className="h-3.5 w-3.5 text-ink-faint" />
                 <span className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
@@ -997,7 +997,7 @@ export default function AgentComputePanel() {
             </div>
 
             {/* ── kunci ───────────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-line bg-white p-5">
+            <div className="rounded-2xl border border-line bg-surface p-5">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4 text-accent" />
                 <span className="text-[13px] font-bold text-ink">Your API key</span>
@@ -1065,7 +1065,7 @@ export default function AgentComputePanel() {
                     type="button"
                     onClick={revoke}
                     disabled={busy !== null}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/40 bg-white text-[12px] font-bold text-danger transition-colors hover:bg-danger/[0.06] disabled:opacity-50"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/40 bg-surface text-[12px] font-bold text-danger transition-colors hover:bg-danger/[0.06] disabled:opacity-50"
                   >
                     {busy === "revoke" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1134,7 +1134,7 @@ export default function AgentComputePanel() {
                 <div
                   key={t.label}
                   className={`relative overflow-hidden rounded-2xl border p-4 transition-colors ${
-                    reached ? "border-accent/40 bg-accent-soft" : "border-line bg-white"
+                    reached ? "border-accent/40 bg-accent-soft" : "border-line bg-surface"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -1185,7 +1185,7 @@ export default function AgentComputePanel() {
             ].map((s) => (
               <div key={s.n} className="rounded-2xl border border-line bg-cream-2 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-accent shadow-sm">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface text-accent shadow-sm">
                     {s.icon}
                   </span>
                   <span className="font-mono text-[11px] font-bold text-ink-faint">{s.n}</span>
@@ -1235,7 +1235,7 @@ export default function AgentComputePanel() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-line bg-white p-5">
+          <div className="rounded-2xl border border-line bg-surface p-5">
             <div className="text-[13px] font-bold text-ink">What the contract cannot do</div>
             <ul className="mt-2 space-y-2 text-[12px] leading-relaxed text-ink-soft">
               <li>

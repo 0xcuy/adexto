@@ -235,7 +235,21 @@ export function nativeAssetLogo(symbol: string | null | undefined): string | nul
       return "/brand/ethereum.svg";
     case "0G":
     case "A0GI":
-      return "/brand/0g.svg";
+      /**
+       * Logo TOKEN resmi 0G, bukan wordmark-nya.
+       *
+       * Sebelumnya ini menunjuk `0g.svg`, yaitu wordmark "0G" hitam dari brand kit. Dua
+       * hal salah dengannya di tempat ini: bentuknya wordmark sementara tetangganya
+       * (ETH, MON) adalah mark persegi, dan tintanya hitam sehingga praktis hilang di
+       * tema gelap.
+       *
+       * Yang dipakai sekarang adalah berkas yang 0G terbitkan sebagai logo token —
+       * kotak violet #B75FFF dengan mark putih — jadi tidak ada yang diwarnai ulang di
+       * sini. Itu penting: brand kit 0G justru mencantumkan "logo diberi warna ungu
+       * sendiri" sebagai contoh PENYALAHGUNAAN, dan satu-satunya cara memakai violet
+       * dengan benar adalah memakai berkas violet milik mereka.
+       */
+      return "/brand/0g-token.png";
     case "MON":
       return "/brand/monad.svg";
     default:

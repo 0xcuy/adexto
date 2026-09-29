@@ -191,7 +191,7 @@ export default function X402Demo({ markets }: { markets: DemoMarket[] }) {
       {/* Ruang lingkup dinyatakan di muka, bukan disembunyikan di catatan kaki. Baris
           ini dulu berbunyi "This is the discovery half of x402 … paying it is not
           implemented", dan itu sudah tidak benar. */}
-      <div className="mb-8 rounded-2xl border border-line bg-white p-4 flex items-start gap-3">
+      <div className="mb-8 rounded-2xl border border-line bg-surface p-4 flex items-start gap-3">
         <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
         <div className="space-y-2 text-xs leading-relaxed text-ink-soft">
           <p>
@@ -262,7 +262,7 @@ export default function X402Demo({ markets }: { markets: DemoMarket[] }) {
                       className={`rounded-xl border px-3 py-2 text-left text-[11px] transition-colors ${
                         active
                           ? "border-accent bg-accent/10 text-ink"
-                          : "border-line bg-white text-ink-soft hover:border-line-strong hover:text-ink"
+                          : "border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink"
                       }`}
                     >
                       <span className="block font-semibold">${m.symbol}</span>
@@ -280,22 +280,22 @@ export default function X402Demo({ markets }: { markets: DemoMarket[] }) {
                 sama sekali: satu-satunya angka yang ditampilkan halaman ini datang dari
                 jawaban di sebelah kanan. */}
             <ol className="space-y-2.5 text-[11px] leading-relaxed text-ink-soft">
-              <li className="rounded-xl border border-line bg-white p-3">
+              <li className="rounded-xl border border-line bg-surface p-3">
                 <strong className="text-ink">1. The symbol is resolved by us, not you.</strong> The path names a
                 ticker, and the market behind it comes from our own registry. A ticker with no live market is
                 answered 404 instead of quoted.
               </li>
-              <li className="rounded-xl border border-line bg-white p-3">
+              <li className="rounded-xl border border-line bg-surface p-3">
                 <strong className="text-ink">2. USDC becomes native at a live rate.</strong> The rate is read
                 when you ask, and the response names its source and the spread held back, so the number can be
                 checked rather than trusted.
               </li>
-              <li className="rounded-xl border border-line bg-white p-3">
+              <li className="rounded-xl border border-line bg-surface p-3">
                 <strong className="text-ink">3. The curve prices the tokens.</strong> That native amount goes
                 through the curve&apos;s own quote function, and the response carries both the quote and the
                 minimum you would accept.
               </li>
-              <li className="rounded-xl border border-line bg-white p-3">
+              <li className="rounded-xl border border-line bg-surface p-3">
                 <strong className="text-ink">4. Inventory is stated up front.</strong> Delivering a token means
                 spending native we hold, so the quote says how many more buys that stock covers. When it runs
                 out the answer is 503, not a payment we cannot honour.

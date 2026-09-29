@@ -5,6 +5,7 @@ import { ethers } from "ethers";
 import {
   ShieldCheck, RefreshCw, ExternalLink, Bot, Send, Copy, Check,
   CloudLightning, Cpu, AlertTriangle, Lock, Settings2, CheckCircle2, Network,
+  Globe, Github, BookOpen,
 } from "lucide-react";
 
 import { useWallet } from "@/context/WalletContext";
@@ -15,8 +16,9 @@ import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import RealtimeCandleChart from "@/components/RealtimeCandleChart";
 import LiveOrderBook from "@/components/LiveOrderBook";
 import LiveTradeFeed from "@/components/LiveTradeFeed";
+import MarketOwnerActions from "@/components/MarketOwnerActions";
 import Link from "next/link";
-import { CHAIN_LIST, explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
+import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { claimCreatorFees, describeTxError } from "@/lib/dex";
 import { STABLE_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
@@ -53,6 +55,12 @@ export interface TerminalProject {
   agentModel: string;
   agentPersona: string;
   agentStatus: string;
+  /** Pitch satu baris milik creator, atau null kalau tidak diisi. Teks biasa. */
+  description: string | null;
+  /** Tautan publik yang dipasang creator. `x` adalah handle, bukan URL. */
+  links: { website: string | null; github: string | null; x: string | null; docs: string | null };
+  /** Alamat yang meluncurkan pasar ini. Menentukan apakah tombol sunting ditawarkan. */
+  creator: string;
   image: string;
   teeRoot: string | null;
   txHash: string | null;
@@ -134,7 +142,15 @@ export default function TokenTerminal({
       }
     };
     load();
-    const timer = setInterval(load, 30000);
+    /**
+     * 15 detik, bukan 30.
+     *
+     * Harga token dalam USD adalah harga native x kurs native/USD, jadi pasar tanpa fill
+     * baru TETAP bergerak dalam USD selama 0G bergerak. Dengan jeda 30 detik gerakan itu
+     * datang setengah lebih jarang daripada yang ada, sehingga pasar yang sepi terbaca
+     * seperti pasar yang beku. Ini hanya kecepatan baca; tidak ada angka yang dikarang.
+     */
+    const timer = setInterval(load, 15000);
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -297,17 +313,17 @@ export default function TokenTerminal({
   };
 
   return (
-    <div className="max-w-[1560px] mx-auto px-2 sm:px-4 py-6 space-y-4">
+    <div className="mx-auto max-w-[1600px] space-y-3 px-3 py-6 sm:px-6">
       {/* Header */}
-      <div className="glass-panel p-4 sm:p-6 rounded-3xl border-2 border-line flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xl">
+      <div className="glass-panel flex flex-col justify-between gap-5 rounded-card border border-line p-4 shadow-[var(--shadow-panel)] sm:p-5 lg:flex-row lg:items-center">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-cream-2 border-2 border-accent/30 p-1 flex items-center justify-center shrink-0">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-accent/30 bg-cream-2 p-1">
             <img src={project.image} alt={project.name} className="w-full h-full object-cover rounded-xl" />
           </div>
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-semibold text-ink">{project.name}</h1>
+              <h1 className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">{project.name}</h1>
               <span className="rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
                 ${project.symbol}
               </span>
@@ -367,6 +383,56 @@ export default function TokenTerminal({
                 x402 API <CloudLightning className="w-3 h-3" />
               </a>
             </div>
+
+            {/* Pitch creator. Dirender sebagai TEKS, bukan markdown dan bukan HTML:
+                ia berasal dari formulir peluncuran, jadi satu-satunya bentuk yang aman
+                di halaman publik adalah teks biasa. */}
+            {project.description && (
+              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-soft">{project.description}</p>
+            )}
+
+            {/* Tautan milik proyek.
+                `rel="noopener noreferrer nofollow ugc"` bukan hiasan: tujuannya ditulis
+                orang lain, jadi halaman ini tidak meneruskan reputasi dan tidak memberi
+                akses `window.opener` ke tab tujuan. Registry sudah menolak skema selain
+                http(s), jadi href di sini tidak bisa menjadi `javascript:`. */}
+            {(project.links.x || project.links.website || project.links.github || project.links.docs) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {([
+                  // Tanpa ikon: labelnya sudah memuat "@", dan ikon AtSign di sebelahnya
+                  // membuat chip terbaca "@ @handle".
+                  project.links.x ? { key: "x", label: `@${project.links.x}`, href: `https://x.com/${project.links.x}`, Icon: null } : null,
+                  project.links.website ? { key: "website", label: "Website", href: project.links.website, Icon: Globe } : null,
+                  project.links.github ? { key: "github", label: "GitHub", href: project.links.github, Icon: Github } : null,
+                  project.links.docs ? { key: "docs", label: "Docs", href: project.links.docs, Icon: BookOpen } : null,
+                ].filter(Boolean) as Array<{ key: string; label: string; href: string; Icon: typeof Globe | null }>).map(
+                  ({ key, label, href, Icon }) => (
+                    <a
+                      key={key}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow ugc"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      {Icon ? <Icon className="h-3 w-3" /> : null}
+                      {label}
+                    </a>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Bagikan untuk semua orang; sunting hanya untuk dompet yang meluncurkan. */}
+            <div className="mt-2.5">
+              <MarketOwnerActions
+                symbol={project.symbol}
+                chainId={project.chainId}
+                creator={project.creator}
+                description={project.description}
+                links={project.links}
+                image={project.image}
+              />
+            </div>
           </div>
         </div>
 
@@ -376,7 +442,7 @@ export default function TokenTerminal({
             paling jarang dipakai orang untuk memutuskan. Market cap dan nilai USD
             adalah yang benar-benar dibandingkan orang, jadi itu yang di depan.
             Angka mentahnya tetap bisa dilihat lewat tooltip. */}
-        <div className="grid grid-cols-2 gap-3 text-center text-xs sm:grid-cols-4">
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[560px]">
           {/* Label menyebut chain-nya, karena angka ini per chain dan tanpa itu ia
               terbaca sebagai market cap proyek secara keseluruhan.
               Satu ticker yang diluncurkan di empat chain berarti EMPAT pasar
@@ -436,7 +502,7 @@ export default function TokenTerminal({
               ${project.symbol} markets
             </span>
             <span className="rounded-md border border-accent/30 bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
-              {deployments.length} of {CHAIN_LIST.length} chains
+              {deployments.length} {deployments.length === 1 ? "chain" : "chains"}
             </span>
           </div>
           <span className="text-[11px] text-ink-faint">
@@ -444,32 +510,29 @@ export default function TokenTerminal({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-cream-3 sm:grid-cols-4">
-          {CHAIN_LIST.map((c) => {
-            const d = deployments.find((x) => x.chainId === c.chainId);
-
-            // Chain tanpa market: ditandai jelas, tidak bisa diklik. Membiarkannya
-            // seolah bisa dipilih akan membuat user menunggu pool yang tidak ada.
-            if (!d) {
-              return (
-                <div key={c.chainId} className="bg-white px-3 py-2.5 opacity-60">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-ink-soft">{c.key}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-ink-faint">not launched</span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-ink-faint">
-                    No ${project.symbol} market on this chain
-                  </p>
-                </div>
-              );
-            }
+        {/* HANYA chain tempat pasar ini benar-benar ada.
+            Versi sebelumnya menggambar keempat chain yang didukung dan menandai yang
+            kosong "not launched" — niatnya memperlihatkan bahwa chain lain ada. Yang
+            terjadi di layar: tiga dari empat kotak berisi kalimat tentang pasar yang
+            TIDAK ADA, jadi panel yang seharusnya memudahkan perbandingan justru
+            sebagian besar diisi ketiadaan.
+            Chain yang belum dipakai tetap bisa ditemukan di /studio (tempat keputusan
+            itu sebenarnya diambil) dan di /explorer, jadi tidak ada informasi yang
+            hilang — ia hanya berhenti memakan tempat di halaman perdagangan. */}
+        <div
+          className={`grid gap-px bg-cream-3 ${
+            deployments.length === 1 ? "grid-cols-1" : deployments.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"
+          }`}
+        >
+          {deployments.map((d) => {
+            const c = resolveChainOrDefault(d.chainId);
 
             return (
               <Link
                 key={c.chainId}
                 href={`/token/${project.slug}?chain=${c.chainId}`}
                 aria-current={d.isCurrent ? "true" : undefined}
-                className={`group bg-white px-3 py-2.5 transition-colors ${
+                className={`group bg-surface px-3 py-2.5 transition-colors ${
                   d.isCurrent ? "bg-accent-soft ring-1 ring-inset ring-accent/40" : "hover:bg-cream-3"
                 }`}
               >
@@ -561,15 +624,15 @@ export default function TokenTerminal({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {/* Left: chart + depth */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className="lg:col-span-8 space-y-3">
           {/**
            * `min-h` dan bukan `h`: kotak osilator (RSI/MACD) dirender di dalam komponen
            * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
            * akan meluber keluar kartu dan terpotong.
            */}
-          <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[620px] shadow-2xl bg-white flex flex-col justify-between">
+          <div className="glass-panel p-4 rounded-card border border-line min-h-[620px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between">
             <RealtimeCandleChart
               symbol={project.symbol}
               chainId={project.chainId}
@@ -587,7 +650,7 @@ export default function TokenTerminal({
                */
               refreshKey={swap.txHash}
             />
-            <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-white p-2.5 text-[11px] text-ink-soft">
+            <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-surface p-2.5 text-[11px] text-ink-soft">
               <span className="flex items-center gap-1.5 text-ink">
                 <Cpu className="w-3.5 h-3.5 text-accent" /> {project.agentModel}
               </span>
@@ -598,7 +661,7 @@ export default function TokenTerminal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[260px] shadow-2xl bg-white overflow-hidden">
+            <div className="glass-panel p-4 rounded-card border border-line min-h-[260px] shadow-[var(--shadow-panel)] bg-surface overflow-hidden">
               <LiveOrderBook
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -606,14 +669,14 @@ export default function TokenTerminal({
                 nativeUsd={nativeUsd}
               />
             </div>
-            <div className="glass-panel p-4 rounded-3xl border-2 border-line min-h-[260px] shadow-2xl bg-white overflow-hidden">
+            <div className="glass-panel p-4 rounded-card border border-line min-h-[260px] shadow-[var(--shadow-panel)] bg-surface overflow-hidden">
               <LiveTradeFeed symbol={project.symbol} chainId={project.chainId} nativeUsd={nativeUsd} />
             </div>
           </div>
         </div>
 
         {/* Right: swap + chat */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-4 space-y-3">
           {/* Penghasilan creator.
               Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
               dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
@@ -697,13 +760,13 @@ export default function TokenTerminal({
           {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
           {isConnected && (
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-3 py-2">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
               <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
               <WalletMenu />
             </div>
           )}
 
-          <div className="glass-panel space-y-3 rounded-3xl p-5">
+          <div className="glass-panel space-y-3 rounded-card p-5">
             <div className="flex items-center justify-between border-b border-line pb-2.5">
               <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
               <div className="flex items-center gap-2">
@@ -826,7 +889,7 @@ export default function TokenTerminal({
           </div>
 
           {/* Agent chat */}
-          <div className="glass-panel p-4 rounded-3xl border-2 border-line h-[340px] shadow-2xl bg-white flex flex-col justify-between overflow-hidden">
+          <div className="glass-panel p-4 rounded-card border border-line h-[340px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between overflow-hidden">
             <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-accent" />
@@ -844,7 +907,7 @@ export default function TokenTerminal({
                   className={`p-2.5 rounded-xl text-xs leading-relaxed ${
                     m.role === "user"
                       ? "bg-accent-soft border border-accent/30 text-ink ml-4"
-                      : "bg-white border border-line text-ink mr-2"
+                      : "bg-surface border border-line text-ink mr-2"
                   }`}
                 >
                   <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
@@ -920,9 +983,11 @@ function Stat({
 }) {
   const color = tone === "accent" ? "text-accent" : "text-ink";
   return (
-    <div className="p-3 rounded-2xl bg-white border border-line" title={title}>
-      <span className="text-[10px] text-ink-soft block">{label}</span>
-      <span className={`text-sm font-semibold ${color}`}>{value}</span>
+    <div className="rounded-panel border border-line bg-surface px-3 py-2.5 text-left" title={title}>
+      <span className="block text-[10px] uppercase tracking-[0.08em] text-ink-faint">{label}</span>
+      <span className={`mt-0.5 block font-display text-[17px] font-medium tracking-tight ${color}`} data-numeric>
+        {value}
+      </span>
     </div>
   );
 }

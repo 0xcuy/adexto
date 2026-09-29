@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       </P>
 
       <H2>Stored in your browser</H2>
-      <P>Two keys, in localStorage, on your device only. They are never sent to us.</P>
+      <P>Up to four keys, in localStorage, on your device only. They are never sent to us.</P>
       <UL>
         <li>
           <code className="text-ink">adexto_selected_chain</code> — which chain the interface is
@@ -44,11 +44,15 @@ export default function PrivacyPage() {
           session can be restored without prompting again.
         </li>
         <li>
+          <code className="text-ink">adexto_theme</code> — dark or light, only written once you switch
+          theme yourself. Without it the site is dark.
+        </li>
+        <li>
           <code className="text-ink">adexto_cookie_consent</code> — your answer to the storage notice.
         </li>
       </UL>
       <P>
-        Choosing <strong>Essential only</strong> in that notice deletes the first two immediately and
+        Choosing <strong>Essential only</strong> in that notice deletes the first three immediately and
         stops them being written again. Your wallet will simply not reconnect on its own afterwards.
       </P>
 
@@ -109,7 +113,7 @@ export default function PrivacyPage() {
 
       <H2>Your choices</H2>
       <UL>
-        <li>Clear the three keys above at any time from your browser&apos;s site data.</li>
+        <li>Clear the keys above at any time from your browser&apos;s site data.</li>
         <li>Choose Essential only in the storage notice to stop preferences being kept.</li>
         <li>
           Use the site without connecting a wallet. Prices, markets and documentation all work

@@ -132,8 +132,8 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
               ? "bg-warn/10 text-warn hover:bg-warn/15"
               : "border-warn/40 bg-warn/10 text-warn hover:bg-warn/20"
             : grouped
-            ? "text-ink hover:bg-white"
-            : "border-line bg-white text-ink hover:border-line-strong",
+            ? "text-ink hover:bg-surface"
+            : "border-line bg-surface text-ink hover:border-line-strong",
         ].join(" ")}
       >
         {walletOnUnknown ? (
@@ -161,7 +161,7 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 z-50 mt-2 w-[264px] overflow-hidden rounded-xl border border-line bg-white shadow-xl"
+          className="absolute right-0 z-50 mt-2 w-[264px] overflow-hidden rounded-xl border border-line bg-surface shadow-xl"
         >
           <div className="flex items-center gap-1.5 border-b border-line bg-cream-2 px-3 py-2">
             <Globe className="h-3 w-3 text-accent" />

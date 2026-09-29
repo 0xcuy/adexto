@@ -233,7 +233,7 @@ export default function PitchDeckPage() {
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
-            <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
+            <div className="p-4 rounded-xl bg-surface border border-line space-y-1.5">
               <strong className="text-ink block font-bold text-sm">1. Curve swap take-rate — live on four mainnets, collecting</strong>
               {/* Riwayat baris ini layak disimpan, karena ia sudah dua kali salah ke
                   arah yang berlawanan.
@@ -259,7 +259,7 @@ export default function PitchDeckPage() {
               <span className="text-ink-soft font-mono font-bold block pt-1">Rate: 0.10% of swap volume · destination immutable · no setter exists</span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-line space-y-1.5">
+            <div className="p-4 rounded-xl bg-surface border border-line space-y-1.5">
               <strong className="text-ink block font-bold text-sm">2. Spread on cross-chain buys — live, settled with real funds</strong>
               {/* Kartu ini dulu menjanjikan "10% facilitation take-rate on paid agent
                   API calls" — angka yang tidak pernah ada di kode mana pun, dan waktu
@@ -403,7 +403,7 @@ export default function PitchDeckPage() {
           <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">90-Day Execution Milestones</h2>
           
         <div className="space-y-3 text-xs sm:text-sm font-mono">
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-line">
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface border border-line">
             {/* Badge ini sudah dua kali harus dikoreksi ke arah berlawanan.
                 Awalnya "LIVE" sementara tabel registry di bawahnya menyatakan
                 factory kurva belum dikirim. Lalu "MAINNET BROADCAST PENDING",

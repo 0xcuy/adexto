@@ -56,6 +56,8 @@ interface Project {
   curated: boolean;
   poolLive: boolean;
   tradable: boolean;
+  /** Detik epoch. Payload mengirimnya sebagai string, jadi dinormalkan saat dibaca. */
+  deployedAt: number;
 }
 
 export default function ExplorerPage() {
@@ -64,6 +66,8 @@ export default function ExplorerPage() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
   const [chainFilter, setChainFilter] = useState("all");
+  /** Urutan daftar. Lihat catatan di atas `sorted`. */
+  const [sort, setSort] = useState<"largest" | "newest">("largest");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -106,6 +110,9 @@ export default function ExplorerPage() {
             curated: Boolean(p.curated),
             poolLive: Boolean(p.poolLive),
             tradable: Boolean(p.tradable),
+            // Dikirim sebagai string oleh payload; dinormalkan di sini supaya pengurutan
+            // membandingkan angka, bukan teks.
+            deployedAt: Number(p.deployedAt) || 0,
           }))
         );
       } catch (error) {
@@ -188,104 +195,149 @@ export default function ExplorerPage() {
 
   const tradableCount = projects.filter((p) => p.tradable).length;
 
+  /**
+   * Urutan daftar. Dua pilihan saja, dan keduanya bisa dihitung dari data yang ada:
+   * kapitalisasi (butuh kurs) dan umur (butuh `deployedAt`). Tidak ada "trending" atau
+   * "top movers" — keduanya butuh riwayat volume per pasar yang tidak kami simpan, jadi
+   * tombolnya akan mengurutkan angka yang dikarang.
+   */
+  const sorted = useMemo(() => {
+    const withUsd = filtered.map((p) => {
+      const chain = resolveChainOrDefault(p.chainId);
+      const priceUsd = p.priceNative * assetPriceUsd(chain.nativeSymbol, prices);
+      return { ...p, priceUsd, mcapUsd: priceUsd * p.supply };
+    });
+    withUsd.sort((a, b) => (sort === "newest" ? b.deployedAt - a.deployedAt : b.mcapUsd - a.mcapUsd));
+    return withUsd;
+  }, [filtered, prices, sort]);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-line pb-6 mb-8">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-xs font-mono font-bold mb-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-ok" />
-            <span>ADEXTO MARKET INDEX</span>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      {/* ── kepala halaman ─────────────────────────────────────────────────── */}
+      <div className="mb-6">
+        <p className="kicker mb-2">Market index</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Markets</h1>
+            <p className="mt-2 text-[14px] text-ink-soft">
+              {loading
+                ? "Reading the registry…"
+                : `${projects.length} listed · ${tradableCount} with an executable bonding curve`}
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-ink">Sovereign Projects</h1>
-          <p className="text-xs sm:text-sm text-ink mt-1 font-medium">
-            {loading
-              ? "Loading registry…"
-              : `${projects.length} registered · ${tradableCount} with an executable bonding curve`}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="w-4 h-4 text-ink-soft absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search ticker, name or address…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-white border border-line rounded-lg pl-9 pr-4 py-2 text-ink font-mono text-xs focus:border-accent/30 focus:outline-none w-full font-medium"
-            />
+          <div className="flex w-full items-center gap-2 md:w-auto">
+            <div className="relative flex-1 md:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+              <input
+                type="text"
+                placeholder="Search ticker, name or address"
+                aria-label="Search markets"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-11 w-full rounded-2xl border border-line bg-surface pl-9 pr-4 text-[14px] text-ink placeholder:text-ink-faint focus:border-accent/40 focus:outline-none"
+              />
+            </div>
+            <Link
+              href="/studio"
+              className="btn-glow flex h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-accent px-5 text-[14px] font-semibold text-white hover:bg-accent-strong"
+            >
+              <Sparkles className="h-4 w-4" /> Launch
+            </Link>
           </div>
-          <Link
-            href="/studio"
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-accent hover:bg-accent-strong text-white shadow-md shadow-accent/10 flex items-center gap-1.5 shrink-0"
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Launch
-          </Link>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 font-mono text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-lg font-bold transition-all ${
-                category === cat
-                  ? "bg-accent-soft text-accent border border-accent/30"
-                  : "bg-cream-3/[0.04] text-ink-soft border border-line hover:text-ink"
-              }`}
-            >
-              {cat.toUpperCase()}
-            </button>
-          ))}
+      {/* ── filter ──────────────────────────────────────────────────────────── */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Kelompok yang BERNAMA, alasan yang sama seperti di MarketPicker: deretan chip
+              tanpa induk diumumkan pembaca layar sebagai tombol lepas tanpa pernah menyebut
+              itu filter apa. */}
+          <div role="group" aria-label="Filter markets by category" className="flex flex-wrap items-center gap-1.5">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                aria-pressed={category === cat}
+                className={`rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                  category === cat
+                    ? "border-accent/40 bg-accent-soft text-accent"
+                    : "border-line bg-cream-2 text-ink-soft hover:text-ink"
+                }`}
+              >
+                {cat === "all" ? "All" : cat}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setChainFilter("all")}
-            className={`px-3 py-1 rounded-lg font-bold transition-all ${
-              chainFilter === "all"
-                ? "bg-accent-soft text-accent border border-accent/30"
-                : "bg-cream-3/[0.02] text-ink-soft border border-line hover:text-ink"
-            }`}
-          >
-            ALL
-          </button>
-          {CHAIN_LIST.map((c) => (
+        <div className="flex flex-wrap items-center gap-3">
+          <div role="group" aria-label="Filter markets by chain" className="flex flex-wrap items-center gap-1.5">
             <button
-              key={c.chainId}
-              onClick={() => setChainFilter(String(c.chainId))}
-              className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                chainFilter === String(c.chainId)
-                  ? "bg-accent-soft text-accent border border-accent/30"
-                  : "bg-cream-3/[0.02] text-ink-soft border border-line hover:text-ink"
+              type="button"
+              onClick={() => setChainFilter("all")}
+              aria-pressed={chainFilter === "all"}
+              className={`rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                chainFilter === "all"
+                  ? "border-accent/40 bg-accent-soft text-accent"
+                  : "border-line bg-cream-2 text-ink-soft hover:text-ink"
               }`}
             >
-              {c.key.toUpperCase()}
+              All chains
             </button>
-          ))}
+            {CHAIN_LIST.map((c) => (
+              <button
+                key={c.chainId}
+                type="button"
+                onClick={() => setChainFilter(String(c.chainId))}
+                aria-pressed={chainFilter === String(c.chainId)}
+                className={`rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                  chainFilter === String(c.chainId)
+                    ? "border-accent/40 bg-accent-soft text-accent"
+                    : "border-line bg-cream-2 text-ink-soft hover:text-ink"
+                }`}
+              >
+                {c.key}
+              </button>
+            ))}
+          </div>
+
+          <div role="group" aria-label="Sort markets" className="flex items-center gap-1 rounded-full border border-line bg-cream-2 p-1">
+            {(
+              [
+                ["largest", "Largest"],
+                ["newest", "Newest"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setSort(value)}
+                aria-pressed={sort === value}
+                className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                  sort === value ? "bg-cream-3 text-ink" : "text-ink-soft hover:text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Grid */}
+      {/* ── daftar ──────────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="py-20 flex items-center justify-center gap-2 text-ink-soft font-mono text-sm">
-          <RefreshCw className="w-4 h-4 animate-spin" /> Reading registry…
+        <div className="flex items-center justify-center gap-2 py-20 text-sm text-ink-soft">
+          <RefreshCw className="h-4 w-4 animate-spin" /> Reading registry…
         </div>
       ) : projects.length === 0 ? (
-        /* An empty registry and an over-narrow filter are different situations and
-           used to print the same sentence, which told a first-time visitor that
-           their filter was at fault when in fact nothing has launched yet. */
+        /* Registry kosong dan filter terlalu sempit adalah dua keadaan berbeda, dan dulu
+           mencetak kalimat yang sama — sehingga pengunjung baru menyimpulkan filternya
+           yang salah padahal belum ada peluncuran sama sekali. */
         <div className="mx-auto max-w-md py-20 text-center">
           <Lock className="mx-auto mb-3 h-5 w-5 text-ink-faint" />
           <p className="text-sm font-semibold text-ink">{EMPTY_TITLE}</p>
-          {/* The reason changed and the text had to change with it. This used to
-              read "the curve factory has not been broadcast", which was true and
-              then quietly became false the moment it was. Launching is live now;
-              the index is empty simply because nobody has used it yet. */}
           <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">{EMPTY_BODY}</p>
           <Link
             href="/docs"
@@ -294,185 +346,162 @@ export default function ExplorerPage() {
             See which contracts are deployed
           </Link>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="py-20 text-center text-sm text-ink-soft">No markets match this filter.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filtered.map((p) => {
-            const chain = resolveChainOrDefault(p.chainId);
-            const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
-            const priceUsd = p.priceNative * nativeUsd;
-            const mcapUsd = p.supply * priceUsd;
+        <div className="glass-panel overflow-hidden rounded-card">
+          {/* Kepala kolom hanya di desktop; di ponsel tiap baris jadi kartu ringkas.
+              Bentuk TABEL dipilih menggantikan kartu besar dua kolom: halaman ini dipakai
+              untuk MEMBANDINGKAN pasar, dan kartu lama menyusun angka yang sama di tempat
+              yang berbeda-beda sehingga tidak ada satu kolom pun yang bisa dibandingkan
+              antar-baris. Detail teknis per pasar (model compute, edge, root DA) pindah ke
+              halaman pasarnya — di indeks ia hanya menambah baris yang tidak dipakai untuk
+              memilih. */}
+          <div className="hidden grid-cols-[minmax(0,2.4fr)_1fr_1.1fr_1.1fr_0.9fr_auto] gap-3 border-b border-line px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint lg:grid">
+            <span>Market</span>
+            <span>Chain</span>
+            <span className="text-right">Price</span>
+            <span className="text-right">Market cap</span>
+            <span className="text-right">Supply</span>
+            <span className="w-[132px]" />
+          </div>
 
-            return (
-              <div
-                key={p.marketKey}
-                className="glass-panel p-6 rounded-2xl border border-line space-y-4 relative overflow-hidden"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-cream-2 border border-accent/30 p-0.5 flex items-center justify-center shrink-0">
-                      <img src={p.image} alt={p.name} className="w-full h-full object-cover rounded-[10px]" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-ink text-base truncate">{p.name}</h3>
-                        <span className="text-xs font-mono text-ink-soft font-bold">${p.symbol}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-ink-soft font-mono mt-0.5 flex-wrap">
-                        <span className="text-accent font-bold">{p.chain}</span>
-                        {p.deployedChainCount > 1 && (
-                          <span
-                            className="text-accent font-bold"
-                            title={`Ticker ini juga punya market di ${p.alsoOn.map((s) => s.chainKey).join(", ")}`}
-                          >
-                            +{p.deployedChainCount - 1} chain
-                          </span>
-                        )}
-                        <span>•</span>
-                        {p.verified ? (
-                          <span className="text-ok flex items-center gap-1 font-semibold">
-                            <ShieldCheck className="w-3 h-3" /> verified
-                          </span>
-                        ) : (
-                          <span className="text-warn flex items-center gap-1 font-semibold">
-                            <AlertTriangle className="w-3 h-3" /> showcase
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right font-mono shrink-0">
-                    <div className="text-base font-semibold text-ink">{priceUsd > 0 ? formatUsd(priceUsd) : "—"}</div>
-                    <span className="text-[10px] text-ink-soft">
-                      {p.priceNative > 0
-                        ? `${formatSmallNumber(p.priceNative)} ${chain.nativeSymbol}`
-                        : "no price"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Metrics */}
-                <div className="grid grid-cols-4 gap-2 p-3 rounded-xl bg-white border border-line text-center font-mono">
-                  <Metric label="Market cap" value={mcapUsd > 0 ? formatUsd(mcapUsd, { compact: true }) : "—"} />
-                  <Metric label="Supply" value={formatTokenAmount(p.supply)} />
-                  <Metric
-                    label="Fee split"
-                    value={`${(p.lpFeeBps / 100).toFixed(2)}/${(p.treasuryBuybackBps / 100).toFixed(2)}%`}
-                    tone="accent"
-                  />
-                  <Metric
-                    label="Curve"
-                    value={p.tradable ? "live" : "none"}
-                    tone={p.tradable ? "ok" : "warn"}
-                  />
-                </div>
-
-                {/* Agent info */}
-                <div className="p-3 rounded-xl bg-white border border-line space-y-1.5 text-xs font-mono">
-                  <div className="flex justify-between items-center text-ink-soft gap-2">
-                    <span className="shrink-0">Compute:</span>
-                    <span className="text-accent font-bold truncate">{p.agentModel}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-ink-soft gap-2">
-                    <span className="shrink-0">Edge:</span>
-                    {/* Nama penyedia, bukan keadaan. Amber dipesan untuk peringatan. */}
-                    <span className="text-accent font-bold truncate">{p.edgeProvider}</span>
-                  </div>
-                  {p.metadataRoot && (
-                    <div className="flex justify-between items-center text-ink-soft pt-1 border-t border-line gap-2">
-                      <span className="shrink-0">0G DA root:</span>
-                      <span className="text-ok font-bold truncate">
-                        {p.metadataRoot.slice(0, 10)}…{p.metadataRoot.slice(-6)}
+          <ul aria-label="Markets">
+            {sorted.map((p) => {
+              const chain = resolveChainOrDefault(p.chainId);
+              return (
+                <li key={p.marketKey} className="border-b border-line/60 last:border-0">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-cream-3/40 lg:grid-cols-[minmax(0,2.4fr)_1fr_1.1fr_1.1fr_0.9fr_auto]">
+                    <Link href={`/token/${p.slug}?chain=${p.chainId}`} className="flex min-w-0 items-center gap-3">
+                      <img
+                        src={p.image}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-10 w-10 shrink-0 rounded-xl border border-line object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[14px] font-semibold text-ink">{p.name}</span>
+                          {/* `$SYMBOL` dipertahankan apa adanya: beberapa harness mencarinya
+                              sebagai teks untuk membuktikan pasar barunya terdaftar. */}
+                          <span className="shrink-0 text-[12px] text-ink-faint">${p.symbol}</span>
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-faint">
+                          <span className="lg:hidden">{p.chain}</span>
+                          {p.deployedChainCount > 1 && (
+                            <span
+                              className="text-accent"
+                              /* Inggris, bukan Indonesia: `title` ini terbaca pengguna, dan
+                                 seluruh permukaan publik repo ini berbahasa Inggris. */
+                              title={`This ticker also has a market on ${p.alsoOn.map((s) => s.chainKey).join(", ")}`}
+                            >
+                              +{p.deployedChainCount - 1} chain
+                            </span>
+                          )}
+                          {p.verified ? (
+                            <span className="flex items-center gap-1 text-ok">
+                              <ShieldCheck className="h-3 w-3" /> verified
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-warn">
+                              <AlertTriangle className="h-3 w-3" /> showcase
+                            </span>
+                          )}
+                          {/* Kata "live" DIPERTAHANKAN: harness memakainya untuk membuktikan
+                              pasar yang baru diluncurkan punya kurva yang bisa dieksekusi. */}
+                          {p.tradable ? (
+                            <span className="text-ok">curve live</span>
+                          ) : (
+                            <span className="text-ink-faint">no curve</span>
+                          )}
+                        </span>
                       </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-line text-xs font-mono gap-2 flex-wrap">
-                  <a
-                    href={explorerAddressUrl(chain, p.tokenAddress)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:text-accent flex items-center gap-1 font-bold hover:underline"
-                  >
-                    <span>
-                      {p.tokenAddress.slice(0, 6)}…{p.tokenAddress.slice(-4)}
-                    </span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-
-                  <div className="flex items-center gap-3 font-bold">
-                    <Link
-                      href={`/token/${p.slug}?chain=${p.chainId}`}
-                      className="text-accent hover:text-ink flex items-center gap-1 hover:underline"
-                    >
-                      Terminal <ArrowUpRight className="w-3.5 h-3.5" />
                     </Link>
-                    {p.tradable ? (
-                      <Link
-                        href={`/swap?token=${p.symbol}&chain=${p.chainId}`}
-                        className="text-accent hover:text-ink flex items-center gap-1 hover:underline"
-                      >
-                        Swap <ArrowUpRight className="w-3.5 h-3.5" />
-                      </Link>
-                    ) : (
-                      <span
-                        className="text-ink-faint flex items-center gap-1 cursor-not-allowed"
-                        title="No executable curve for this market yet"
-                      >
-                        Swap <Lock className="w-3 h-3" />
+
+                    <span className="hidden text-[13px] text-ink-soft lg:block">{p.chain}</span>
+
+                    <span className="hidden text-right lg:block" data-numeric>
+                      <span className="block text-[13px] font-medium text-ink">
+                        {p.priceUsd > 0 ? formatUsd(p.priceUsd) : "—"}
                       </span>
-                    )}
-                    {/* Tautan ini dulu `https://x402.adexto.xyz` telanjang — akar gerbang,
-                        tanpa pasar. Karena worker dulu memakai `|| "ADEXTO"` sebagai simbol
-                        bawaan, akar itu menjawab 402 berisi kutipan $ADEXTO. Jadi SETIAP
-                        kartu di halaman ini, token apa pun, mengarah ke tagihan untuk
-                        ADEXTO. Bawaannya sudah dicabut di worker dan tautannya sekarang
-                        menyebut pasarnya sendiri; kalau salah satu regresi, yang lain
-                        membuatnya terlihat sebagai galat alih-alih token yang salah. */}
-                    <a
-                      href={`https://x402.adexto.xyz/v1/x402/buy/${p.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:text-ink flex items-center gap-1 hover:underline"
-                    >
-                      x402 <CloudLightning className="w-3 h-3" />
-                    </a>
+                      <span className="block text-[10px] text-ink-faint">
+                        {p.priceNative > 0 ? `${formatSmallNumber(p.priceNative)} ${chain.nativeSymbol}` : "no price"}
+                      </span>
+                    </span>
+
+                    <span className="hidden text-right text-[13px] text-ink lg:block" data-numeric>
+                      {p.mcapUsd > 0 ? formatUsd(p.mcapUsd, { compact: true }) : "—"}
+                    </span>
+
+                    <span className="hidden text-right text-[13px] text-ink-soft lg:block" data-numeric>
+                      {formatTokenAmount(p.supply)}
+                    </span>
+
+                    <span className="flex items-center justify-end gap-2">
+                      <span className="text-right lg:hidden" data-numeric>
+                        <span className="block text-[13px] font-medium text-ink">
+                          {p.priceUsd > 0 ? formatUsd(p.priceUsd) : "—"}
+                        </span>
+                        <span className="block text-[10px] text-ink-faint">
+                          {p.mcapUsd > 0 ? `mcap ${formatUsd(p.mcapUsd, { compact: true })}` : ""}
+                        </span>
+                      </span>
+                      <Link
+                        href={`/token/${p.slug}?chain=${p.chainId}`}
+                        className="rounded-full border border-line px-3 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent"
+                      >
+                        Terminal
+                      </Link>
+                      {/* `/swap?token=SYMBOL&chain=ID` dipertahankan bentuknya: audit tautan
+                          memeriksa bahwa setiap tombol swap memaku chain, karena tanpa itu
+                          pengunjung bisa mendarat di pasar dengan ticker sama di chain lain. */}
+                      {p.tradable ? (
+                        <Link
+                          href={`/swap?token=${p.symbol}&chain=${p.chainId}`}
+                          className="rounded-full border border-accent/40 bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent hover:text-white"
+                        >
+                          Swap
+                        </Link>
+                      ) : (
+                        <span
+                          className="cursor-not-allowed rounded-full border border-line px-3 py-1 text-[11px] text-ink-faint"
+                          title="No executable curve for this market yet"
+                        >
+                          Swap
+                        </span>
+                      )}
+                    </span>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
-      {/* `VerifiedDeploymentCard` DICABUT dari halaman ini.
-          Halaman ini adalah indeks pasar. Selama registry kosong, keadaan kosongnya
-          sudah punya satu ajakan — "See which contracts are deployed" yang menuju
-          /docs — lalu kartu registry alamat dipasang persis di bawahnya. Jadi halaman
-          menyuruh pembaca pergi ke /docs untuk melihat kontrak, sambil menampilkan
-          kontraknya di tempat: salah satu dari keduanya pasti mubazir.
-
-          Kartunya tetap hidup di /docs (status teknis komponen demi komponen) dan
-          /pitch (pembaca yang mau memeriksa alamat sendiri). Dengan tabel di README,
-          daftar yang sama tadinya ada di EMPAT tempat, dan tiap salinan adalah satu
-          tempat lagi yang bisa basi sendiri — persis yang terjadi pada captionnya. */}
+      {/* Tautan mesin dipindahkan ke bawah daftar, satu baris, bukan satu blok per pasar.
+          Yang membaca ini agen dan pengembang, bukan orang yang sedang memilih pasar. */}
+      {!loading && sorted.length > 0 && (
+        <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
+          <CloudLightning className="h-3 w-3 text-accent" />
+          <span>Every market is payable from another chain over HTTP:</span>
+          <a
+            href={`https://x402.adexto.xyz/v1/x402/buy/${sorted[0].slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-accent hover:underline underline-offset-4"
+          >
+            x402/buy/{sorted[0].slug}
+          </a>
+          <Link href="/x402" className="text-accent hover:underline underline-offset-4">
+            how it works
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
 
-/**
- * `tone` diberi nama menurut ARTI, bukan menurut warna.
- *
- * Dulu: "cyan" | "emerald" | "amber" | "white" — nama dari tema gelap berenam
- * aksen. Nama seperti itu memaksa pemanggil memutuskan warna di tempat, dan
- * begitu paletnya bergeser (cyan → ungu, amber → cokelat) namanya berbohong.
- * "ok" dan "warn" juga menegaskan bahwa keduanya menandakan KEADAAN, sehingga
- * tidak dipakai sebagai hiasan.
- */
 function Metric({
   label,
   value,

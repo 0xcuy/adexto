@@ -1,7 +1,7 @@
 "use client";
 
 import { ethers } from "ethers";
-import { ArrowDownUp, Flame } from "lucide-react";
+import { ArrowDownUp, ChevronDown } from "lucide-react";
 
 import { nativeAssetLogo } from "@/lib/chains";
 import { formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal } from "@/lib/pricing";
@@ -125,7 +125,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
 
   return (
     <>
-      <div className="mb-1.5 rounded-2xl border border-line bg-white p-4">
+      <div className="mb-1.5 rounded-2xl border border-line bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-ink-soft">You pay</span>
           {/* Tombol porsi hanya muncul saat tersambung: tanpa saldo, "50%" tidak
@@ -186,7 +186,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         <button
           type="button"
           onClick={() => swap.setMode(swap.mode === "buy" ? "sell" : "buy")}
-          className="rounded-full border border-line bg-white p-2.5 text-ink shadow-md transition-colors hover:border-line-strong"
+          className="rounded-full border border-line bg-surface p-2.5 text-ink shadow-md transition-colors hover:border-line-strong"
           title="Flip direction"
           aria-label="Flip direction"
         >
@@ -200,7 +200,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
           justru berbentuk "saya butuh 5.000 ADEXTO", bukan "saya mau belanja 0,3 0G".
           Mengisinya menyelesaikan sisi bayar dan menuliskannya ke kolom atas, jadi kutipan dan
           transaksinya tetap satu jalur. */}
-      <div className="mt-1.5 rounded-2xl border border-line bg-white p-4">
+      <div className="mt-1.5 rounded-2xl border border-line bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-ink-soft">You receive</span>
           <span className="text-[11px] text-ink-faint">
@@ -334,67 +334,53 @@ export function FeeLines({
 }: FeeProps) {
   const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
   const totalBps = lpFeeBps + treasuryBuybackBps + (creatorFeeBps ?? 0) + (protocolFeeBps ?? 0);
+  const totalUsd = feeUsd.lp + feeUsd.creator + feeUsd.buyback + (feeUsd.protocol ?? 0);
+
+  /**
+   * Satu baris dulu, rinciannya kalau diminta.
+   *
+   * Versi sebelumnya menggambar keempat kaki fee TERBUKA setiap saat: depth, creator,
+   * buyback, protocol, plus baris total — lima baris di dalam kotak berwarna, di atas
+   * tombol beli. Angkanya benar, tapi porsinya salah: yang ingin diketahui orang sebelum
+   * menekan beli adalah "berapa totalnya", bukan pembagian internal protokol. Yang terjadi
+   * justru pembagian itu mendominasi kartu dan membuat panel terasa seperti formulir pajak.
+   *
+   * Rinciannya TIDAK dihapus — menyembunyikan ke mana uang pergi adalah cacat yang berbeda,
+   * dan pembagian inilah yang membuat klaim "creator dapat 0,70%" bisa diperiksa. Ia hanya
+   * pindah ke balik satu klik, dengan totalnya tetap terbaca tanpa klik.
+   */
   return (
-    <div className="space-y-2 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-xs">
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-ink-soft">
-          Curve depth <span data-numeric>({pct(lpFeeBps)})</span> — stays in curve
+    <details className="group rounded-2xl border border-line bg-cream-2 px-3.5 py-2.5 text-xs [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-ink-soft">
+          Fee <span className="font-semibold text-ink" data-numeric>{pct(totalBps)}</span>
+          <ChevronDown className="h-3.5 w-3.5 text-ink-faint transition-transform duration-200 group-open:rotate-180" />
         </span>
         <span className="shrink-0 font-medium text-ink" data-numeric>
-          {formatUsd(feeUsd.lp)}
+          {formatUsd(totalUsd)}
         </span>
-      </div>
-      {creatorFeeBps ? (
-        <div className="flex items-start justify-between gap-3 text-ok">
-          <span>
-            Creator <span data-numeric>({pct(creatorFeeBps)})</span>
-          </span>
-          <span className="shrink-0 font-medium" data-numeric>
-            {formatUsd(feeUsd.creator)}
-          </span>
-        </div>
-      ) : null}
-      <div className="flex items-start justify-between gap-3 font-semibold text-accent">
-        <span className="flex items-center gap-1.5">
-          <Flame className="h-3.5 w-3.5 shrink-0 text-accent" />
-          Agent buyback <span data-numeric>({pct(treasuryBuybackBps)})</span>
-        </span>
-        <span className="shrink-0" data-numeric>
-          {formatUsd(feeUsd.buyback)}
-        </span>
-      </div>
-      {protocolFeeBps ? (
-        <div className="flex items-start justify-between gap-3 text-ink-soft">
-          <span>
-            {/* Anotasi "charged on top" DICABUT, dan itu membuat komponen ini benar untuk
-                DUA generasi sekaligus alih-alih satu.
+      </summary>
 
-                Di 0.11.0 kaki protokol memang ditagih di atas total yang dikonfigurasi
-                creator; sejak 0.12.0 ia dipotong dari dalamnya. Komponen ini menggambar
-                pasar yang SEDANG dibuka, dan pasar kedua generasi itu akan hidup
-                bersamaan selamanya karena tiap kaki `immutable` — jadi teks statis apa pun
-                soal aditif-atau-tidak pasti salah di separuh pasar.
-
-                Yang tidak perlu dibedakan: keempat kaki dibaca dari kurva itu sendiri dan
-                baris total di bawah menjumlahkannya. Jadi angka yang dibayar trader sudah
-                benar tanpa komponen ini pernah tahu generasi mana yang sedang dilihat. */}
-            Protocol <span data-numeric>({pct(protocolFeeBps)})</span>
-          </span>
-          <span className="shrink-0 font-medium" data-numeric>
-            {formatUsd(feeUsd.protocol ?? 0)}
-          </span>
-        </div>
-      ) : null}
-      <div className="flex items-start justify-between gap-3 border-t border-accent/20 pt-2 font-semibold text-ink">
-        <span>
-          Total you pay <span data-numeric>({pct(totalBps)})</span>
-        </span>
-        <span className="shrink-0" data-numeric>
-          {formatUsd(
-            feeUsd.lp + feeUsd.creator + feeUsd.buyback + (feeUsd.protocol ?? 0)
-          )}
-        </span>
+      <div className="mt-2.5 space-y-1.5 border-t border-line pt-2.5">
+        {(
+          [
+            ["Curve depth", lpFeeBps, feeUsd.lp, "text-ink-soft", "stays in the curve"],
+            creatorFeeBps ? ["Creator", creatorFeeBps, feeUsd.creator, "text-ok", "paid to the launcher"] : null,
+            ["Agent buyback", treasuryBuybackBps, feeUsd.buyback, "text-accent", "buys and burns supply"],
+            protocolFeeBps ? ["Protocol", protocolFeeBps, feeUsd.protocol ?? 0, "text-ink-soft", "runs the venue"] : null,
+          ].filter(Boolean) as Array<[string, number, number, string, string]>
+        ).map(([label, bps, usd, tone, note]) => (
+          <div key={label} className={`flex items-baseline justify-between gap-3 ${tone}`}>
+            <span>
+              {label} <span data-numeric>({pct(bps)})</span>{" "}
+              <span className="text-[10px] text-ink-faint">{note}</span>
+            </span>
+            <span className="shrink-0 font-medium" data-numeric>
+              {formatUsd(usd)}
+            </span>
+          </div>
+        ))}
       </div>
-    </div>
+    </details>
   );
 }

@@ -156,7 +156,16 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white px-3 py-2.5 text-left transition-colors hover:border-line-strong"
+        /**
+         * `aria-label` tetap, TIDAK ikut berubah bersama pasar yang terpilih.
+         *
+         * Isi tombolnya memang berubah (nama pasar, atau "Select a market"), dan itu benar untuk
+         * mata. Tapi nama yang dibacakan pembaca layar — dan yang dipakai untuk menunjuk kontrol
+         * ini dari luar — tidak boleh berpindah setiap kali pilihannya berpindah, karena kontrol
+         * yang namanya berubah-ubah tidak bisa dirujuk dengan andal oleh siapa pun.
+         */
+        aria-label="Select market"
+        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5 text-left transition-colors hover:border-line-strong"
       >
         {selected ? (
           <>
@@ -202,7 +211,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                chain membungkus ke baris kedua karena "Arbitrum" tidak bisa dipendekkan
                tanpa mengarang singkatan, dan baris alamat pada baris market ikut
                terpotong. 448px memuat keduanya utuh. */
-            className="relative flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
+            className="relative flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
           >
             <div className="flex items-center justify-between px-5 pb-3 pt-4">
               <h2 id={titleId} className="text-base font-semibold text-ink">
@@ -227,7 +236,18 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                   {CHAIN_LIST.length} chains
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              {/* Kelompok yang BERNAMA.
+                  Filter ini dulu berupa `<select aria-label="Filter markets by chain">`, dan
+                  nama itulah yang dipakai untuk merujuknya. Setelah select diganti deretan chip,
+                  chip-nya jadi tujuh tombol tanpa induk yang menjelaskan hubungannya — pembaca
+                  layar mengumumkan "All, 0G, Base…" tanpa pernah menyebut itu filter apa.
+                  `role="group"` dengan nama yang sama memulihkan keduanya sekaligus: maknanya
+                  bagi pembaca layar, dan satu titik rujukan yang stabil. */}
+              <div
+                role="group"
+                aria-label="Filter markets by chain"
+                className="flex flex-wrap items-center gap-1.5"
+              >
                 <button
                   type="button"
                   onClick={() => onChainFilter("all")}
@@ -306,7 +326,8 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                   )}
                 </div>
               ) : (
-                <ul>
+                <ul
+                  aria-label="Markets">
                   {visible.map((m) => {
                     const active = m.marketKey === selectedKey;
                     const addr = m.poolAddress ?? m.tokenAddress;

@@ -56,7 +56,7 @@ export default async function DocsPage() {
           yang datang memverifikasi terus turun. */}
       <div className="mb-10">
         <div className="kicker mb-3">DOCUMENTATION</div>
-        <h1 className="mb-2 text-3xl font-semibold text-ink sm:text-4xl">Build on ADEXTO</h1>
+        <h1 className="mb-2 font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Build on ADEXTO</h1>
         <p className="mb-6 max-w-2xl text-sm leading-relaxed text-ink-soft">
           Nine guides covering a launch, the curve, fees, the chains, paying from another chain, the MCP server for
           agents, agent identity, reading market data, and what the contracts guarantee.
@@ -77,7 +77,7 @@ export default async function DocsPage() {
 
       <div className="border-b-2 border-line pb-6 mb-10">
         <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">Technical status, component by component</h1>
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Technical status, component by component</h1>
         {/* Aturan header: apa pun yang disebut di sini harus cocok dengan seksi
             "status jujur" di bawah. Header yang membantah isi halamannya sendiri
             lebih merusak kepercayaan daripada daftar yang lebih pendek. Jembatan
@@ -115,12 +115,12 @@ export default async function DocsPage() {
         <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Enterprise Infrastructure Layer</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-medium">
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">0G Compute &amp; DA Turbo</strong>
             <p className="text-ink-soft">Agent inference through the 0G Compute router, plus 0G DA for anchoring launch metadata. The router reports Intel TDX attestation via dstack for every model we call — read live in the table below, not asserted here.</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             {/* Kartu ini dulu mengklaim proof-of-personhood World ID. Gerbangnya
                 dicabut, dan penggantinya sengaja menyatakan BATASNYA, bukan cuma
                 fiturnya — pembaca yang bertanya "apa yang menahan spam" berhak
@@ -144,7 +144,7 @@ export default async function DocsPage() {
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Sovereign Bonding Curve</strong>
             {/* Nama kontraknya `AdextoCurve` sejak 0.11.0. `SovereignCurve` masih hidup
                 di chain dan masih melayani pasar yang lahir dari factory sebelumnya,
@@ -153,7 +153,7 @@ export default async function DocsPage() {
             <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The configured fee is the whole fee a trader pays and splits four ways on-chain — depth stays in the curve, the creator is paid directly, buyback-and-burn that anyone can trigger, and a 0.10% protocol leg. Nothing is added on top. Three generations are live at once and each keeps its own rates permanently, because every rate is immutable: markets from before 0.11.0 run <code className="text-accent">SovereignCurve</code> with three legs and no protocol fee, markets from 0.11.0 pay 0.40% because their protocol leg was additive, and only launches from 0.12.0 pay 1.00%.</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">The Graph Decentralized Network</strong>
             {/* "still indexes the v1 factory" terlalu murah hati. Manifest yang
                 dipublish ditarik dari IPFS dan diperiksa: ia mendeklarasikan
@@ -175,7 +175,7 @@ export default async function DocsPage() {
               kemudian dicabut seluruhnya, dan alasannya ada di komentar di bawah kartu
               buyback. Setelah itu tidak ada lagi kartu amber di daftar ini, yang memang
               seharusnya: setiap baris di sini menyatakan sesuatu yang berjalan. */}
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
             <p className="text-ink-soft">Sells a cross-chain buy. An unpaid request is answered with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain sends the tokens to your own address. Settlement is by EIP-3009, so USDC itself checks the signature and no new contract has to be trusted.</p>
             {/* Batas kapasitasnya TIDAK ditulis ulang di sini, dan itu keputusan sadar,
@@ -201,7 +201,7 @@ export default async function DocsPage() {
                 pendapatannya terbaca lebih besar daripada yang sebenarnya bisa terjadi. */}
           </div>
 
-          <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-1.5">
+          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
             <strong className="text-accent block font-bold text-sm">Buyback execution</strong>
             {/* Klaim lama: "a buyback cannot be sandwiched on a venue we do not
                 control." Benar tapi menyesatkan, karena yang berbahaya justru
@@ -265,14 +265,14 @@ export default async function DocsPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs pt-2">
-            <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-2">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
               <span className="text-accent font-bold block text-sm">1. Market-Driven Price</span>
               <p className="text-ink-soft font-sans text-xs">
                 Prices are determined 100% algorithmically by supply and demand. Every buy order locks native currency (0G / ETH) and releases tokens along the constant-product curve (x·y=k over a virtual reserve).
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-2">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
               <span className="text-accent font-bold block text-sm">2. Tradable From Block One</span>
               <p className="text-ink-soft font-sans text-xs">
                 The factory deploys the token and its curve in one transaction, opening against a virtual reserve. Zero
@@ -280,7 +280,7 @@ export default async function DocsPage() {
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-accent/30 space-y-2">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
               {/* Judul lama "0G TEE Auto-Buyback" menisbatkan eksekusinya ke agent
                   di dalam TEE. Tidak ada agent yang menjalankannya: fungsinya kini
                   tanpa izin dan dipicu siapa pun, dan sebelum itu ia dibatasi ke
@@ -368,7 +368,7 @@ export default async function DocsPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-start gap-3 rounded-2xl border border-line bg-white p-4">
+        <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4">
           <ShieldCheck className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed text-ink-soft">
             No signing, settlement or payment verification happens in the MCP server. It forwards to the x402
@@ -406,7 +406,7 @@ export default async function DocsPage() {
             <strong>supply is not shared</strong>: there is no bridge, so every market has its own depth and its own
             price.
           </p>
-          <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft space-y-1">
+          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft space-y-1">
             <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>
             {/* Dulu berbunyi bahwa dua lapisan pesan lintas-chain tidak punya endpoint
                 di 0G atau Monad. Untuk yang pertama itu SALAH — router-nya dibaca dengan
@@ -454,7 +454,7 @@ export default async function DocsPage() {
             there is nothing to renounce and no lever to misuse. Buybacks are permissionless — anyone may
             trigger one, bounded by size rather than by identity.
           </p>
-          <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
+          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft">
             require(nativeAmount * 100 &lt;= virtualNative + _curveNative);
           </div>
         </div>
@@ -480,7 +480,7 @@ export default async function DocsPage() {
             on USDC: the token contract checks it, so no separate escrow has to be trusted. Delivery happens
             before the charge, which means a failed buy costs us rather than the buyer.
           </p>
-          <div className="p-2.5 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft">
+          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft">
             X-PAYMENT: base64(&#123; scheme: &quot;exact&quot;, network: &quot;base&quot;, payload: &#123; signature, authorization &#125; &#125;)
           </div>
         </div>
@@ -602,7 +602,7 @@ export default async function DocsPage() {
           </p>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="table-clean min-w-[560px]">
             <thead>
               <tr>
@@ -668,15 +668,15 @@ export default async function DocsPage() {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
-          <div className="p-3.5 rounded-lg bg-white border border-line">
+          <div className="p-3.5 rounded-lg bg-surface border border-line">
             <span className="text-ink-soft block text-[11px] font-bold">Inference endpoint</span>
             <span className="text-ink font-bold text-sm">router-api.0g.ai/v1</span>
           </div>
-          <div className="p-3.5 rounded-lg bg-white border border-line">
+          <div className="p-3.5 rounded-lg bg-surface border border-line">
             <span className="text-ink-soft block text-[11px] font-bold">Attestation source</span>
             <span className="text-ink font-bold text-sm">router declaration</span>
           </div>
-          <div className="p-3.5 rounded-lg bg-white border border-line">
+          <div className="p-3.5 rounded-lg bg-surface border border-line">
             <span className="text-ink-soft block text-[11px] font-bold">Raw quote verified by us</span>
             <span className="text-warn font-bold text-sm">No</span>
           </div>

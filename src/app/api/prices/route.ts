@@ -16,8 +16,27 @@
  */
 import { NextResponse } from "next/server";
 import { nativePrices } from "@/lib/native-price";
+import { recordFx } from "@/lib/fx-history";
 
 export async function GET() {
   const { prices, live, fetchedAt, source } = await nativePrices();
+  /**
+   * Kurs yang teramati DIREKAM di sini, bukan lewat penjadwal.
+   *
+   * Alasannya ada di `src/lib/fx-history.ts`: chart USD hanya boleh digambar dari kurs yang
+   * benar-benar pernah diamati, dan route ini satu-satunya tempat kurs melewati server.
+   * Tanpa proses tambahan dan tanpa cron — selama ada yang membuka situsnya, riwayatnya
+   * bertambah. Hanya harga `live` yang direkam; nilai cadangan adalah tebakan.
+   *
+   * `source` diteruskan karena hanya bacaan upstream yang sungguhan boleh masuk riwayat —
+   * alasannya ada di `recordFx`. Bacaan dari cache adalah pengamatan yang SAMA dibaca ulang.
+   *
+   * Dibungkus try/catch: gagal menulis riwayat tidak boleh menggagalkan pembacaan harga.
+   */
+  try {
+    recordFx(prices, live, source);
+  } catch {
+    // riwayat tidak wajib untuk pembacaan harga
+  }
   return NextResponse.json({ success: true, prices, live, source, updatedAt: fetchedAt });
 }

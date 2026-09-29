@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
@@ -6,6 +7,35 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import { WalletProvider } from "@/context/WalletContext";
+import MobileTabBar from "@/components/MobileTabBar";
+import { DEFAULT_THEME, THEME_BOOT_SCRIPT, THEME_COLOR } from "@/lib/theme";
+
+/**
+ * Display & body. Berkas woff2 (subset latin, variable) ada di src/app/fonts dan
+ * berlisensi SIL OFL 1.1 — dimuat lokal supaya build Docker tidak butuh jaringan,
+ * alasan yang sama dengan pemilihan paket Geist dulu. Geist tetap dipasang: Geist Mono
+ * untuk angka/alamat, dan Geist Sans sebagai fallback glyph di luar subset latin
+ * (mis. angka subscript ₀–₉ pada harga kecil).
+ */
+const bricolage = localFont({
+  src: "./fonts/BricolageGrotesque-Variable.woff2",
+  variable: "--font-bricolage",
+  weight: "200 800",
+  display: "swap",
+});
+const inter = localFont({
+  src: "./fonts/Inter-Variable.woff2",
+  variable: "--font-inter",
+  weight: "300 800",
+  display: "swap",
+});
+
+export const viewport: Viewport = {
+  themeColor: THEME_COLOR[DEFAULT_THEME],
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "ADEXTO — Autonomous Decentralized EXchange & Token Orchestrator",
@@ -70,7 +100,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    // suppressHydrationWarning HANYA pada <html>: skrip tema di <head> boleh mengganti
+    // data-theme sebelum React hidrasi. Tidak berlaku ke anak-anaknya.
+    <html
+      lang="en"
+      data-theme={DEFAULT_THEME}
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable} ${bricolage.variable} ${inter.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       {/*
         Latar sebelumnya adalah <Live3DBackground />: swarm 180 titik three.js
         dengan inti ikosahedron berputar, dipasang fixed di belakang SEMUA halaman.
@@ -84,10 +124,12 @@ export default function RootLayout({
       */}
       <body className="bg-cream text-ink min-h-screen flex flex-col antialiased selection:bg-accent-soft selection:text-accent">
         <WalletProvider>
-          <div className="relative z-10 flex flex-col min-h-screen">
+          {/* Ruang bawah di mobile untuk tab bar tetap (lihat MobileTabBar). */}
+          <div className="relative z-10 flex flex-col min-h-screen pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] lg:pb-0">
             <Navbar />
             <main className="flex-1">{children}</main>
             <Footer />
+            <MobileTabBar />
             {/* Di luar <main> dan sesudah Footer, sebab ia melayang di atas segalanya
                 (`fixed bottom-0`) dan bukan bagian dari alur dokumen. Menaruhnya di dalam
                 <main> akan membuatnya ikut terpotong oleh halaman yang punya overflow

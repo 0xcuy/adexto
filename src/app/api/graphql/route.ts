@@ -136,6 +136,10 @@ function serialize(
     edgeProvider: project.edgeProvider,
     mcpTools: project.mcpTools,
     category: project.category,
+    /** Pitch satu baris milik creator, sudah dibersihkan registry. Null kalau tidak diisi. */
+    description: project.description,
+    /** Tautan publik yang dipasang creator. `x` adalah handle, bukan URL. */
+    links: project.links,
     /**
      * URL, BUKAN data URI. Nama fieldnya tidak berubah karena setiap konsumen memakainya
      * sebagai `<img src>`, jadi sebuah URL bekerja identik di tempat nilai lama berada.

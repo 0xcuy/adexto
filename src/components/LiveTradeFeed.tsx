@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Flame, Activity, ExternalLink, Info } from "lucide-react";
 import { explorerTxUrl } from "@/lib/chains";
+import { formatSmallNumber } from "@/lib/pricing";
 
 /**
  * Trade feed backed by the same telemetry endpoint as the chart.
@@ -119,79 +120,95 @@ export default function LiveTradeFeed({
         </span>
       </div>
 
-      <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[170px] pr-1">
+      {/* Tabel, bukan tumpukan kartu.
+          Versi sebelumnya menggambar tiap fill sebagai kartu berbingkai berwarna dengan
+          isinya tersusun bebas, jadi tidak ada satu pun kolom yang bisa dibandingkan antar
+          baris: ukuran satu fill ada di kiri, harganya tidak ada sama sekali, dan alamat
+          trader tidak pernah ditampilkan. Untuk feed yang gunanya justru MEMBANDINGKAN
+          fill berurutan, itu bentuk yang salah.
+          Sekarang lima kolom tetap — umur, arah, ukuran, harga, trader — dengan kepala
+          kolom yang menempel saat digulir. */}
+      <div className="flex-1 overflow-y-auto max-h-[210px] pr-1">
         {!loaded ? (
-          <div className="h-full flex items-center justify-center text-ink-faint text-[11px]">Loading…</div>
+          <div className="flex h-full items-center justify-center text-[11px] text-ink-faint">Loading…</div>
         ) : trades.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center gap-1.5 text-center px-3">
-            <Info className="w-4 h-4 text-ink-faint" />
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 px-3 text-center">
+            <Info className="h-4 w-4 text-ink-faint" />
             {/* Penolakan RPC dipisahkan dari pasar yang benar-benar kosong. Keduanya dulu
                 menampilkan kalimat yang sama, sehingga kegagalan baca terbaca sebagai fakta
                 tentang pasarnya. */}
             {coverage?.error ? (
               <>
-                <span className="text-warn text-[10px]">Could not read trade history from the node.</span>
-                <span className="text-ink-faint text-[9px] break-all">{coverage.error}</span>
+                <span className="text-[10px] text-warn">Could not read trade history from the node.</span>
+                <span className="break-all text-[9px] text-ink-faint">{coverage.error}</span>
               </>
             ) : (
-              <span className="text-ink-soft text-[10px]">No trades recorded for ${symbol} yet.</span>
+              <span className="text-[10px] text-ink-soft">No trades recorded for ${symbol} yet.</span>
             )}
           </div>
         ) : (
-          trades.slice(0, 50).map((t) => (
-            <div
-              key={t.id}
-              className={`p-1.5 rounded-xl border flex items-center justify-between gap-2 ${
-                t.type === "AUTO_BUYBACK"
-                  ? "bg-accent-soft border-accent/30"
-                  : t.type === "BUY"
-                  ? "bg-ok/10 border-ok/30"
-                  : "bg-danger/10 border-danger/30"
-              }`}
-            >
-              <div className="flex items-center gap-1.5 min-w-0">
-                {t.type === "AUTO_BUYBACK" ? (
-                  <span className="px-1.5 rounded bg-accent-soft text-accent border border-accent/30 font-semibold text-[9px] flex items-center gap-0.5 shrink-0">
-                    <Flame className="w-2.5 h-2.5" /> BURN
-                  </span>
-                ) : (
-                  <span
-                    className={`px-1.5 rounded font-semibold text-[9px] border shrink-0 ${
-                      t.type === "BUY"
-                        ? "bg-ok/10 text-ok border-ok/30"
-                        : "bg-danger/10 text-danger border-danger/30"
-                    }`}
-                  >
-                    {t.type}
-                  </span>
-                )}
-                <span className="font-bold text-ink text-[10px] truncate">
-                  {fmtToken(t.amountToken)} ${t.symbol}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-ink-soft text-[10px]">
-                  {t.amountNative.toFixed(4)} {t.nativeSymbol}
-                  {nativeUsd > 0 ? ` · $${(t.amountNative * nativeUsd).toFixed(2)}` : ""}
-                </span>
-                <span className="text-ink-faint text-[9px]">{ago(t.timestamp)}</span>
-                {t.source === "genesis" ? (
-                  <span className="text-ink-faint text-[9px]">reference</span>
-                ) : (
-                  <a
-                    href={explorerTxUrl(t.chainId, t.txHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline text-[9px] flex items-center gap-0.5"
-                  >
-                    {t.txHash.slice(0, 6)}
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
-              </div>
-            </div>
-          ))
+          <table className="w-full table-fixed border-collapse text-left">
+            <thead className="sticky top-0 z-10 bg-surface">
+              <tr className="text-[9px] uppercase tracking-[0.08em] text-ink-faint">
+                <th scope="col" className="w-[11%] pb-1.5 font-semibold">age</th>
+                <th scope="col" className="w-[16%] pb-1.5 font-semibold">side</th>
+                <th scope="col" className="w-[30%] pb-1.5 text-right font-semibold">size</th>
+                <th scope="col" className="w-[24%] pb-1.5 text-right font-semibold">price</th>
+                <th scope="col" className="w-[19%] pb-1.5 text-right font-semibold">trader</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.slice(0, 50).map((t) => {
+                const buy = t.type === "BUY";
+                const burn = t.type === "AUTO_BUYBACK";
+                const tone = burn ? "text-accent" : buy ? "text-ok" : "text-danger";
+                /* Harga per token, bukan nilai fill: itu yang membuat baris berurutan bisa
+                   dibandingkan. Dihitung dari harga native fill itu sendiri x kurs saat ini,
+                   jadi kalau kurs belum terbaca yang tampil satuan native — bukan angka USD
+                   yang dikarang dari kurs nol. */
+                const priceUsd = t.priceNative * (nativeUsd || 0);
+                return (
+                  <tr key={t.id} className="border-t border-line/60 align-baseline">
+                    <td className="py-1.5 text-[10px] text-ink-faint">{ago(t.timestamp)}</td>
+                    <td className={`py-1.5 text-[10px] font-semibold ${tone}`}>
+                      {burn ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Flame className="h-2.5 w-2.5" /> burn
+                        </span>
+                      ) : (
+                        t.type.toLowerCase()
+                      )}
+                    </td>
+                    <td className={`py-1.5 text-right text-[10px] font-medium ${tone}`}>
+                      {burn ? "" : buy ? "+" : "−"}
+                      {fmtToken(t.amountToken)} <span className="text-ink-faint">${t.symbol}</span>
+                    </td>
+                    <td className="py-1.5 text-right text-[10px] text-ink">
+                      {priceUsd > 0 ? `$${formatSmallNumber(priceUsd)}` : `${formatSmallNumber(t.priceNative)} ${t.nativeSymbol}`}
+                    </td>
+                    <td className="py-1.5 text-right text-[10px]">
+                      {t.source === "genesis" ? (
+                        <span className="text-ink-faint">reference</span>
+                      ) : (
+                        <a
+                          href={explorerTxUrl(t.chainId, t.txHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`${t.trader} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
+                            nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
+                          }`}
+                          className="inline-flex items-center gap-0.5 font-mono text-accent hover:underline"
+                        >
+                          {t.trader.slice(0, 6)}…{t.trader.slice(-4)}
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -213,7 +230,7 @@ export default function LiveTradeFeed({
               only, older fills not read
             </span>
           )}
-          {trades.length > 50 && <span> · showing 50</span>}
+          {trades.length > 50 && <span> · showing the latest 50</span>}
         </div>
       )}
     </div>

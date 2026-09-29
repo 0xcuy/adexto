@@ -346,7 +346,7 @@ export default async function DocsChildPage({ params }: { params: Promise<{ slug
         <ArrowLeft className="h-3 w-3" /> Documentation
       </Link>
 
-      <h1 className="mb-3 text-3xl font-semibold text-ink">{page.title}</h1>
+      <h1 className="mb-3 font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">{page.title}</h1>
       <p className="mb-8 text-sm leading-relaxed text-ink-soft">
         <Inline text={page.lede} />
       </p>

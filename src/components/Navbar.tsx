@@ -1,21 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Compass, ArrowDownUp, CloudLightning,
-  ShieldCheck, Sparkles, Menu, X, Twitter, Github
+  ShieldCheck, Sparkles, Twitter, Github
 } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Navbar() {
   const pathname = usePathname();
   // `useWallet` is no longer read here: the chain indicator became ChainSwitcher,
   // which owns that state itself, so the navbar no longer re-renders on every
   // wallet event just to print one word.
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   /**
    * Label dipendekkan menjadi satu kata di mana pun mungkin.
@@ -67,29 +66,29 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-line bg-cream-2/85 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => setMobileMenuOpen(false)}>
+    <header className="sticky top-0 z-50 w-full border-b border-line bg-cream/80 backdrop-blur-xl">
+      <div className="max-w-7xl mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-8">
+          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             {/* Slot 2.5rem. Yang penting bukan angka slotnya tapi tinggi tinta yang
-                terlihat: sekitar 30px di header yang tingginya 57px, rasio yang sama
-                dengan mark di header situs besar. Sebelumnya slot 1.75rem dengan
-                artwork yang masih membawa padding plat lama, jadi tinta yang benar-benar
-                terlihat cuma sekitar 17px. */}
-            <img src="/logo.svg" alt="" aria-hidden="true" className="w-10 h-10 object-contain shrink-0" />
-            <span className="font-semibold tracking-tight text-ink text-[15px]">ADEXTO</span>
+                terlihat: sekitar 30px di header yang tingginya 57px. Di tema gelap
+                tinta #141110 dibalik oleh aturan `img[src="/logo.svg"]` di globals.css. */}
+            <img src="/logo.svg" alt="" aria-hidden="true" className="w-9 h-9 object-contain shrink-0" />
+            <span className="font-display text-[19px] font-semibold tracking-[-0.03em] text-ink">
+              adexto<span className="text-accent">.</span>
+            </span>
           </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-1">
             {links.map((link) => {
-              const active = pathname === link.href;
+              const active = pathname === link.href || pathname?.startsWith(`${link.href}/`);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-full text-[14px] font-medium transition-colors duration-150 ${
                     active ? "text-ink bg-cream-3" : "text-ink-soft hover:text-ink hover:bg-cream-3"
                   }`}
                 >
@@ -101,9 +100,9 @@ export default function Navbar() {
         </div>
 
         {/* Right Action Bar */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Social Icons Desktop */}
-          <div className="hidden md:flex items-center gap-1.5 border-r border-line pr-2 mr-1">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {/* Social + tema, desktop */}
+          <div className="hidden md:flex items-center gap-1 border-r border-line pr-2 mr-1">
             <a
               href="https://x.com/adexto_"
               target="_blank"
@@ -122,161 +121,40 @@ export default function Navbar() {
             >
               <Github className="w-4 h-4" />
             </a>
+            <ThemeToggle />
           </div>
 
           {/* Network + wallet.
-              The network used to be an unclickable label — a pulsing green dot and
-              a truncated chain name jammed against the wallet button. On a site
-              where every chain is an independent market, the network decides which
-              token a buy would actually hit, so it has to be changeable from here.
-              It is also rendered whether or not a wallet is connected: the
-              selection still drives prices, explorer links and which market /swap
-              opens on. */}
-          {/* Satu segmented control, bukan dua pill berdampingan.
-              Tingginya 36px, sama dengan tombol Studio di sebelahnya — sebelumnya keduanya
-              ~30px, dan selisih 6px terhadap tetangga langsungnya itulah yang membuat sudut
-              kanan bar terlihat tidak disusun. Gradien krem yang sangat tipis dan satu
-              bayangan 1px memberi kedalaman tanpa mengubah paletnya.
+              Di `sm` ke atas keduanya satu segmented control. JANGAN tambahkan
+              `overflow-hidden` pada wadahnya: panel dropdown kedua anaknya diposisikan
+              absolut di dalam wrapper masing-masing, dan overflow-hidden pernah
+              memangkasnya jadi sepotong setinggi 31px (lihat scripts/check-navbar-menus.mjs).
 
-              Di bawah `sm`, switcher-nya pindah ke drawer (ia butuh ruang untuk nama chain
-              dan peringatan ketidakcocokan), jadi dompet berdiri sendiri lagi di sana —
-              karena itu variannya bergantung breakpoint, dan dua bentuk itu tidak bisa
-              dijadikan satu tanpa menyembunyikan salah satunya dari pengguna ponsel.
-
-              `h-9` di sini dan di tombol Studio berasal dari satu token yang sama. Diukur:
-              rem di situs ini 14px, jadi `h-9` = 31,5px — bukan 36px seperti dugaan default
-              Tailwind. Itu sebabnya tingginya tidak boleh dikira-kira dari padding. */}
+              Di bawah `sm` keduanya berdiri sendiri. Switcher dulu disembunyikan ke drawer
+              hamburger; drawer itu diganti tab bar bawah (MobileTabBar), jadi switcher kini
+              langsung terlihat di top bar — di situs ini chain menentukan token mana yang
+              dibeli, jadi ia tidak boleh tersembunyi di ponsel. */}
           <div className="flex items-center gap-2">
-            {/* JANGAN tambahkan `overflow-hidden` di sini.
-                Sempat ditambahkan untuk memotong sudut segmen ke radius wadah, dan itu
-                memotong menu dropdown kedua anaknya juga — panelnya diposisikan absolut di
-                dalam wrapper masing-masing, jadi menekan chain atau alamat dompet membuka
-                panel yang terpangkas menjadi sepotong setinggi 31px. Terlihat seperti
-                kontrolnya menghilang.
-
-                Sudutnya tidak membutuhkannya: tiap segmen sudah membulatkan sisi luarnya
-                sendiri lewat `rounded-l-[11px]` dan `rounded-r-[11px]`. */}
-            <div className="hidden h-9 items-stretch rounded-xl border border-line bg-gradient-to-b from-white to-cream-2 shadow-[0_1px_2px_rgba(32,24,16,0.05)] sm:inline-flex">
+            <div className="hidden h-9 items-stretch rounded-xl border border-line bg-gradient-to-b from-surface to-cream-2 shadow-[var(--shadow-sm)] sm:inline-flex">
               <ChainSwitcher variant="grouped" />
               <WalletMenu variant="grouped" />
             </div>
-            <div className="sm:hidden">
+            <div className="flex items-center gap-2 sm:hidden">
+              <ChainSwitcher />
               <WalletMenu />
             </div>
           </div>
 
-          {/* Satu-satunya tombol berwarna di bar ini. Sebelumnya berupa isian
-              aksen-lembut dengan ikon percikan; sekarang isian pekat, karena inilah
-              langkah berikutnya di seluruh situs dan tidak ada yang boleh
-              menyainginya secara visual. */}
+          {/* Satu-satunya tombol berwarna di bar ini — langkah berikutnya di seluruh situs.
+              `h-9` sama dengan segmented control di sebelahnya (rem situs ini 14px). */}
           <Link
             href="/studio"
-            /* `h-9` menggantikan `py-2`, supaya tingginya SAMA dengan segmented control di
-               sebelahnya alih-alih kebetulan mirip. Mencocokkan lewat padding tidak bisa
-               diandalkan di sini: rem di situs ini 14px, jadi tinggi hasil padding dan tinggi
-               hasil `h-*` berangkat dari dua dasar yang berbeda — dulu keduanya 34,8px lawan
-               31,5px, selisih yang cukup untuk membuat barisnya terlihat tidak rata. */
-            className="hidden sm:inline-flex h-9 items-center px-4 rounded-xl text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="btn-glow hidden sm:inline-flex h-9 items-center px-4 rounded-xl text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           >
-            Studio
+            Launch
           </Link>
-
-          {/* Mobile Hamburger Toggle Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl bg-white border border-line text-ink hover:text-ink hover:bg-cream-3 transition-colors"
-            aria-label="Toggle Mobile Menu"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5 text-accent" /> : <Menu className="w-5 h-5 text-ink" />}
-          </button>
         </div>
       </div>
-
-      {/* Mobile Drawer Menu Dropdown */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-cream-2 border-b border-line px-4 py-4 space-y-2 shadow-lg">
-          {/* The switcher belongs here too. It is hidden in the top bar below the
-              `sm` breakpoint for room, and leaving it out of the drawer would mean a
-              phone user could not change network at all — on a site where the
-              network decides which token a buy hits. */}
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-line">
-            <span className="text-[11px] font-semibold text-ink-soft">Network</span>
-            <ChainSwitcher />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 pb-2 border-b border-line">
-            <Link
-              href="/studio"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-3 rounded-xl bg-accent hover:bg-accent-strong text-white font-semibold text-xs flex items-center gap-2 transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Studio</span>
-            </Link>
-            <Link
-              href="/swap"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-3 rounded-xl bg-white border border-line text-ink font-semibold text-xs flex items-center gap-2"
-            >
-              <ArrowDownUp className="w-4 h-4 text-accent" />
-              <span>Swap</span>
-            </Link>
-          </div>
-
-          {/* /swap DIKELUARKAN dari daftar ini, bukan dari navigasinya.
-              Ia sudah jadi tombol besar di grid dua kolom persis di atas, jadi kalau
-              ikut di-map di sini drawer memuat "Swap" dua kali berjarak sekitar 50 px
-              — pembaca berhenti untuk memastikan keduanya menuju tempat yang sama.
-              Desktop tetap memakai `links` utuh, jadi urutan enam tautannya tidak
-              berubah. */}
-          <div className="space-y-1 pt-1 font-mono text-xs">
-            {links.filter((link) => link.href !== "/swap").map((link) => {
-              const Icon = link.icon;
-              const active = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all ${
-                    active
-                      ? "bg-accent-soft text-accent font-bold border border-accent/30"
-                      : "text-ink-soft hover:bg-cream-3 hover:text-ink"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4 text-accent" />
-                    <span>{link.label}</span>
-                  </div>
-                  <span className="text-[10px] text-ink-faint">→</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Social Links on Mobile */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-line font-mono text-xs">
-            <a
-              href="https://x.com/adexto_"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl bg-cream-3 text-ink-soft hover:text-accent flex items-center justify-center gap-2"
-            >
-              <Twitter className="w-4 h-4" />
-              <span>@adexto_</span>
-            </a>
-            <a
-              href="https://github.com/0xcuy/adexto"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl bg-cream-3 text-ink-soft hover:text-accent flex items-center justify-center gap-2"
-            >
-              <Github className="w-4 h-4" />
-              <span>GitHub</span>
-            </a>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

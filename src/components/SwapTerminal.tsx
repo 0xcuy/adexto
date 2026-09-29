@@ -242,16 +242,20 @@ export default function SwapTerminal() {
           satu-satunya elemen bertipografi terminal di atas lipatan halaman ini, dan
           huruf monospace bertingkat huruf besar pada 12px justru paling lambat
           dibaca dari semua teks di kartu — tepat kebalikan dari tugas sebuah eyebrow. */}
+      {/* Paragraf pembuka DIPENDEKKAN menjadi satu kalimat.
+          Yang ada di sini sebelumnya menjelaskan keempat kaki fee beserta perbedaan antar
+          generasi factory — semuanya benar, dan semuanya HARUS DIBACA sebelum orang sampai ke
+          kartunya. Rincian itu tidak hilang: panel fee di dalam kartu memuatnya, dibaca dari
+          kurva pasar yang benar-benar dipilih, jadi angkanya berlaku untuk pasar itu alih-alih
+          menjadi ringkasan umum yang bisa salah di separuh pasar. */}
       <div className="mb-8 flex flex-col items-center text-center">
-        <p className="kicker mb-3">Sovereign bonding curve · virtual reserve</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Swap</h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Native ↔ token routing through each project&apos;s own bonding curve. Every fill splits the fee on-chain —
-          curve depth, the creator&apos;s share, the agent buyback vault, and on markets from 0.11.0 onward a protocol share charged
-          on top. The exact legs for the market you pick are listed before you confirm.
+        <p className="kicker mb-3">Sovereign bonding curve</p>
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Swap</h1>
+        <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-ink-soft">
+          Trade straight against a market&apos;s own curve. No shared pool, and nothing is routed anywhere else.
         </p>
         {!loading && (
-          <p className="mt-3 text-xs text-ink-faint">
+          <p className="mt-3 text-[12px] text-ink-faint">
             <span data-numeric>{tradableCount}</span> of <span data-numeric>{markets.length}</span> markets have an
             executable curve
           </p>
@@ -264,7 +268,7 @@ export default function SwapTerminal() {
             navbar sudah menjadi ajakan yang sama — tiga CTA identik dalam satu
             layar hanya membuat bingung. */}
         {isConnected && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-3.5 py-2.5">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2.5">
             <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
             <WalletMenu />
           </div>
@@ -275,7 +279,7 @@ export default function SwapTerminal() {
             plus bayangan pekat — berat, dan di tema cream terbaca seperti kartu yang
             melayang terlalu tinggi. Kedalaman di sini datang dari bayangan, bukan
             dari bingkai yang makin tebal. */}
-        <div className="glass-panel rounded-3xl p-5 sm:p-6">
+        <div className="glass-panel rounded-card p-5 sm:p-6">
           {/* Pemilih market. Dulu dua `<select>` bawaan sistem — satu untuk chain,
               satu untuk market — dan alasan lengkap penggantiannya ada di
               MarketPicker.tsx. Filter chain sekarang hidup DI DALAM pemilih itu,
@@ -333,11 +337,14 @@ export default function SwapTerminal() {
               memperlihatkan pemilih di atas ruang kosong, yang terbaca seperti gagal
               memuat alih-alih menunggu keputusan. */}
           {!loading && markets.length > 0 && !selected && (
-            <div className="mb-4 rounded-2xl border border-line bg-white p-4">
-              <p className="text-xs leading-relaxed text-ink-soft">
-                <span className="font-semibold text-ink">Pick a market to trade.</span> Every launch has its own
-                curve on its own chain, so the price, the depth and the asset you pay with all come from the
-                market you choose. There is no shared pool, and nothing is selected for you.
+            <div className="mb-4 rounded-panel border border-line bg-surface px-3.5 py-3">
+              {/* Satu baris. Versi sebelumnya tiga baris yang menjelaskan kembali apa yang
+                  sudah dikatakan pemilih di atasnya ("Select a market · N available") dan
+                  kalimat pembuka halaman ("no shared pool"). Yang tersisa di sini hanya bagian
+                  yang belum disebut di mana pun: memilih pasar juga menentukan aset bayarnya. */}
+              <p className="text-[12px] leading-relaxed text-ink-soft">
+                <span className="font-semibold text-ink">Pick a market to trade.</span> The market decides the chain,
+                the price, and the asset you pay with.
               </p>
             </div>
           )}
@@ -347,7 +354,7 @@ export default function SwapTerminal() {
               ini tidak dijelaskan sama sekali pada filter "all": panel hanya
               menampilkan dropdown kosong tanpa sebab. */}
           {!loading && markets.length === 0 && (
-            <div className="mb-4 rounded-2xl border border-line bg-white p-3.5">
+            <div className="mb-4 rounded-2xl border border-line bg-surface p-3.5">
               <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
                 <Lock className="w-3.5 h-3.5 text-ink-faint mt-0.5 shrink-0" />
                 {/* The reason had to change when the fact did. This read "the curve
@@ -365,7 +372,7 @@ export default function SwapTerminal() {
 
           {/* Chain terpilih tidak punya market: jelaskan, jangan biarkan panel kosong tanpa sebab */}
           {!loading && markets.length > 0 && visibleMarkets.length === 0 && chainFilter !== "all" && (
-            <div className="mb-4 space-y-2 rounded-2xl border border-accent/30 bg-white p-3.5">
+            <div className="mb-4 space-y-2 rounded-2xl border border-accent/30 bg-surface p-3.5">
               <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
                 <span>

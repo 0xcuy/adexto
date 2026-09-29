@@ -74,7 +74,7 @@ export default function McpPage() {
           <Plug className="w-4 h-4 text-accent" />
           <span>MODEL CONTEXT PROTOCOL</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">MCP server</h1>
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">MCP server</h1>
         <p className="text-sm text-ink mt-3 font-medium leading-relaxed">
           An agent can find every ADEXTO market, price one, and buy it — paying{" "}
           <strong className="text-ink">USDC on Base</strong> while the tokens are delivered by a bonding curve on
@@ -99,13 +99,13 @@ export default function McpPage() {
           Streamable HTTP, no authentication and no API key. Five of the six tools cost nothing, so a client can
           connect and read every market before any wallet is involved.
         </p>
-        <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
+        <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
           <div className="whitespace-pre">https://adexto.xyz/api/mcp</div>
         </div>
         <p className="text-xs text-ink-soft leading-relaxed">
           For a client that reads a JSON config, that is the whole entry:
         </p>
-        <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
+        <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
           <pre className="whitespace-pre">{`{
   "mcpServers": {
     "adexto": {
@@ -118,7 +118,7 @@ export default function McpPage() {
           Opening that URL in a browser returns a JSON-RPC error rather than a page, which is correct: it is an
           endpoint for programs. To check it by hand, ask it what it can do:
         </p>
-        <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
+        <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
           <pre className="whitespace-pre">{`curl -X POST https://adexto.xyz/api/mcp \\
   -H 'content-type: application/json' \\
   -H 'accept: application/json, text/event-stream' \\
@@ -223,7 +223,7 @@ export default function McpPage() {
           an agent that cannot tell <code className="text-accent">402 pay me</code> from{" "}
           <code className="text-accent">404 no such market</code> will retry the wrong one forever.
         </p>
-        <div className="flex items-start gap-3 rounded-2xl border border-line bg-white p-4">
+        <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4">
           <Terminal className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           {/* Kalimat lama: "Trade history is Monad only." Itu salah, dan salahnya bukan
               soal kata — alatnya memang menolak 0G padahal riwayat 0G lengkap dan sudah

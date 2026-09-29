@@ -111,7 +111,7 @@ export default function RecognitionPage() {
         <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-ink-faint">
           Third-party material
         </p>
-        <h1 className="mb-3 text-3xl font-semibold text-ink">Recognition</h1>
+        <h1 className="mb-3 font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Recognition</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-soft">
           Material published by other people about this project, with each item linked to its source. It is collected
           here rather than embedded in a README because a screenshot cannot be verified and a link can.

@@ -84,6 +84,108 @@ export class RegistryLimitError extends Error {
   }
 }
 
+/**
+ * Tautan publik yang dipasang creator pada pasarnya.
+ *
+ * Disimpan sebagai bentuk yang SUDAH dibersihkan, bukan apa pun yang dikirim
+ * formulir. Alasannya bukan kerapian: nilai-nilai ini ditulis creator, disimpan di
+ * registry publik, lalu dirender sebagai `href` di halaman token. Tanpa pembersihan,
+ * `javascript:` atau `data:` di kolom "website" menjadi XSS tersimpan yang menyerang
+ * setiap pengunjung pasar itu, bukan hanya penulisnya.
+ *
+ * Karena itu pembersihannya hidup di sini — di gerbang yang dilalui SEMUA penulisan —
+ * dan bukan di komponen yang menampilkannya. Route `/api/deploy` memeriksa lagi di
+ * depan, tetapi baris terakhirnya ada di berkas ini.
+ */
+export interface ProjectLinks {
+  /** URL http(s) lengkap, atau null. */
+  website: string | null;
+  /** URL http(s) lengkap ke repo, atau null. */
+  github: string | null;
+  /** Handle X tanpa "@" dan tanpa domain, atau null. */
+  x: string | null;
+  /** URL http(s) lengkap ke dokumentasi, atau null. */
+  docs: string | null;
+}
+
+const EMPTY_LINKS: ProjectLinks = { website: null, github: null, x: null, docs: null };
+
+/** Batas panjang pitch. Satu baris berarti satu baris, dan registry yang menegakkannya. */
+const MAX_DESCRIPTION_CHARS = 160;
+/** URL lebih panjang dari ini bukan tautan profil, jadi ditolak daripada dipotong. */
+const MAX_URL_CHARS = 200;
+
+/** Teks bebas: dipangkas, dibatasi, dan baris barunya dijadikan spasi. */
+function cleanText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const flat = value.replace(/\s+/g, " ").trim();
+  if (!flat) return null;
+  return flat.slice(0, max);
+}
+
+/**
+ * Hanya http(s) dengan host bertitik yang lolos.
+ *
+ * `new URL` dipakai sebagai pengurai, bukan regex: skema seperti `javascript:` dan
+ * `data:` ikut lolos pada pola "ada titiknya" yang naif, dan justru itu yang berbahaya.
+ * Kredensial di dalam URL (`https://user:pass@host`) ditolak juga — di halaman publik ia
+ * hanya berguna untuk menyamarkan host tujuan.
+ */
+function cleanUrl(value: unknown): string | null {
+  const raw = cleanText(value, MAX_URL_CHARS);
+  if (!raw) return null;
+  // Tanpa skema, "adexto.xyz" diurai sebagai path relatif, jadi https diasumsikan.
+  const candidate = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw) ? raw : `https://${raw}`;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (url.username || url.password) return null;
+  if (!url.hostname.includes(".")) return null;
+  return url.toString();
+}
+
+/**
+ * Handle X, bukan URL.
+ *
+ * Yang disimpan adalah handle-nya supaya tampilannya bisa menulis `@nama` sementara
+ * tautannya dibentuk oleh situs ini. Kalau creator menempel URL penuh, host-nya
+ * dibuang dan hanya handle yang diambil — dan host yang bukan milik X ditolak, supaya
+ * kolom ini tidak menjadi jalan memasang tautan ke mana saja dengan label X.
+ */
+function cleanXHandle(value: unknown): string | null {
+  const raw = cleanText(value, MAX_URL_CHARS);
+  if (!raw) return null;
+  let handle = raw;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) || /^(www\.)?(x|twitter)\.com\//i.test(raw)) {
+    const url = cleanUrl(raw);
+    if (!url) return null;
+    const host = new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+    if (host !== "x.com" && host !== "twitter.com") return null;
+    handle = new URL(url).pathname.split("/").filter(Boolean)[0] ?? "";
+  }
+  handle = handle.replace(/^@/, "");
+  return /^[A-Za-z0-9_]{1,15}$/.test(handle) ? handle : null;
+}
+
+/** Bentuk tersimpan mana pun dinormalkan; entri lama tanpa `links` tetap terbaca. */
+export function normalizeLinks(value: unknown): ProjectLinks {
+  const raw = (value ?? {}) as Record<string, unknown>;
+  return {
+    website: cleanUrl(raw.website),
+    github: cleanUrl(raw.github),
+    x: cleanXHandle(raw.x ?? raw.twitter),
+    docs: cleanUrl(raw.docs),
+  };
+}
+
+export function normalizeDescription(value: unknown): string | null {
+  return cleanText(value, MAX_DESCRIPTION_CHARS);
+}
+
 export interface ProjectRecord {
   id: string;
   tokenAddress: string;
@@ -109,6 +211,10 @@ export interface ProjectRecord {
   edgeProvider: string;
   mcpTools: string[];
   category: string;
+  /** One-line pitch written by the creator. Plain text, never markup. */
+  description: string | null;
+  /** Public links the creator attached to the market. Every one is optional. */
+  links: ProjectLinks;
   image: string;
   txHash: string | null;
   blockNumber: number | null;
@@ -155,6 +261,8 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
     edgeProvider: partial.edgeProvider ?? "Cloudflare x402 Edge",
     mcpTools: partial.mcpTools ?? ["Signet", "Sentinel", "Helm", "x402"],
     category: partial.category ?? "defi",
+    description: normalizeDescription(partial.description),
+    links: normalizeLinks(partial.links),
     image: partial.image ?? "/logo.svg",
     txHash: partial.txHash ?? null,
     blockNumber: partial.blockNumber ?? null,
@@ -281,7 +389,15 @@ declare global {
 function loadCustom(): ProjectRecord[] {
   if (globalThis.__ADEXTO_PROJECT_CACHE__) return globalThis.__ADEXTO_PROJECT_CACHE__;
   const stored = readJson<ProjectRecord[]>(STORE_FILE, []);
-  const clean = Array.isArray(stored) ? stored.filter((r) => r && r.tokenAddress && r.symbol) : [];
+  const clean = (Array.isArray(stored) ? stored.filter((r) => r && r.tokenAddress && r.symbol) : []).map((r) => ({
+    // Entri yang ditulis sebelum kolom deskripsi/tautan ada tetap sah, dan tautan
+    // yang tersimpan DIBERSIHKAN ULANG saat dibaca — bukan hanya saat ditulis. Kalau
+    // aturan pembersihan diperketat nanti, baris tersimpan yang tidak lagi lolos
+    // berhenti dirender tanpa perlu migrasi berkas.
+    ...r,
+    description: normalizeDescription(r.description),
+    links: normalizeLinks(r.links),
+  }));
   globalThis.__ADEXTO_PROJECT_CACHE__ = clean;
   return clean;
 }
@@ -528,6 +644,9 @@ export interface RegisterInput {
   agentModel?: string;
   agentPersona?: string;
   category?: string;
+  /** Dibersihkan di `baseRecord`; apa pun bentuk masuknya. */
+  description?: string | null;
+  links?: Partial<ProjectLinks> | null;
   image?: string;
   txHash: string;
   blockNumber?: number | null;
@@ -593,6 +712,10 @@ export function registerProject(input: RegisterInput): ProjectRecord {
     agentModel: input.agentModel,
     agentPersona: input.agentPersona,
     category: input.category,
+    // Dinormalkan di sini DAN di `baseRecord`. Pembersihannya idempoten, dan tipe
+    // masukannya longgar (`Partial`), jadi ini yang menyempitkannya.
+    description: normalizeDescription(input.description),
+    links: normalizeLinks(input.links ?? EMPTY_LINKS),
     image: input.image,
     txHash: input.txHash,
     blockNumber: input.blockNumber ?? null,
@@ -609,6 +732,48 @@ export function registerProject(input: RegisterInput): ProjectRecord {
   // milik orang lain.
   persist([record, ...custom]);
   return record;
+}
+
+/** Yang boleh diubah pemilik pasar setelah peluncuran. Tidak ada yang lain. */
+export interface MetaPatch {
+  description?: unknown;
+  links?: unknown;
+  image?: string | null;
+}
+
+/**
+ * Perbarui METADATA sebuah pasar — pitch, tautan, gambar. Bukan ekonominya.
+ *
+ * Daftar field yang ditulis di sini SENGAJA pendek dan eksplisit, bukan `{...record,
+ * ...patch}`. Sebaran objek akan membuat satu field tambahan di body permintaan cukup untuk
+ * menulis ulang `priceNative`, `supply`, `creator`, `lpFeeBps`, atau `verified` — yaitu
+ * seluruh isi yang membuat halaman pasar bisa dipercaya. Route yang memanggil fungsi ini
+ * sudah memverifikasi tanda tangan, tapi verifikasi itu membuktikan SIAPA yang meminta,
+ * bukan APA yang boleh diubah. Batasnya ada di sini.
+ *
+ * Entri `curated` ditolak: entri pameran tidak punya creator yang bisa membuktikan
+ * kepemilikan, jadi tidak ada yang berhak menyuntingnya lewat jalur ini.
+ */
+export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPatch): ProjectRecord {
+  const want = marketKey(chainId, symbol);
+  const custom = loadCustom();
+  const at = custom.findIndex((p) => marketKey(p.chainId, p.symbol) === want);
+  if (at < 0) throw new Error("No market with that ticker on that chain is listed here.");
+  if (custom[at].curated) throw new Error("Curated showcase entries cannot be edited.");
+
+  const current = custom[at];
+  const next: ProjectRecord = {
+    ...current,
+    description:
+      patch.description === undefined ? current.description : normalizeDescription(patch.description),
+    links: patch.links === undefined ? current.links : normalizeLinks(patch.links),
+    image: patch.image === undefined || patch.image === null ? current.image : patch.image,
+  };
+
+  const copy = [...custom];
+  copy[at] = next;
+  persist(copy);
+  return next;
 }
 
 export function customProjectCount(): number {

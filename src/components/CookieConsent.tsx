@@ -13,7 +13,8 @@ import { Cookie, X } from "lucide-react";
  * di repo ini: TIDAK ADA satu pun cookie yang kami setel, dan tidak ada analitik kami
  * sendiri. Yang benar-benar ada hanya ini:
  *
- *   - dua kunci `localStorage`: `adexto_selected_chain` dan `adexto_wallet_address`
+ *   - tiga kunci `localStorage`: `adexto_selected_chain`, `adexto_wallet_address`, dan
+ *     `adexto_theme` (hanya ada bila pengguna pernah mengganti tema)
  *   - IP di MEMORI untuk pembatas laju, lewat `cf-connecting-ip`, dalam sebuah Map yang
  *     hilang begitu proses restart — tidak pernah ditulis ke disk
  *   - cookie keamanan Cloudflare (`__cf_bm` dan sejenisnya), disetel oleh jaringan di depan
@@ -33,8 +34,8 @@ import { Cookie, X } from "lucide-react";
  */
 
 const KEY = "adexto_cookie_consent";
-/** Kunci yang dikelola pilihan ini. Keduanya preferensi, bukan kebutuhan keamanan. */
-const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address"];
+/** Kunci yang dikelola pilihan ini. Semuanya preferensi, bukan kebutuhan keamanan. */
+const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address", "adexto_theme"];
 
 type Choice = "all" | "essential";
 
@@ -89,10 +90,12 @@ export default function CookieConsent() {
     <div
       role="region"
       aria-label="Storage notice"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t-2 border-accent/40 bg-cream-2/95 backdrop-blur"
+      /* Di ponsel ia duduk DI ATAS tab bar bawah sebagai kartu ringkas, bukan pita selebar
+         layar yang menutupi tab bar dan hampir separuh layar. */
+      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.5rem)] z-[60] rounded-panel border border-line bg-cream-2/95 shadow-[var(--shadow-lift)] backdrop-blur lg:inset-x-0 lg:bottom-0 lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t-2 lg:border-t-accent/40 lg:shadow-none"
     >
-      <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 lg:px-8">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+      <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 lg:px-8">
+        <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent sm:flex">
           <Cookie className="h-4 w-4" />
         </span>
 
@@ -103,7 +106,7 @@ export default function CookieConsent() {
               kalimat umum. */}
           <p className="text-[11px] leading-relaxed text-ink-soft">
             We set no cookies of our own and run no advertising or cross-site tracking. Your browser
-            keeps two preferences — your selected chain and your wallet address — and Cloudflare sets
+            keeps up to three preferences — your selected chain, your wallet address and your theme — and Cloudflare sets
             its own security cookies in front of this site.{" "}
             <Link href="/privacy" className="font-semibold text-accent hover:underline">
               Privacy
@@ -115,7 +118,7 @@ export default function CookieConsent() {
           <button
             type="button"
             onClick={() => decide("essential")}
-            className="h-9 rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="h-9 rounded-xl border border-line bg-surface px-3 text-xs font-bold text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           >
             Essential only
           </button>

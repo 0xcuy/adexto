@@ -69,6 +69,21 @@ perubahan : tidak ada. Berkasnya wordmark 248x120 dan path-nya mengisi penuh
             memotong logo dicantumkan sebagai penyalahgunaan di brand kit itu.
 
 --------------------------------------------------------------------------------
+file      : 0g-token.png
+sumber    : https://0g.ai/assets/68b92e3f6dc11e1fbb605c2f_token-logo.png
+            (logo token yang diterbitkan 0G, ditautkan dari 0g.ai)
+lisensi   : merek dagang 0G Labs; dipakai untuk merujuk aset 0G
+perubahan : tidak ada. Berkas 480x480 diambil apa adanya.
+catatan   : dipakai di mana pun 0G muncul sebagai ASET atau CHAIN (badge swap, chip
+            pasar), karena di sana tetangganya mark persegi dan wordmark hitam
+            `0g.svg` praktis hilang di tema gelap. Kotaknya violet #B75FFF KARENA
+            memang begitu berkas resminya — bukan hasil mewarnai wordmark. Brand kit
+            0G justru mencantumkan logo yang diberi ungu sendiri sebagai
+            penyalahgunaan (Logo-Misuse---Purple.svg, #5D72D2), jadi satu-satunya
+            cara benar memakai violet adalah memakai berkas violet milik mereka.
+            `0g.svg` DIPERTAHANKAN untuk konteks wordmark.
+
+--------------------------------------------------------------------------------
 
 TIDAK DIPAKAI — CoinGecko
 

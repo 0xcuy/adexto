@@ -4,17 +4,24 @@ import { LAUNCH_SENTENCE } from "@/lib/launch-state";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-line bg-cream-2 relative z-10 text-ink-soft text-xs">
+    <footer className="border-t border-line bg-cream-2/60 relative z-10 overflow-hidden text-ink-soft text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
-          <div className="space-y-3">
+        {/* Dua kolom di ponsel, bukan empat blok bertumpuk.
+            Sebelumnya `grid-cols-1` di bawah 640px, jadi keempat kelompok tautan berbaris
+            vertikal dan footer sendirian setinggi satu layar penuh — pembaca harus menggulir
+            melewati seluruhnya untuk mencapai baris hak cipta. Kelompok tautan itu pendek
+            (4–6 baris), jadi dua kolom memuat keduanya tanpa memepetkan apa pun.
+            Blok merek tetap selebar penuh: di dalamnya ada paragraf, dan paragraf dalam kolom
+            selebar setengah ponsel pecah menjadi dua-tiga kata per baris. */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-5 lg:gap-8">
+          <div className="col-span-2 space-y-3 lg:col-span-1">
             <div className="flex items-center gap-3">
               {/* Dulu logo ini dibungkus kotak putih ber-border. Karena logonya
                   sudah tidak punya plat sendiri, kotak itu jadi kotak di dalam
                   kotak dan membuatnya terlihat sesak. Dibuang. */}
               <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-12 h-12 object-contain shrink-0" />
               <div>
-                <span className="font-semibold text-ink tracking-wide text-base block leading-tight">ADEXTO PROTOCOL</span>
+                <span className="font-display font-semibold text-ink tracking-tight text-lg block leading-tight">adexto<span className="text-accent">.</span></span>
                 <span className="text-[10px] text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
               </div>
             </div>
@@ -192,6 +199,10 @@ export default function Footer() {
           </a>
         </div>
       </div>
+      </div>
+      {/* Wordmark raksasa sebagai penutup halaman. Dekorasi murni, tidak terbaca mesin. */}
+      <div aria-hidden="true" className="wordmark-watermark -mb-[0.18em] text-center text-[26vw] lg:text-[17rem]">
+        adexto.
       </div>
     </footer>
   );

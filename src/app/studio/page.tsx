@@ -9,6 +9,8 @@ import {
   ImagePlus,
 } from "lucide-react";
 
+import Mascot, { type MascotPose } from "@/components/Mascot";
+import { readSquareLogoFile } from "@/lib/logo-upload";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
@@ -116,7 +118,7 @@ const MODELS = [
  * kolom aktif terlihat tanpa bergantung pada outline bawaan peramban yang dibuang.
  */
 const FIELD_CLASS =
-  "w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-ink transition-colors " +
+  "w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink transition-colors " +
   "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 /**
@@ -127,6 +129,30 @@ const FIELD_CLASS =
  * mengatakan apa pun. Mengklik salah satu hanya MENGISI kotak input, tidak
  * mengirim, supaya pertanyaannya masih bisa disunting dulu.
  */
+/**
+ * Pose robot yang bisa dipakai sebagai emblem pasar.
+ *
+ * Sengaja daftar eksplisit dan bukan hasil membaca direktori: berkas di `public/mascot/`
+ * dihasilkan `scripts/crop-mascot.mjs`, dan kalau suatu saat ada pose baru di sana, ia
+ * harus MASUK ke sini secara sadar — galeri yang tumbuh sendiri akan menerbitkan pose
+ * yang belum pernah dilihat siapa pun sebagai pilihan resmi.
+ *
+ * Disimpan sebagai jalur, bukan data URI: `validateProjectImage` menerima jalur internal,
+ * dan itu jauh lebih murah daripada 34 KB base64 per pasar di registry.
+ */
+const MASCOT_PRESETS: MascotPose[] = [
+  "front",
+  "threequarter",
+  "idle",
+  "wave",
+  "point",
+  "think",
+  "celebrate",
+  "run",
+  "jump",
+  "sit",
+];
+
 const SUGGESTED_PROMPTS = [
   // Tanpa angka: tarifnya bisa dipilih creator dan kaki protokol ditambahkan di atasnya
   // per chain, jadi menuliskan "0.30%" dan "tiga" di teks statis akan salah setiap kali
@@ -220,7 +246,9 @@ export default function StudioPage() {
    * tombol Generate harus mati — kalau tidak, satu klik tak sengaja menimpa berkas yang baru
    * saja dipilih dan tidak ada jalan mengembalikannya.
    */
-  const [logoSource, setLogoSource] = useState<"default" | "generated" | "uploaded">("default");
+  const [logoSource, setLogoSource] = useState<"default" | "generated" | "uploaded" | "preset">("default");
+  /** Galeri preset dibuka atau tidak. Tertutup dulu supaya barisnya tidak ramai. */
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [isReadingLogo, setIsReadingLogo] = useState(false);
   const logoFileRef = useRef<HTMLInputElement | null>(null);
@@ -241,6 +269,20 @@ export default function StudioPage() {
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
   const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
+  /**
+   * Pitch dan tautan publik milik pasar ini. Semuanya OPSIONAL.
+   *
+   * Tidak satu pun ikut membentuk calldata: `deployTrinity` tidak menerimanya, jadi
+   * mengubahnya tidak mengubah apa pun yang di-deploy. Yang berubah hanya baris registry
+   * dan apa yang tampil di halaman pasar. Pembersihannya (skema URL, panjang, bentuk
+   * handle) dikerjakan registry di server — layar ini tidak boleh menjadi satu-satunya
+   * penjaga, karena siapa pun bisa memanggil `/api/deploy` tanpa melewatinya.
+   */
+  const [description, setDescription] = useState("");
+  const [linkWebsite, setLinkWebsite] = useState("");
+  const [linkGithub, setLinkGithub] = useState("");
+  const [linkX, setLinkX] = useState("");
+  const [linkDocs, setLinkDocs] = useState("");
   const [selectedModel, setSelectedModel] = useState("glm-5.3");
 
   /**
@@ -611,6 +653,7 @@ export default function StudioPage() {
       setTokenSupply("1,000,000,000");
       applyFeeTier("meme");
       setAgentPersona("Viral meme quant bot with aggressive auto-buyback");
+      setDescription("A meme market with an auto-buyback bot behind it.");
     } else if (type === "quant") {
       setTokenName("Aegis Quant AI");
       setTokenTicker("AQUANT");
@@ -618,6 +661,7 @@ export default function StudioPage() {
       setTokenSupply("1,000,000,000");
       applyFeeTier("standard");
       setAgentPersona("24/7 quant market maker and liquidity rebalancer");
+      setDescription("A quant agent that makes markets around the clock.");
     } else {
       setTokenName("Nova Yield Protocol");
       setTokenTicker("NYIELD");
@@ -625,6 +669,7 @@ export default function StudioPage() {
       setTokenSupply("500,000,000");
       applyFeeTier("low");
       setAgentPersona("Delta-neutral yield hedging and institutional LP routing");
+      setDescription("Delta-neutral yield, hedged and routed automatically.");
     }
   };
 
@@ -807,70 +852,19 @@ export default function StudioPage() {
   const handleLogoFile = async (file: File | null) => {
     if (!file) return;
     setLogoError(null);
-
-    if (!ACCEPTED_MIME.includes(file.type as (typeof ACCEPTED_MIME)[number])) {
-      setLogoError(`That file is ${file.type || "of an unknown type"}. Use PNG, JPEG or WebP.`);
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setLogoError(
-        `That file is ${(file.size / (1024 * 1024)).toFixed(1)} MB, over the ${MAX_UPLOAD_MB} MB limit.`
-      );
-      return;
-    }
-
     setIsReadingLogo(true);
-    // `objectUrl` dipakai alih-alih FileReader: ia tidak menyalin seluruh berkas ke memori
-    // sebagai string base64 hanya untuk diukur, dan dibebaskan di `finally`.
-    const objectUrl = URL.createObjectURL(file);
     try {
-      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error("decode failed"));
-        el.src = objectUrl;
-      });
-
-      if (img.naturalWidth !== img.naturalHeight) {
-        setLogoError(
-          `That image is ${img.naturalWidth}×${img.naturalHeight}. It has to be square — ` +
-            `crop it to equal width and height first.`
-        );
+      // Pembacaan, pemeriksaan persegi, resize, dan validasi ulang hidup di
+      // `@/lib/logo-upload` supaya halaman ini dan halaman pasar memakai satu aturan.
+      const result = await readSquareLogoFile(file);
+      if (!result.ok) {
+        setLogoError(result.reason);
         return;
       }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = LOGO_PX;
-      canvas.height = LOGO_PX;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        setLogoError("This browser would not give a 2D canvas, so the image could not be resized.");
-        return;
-      }
-      ctx.drawImage(img, 0, 0, LOGO_PX, LOGO_PX);
-      const dataUri = canvas.toDataURL("image/png");
-
-      /**
-       * Diperiksa dengan validator yang sama yang dipakai server.
-       *
-       * Terlihat berlebihan karena kanvasnya baru saja kita buat sendiri, tapi PNG dari
-       * kanvas 256x256 bisa melebihi batas kalau sumbernya foto penuh detail, bukan emblem.
-       * Ketahuan di sini jauh lebih baik daripada ditolak `/api/deploy` setelah creator
-       * menandatangani attestation.
-       */
-      const check = validateProjectImage(dataUri);
-      if (!check.ok) {
-        setLogoError(`${check.reason} Try a flatter image, or a simpler logo.`);
-        return;
-      }
-
-      setGeneratedLogo(check.value);
+      setGeneratedLogo(result.value);
       setLogoSource("uploaded");
       setLogoInfo(null);
-    } catch {
-      setLogoError("That file could not be read as an image.");
     } finally {
-      URL.revokeObjectURL(objectUrl);
       setIsReadingLogo(false);
       // Direset supaya memilih berkas yang SAMA lagi tetap memicu `change`.
       if (logoFileRef.current) logoFileRef.current.value = "";
@@ -1126,6 +1120,12 @@ export default function StudioPage() {
             agentModel: `0G Router (${selectedModel})`,
             image: generatedLogo ?? "/logo.svg",
             category,
+            // Dikirim apa adanya; server yang membersihkan. Lihat catatan pada state-nya.
+            description: description.trim() || null,
+            website: linkWebsite.trim() || null,
+            github: linkGithub.trim() || null,
+            x: linkX.trim() || null,
+            docs: linkDocs.trim() || null,
             attestationRoot,
             daStorageTx,
             targetChainIds: chains.map((c) => c.chainId),
@@ -1314,9 +1314,24 @@ export default function StudioPage() {
   const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut - (protocolCarvedOut ? protocolCut : 0));
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col p-2 sm:p-4 max-w-[1560px] mx-auto w-full overflow-y-auto lg:overflow-hidden">
+    /* Halaman ini dulu dipatok setinggi viewport (`lg:h-[calc(100vh-4rem)]` +
+       `lg:overflow-hidden`), sehingga formulir tujuh langkah harus digulir di dalam
+       kotak sempit sementara sisa halaman diam. Sekarang halamannya menggulir biasa
+       dan rel kanan yang menempel — ringkasan launch selalu terlihat tanpa
+       memenjarakan formulirnya. */
+    <div className="mx-auto w-full max-w-[1400px] px-3 py-5 sm:px-5">
+      <div className="mb-4">
+        <p className="kicker mb-2">ADEXTO Studio</p>
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">
+          Launch a market
+        </h1>
+        <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-ink-soft">
+          Name it, sign one attestation, and deploy. Gas only — no liquidity deposit, and you keep none of the supply.
+        </p>
+      </div>
+
       {/* Top strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-2.5 mb-2.5 border-b border-line shrink-0">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5 sm:gap-4">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-ink flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" /> ADEXTO STUDIO
@@ -1346,7 +1361,7 @@ export default function StudioPage() {
               Kelas hover-nya juga dibuat statis. Sebelumnya `hover:${color}` disusun
               dari variabel, jadi pemindai Tailwind tidak bisa melihatnya; kelasnya
               hanya ada di CSS karena kebetulan dipakai berkas lain. */}
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-line bg-white p-1">
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-line bg-surface p-1">
             <span className="pl-1.5 pr-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Presets</span>
             {(
               [
@@ -1407,7 +1422,7 @@ export default function StudioPage() {
                */
               aria-label="0G model"
               title="Pick the 0G model this token's agent runs on"
-              className="flex items-center gap-1.5 bg-white rounded-lg px-2.5 py-1.5 text-accent font-bold text-xs hover:bg-cream-3 transition-colors"
+              className="flex items-center gap-1.5 bg-surface rounded-lg px-2.5 py-1.5 text-accent font-bold text-xs hover:bg-cream-3 transition-colors"
             >
               <Cpu className="w-3.5 h-3.5 shrink-0" />
               <span className="max-w-[150px] truncate">
@@ -1434,7 +1449,7 @@ export default function StudioPage() {
                   const wrapped = (next + MODELS.length) % MODELS.length;
                   setSelectedModel(MODELS[wrapped].id);
                 }}
-                className="absolute right-0 top-full mt-1 z-30 min-w-[210px] rounded-xl border border-line bg-white p-1 shadow-lg"
+                className="absolute right-0 top-full mt-1 z-30 min-w-[210px] rounded-xl border border-line bg-surface p-1 shadow-lg"
               >
                 {MODELS.map((m) => {
                   const active = m.id === selectedModel;
@@ -1463,9 +1478,9 @@ export default function StudioPage() {
         </div>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-0">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
         {/* Left: launch control */}
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-line p-3 sm:p-5 flex flex-col shadow-xl lg:overflow-y-auto min-h-[520px]">
+        <div className="flex min-h-[520px] flex-col rounded-card border border-line bg-surface p-3 shadow-[var(--shadow-panel)] sm:p-5 lg:col-span-8">
           {finished ? (
             <DeployReport
               results={results}
@@ -1553,7 +1568,13 @@ export default function StudioPage() {
                           !selectable
                             ? "bg-cream-2 border-line text-ink-faint cursor-not-allowed"
                             : selected
-                            ? "bg-accent-soft border-accent/30 text-accent"
+                            ? // Teks `ink` di atas permukaan padat, BUKAN aksen di atas aksen.
+                              // Varian sebelumnya menumpuk `bg-accent-soft` chip di atas
+                              // `bg-accent-soft` pembungkus langkahnya, lalu menulis di atasnya
+                              // dengan warna aksen juga — 5,3:1 pada teks 9px, yaitu ungu samar
+                              // di atas ungu. Sekarang tanda terpilih dibawa border dan ikon
+                              // centang, sementara tulisannya kontras penuh.
+                              "bg-surface border-accent/60 text-ink shadow-[var(--glow-accent)]"
                             : "bg-cream-2 border-line text-ink-soft"
                         }`}
                       >
@@ -1661,14 +1682,106 @@ export default function StudioPage() {
                   . It does not affect the curve, the fees or anything on chain.
                 </p>
 
+                {/* Pitch dan tautan.
+                    Dipasang DI DALAM langkah "Token", bukan sebagai langkah baru, supaya
+                    rel langkah di atas panel tetap berisi tujuh langkah yang sama —
+                    menambah langkah kedelapan hanya untuk kolom opsional membuat
+                    peluncuran terasa lebih panjang daripada yang sebenarnya.
+
+                    Semuanya opsional, dan tidak ada satu pun yang masuk calldata: yang
+                    berubah hanya baris registry dan apa yang tampil di halaman pasar. */}
+                <details className="group/links rounded-xl border border-line bg-surface [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink">
+                      Description &amp; links
+                    </span>
+                    {/* Ringkasan berapa yang sudah diisi, supaya panel tertutup tidak
+                        menyembunyikan bahwa isinya sudah ada. */}
+                    <span className="ml-auto text-[10px] text-ink-faint">
+                      {[description, linkX, linkWebsite, linkGithub, linkDocs].filter((v) => v.trim()).length > 0
+                        ? `${[description, linkX, linkWebsite, linkGithub, linkDocs].filter((v) => v.trim()).length} filled`
+                        : "optional"}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform duration-200 group-open/links:rotate-180" />
+                  </summary>
+                  <div className="space-y-2.5 px-3 pb-3">
+
+                  <Field label="One-line pitch">
+                    <div className="relative">
+                      <input
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value.slice(0, 160))}
+                        placeholder="What is this market for?"
+                        aria-label="One-line pitch"
+                        className={`${FIELD_CLASS} pr-14`}
+                      />
+                      {/* Hitungan karakter, bukan pemotongan senyap: batas 160 ditegakkan
+                          juga di server, jadi orang harus melihat batasnya sebelum menekan
+                          launch — bukan menemukan pitch-nya terpotong setelahnya. */}
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint" data-numeric>
+                        {description.length}/160
+                      </span>
+                    </div>
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Field label="X / Twitter">
+                      <input
+                        value={linkX}
+                        onChange={(e) => setLinkX(e.target.value)}
+                        placeholder="@yourhandle"
+                        aria-label="X handle"
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                    <Field label="Website">
+                      <input
+                        value={linkWebsite}
+                        onChange={(e) => setLinkWebsite(e.target.value)}
+                        placeholder="https://yourproject.xyz"
+                        aria-label="Website URL"
+                        inputMode="url"
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                    <Field label="GitHub">
+                      <input
+                        value={linkGithub}
+                        onChange={(e) => setLinkGithub(e.target.value)}
+                        placeholder="https://github.com/you/repo"
+                        aria-label="GitHub URL"
+                        inputMode="url"
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                    <Field label="Docs">
+                      <input
+                        value={linkDocs}
+                        onChange={(e) => setLinkDocs(e.target.value)}
+                        placeholder="https://docs.yourproject.xyz"
+                        aria-label="Docs URL"
+                        inputMode="url"
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                  </div>
+
+                  <p className="text-[10px] leading-relaxed text-ink-faint">
+                    Shown on your market page. Only <code className="text-accent">http</code> and{" "}
+                    <code className="text-accent">https</code> links are stored, and the X field keeps the handle rather
+                    than a full URL — anything else is dropped rather than published.
+                  </p>
+                  </div>
+                </details>
+
                 {/* Logo: unggah milik sendiri, atau biarkan model menggambarnya.
                     Unggah didahulukan dalam urutan tombol karena creator yang SUDAH punya
                     logo adalah kasus yang lebih umum, dan sebelumnya mereka tidak punya
                     jalan sama sekali selain menerima apa pun yang keluar dari model. */}
-                <div className="p-2.5 rounded-xl bg-white border border-line space-y-2">
+                <div className="p-2.5 rounded-xl bg-surface border border-line space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-accent/30 p-1 flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-surface border border-accent/30 p-1 flex items-center justify-center shrink-0">
                         <img src={generatedLogo ?? "/logo.svg"} alt="Token logo preview" className="w-full h-full object-contain" />
                       </div>
                       {/* Nama model hanya ditulis kalau model itu memang jalan.
@@ -1679,6 +1792,8 @@ export default function StudioPage() {
                         <div className="text-[11px] font-bold text-ink">
                           {logoSource === "uploaded"
                             ? "Your image"
+                            : logoSource === "preset"
+                            ? "ADEXTO robot preset"
                             : logoInfo && !logoInfo.generated
                             ? "Placeholder emblem"
                             : "0G z-image-turbo"}
@@ -1686,6 +1801,8 @@ export default function StudioPage() {
                         <span className="text-[10px] text-ink-soft" title={logoInfo?.note}>
                           {logoSource === "uploaded"
                             ? `Resized to ${LOGO_PX}×${LOGO_PX} · generation is off`
+                            : logoSource === "preset"
+                            ? "Served as a file on this site, not stored inline"
                             : logoInfo === null
                             ? "Generate an emblem, or upload one you already have"
                             : logoInfo.generated
@@ -1754,8 +1871,59 @@ export default function StudioPage() {
                           </>
                         )}
                       </button>
+                      {/* Preset: sepuluh pose robot ADEXTO yang sudah ada di situs ini.
+                          Tidak mematikan tombol lain — memilih preset hanya menimpa gambar
+                          yang sedang dipakai, dan itu bisa dibatalkan dengan memilih yang
+                          lain, Generate, atau Upload. */}
+                      <button
+                        type="button"
+                        onClick={() => setPresetsOpen((v) => !v)}
+                        aria-expanded={presetsOpen}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                          presetsOpen || logoSource === "preset"
+                            ? "border-accent/60 bg-surface text-ink"
+                            : "border-line bg-cream-2 text-ink"
+                        }`}
+                      >
+                        <Bot className="h-3 w-3" /> Presets
+                      </button>
                     </div>
                   </div>
+
+                  {presetsOpen && (
+                    <div className="rounded-xl border border-line bg-cream-2 p-2">
+                      <p className="mb-2 text-[10px] text-ink-faint">
+                        Pick a 3D ADEXTO robot. Stored as a path on this site, so it costs the registry nothing and
+                        loads from cache.
+                      </p>
+                      <ul className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+                        {MASCOT_PRESETS.map((pose) => {
+                          const src = `/mascot/${pose}.webp`;
+                          const active = generatedLogo === src;
+                          return (
+                            <li key={pose}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setGeneratedLogo(src);
+                                  setLogoSource("preset");
+                                  setLogoInfo(null);
+                                  setLogoError(null);
+                                }}
+                                aria-pressed={active}
+                                title={`ADEXTO robot · ${pose}`}
+                                className={`flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border p-1 transition-colors ${
+                                  active ? "border-accent/60 bg-surface" : "border-line bg-surface hover:border-accent/40"
+                                }`}
+                              >
+                                <Mascot pose={pose} className="h-full w-auto" />
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Persyaratannya ditulis SEBELUM orang memilih berkas, bukan hanya sebagai
                       galat sesudahnya. */}
@@ -1779,7 +1947,13 @@ export default function StudioPage() {
                   here. Both are gone: the curve needs no native deposit, and 100%
                   of supply enters it, so there is nothing left to configure and
                   nothing for the creator to dump. */}
-              <Section id="step-curve" step={3} title="Bonding curve">
+              <Section
+                id="step-curve"
+                step={3}
+                title="Bonding curve"
+                defaultOpen={false}
+                hint={`${totalSwapFee.toFixed(2)}% swap fee · ${creatorCut.toFixed(2)}% to you`}
+              >
                 <div className="rounded-xl border border-ok/30 bg-ok/10 p-2.5 flex items-start gap-2 text-[10px]">
                   <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" />
                   <span className="text-ink-soft">
@@ -1890,7 +2064,7 @@ export default function StudioPage() {
                       leg.
                     </span>
                   ) : null}
-                  <span className="block text-[9px] text-ok/80">
+                  <span className="block text-[9px] text-ok">
                     You earn {creatorCut.toFixed(2)}% of every swap, streamed to your wallet. You receive no free tokens,
                     so there is nothing you could dump.
                   </span>
@@ -1901,7 +2075,13 @@ export default function StudioPage() {
               </Section>
 
               {/* Agent */}
-              <Section id="step-agent" step={4} title="0G TEE agent">
+              <Section
+                id="step-agent"
+                step={4}
+                title="0G TEE agent"
+                defaultOpen={false}
+                hint={selectedModel}
+              >
                 <Field label="Mandate">
                   <input
                     value={agentPersona}
@@ -1915,7 +2095,7 @@ export default function StudioPage() {
                     transaction against a registry that is not ours, so requiring it
                     would turn every launch into two transactions — including for
                     creators who do not want an on-chain agent identity at all. */}
-                <div className="rounded-xl border border-line bg-white p-3 space-y-2">
+                <div className="rounded-xl border border-line bg-surface p-3 space-y-2">
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -2039,7 +2219,7 @@ export default function StudioPage() {
               <SectionHeading step={5} title="Verify" />
 
               {/* Attestation */}
-              <div className="p-3 rounded-xl bg-white border border-line space-y-2">
+              <div className="p-3 rounded-xl bg-surface border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <ShieldCheck className={`w-5 h-5 shrink-0 ${attestation ? "text-ok" : "text-ink-faint"}`} />
@@ -2189,7 +2369,7 @@ export default function StudioPage() {
                 </p>
               )}
 
-              <div className="rounded-xl border border-line bg-white overflow-hidden">
+              <div className="rounded-xl border border-line bg-surface overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-line bg-cream-3/[0.03] px-3 py-2">
                   <Info className="h-3 w-3 text-accent" />
                   {/* Judulnya dulu "How a multi-chain launch works", benar ketika satu
@@ -2201,20 +2381,20 @@ export default function StudioPage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-px bg-cream-3 sm:grid-cols-3">
-                  <div className="bg-white p-3">
+                  <div className="bg-surface p-3">
                     <p className="text-[9px] uppercase tracking-wider text-ink-faint">One launch, one chain</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Each launch creates one token and one curve on the chain you picked. Supply, depth and price are
                       independent, so launching the same ticker elsewhere later gives you a second, separate market.
                     </p>
                   </div>
-                  <div className="bg-white p-3">
+                  <div className="bg-surface p-3">
                     <p className="text-[9px] uppercase tracking-wider text-ink-faint">No bridging</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Nothing moves between chains, so the price on 0G and Base can differ. Arbitrage is up to the market.
                     </p>
                   </div>
-                  <div className="bg-white p-3">
+                  <div className="bg-surface p-3">
                     <p className="text-[9px] uppercase tracking-wider text-ink-faint">Per-chain cost</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                       Gas only, usually under $0.10. You need a little of each chain&apos;s native asset to pay it —
@@ -2237,8 +2417,74 @@ export default function StudioPage() {
           )}
         </div>
 
-        {/* Right: co-pilot */}
-        <div className="lg:col-span-4 bg-white rounded-2xl border border-line flex flex-col h-[480px] lg:h-full overflow-hidden shadow-xl">
+        {/* Right: rel yang menempel — ringkasan launch di atas, co-pilot di bawah. */}
+        <div className="space-y-3 lg:sticky lg:top-4 lg:col-span-4">
+          {/* Ringkasan launch.
+              HANYA MEMBACA state yang sudah ada (nama, ticker, logo, supply, chain
+              tujuan, pembagian fee yang sudah dihitung di atas). Tidak ada input, tidak
+              ada tombol, dan tidak ada aritmetika baru di sini — supaya panel ini tidak
+              bisa berselisih dengan calldata, dan supaya selector audit yang mencari
+              `input[value="AQUANT"]` atau tombol "Launch on" tetap menunjuk formulir. */}
+          <div className="overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-panel)]">
+            <div className="flex items-center justify-between gap-2 border-b border-line bg-cream-2 px-3 py-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Your launch</span>
+              <span
+                className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                  attestation ? "border-ok/30 bg-ok/10 text-ok" : "border-warn/30 bg-warn/10 text-warn"
+                }`}
+              >
+                {attestation ? "attested" : "not attested"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 px-3 py-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent/30 bg-cream-2 p-1">
+                <img src={generatedLogo ?? "/logo.svg"} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-display text-[16px] font-medium text-ink">{tokenName || "Untitled"}</p>
+                <p className="truncate text-[11px] text-ink-faint">
+                  ${tokenTicker.trim().toUpperCase() || "—"} · {launchTargets[0]?.key ?? "no chain selected"}
+                </p>
+              </div>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-px border-t border-line bg-cream-3 text-[11px]">
+              <div className="bg-surface px-3 py-2">
+                <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Supply</dt>
+                <dd className="mt-0.5 font-medium text-ink" data-numeric>
+                  {supplyNumber > 0 ? supplyNumber.toLocaleString("en-US") : "—"}
+                </dd>
+              </div>
+              <div className="bg-surface px-3 py-2">
+                <dt className="text-[9px] uppercase tracking-wider text-ink-faint">You keep</dt>
+                <dd className="mt-0.5 font-medium text-ok" data-numeric>
+                  {creatorCut.toFixed(2)}% of swaps
+                </dd>
+              </div>
+              <div className="bg-surface px-3 py-2">
+                <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Trader pays</dt>
+                <dd className="mt-0.5 font-medium text-ink" data-numeric>
+                  {totalPaidPct.toFixed(2)}%
+                </dd>
+              </div>
+              <div className="bg-surface px-3 py-2">
+                <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Your allocation</dt>
+                <dd className="mt-0.5 font-medium text-ink">0 tokens</dd>
+              </div>
+            </dl>
+
+            <p className="flex items-start gap-1.5 border-t border-line px-3 py-2 text-[10px] leading-relaxed text-ink-faint">
+              <Droplets className="mt-0.5 h-3 w-3 shrink-0 text-ok" />
+              <span>
+                Gas only — <span className="text-ok">no liquidity deposit</span>. Split:{" "}
+                {depthCut.toFixed(2)}% depth · {creatorCut.toFixed(2)}% creator · {treasuryCut.toFixed(2)}% buyback
+                {protocolCut > 0 ? ` · ${protocolCut.toFixed(2)}% protocol` : ""}.
+              </span>
+            </p>
+          </div>
+
+          <div className="flex h-[480px] flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-panel)] lg:h-[calc(100vh-13rem)]">
           <div className="p-2.5 border-b border-line bg-cream-2 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded bg-accent flex items-center justify-center text-white">
@@ -2287,7 +2533,7 @@ export default function StudioPage() {
                   className={`max-w-[90%] rounded-xl p-2.5 leading-relaxed ${
                     m.role === "user"
                       ? "bg-accent-soft border border-accent/30 text-ink"
-                      : "bg-white border border-line text-ink"
+                      : "bg-surface border border-line text-ink"
                   }`}
                 >
                   <span className="text-[9px] font-bold block mb-1 uppercase tracking-wider text-ink-faint">
@@ -2329,7 +2575,7 @@ export default function StudioPage() {
                     key={prompt}
                     type="button"
                     onClick={() => setInputMessage(prompt)}
-                    className="w-full rounded-xl border border-line bg-white px-2.5 py-2 text-left text-[11px] leading-relaxed text-ink-soft transition-colors hover:border-accent/40 hover:text-ink"
+                    className="w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-left text-[11px] leading-relaxed text-ink-soft transition-colors hover:border-accent/40 hover:text-ink"
                   >
                     {prompt}
                   </button>
@@ -2355,6 +2601,7 @@ export default function StudioPage() {
               <Send className="w-3 h-3" />
             </button>
           </form>
+          </div>
         </div>
       </div>
     </div>
@@ -2378,29 +2625,47 @@ function Section({
   id,
   step,
   title,
+  hint,
+  defaultOpen = true,
   children,
 }: {
   id: string;
   step: number;
   title: string;
+  /** Ringkasan satu baris yang tetap terbaca saat panelnya tertutup. */
+  hint?: string;
+  /**
+   * Terbuka saat halaman dimuat.
+   *
+   * Langkah "Token" TETAP terbuka, dan itu bukan pilihan gaya: harness peluncuran
+   * mengisi `input[value="AQUANT"]` dan `input[value="Aegis Quant AI"]` secara langsung,
+   * dan Playwright menunggu elemen TERLIHAT sebelum menulis — isi `<details>` yang
+   * tertutup ada di DOM tapi tidak terlihat, jadi mengunci langkah itu tertutup akan
+   * membuat setiap harness gagal di baris yang tidak menyebut sebabnya.
+   */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div id={id} className="scroll-mt-3 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
-      <SectionHeading step={step} title={title} />
-      {children}
-    </div>
+    <details
+      id={id}
+      open={defaultOpen}
+      className="group scroll-mt-3 rounded-xl border border-line bg-cream-2 [&_summary::-webkit-details-marker]:hidden"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 p-3.5">
+        <SectionHeading step={step} title={title} />
+        {hint ? <span className="ml-auto truncate text-[10px] text-ink-faint">{hint}</span> : null}
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform duration-200 group-open:rotate-180 ${
+            hint ? "" : "ml-auto"
+          }`}
+        />
+      </summary>
+      <div className="space-y-2.5 px-3.5 pb-3.5">{children}</div>
+    </details>
   );
 }
 
-/**
- * Judul langkah.
- *
- * Nomornya dulu ikut di dalam string judul ("2. Token"), sehingga kelima seksi
- * tampil sebagai lima kartu putih dengan satu baris tebal yang sama beratnya —
- * mata tidak punya titik masuk, dan urutannya hanya bisa dibaca, tidak terlihat.
- * Nomor sekarang jadi lencana tersendiri.
- */
 function SectionHeading({ step, title }: { step: number; title: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -2435,7 +2700,7 @@ function StepRail({
   steps: Array<{ id: string; label: string; done: boolean }>;
 }) {
   return (
-    <nav aria-label="Launch steps" className="sticky top-0 z-10 -mx-3 mb-1 bg-white/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
+    <nav aria-label="Launch steps" className="sticky top-0 z-10 -mx-3 mb-1 bg-surface/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[10px]">
         {steps.map((step, i) => (
           <li key={step.id} className="flex items-center gap-1">

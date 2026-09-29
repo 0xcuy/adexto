@@ -25,9 +25,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { token } = await params;
   const project = findProject(token);
   if (!project) return { title: "Market not found · ADEXTO" };
+  /**
+   * `og:image` menunjuk kartu yang dirender server, bukan gambar statis.
+   *
+   * Artinya tautan pasar yang ditempel ke X atau Telegram membawa harga dan kapitalisasi
+   * pasar ITU, bukan satu gambar merek yang sama untuk semua pasar. Kartunya dibangun dari
+   * registry yang sama dengan halamannya, jadi keduanya tidak bisa menyebut angka berbeda.
+   */
+  const card = `/api/share-card/${encodeURIComponent(project.slug)}?chain=${project.chainId}`;
   return {
     title: `${project.name} ($${project.symbol}) · ADEXTO Terminal`,
     description: `Trade $${project.symbol} on the ADEXTO Sovereign DEX (${project.chainLabel}).`,
+    openGraph: {
+      title: `$${project.symbol} · ${project.name}`,
+      description: `Trading on ${project.chainLabel} against a curve with no withdrawal function.`,
+      images: [{ url: card, width: 1200, height: 630 }],
+    },
+    twitter: { card: "summary_large_image", images: [card] },
   };
 }
 
@@ -80,6 +94,14 @@ export default async function TokenPage({ params, searchParams }: PageProps) {
     agentModel: project.agentModel,
     agentPersona: project.agentPersona,
     agentStatus: project.agentStatus,
+    // Pitch dan tautan milik creator. Sudah dibersihkan registry saat dibaca, jadi apa
+    // yang sampai ke komponen tidak pernah berupa `javascript:` atau host palsu X.
+    description: project.description,
+    links: project.links,
+    // Alamat peluncur. Dikirim ke klien HANYA untuk memutuskan apakah tombol sunting
+    // ditawarkan; yang menegakkan siapa boleh menyunting adalah tanda tangan yang
+    // diverifikasi `/api/market/update` terhadap nilai ini di registry.
+    creator: project.creator,
     // URL, bukan data URI: alasannya di `src/lib/logo-image.ts`. Tanpa ini halaman token
     // tetap menyisipkan 34 KB base64 ke dalam payload RSC-nya sendiri.
     image: logoUrlFor(project),

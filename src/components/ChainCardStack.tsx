@@ -113,7 +113,7 @@ export default function ChainCardStack() {
               } as React.CSSProperties
             }
           >
-          <article className="adexto-card-face relative h-full w-full overflow-hidden rounded-2xl border border-line bg-cream-2 shadow-[0_8px_24px_-12px_rgba(32,24,16,0.35)]">
+          <article className="adexto-card-face relative h-full w-full overflow-hidden rounded-2xl border border-line bg-cream-2 shadow-[var(--shadow-lift)]">
             <img src={card.art} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.5]" />
             {/* Gradien dari kiri: nama chain harus terbaca di atas tekstur apa pun
                 yang dihasilkan model, bukan bergantung pada keberuntungan warnanya. */}
@@ -129,7 +129,7 @@ export default function ChainCardStack() {
                   <span className="text-xs font-semibold text-ink">{chain.key}</span>
                 )}
                 <span className="truncate text-sm font-semibold tracking-tight text-ink">{chain.name}</span>
-                <span className="ml-auto shrink-0 rounded-full border border-line bg-white/70 px-2 py-0.5 text-[10px] font-medium text-ink-soft">
+                <span className="ml-auto shrink-0 rounded-full border border-line bg-surface/70 px-2 py-0.5 text-[10px] font-medium text-ink-soft">
                   {chain.nativeSymbol}
                 </span>
               </div>

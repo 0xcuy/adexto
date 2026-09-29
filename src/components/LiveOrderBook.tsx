@@ -180,7 +180,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             ))}
           </div>
 
-          <div className="my-1.5 py-1 px-2 rounded-lg bg-white border border-accent/30 flex items-center justify-between">
+          <div className="my-1.5 py-1 px-2 rounded-lg bg-surface border border-accent/30 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
               <ArrowUp className="w-3.5 h-3.5 text-ok" />
               <span>{fmtPrice(spot)}</span>

@@ -180,7 +180,7 @@ export default function X402Page() {
           <CloudLightning className="w-4 h-4 text-accent" />
           <span>X402 INTEGRATION REFERENCE</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">x402 cross-chain buys</h1>
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">x402 cross-chain buys</h1>
         <p className="text-sm text-ink mt-3 font-medium leading-relaxed">
           One HTTP request buys a token that trades on another chain. The caller pays{" "}
           <strong className="text-ink">0.10 USDC on Base</strong> by signing a transfer authorization, and the
@@ -209,7 +209,7 @@ export default function X402Page() {
             curl akan membuat pembaca menyimpulkan gerbangnya menjual satu token — dan
             kesimpulan itu memang pernah benar-benar terjadi, karena akar gerbang dulu
             menjawab dengan kutipan token bawaan. */}
-        <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
+        <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
           {examples.length > 0 ? (
             examples.map((m) => (
               <div key={`${m.chainId}:${m.symbol}`} className="whitespace-pre">
@@ -327,7 +327,7 @@ export default function X402Page() {
           Repeat the request with an <code className="text-accent">X-PAYMENT</code> header containing this object
           as base64-encoded JSON.
         </p>
-        <div className="p-3 rounded-lg bg-white border border-line font-mono text-[11px] text-ink-soft overflow-x-auto">
+        <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft overflow-x-auto">
           <pre className="whitespace-pre">{`{
   "x402Version": 2,
   "scheme": "exact",

@@ -16,10 +16,10 @@ export default function WhitepaperPage() {
               dokumen ini. */}
           <span>REVISED AUGUST 2026</span>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight leading-tight">
+        <h1 className="font-display text-3xl font-light leading-tight tracking-tight text-ink sm:text-5xl">
           ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator
         </h1>
-        <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-white p-4 rounded-xl border border-line">
+        <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-surface p-4 rounded-xl border border-line">
           {/* Abstrak lama menyebut "1-Click Token Launchpads" dan "backed by 0G
               Private Computer (TEE)". Peluncuran menuntut sambung dompet, tanda
               tangan attestation, lalu satu transaksi per chain — bukan satu klik.
@@ -63,14 +63,14 @@ export default function WhitepaperPage() {
             ADEXTO solves this by executing atomic synchronization across all four functional primitives:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs my-4">
-            <div className="p-4 rounded-xl bg-white border border-accent/30">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">A → Autonomous</strong>
               <span className="text-ink">
                 An agent address fixed at launch, running its mandate against the 0G Compute router
                 (TeeML tier: 0G&apos;s own enclave, Intel TDX, verified by dstack).
               </span>
             </div>
-            <div className="p-4 rounded-xl bg-white border border-accent/30">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">DEX → Sovereign Curve</strong>
               <span className="text-ink">
                 A per-token bonding curve over a virtual reserve. The configured fee is the whole fee a trader
@@ -78,14 +78,14 @@ export default function WhitepaperPage() {
                 0.10% buyback / 0.10% protocol. Nothing is charged on top of it.
               </span>
             </div>
-            <div className="p-4 rounded-xl bg-white border border-accent/30">
+            <div className="p-4 rounded-xl bg-surface border border-accent/30">
               <strong className="text-accent block mb-1 text-sm font-bold">T → Token Factory</strong>
               {/* Bukan "ERC-8004": satu address immutable, tanpa registry standar. */}
               <span className="text-ink">
                 ERC-20 whose transfer hook is bound to one immutable agent address.
               </span>
             </div>
-            <div className="p-4 rounded-xl bg-white border border-ok/30">
+            <div className="p-4 rounded-xl bg-surface border border-ok/30">
               <strong className="text-ok block mb-1 text-sm font-bold">O → Orchestrator</strong>
               {/* Kalimat lama menyebut orchestrator sebagai koordinator yang mengelola
                   buyback, burn, DAN penyaluran pendapatan x402. Frasa terakhir itu
@@ -127,7 +127,7 @@ export default function WhitepaperPage() {
             hold the target chain&apos;s gas asset. Delivery is executed before the charge, so a failed fill
             costs the protocol rather than the buyer.
           </p>
-          <div className="p-4 rounded-xl bg-white border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
+          <div className="p-4 rounded-xl bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
             <span className="text-ok font-bold block mb-2">// Revenue Flow Equation</span>
             R_total = SwapFees(AdextoCurve) + x402_CrossChainBuys<br />
             Trader_Pays = swapFeeBps + PROTOCOL_FEE_BPS &nbsp;// the protocol leg is additive<br />
@@ -197,19 +197,19 @@ export default function WhitepaperPage() {
             1.00%. Every leg is immutable per curve, so none of this can be changed retroactively.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
-            <div className="p-3.5 rounded-lg bg-white border border-line">
+            <div className="p-3.5 rounded-lg bg-surface border border-line">
               <div className="text-xl font-semibold text-ink">100%</div>
               <div className="text-[11px] text-ink-soft font-bold">Supply in the curve</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-white border border-line">
+            <div className="p-3.5 rounded-lg bg-surface border border-line">
               <div className="text-xl font-semibold text-ink">0%</div>
               <div className="text-[11px] text-ink-soft font-bold">Pre-allocated</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-white border border-line">
+            <div className="p-3.5 rounded-lg bg-surface border border-line">
               <div className="text-xl font-semibold text-ink">1.00%</div>
               <div className="text-[11px] text-ink-soft font-bold">Paid per trade</div>
             </div>
-            <div className="p-3.5 rounded-lg bg-white border border-line">
+            <div className="p-3.5 rounded-lg bg-surface border border-line">
               <div className="text-xl font-semibold text-ink">0.10%</div>
               <div className="text-[11px] text-ink-soft font-bold">Protocol leg of it</div>
             </div>

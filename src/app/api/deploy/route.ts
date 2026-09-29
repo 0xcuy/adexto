@@ -994,6 +994,18 @@ async function handleConfirm(body: any) {
     // pasar. Yang tidak dikenal turun ke bawaan alih-alih menolak peluncuran — alasannya ada
     // di `src/lib/categories.ts`.
     category: normalizeCategory(body.category),
+    // Pitch dan tautan milik creator. Diteruskan mentah ke registry KARENA registry
+    // yang membersihkannya (`normalizeDescription` / `normalizeLinks`) — satu gerbang,
+    // bukan dua aturan yang bisa berselisih. Yang penting di sini: nilainya tidak
+    // pernah dipakai untuk membentuk calldata, jadi ia tidak bisa mengubah apa yang
+    // di-deploy, hanya apa yang terdaftar.
+    description: body.description ?? null,
+    links: {
+      website: body.website ?? null,
+      github: body.github ?? null,
+      x: body.x ?? body.twitter ?? null,
+      docs: body.docs ?? null,
+    },
     image: imageCheck.value,
     txHash,
     blockNumber: receipt.blockNumber,

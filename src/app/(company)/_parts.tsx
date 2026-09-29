@@ -24,7 +24,11 @@ export const COMPANY_LINKS = [
 export function PageTitle({ children, updated }: { children: React.ReactNode; updated: string }) {
   return (
     <header className="space-y-1">
-      <h1 className="text-2xl font-semibold text-ink sm:text-3xl">{children}</h1>
+      {/* Eyebrow yang sama dengan seluruh situs. Kelima dokumen ini dulu dibuka langsung oleh
+          judulnya, jadi tidak ada apa pun di layar yang menyatakan "Privacy" dan "Terms" bagian
+          dari satu kelompok — padahal navigasinya memang satu grup. */}
+      <p className="kicker mb-2">Company</p>
+      <h1 className="font-display text-2xl font-light tracking-tight text-ink sm:text-3xl">{children}</h1>
       {/* Tanggal ditulis di satu tempat per halaman dan bukan dihasilkan dari `new Date()`.
           Tanggal yang bergerak sendiri membuat dokumen tampak diperbarui padahal isinya tidak
           pernah disentuh. */}
@@ -34,7 +38,7 @@ export function PageTitle({ children, updated }: { children: React.ReactNode; up
 }
 
 export function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="pt-3 text-base font-semibold text-ink">{children}</h2>;
+  return <h2 className="pt-3 font-display text-base font-medium text-ink">{children}</h2>;
 }
 
 export function P({ children }: { children: React.ReactNode }) {

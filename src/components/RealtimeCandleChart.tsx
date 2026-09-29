@@ -11,8 +11,76 @@ import {
   PriceScaleMode,
   IChartApi,
 } from "lightweight-charts";
+import { ChartCandlestick, LineChart } from "lucide-react";
 import { formatSmallNumber } from "@/lib/pricing";
+import { toUsdCandles } from "@/lib/usd-series";
 import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicators";
+import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
+
+/**
+ * Palet chart per tema — HANYA warna kanvas, sumbu, grid, dan crosshair.
+ *
+ * lightweight-charts menggambar ke canvas, jadi token CSS tidak menjangkaunya; warnanya
+ * harus diberikan sebagai nilai. Warna candle (hijau/merah) dan indikator tidak ikut
+ * diganti: keduanya terbaca di kedua latar dan artinya tidak boleh berubah dengan tema.
+ * Latar dibuat SAMA dengan --surface-2 masing-masing tema, supaya chart menyatu dengan
+ * kartunya alih-alih menjadi balok hitam di tema terang.
+ */
+function chartPalette(theme: Theme) {
+  return theme === "light"
+    ? {
+        background: "#ffffff",
+        text: "#6b5c48",
+        grid: "rgba(32, 24, 16, 0.05)",
+        border: "rgba(32, 24, 16, 0.12)",
+        crosshair: "#7c3aed",
+        separator: "rgba(32, 24, 16, 0.12)",
+        separatorHover: "rgba(124, 58, 237, 0.25)",
+      }
+    : {
+        // Nilai ini TIDAK bisa dibaca dari token CSS: lightweight-charts menggambar ke
+        // kanvas, jadi ia menerima warna sebagai string. Karena itu setiap perubahan
+        // palet tema gelap harus menyentuh dua tempat, dan ini yang kedua.
+        background: "#221b15",
+        text: "#bdab95",
+        grid: "rgba(247, 242, 233, 0.05)",
+        border: "rgba(247, 242, 233, 0.12)",
+        crosshair: "#b193ff",
+        separator: "rgba(247, 242, 233, 0.12)",
+        separatorHover: "rgba(177, 147, 255, 0.3)",
+      };
+}
+
+function chartThemeOptions(theme: Theme) {
+  const c = chartPalette(theme);
+  return {
+    layout: {
+      background: { type: ColorType.Solid, color: c.background },
+      textColor: c.text,
+      fontSize: 11,
+      fontFamily: "monospace",
+      panes: { separatorColor: c.separator, separatorHoverColor: c.separatorHover },
+    },
+    grid: {
+      vertLines: { color: c.grid },
+      horzLines: { color: c.grid },
+    },
+    crosshair: {
+      vertLine: { color: c.crosshair, width: 1 as const, style: 3 as const },
+      horzLine: { color: c.crosshair, width: 1 as const, style: 3 as const },
+    },
+  };
+}
+
+function applyChartTheme(chart: IChartApi | null, theme: Theme) {
+  if (!chart) return;
+  const c = chartPalette(theme);
+  chart.applyOptions({
+    ...chartThemeOptions(theme),
+    timeScale: { borderColor: c.border },
+    rightPriceScale: { borderColor: c.border },
+  });
+}
 
 /**
  * Candlestick chart with indicators, driven by real OHLC buckets from
@@ -93,9 +161,9 @@ interface Props {
  * interval sekecil ini supaya jangkauannya tetap setengah jam.
  */
 const INTERVALS = [
-  { label: "1s", seconds: 1 },
-  { label: "5s", seconds: 5 },
-  { label: "15s", seconds: 15 },
+  { label: "1s", seconds: 1, sub: true },
+  { label: "5s", seconds: 5, sub: true },
+  { label: "15s", seconds: 15, sub: true },
   { label: "1m", seconds: 60 },
   { label: "5m", seconds: 300 },
   { label: "15m", seconds: 900 },
@@ -226,6 +294,10 @@ export default function RealtimeCandleChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
+  /** Seri garis. Hidup bersama seri candle dan yang tampil dipilih lewat `visible`,
+   *  bukan dengan membuat ulang chart: membuat ulang akan mereset zoom dan posisi
+   *  gulir setiap kali orang berganti bentuk tampilan. */
+  const lineSeriesRef = useRef<any>(null);
   /**
    * Digit signifikan untuk sumbu harga, diturunkan dari rentang data.
    *
@@ -259,6 +331,8 @@ export default function RealtimeCandleChart({
    * penyebab, bukan cuma korbannya.
    */
   const [interval, setIntervalSeconds] = useState(60);
+  /** Menu interval sub-menit. Tertutup secara bawaan; lihat catatan di barnya. */
+  const [showSubMinute, setShowSubMinute] = useState(false);
   /**
    * Apakah `?tf=` di URL sudah dibaca. Pengambilan data tidak dimulai sebelum ini benar.
    *
@@ -283,6 +357,16 @@ export default function RealtimeCandleChart({
   const [logScale, setLogScale] = useState(false);
   const [autoScale, setAutoScale] = useState(true);
   const [showMcap, setShowMcap] = useState(false);
+  /**
+   * Satuan sumbu: aset native chain, atau dolar.
+   *
+   * Bawaannya USD, karena itu satuan yang bisa dibandingkan orang dan karena dalam USD
+   * pasar tanpa perdagangan baru TETAP bergerak (nilainya ikut kurs). Kalau rekaman kurs
+   * belum cukup panjang, kode di bawah jatuh kembali ke native dan mengatakannya.
+   */
+  const [unit, setUnit] = useState<"native" | "usd">("usd");
+  const [chartKind, setChartKind] = useState<"candles" | "line">("candles");
+
   /** Pengali sumbu: 1 untuk harga, suplai untuk kapitalisasi. */
   const priceMultiplier = showMcap && supply > 0 ? supply : 1;
 
@@ -349,13 +433,21 @@ export default function RealtimeCandleChart({
   const tradeCountRef = useRef(0);
   const [candleCount, setCandleCount] = useState(0);
   const [showIndicatorMenu, setShowIndicatorMenu] = useState(false);
+  /**
+   * SEMUA indikator mati secara bawaan.
+   *
+   * Sebelumnya EMA9, EMA21 dan RSI menyala tanpa diminta, jadi chart pertama yang dilihat
+   * orang sudah punya tiga garis dan satu pane tambahan di bawahnya — sebelum mereka tahu
+   * harganya sendiri bergerak ke mana. Yang ingin dilihat lebih dulu adalah harga; indikator
+   * adalah pilihan, dan tombol "Indicators" sudah menyatakan bahwa pilihan itu ada.
+   */
   const [enabled, setEnabled] = useState<Record<IndicatorKey, boolean>>({
-    ema9: true,
-    ema21: true,
+    ema9: false,
+    ema21: false,
     sma50: false,
     bollinger: false,
     vwap: false,
-    rsi14: true,
+    rsi14: false,
     macd: false,
   });
   /** OHLC values under the crosshair, like the legend GeckoTerminal shows. */
@@ -383,26 +475,23 @@ export default function RealtimeCandleChart({
   const oscillators = PANES.filter((p) => enabled[p.key] && candleCount >= (WARMUP[p.warmupKey] ?? 1));
   const hasOscillator = oscillators.length > 0;
 
+  // Ikut berganti saat tema diganti, tanpa membuat ulang chart (data dan zoom tetap).
+  useEffect(() => {
+    const onTheme = (e: Event) => {
+      const theme = ((e as CustomEvent<Theme>).detail ?? readTheme()) as Theme;
+      applyChartTheme(chartRef.current, theme);
+      applyChartTheme(oscChartRef.current, theme);
+    };
+    window.addEventListener(THEME_EVENT, onTheme);
+    return () => window.removeEventListener(THEME_EVENT, onTheme);
+  }, []);
+
   // Chart instance is created once per container, not per data refresh.
   useEffect(() => {
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#030610" },
-        textColor: "#94a3b8",
-        fontSize: 11,
-        fontFamily: "monospace",
-        panes: { separatorColor: "rgba(255,255,255,0.12)", separatorHoverColor: "rgba(0,245,255,0.25)" },
-      },
-      grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.04)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.04)" },
-      },
-      crosshair: {
-        vertLine: { color: "#00F5FF", width: 1, style: 3 },
-        horzLine: { color: "#00F5FF", width: 1, style: 3 },
-      },
+      ...chartThemeOptions(readTheme()),
       /**
        * `fixLeftEdge` MENGUNCI tepi kiri di bar pertama.
        *
@@ -415,7 +504,7 @@ export default function RealtimeCandleChart({
        * menyisakan bantalan kosong.
        */
       timeScale: {
-        borderColor: "rgba(255,255,255,0.1)",
+        borderColor: chartPalette(readTheme()).border,
         timeVisible: true,
         secondsVisible: false,
         fixLeftEdge: true,
@@ -435,7 +524,7 @@ export default function RealtimeCandleChart({
        * 96 px cukup untuk label subscript terpanjang pada presisi 12 digit.
        */
       rightPriceScale: {
-        borderColor: "rgba(255,255,255,0.1)",
+        borderColor: chartPalette(readTheme()).border,
         /**
          * `bottom` dipangkas dari 0,28 ke 0,12.
          *
@@ -571,13 +660,42 @@ export default function RealtimeCandleChart({
         // jauh lebih besar dalam piksel. 0,22 menjaga badan terbesar tetap sekitar 80 px,
         // proporsi yang sama dengan terminal rujukan.
         const MAX_BODY_SHARE = 0.22;
+        /**
+         * Pelebaran DIBATASI dua kali rentang data, dan itu perbaikan atas cacat yang
+         * baru terlihat setelah sumbu USD ada.
+         *
+         * Aturan di atas mengasumsikan badan terbesar mewakili besaran seri. Pada seri USD
+         * asumsi itu patah: satu bucket bisa memuat lompatan kurs satu jam sementara ratusan
+         * bucket lain nyaris datar, jadi SATU outlier melebarkan rentang sekitar 4,5x dan
+         * seluruh seri terhimpit ke dasar pane — persis kebalikan dari maksud aturannya.
+         *
+         * Batas 2x menjaga niat aslinya (satu candle tidak boleh menghabiskan pane) tanpa
+         * membiarkan satu bar menentukan skala untuk semua bar lain.
+         */
+        const MAX_RANGE_GROWTH = 2;
         if (maxBody > 0 && maxBody > span * MAX_BODY_SHARE) {
-          const half = maxBody / MAX_BODY_SHARE / 2;
+          const wanted = maxBody / MAX_BODY_SHARE;
+          const half = Math.min(wanted, span * MAX_RANGE_GROWTH) / 2;
           return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
         }
         return res;
       },
     });
+
+    // Seri garis: penutupan saja. Dibuat sekarang, ditampilkan hanya saat diminta.
+    const lineSeries = chart.addSeries(LineSeries, {
+      color: "#b193ff",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      visible: false,
+      priceFormat: {
+        type: "custom",
+        formatter: (p: number) => formatSmallNumber(p, sigDigitsRef.current),
+        minMove: 1e-12,
+      },
+    });
+    lineSeriesRef.current = lineSeries;
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       color: "rgba(56, 189, 248, 0.35)",
@@ -656,28 +774,14 @@ export default function RealtimeCandleChart({
     if (!hasOscillator || !oscContainerRef.current) return;
 
     const osc = createChart(oscContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#030610" },
-        textColor: "#94a3b8",
-        fontSize: 11,
-        fontFamily: "monospace",
-        panes: { separatorColor: "rgba(255,255,255,0.12)", separatorHoverColor: "rgba(0,245,255,0.25)" },
-      },
-      grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.04)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.04)" },
-      },
-      crosshair: {
-        vertLine: { color: "#00F5FF", width: 1, style: 3 },
-        horzLine: { color: "#00F5FF", width: 1, style: 3 },
-      },
+      ...chartThemeOptions(readTheme()),
       // Sumbu waktu disembunyikan: label jamnya sudah ada di chart harga tepat di atas,
       // dan mengulanginya dua kali hanya menambah bising pada kotak setinggi 120 px.
-      timeScale: { borderColor: "rgba(255,255,255,0.1)", timeVisible: true, secondsVisible: false, visible: false },
+      timeScale: { borderColor: chartPalette(readTheme()).border, timeVisible: true, secondsVisible: false, visible: false },
       // Lebar sumbu SAMA dengan chart harga, kalau tidak area gambarnya beda lebar dan
       // bar osilator tidak lurus di bawah candle-nya.
       rightPriceScale: {
-        borderColor: "rgba(255,255,255,0.1)",
+        borderColor: chartPalette(readTheme()).border,
         scaleMargins: { top: 0.12, bottom: 0.12 },
         minimumWidth: PRICE_AXIS_WIDTH,
       },
@@ -899,8 +1003,35 @@ export default function RealtimeCandleChart({
         const data = await res.json();
         if (cancelled) return null;
 
-        const candles: Candle[] = Array.isArray(data.candles) ? data.candles : [];
+        let candles: Candle[] = Array.isArray(data.candles) ? data.candles : [];
         const totalTrades = Number(data.totalTrades || 0);
+
+        /**
+         * Konversi ke dolar memakai kurs yang DIREKAM, bukan kurs sekarang.
+         *
+         * Alasannya ada di `src/lib/usd-series.ts`. Yang penting di sini: kalau rekamannya
+         * belum cukup untuk menutupi seri ini, tampilannya JATUH ke native dan mengatakan
+         * kenapa — bukan menggambar dolar dari kurs yang salah zaman.
+         */
+        // Tidak lagi mensyaratkan `candles.length > 0`: syarat itulah yang membuat pasar tanpa
+        // fill menampilkan pane kosong, dan itu berlaku untuk SEMUA pasar baru, bukan satu.
+        if (unit === "usd") {
+          try {
+            const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
+            const fx = fxRes.ok ? await fxRes.json() : null;
+            const points: Array<[number, number]> = Array.isArray(fx?.points) ? fx.points : [];
+            const converted = toUsdCandles(candles, points, interval, undefined, 600, fallbackPriceNative);
+            if (converted.candles.length === 0) {
+              // Tidak ada kurs terekam untuk rentang ini: sumbu tetap native. Tidak ada
+              // kalimat di layar — satuan yang tampil sudah menyatakannya.
+            } else {
+              candles = converted.candles;
+            }
+          } catch {
+            // Riwayat kurs tidak terbaca: sumbu tetap native, tanpa kalimat tambahan.
+          }
+        }
+
         setSource(String(data.source || ""));
         setTradeCount(totalTrades);
         tradeCountRef.current = totalTrades;
@@ -957,6 +1088,19 @@ export default function RealtimeCandleChart({
           candleSeriesRef.current.setData(
             sorted.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close }))
           );
+          lineSeriesRef.current?.setData(
+            sorted.map((c) => ({ time: c.time as any, value: c.close }))
+          );
+          lineSeriesRef.current?.applyOptions({
+            visible: chartKind === "line",
+            priceFormat: {
+              type: "custom",
+              formatter: (p: number) =>
+                showMcap ? compactNumber(p) : formatSmallNumber(p, sigDigitsRef.current),
+              minMove: showMcap ? 0.01 : 1e-12,
+            },
+          });
+          candleSeriesRef.current.applyOptions({ visible: chartKind === "candles" });
           volumeSeriesRef.current?.setData(
             sorted.map((c) => ({
               time: c.time as any,
@@ -1013,19 +1157,20 @@ export default function RealtimeCandleChart({
             );
             const slots = Math.max(8, Math.round(drawable / BAR_SPACING));
 
-            let lastTraded = -1;
-            for (let i = sorted.length - 1; i >= 0; i--) {
-              if (sorted[i].volume > 0) {
-                lastTraded = i;
-                break;
-              }
-            }
-            // Tanpa satu pun bar bervolume, tidak ada yang bisa dijangkarkan; pakai ujung
-            // seri apa adanya.
-            const anchor =
-              lastTraded < 0
-                ? sorted.length
-                : Math.min(sorted.length, lastTraded + 1 + Math.ceil(slots * 0.15));
+            /**
+             * Jangkarnya UJUNG SERI, bukan bar perdagangan terakhir.
+             *
+             * Aturan lama menjangkar ke bar bervolume terakhir, dan itu benar selama seri
+             * berhenti di situ. Sejak sumbu USD membawa seri maju dengan kurs, perdagangan
+             * terakhir bisa berada ratusan bar di belakang — dan menjangkar ke sana berarti
+             * jendela memperlihatkan belasan bar pertama sementara seluruh bagian yang
+             * bergerak ada di luar layar. Gejalanya persis yang dikeluhkan: pada 1s sampai
+             * 15m zoom-nya kacau dan candle-nya raksasa.
+             *
+             * Ujung seri selalu "sekarang", jadi satu aturan ini benar di semua timeframe,
+             * dengan atau tanpa perdagangan baru.
+             */
+            const anchor = sorted.length;
 
             /**
              * Jendela DIPERSEMPIT ke datanya kalau barnya lebih sedikit dari slot yang
@@ -1042,7 +1187,25 @@ export default function RealtimeCandleChart({
              * tidak pernah lebih kecil dari yang pertama — yang justru keluhannya.
              */
             const MIN_SLOTS = 16;
-            const used = Math.max(MIN_SLOTS, Math.min(slots, Math.ceil(anchor * 1.25)));
+            /**
+             * Di satuan USD jendelanya DILEBARKAN sampai mencakup beberapa jam.
+             *
+             * Diukur: pada 1m, jendela selebar `slots` (~55 bar = 55 menit) menggambar seri
+             * yang benar-benar rata — 305 piksel candle, 0% tinggi pane — sementara 5m ke atas
+             * memakai 39%. Sebabnya bukan gambarnya: kurs native hanya bergerak berarti dalam
+             * puluhan menit, jadi jendela 55 menit memang nyaris tanpa perubahan. Melebarkan
+             * jendela memperlihatkan gerakan yang sudah ada di data, bukan menambah data.
+             *
+             * Hanya berlaku saat kurs yang menggerakkan seri. Di satuan native, lebar jendela
+             * tetap seperti semula supaya perdagangan per detik tetap bisa dibaca.
+             */
+            const MIN_USD_SPAN_SECONDS = 4 * 3600;
+            const wantBars =
+              unit === "usd" ? Math.ceil(MIN_USD_SPAN_SECONDS / interval) : 0;
+            const used = Math.max(
+              MIN_SLOTS,
+              Math.min(sorted.length, Math.max(Math.min(slots, Math.ceil(anchor * 1.25)), wantBars))
+            );
             chartRef.current
               ?.timeScale()
               .setVisibleLogicalRange(
@@ -1125,7 +1288,7 @@ export default function RealtimeCandleChart({
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [tfResolved, symbol, chainId, interval, refreshKey, showMcap]);
+  }, [tfResolved, symbol, chainId, interval, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -1134,6 +1297,8 @@ export default function RealtimeCandleChart({
   }, [enabledKey]);
 
   const priceUsd = priceNative * (nativeUsd || 0);
+  /** Apakah interval terpilih berada di bawah satu menit, supaya tombolnya bisa menyebutnya. */
+  const subMinuteActive = INTERVALS.some((i) => i.sub && i.seconds === interval);
   const changeIsUp = changePct >= 0;
 
   /**
@@ -1208,9 +1373,82 @@ export default function RealtimeCandleChart({
               ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
             </span>
           )}
+          {/* Kurs yang dipakai untuk angka USD di sebelahnya, dinyatakan.
+              Candle-nya digambar dalam satuan native, jadi harga USD di atas bergerak dua
+              sebab: fill baru, DAN {nativeSymbol} yang bergerak terhadap dolar. Tanpa kurs
+              yang tertulis, sebab kedua terlihat seperti chart yang berselisih dengan
+              headernya. Angkanya disegarkan tiap 15 detik oleh halaman ini. */}
+          {nativeUsd > 0 && (
+            <span
+              className="rounded border border-line px-1.5 py-0.5 text-[10px] text-ink-faint"
+              title={`USD figures on this chart use 1 ${nativeSymbol} = $${nativeUsd}, refreshed every 15 seconds. The candles themselves are priced in ${nativeSymbol}.`}
+              data-numeric
+            >
+              {nativeSymbol} ${nativeUsd < 1 ? nativeUsd.toFixed(4) : nativeUsd.toFixed(2)}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1 text-[11px]">
+          {/* Satuan sumbu: dolar, atau aset native chain. */}
+          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+            {(
+              [
+                ["USD", "usd"],
+                [nativeSymbol, "native"],
+              ] as const
+            ).map(([label, value]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setUnit(value);
+                  // Kalau sedang di bucket sub-menit, naikkan ke 1m: di USD bucket itu tidak
+                  // bisa memuat perubahan, jadi membiarkannya berarti menampilkan pane rata.
+                  if (value === "usd" && interval < 60) {
+                    setIntervalSeconds(60);
+                    setShowSubMinute(false);
+                  }
+                }}
+                aria-pressed={unit === value}
+                title={
+                  value === "usd"
+                    ? `Price in dollars, converted with recorded ${nativeSymbol}/USD rates. In this unit the market keeps moving when ${nativeSymbol} moves, even with no trades.`
+                    : `Price in ${nativeSymbol}, exactly as the curve prices it`
+                }
+                className={`px-2 py-0.5 font-bold transition-colors ${
+                  unit === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Bentuk: candle, atau garis penutupan. */}
+          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+            {(
+              [
+                ["Candles", "candles", ChartCandlestick],
+                ["Line", "line", LineChart],
+              ] as const
+            ).map(([label, value, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setChartKind(value)}
+                aria-pressed={chartKind === value}
+                aria-label={`${label} chart`}
+                title={`${label} chart`}
+                className={`px-2 py-1 transition-colors ${
+                  chartKind === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            ))}
+          </div>
+
           {/* Sumbu: harga per token, atau kapitalisasi. */}
           <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
             {[
@@ -1234,7 +1472,55 @@ export default function RealtimeCandleChart({
               </button>
             ))}
           </div>
-          {INTERVALS.map((i) => (
+          {/* Interval di bawah satu menit DILIPAT.
+              Barnya dulu menggambar kesebelas interval sejajar, dan tiga di antaranya —
+              1s, 5s, 15s — adalah yang paling jarang dipakai sekaligus yang paling
+              menuntut ruang di baris paling padat di halaman ini. Menit ke atas tetap
+              terlihat langsung, termasuk 1m yang merupakan bawaan; sub-menit pindah ke
+              satu tombol "s" dengan tanda kalau salah satunya sedang aktif. */}
+          {/* Sub-menit HANYA di satuan native.
+              Kurs direkam paling rapat sekali per menit, jadi di satuan USD bucket 1s/5s/15s
+              tidak mungkin memuat perubahan apa pun — yang tergambar selalu garis rata, dan itu
+              terbaca sebagai chart rusak. Tombolnya disembunyikan alih-alih dibiarkan
+              menghasilkan tampilan yang pasti kosong. */}
+          <div className={`relative ${unit === "usd" ? "hidden" : ""}`}>
+            <button
+              type="button"
+              onClick={() => setShowSubMinute((v) => !v)}
+              aria-expanded={showSubMinute}
+              aria-haspopup="true"
+              aria-label="Sub-minute timeframes"
+              title="Timeframes under one minute"
+              className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+                subMinuteActive || showSubMinute
+                  ? "bg-accent-soft text-accent border-accent/30"
+                  : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+              }`}
+            >
+              {subMinuteActive ? INTERVALS.find((i) => i.seconds === interval)?.label : "s"}
+            </button>
+            {showSubMinute && (
+              <div className="absolute left-0 top-full z-30 mt-1 flex gap-1 rounded-xl border border-line bg-surface p-1 shadow-[var(--shadow-panel)]">
+                {INTERVALS.filter((i) => i.sub).map((i) => (
+                  <button
+                    key={i.label}
+                    type="button"
+                    onClick={() => {
+                      setIntervalSeconds(i.seconds);
+                      setShowSubMinute(false);
+                    }}
+                    className={`rounded px-2 py-0.5 font-bold transition-colors ${
+                      interval === i.seconds ? "bg-accent-soft text-accent" : "text-ink-soft hover:bg-cream-3 hover:text-ink"
+                    }`}
+                  >
+                    {i.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {INTERVALS.filter((i) => !i.sub).map((i) => (
             <button
               key={i.label}
               type="button"
@@ -1264,7 +1550,7 @@ export default function RealtimeCandleChart({
               Indicators{activeCount > 0 ? ` (${activeCount})` : ""}
             </button>
             {showIndicatorMenu && (
-              <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-xl border border-line bg-white p-2 shadow-2xl space-y-0.5">
+              <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-xl border border-line bg-surface p-2 shadow-2xl space-y-0.5">
                 <p className="px-1 pb-1 text-[9px] uppercase tracking-wider text-ink-faint">On price</p>
                 {OVERLAYS.map((o) => (
                   <label
@@ -1343,7 +1629,7 @@ export default function RealtimeCandleChart({
        * harganya sudah dipatok sama. Labelnya yang diberi padding sendiri.
        */}
       {hasOscillator && (
-        <div className="mt-2 shrink-0 rounded-xl border border-line bg-white py-2">
+        <div className="mt-2 shrink-0 rounded-xl border border-line bg-surface py-2">
           <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
             <span>{oscillators.map((o) => o.label).join(" · ")}</span>
             {/* Teks TERENDER wajib bahasa Inggris. Versi pertama baris ini berbunyi
@@ -1385,6 +1671,15 @@ export default function RealtimeCandleChart({
           </span>
           Source: <span className={source === "onchain" ? "text-ok" : "text-warn"}>{sourceLabel}</span>
           {tradeCount > 0 ? ` · ${tradeCount} fills · ${candleCount} bars` : ""}
+          {/* TIDAK ada catatan "recorded rates / no trades" di sini.
+              Ia pernah ada, dan itu keliru: kalimat seperti itu menjelaskan cara kerja mesin
+              kepada orang yang sedang melihat harga, dan layar ini sudah mengatakan hal yang
+              sama dengan angka — toggle satuan menyebut USD, dan `Vol 0.0000` beserta volume
+              nol di feed sudah menyatakan tidak ada perdagangan. Menuliskannya lagi dengan
+              kata-kata hanya memenuhi baris status.
+              Keadaan yang benar-benar perlu diberitahukan adalah ketika sumbu USD TIDAK bisa
+              digambar, dan itu ditangani dengan jatuh ke satuan native — yang terlihat dari
+              toggle-nya sendiri. */}
         </span>
         {warmingUp.length > 0 ? (
           <span className="text-warn" title="An indicator is only drawn once it has a full window of data.">

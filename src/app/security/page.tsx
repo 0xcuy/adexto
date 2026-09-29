@@ -296,7 +296,7 @@ export default function SecurityPage() {
       {/* Header */}
       <div className="border-b-2 border-line pb-6 mb-10">
         <div className="kicker mb-3">SECURITY</div>
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink">
+        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">
           What the contracts guarantee, and what the tools actually found
         </h1>
         {/* Sengaja BUKAN "audited". Tidak ada firma yang mengaudit ini, dan menulis
@@ -311,11 +311,11 @@ export default function SecurityPage() {
           <code className="text-accent">scripts/security-scan.mjs</code> — never by hand.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[11px]">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 py-1 text-ink-soft">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-ink-soft">
             <GitCommit className="h-3.5 w-3.5 text-accent" />
             commit <a href={`${repoBase}/commit/${report.commit}`} className="font-bold text-accent hover:underline">{commitShort}</a>
           </span>
-          <span className="rounded-lg border border-line bg-white px-2.5 py-1 text-ink-soft">
+          <span className="rounded-lg border border-line bg-surface px-2.5 py-1 text-ink-soft">
             scanned <span className="font-bold text-ink">{new Date(report.generatedAt).toISOString().slice(0, 16).replace("T", " ")}Z</span>
           </span>
           {report.dirty && (
@@ -413,7 +413,7 @@ export default function SecurityPage() {
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {GUARANTEES.map((g) => (
-            <div key={g.title} className="rounded-xl border border-line bg-white p-4">
+            <div key={g.title} className="rounded-xl border border-line bg-surface p-4">
               <div className="mb-1 flex items-start gap-2">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
                 <div className="min-w-0">
@@ -438,7 +438,7 @@ export default function SecurityPage() {
         </p>
         <div className="space-y-2.5">
           {TRIAGE.map((t) => (
-            <div key={`${t.engine}-${t.finding}`} className="rounded-xl border border-line bg-white p-4">
+            <div key={`${t.engine}-${t.finding}`} className="rounded-xl border border-line bg-surface p-4">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
                 <code className="rounded bg-cream-3 px-1.5 py-0.5 font-mono text-[11px] font-bold text-ink">
                   {t.finding}
@@ -547,7 +547,7 @@ export default function SecurityPage() {
           the guarantees running on chain.
         </p>
 
-        <div className="mb-4 rounded-xl border border-line bg-white p-4">
+        <div className="mb-4 rounded-xl border border-line bg-surface p-4">
           <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-ink">
             <Terminal className="h-3.5 w-3.5 text-accent" /> Reproduce
           </div>

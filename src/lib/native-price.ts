@@ -83,9 +83,26 @@ export async function nativePrices(): Promise<NativePrices> {
 
   let ok = false;
   try {
+    /**
+     * `cache: "no-store"`, dan BUKAN `next: { revalidate: 30 }`.
+     *
+     * Ini memperbaiki cacat yang terukur. Dengan `revalidate`, Next menyimpan respons HTTP-nya
+     * sendiri di atas cache 60 detik milik berkas ini. Saat revalidasi itu berhenti berjalan —
+     * atau upstream menolak di latar belakang — `fetch` tetap MENGEMBALIKAN 200 dengan JSON
+     * lama, jadi `ok` bernilai true, `live` bernilai true, dan seluruh situs menyajikan harga
+     * yang beku sebagai harga hidup.
+     *
+     * Terukur: `/api/prices` menyajikan 0,287985 untuk 0G selama berjam-jam sambil menandainya
+     * `live`, sementara CoinGecko saat itu 0,3339 — selisih 14% yang mengalir ke setiap angka
+     * USD di situs ini (harga, market cap, nilai fee) dan ke riwayat kurs yang dipakai chart.
+     *
+     * Dengan `no-store`, satu-satunya cache adalah milik berkas ini, yang umurnya kita
+     * kendalikan dan yang kegagalannya jatuh ke nilai cadangan dengan `live: false` — persis
+     * pembedaan yang dijanjikan tipe ini.
+     */
     const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`, {
       signal: AbortSignal.timeout(12_000),
-      next: { revalidate: 30 },
+      cache: "no-store",
     } as RequestInit);
     if (res.ok) {
       const data = (await res.json()) as Record<string, { usd?: number }>;

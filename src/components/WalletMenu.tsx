@@ -179,7 +179,7 @@ export default function WalletMenu({
         {open && many && (
           <div
             role="menu"
-            className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-2xl"
+            className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
           >
             <p className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-ink-faint">
               {availableWallets.length > 0
@@ -257,8 +257,8 @@ export default function WalletMenu({
           grouped
             // Pembatasnya adalah border kiri segmen ini, bukan elemen tersendiri — satu
             // hairline yang tidak bisa bergeser dari pasangannya.
-            ? "h-full rounded-r-[11px] border-l border-line px-3 hover:bg-white"
-            : `rounded-xl border border-line bg-white hover:border-accent/30 ${
+            ? "h-full rounded-r-[11px] border-l border-line px-3 hover:bg-surface"
+            : `rounded-xl border border-line bg-surface hover:border-accent/30 ${
                 compact ? "w-full justify-between px-3 py-2" : "px-2.5 py-1.5"
               }`,
         ].join(" ")}
@@ -290,7 +290,7 @@ export default function WalletMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-line bg-white p-1.5 shadow-2xl"
+          className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
         >
           <div className="border-b border-line px-2 pb-2 pt-1.5">
             <p className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">
