@@ -44,7 +44,13 @@ interface Level {
   notionalNative: number;
 }
 
-const STEPS = [0.0025, 0.005, 0.01, 0.02, 0.04];
+/**
+ * Ukuran tiap level sebagai porsi reserve. Dua belas level, bukan lima: panel ini sekarang
+ * mengisi tinggi kolomnya, dan level yang tidak muat DIPOTONG dari yang terjauh — jadi panel
+ * pendek tetap memperlihatkan level terdekat ke harga, dan panel tinggi memperlihatkan lebih
+ * dalam.
+ */
+const STEPS = [0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.03, 0.04, 0.06, 0.08, 0.12, 0.16];
 
 export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd }: Props) {
   const [pool, setPool] = useState<PoolInfo | null>(null);
@@ -148,7 +154,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   const maxSize = Math.max(...asks.map((a) => a.sizeToken), ...bids.map((b) => b.sizeToken), 1);
 
   return (
-    <div className="flex h-full w-full flex-col text-[11px]" data-numeric>
+    <div className="flex h-full min-h-0 w-full flex-col text-[11px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <span className="text-ink-soft font-bold text-[10px] uppercase">Curve depth ladder</span>
         {asks.length > 0 && <span className="text-ink-faint text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}
@@ -163,10 +169,16 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
           <span className="text-ink-soft text-[10px] leading-relaxed">{pool.reason}</span>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col justify-between">
-          <div className="space-y-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Ask dirapatkan ke BAWAH dan bid ke ATAS, masing-masing memotong luapannya: level
+              terdekat ke harga selalu terlihat, level terjauh yang hilang lebih dulu. Di ponsel
+              tingginya dibatasi, karena di sana tidak ada kolom tetangga yang harus diimbangi. */}
+          <div
+            className="flex max-h-[118px] min-h-0 flex-1 flex-col justify-end gap-1 overflow-hidden lg:max-h-none lg:grow lg:basis-0"
+            data-depth="asks"
+          >
             {asks.map((a, idx) => (
-              <div key={`ask-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-danger/10 relative overflow-hidden">
+              <div key={`ask-${idx}`} className="flex shrink-0 justify-between items-center py-0.5 px-1 rounded bg-danger/10 relative overflow-hidden">
                 <div
                   className="absolute right-0 top-0 bottom-0 bg-danger/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (a.sizeToken / maxSize) * 100)}%` }}
@@ -180,7 +192,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             ))}
           </div>
 
-          <div className="my-1.5 py-1 px-2 rounded-lg bg-surface border border-accent/30 flex items-center justify-between">
+          <div className="my-1.5 shrink-0 py-1 px-2 rounded-lg bg-surface border border-accent/30 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
               <ArrowUp className="w-3.5 h-3.5 text-ok" />
               <span>{fmtPrice(spot)}</span>
@@ -191,9 +203,12 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             </span>
           </div>
 
-          <div className="space-y-1">
+          <div
+            className="flex max-h-[118px] min-h-0 flex-1 flex-col justify-start gap-1 overflow-hidden lg:max-h-none lg:grow lg:basis-0"
+            data-depth="bids"
+          >
             {bids.map((b, idx) => (
-              <div key={`bid-${idx}`} className="flex justify-between items-center py-0.5 px-1 rounded bg-ok/10 relative overflow-hidden">
+              <div key={`bid-${idx}`} className="flex shrink-0 justify-between items-center py-0.5 px-1 rounded bg-ok/10 relative overflow-hidden">
                 <div
                   className="absolute right-0 top-0 bottom-0 bg-ok/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (b.sizeToken / maxSize) * 100)}%` }}
@@ -207,7 +222,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             ))}
           </div>
 
-          <div className="pt-2 mt-1 border-t border-line flex items-center justify-between text-[9px] text-ink-faint">
+          <div className="pt-2 mt-1 shrink-0 border-t border-line flex items-center justify-between text-[9px] text-ink-faint">
             <span className="flex items-center gap-1">
               <ArrowDown className="w-2.5 h-2.5" /> Reserves
             </span>

@@ -648,8 +648,12 @@ export default function TokenTerminal({
       )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        {/* Left: chart + depth */}
-        <div className="lg:col-span-8 space-y-3">
+        {/* Left: chart + depth.
+            Kolom flex, dan kotak order book + feed mengambil SISA tingginya (`flex-1`). Kolom
+            kanan — posisi, swap, holder, chat — lebih tinggi dari chart, dan dulu selisihnya
+            menjadi celah kosong di bawah feed. Sekarang selisih itu menjadi baris fill dan level
+            kedalaman tambahan. */}
+        <div className="flex flex-col gap-3 lg:col-span-8">
           {/**
            * `min-h` dan bukan `h`: kotak osilator (RSI/MACD) dirender di dalam komponen
            * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
@@ -686,8 +690,10 @@ export default function TokenTerminal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="glass-panel p-4 rounded-card border border-line min-h-[260px] shadow-[var(--shadow-panel)] bg-surface overflow-hidden">
+          <div className="grid flex-1 grid-cols-1 gap-3.5 sm:grid-cols-2" data-testid="terminal-lower-left">
+            {/* Lantai 380px di desktop: cukup untuk lima level per sisi dan delapan fill ketika
+                kolom kanan pendek (tanpa dompet tersambung). */}
+            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:min-h-[380px]">
               <LiveOrderBook
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -695,7 +701,7 @@ export default function TokenTerminal({
                 nativeUsd={nativeUsd}
               />
             </div>
-            <div className="glass-panel p-4 rounded-card border border-line min-h-[260px] shadow-[var(--shadow-panel)] bg-surface overflow-hidden">
+            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:min-h-[380px]">
               <LiveTradeFeed
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -708,8 +714,9 @@ export default function TokenTerminal({
           </div>
         </div>
 
-        {/* Right: swap + chat */}
-        <div className="lg:col-span-4 space-y-3">
+        {/* Right: swap + chat. Kolom flex juga: kalau kolom kiri yang lebih tinggi (tanpa dompet
+            tersambung panel posisi tidak ada), kotak chat yang memanjang, bukan celah. */}
+        <div className="flex flex-col gap-3 lg:col-span-4">
           {/* Penghasilan creator.
               Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
               dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
@@ -930,7 +937,10 @@ export default function TokenTerminal({
           <HoldersPanel symbol={project.symbol} chainId={project.chainId} me={isConnected ? address : null} />
 
           {/* Agent chat */}
-          <div className="glass-panel p-4 rounded-card border border-line h-[340px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between overflow-hidden">
+          <div
+            className="glass-panel flex h-[340px] flex-col justify-between overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-auto lg:min-h-[340px] lg:flex-1"
+            data-testid="terminal-chat"
+          >
             <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-accent" />
@@ -941,7 +951,12 @@ export default function TokenTerminal({
               </span>
             </div>
 
-            <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-2 p-1 font-sans text-xs">
+            {/* `basis-0` di desktop: isi percakapan TIDAK boleh ikut menentukan tinggi kolom —
+                kotaknya mengikuti kolom, dan pesannya bergulir di dalamnya. */}
+            <div
+              ref={chatScrollRef}
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto p-1 font-sans text-xs lg:grow lg:basis-0"
+            >
               {chatMessages.map((m, idx) => (
                 <div
                   key={idx}

@@ -124,7 +124,7 @@ export default function LiveTradeFeed({
   const isLive = source === "onchain";
 
   return (
-    <div className="flex h-full w-full flex-col text-[11px]" data-numeric>
+    <div className="flex h-full min-h-0 w-full flex-col text-[11px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <Activity className={`w-3.5 h-3.5 ${isLive ? "text-ok animate-pulse" : "text-warn"}`} />
@@ -173,7 +173,12 @@ export default function LiveTradeFeed({
           fill berurutan, itu bentuk yang salah.
           Sekarang lima kolom tetap — umur, arah, ukuran, harga, trader — dengan kepala
           kolom yang menempel saat digulir. */}
-      <div className="flex-1 overflow-y-auto max-h-[210px] pr-1">
+      {/* Di desktop daftar ini mengisi sisa tinggi kolomnya — kolom kanan (posisi, swap, holder,
+          chat) lebih tinggi dari chart, dan ruang itu lebih berguna sebagai baris fill tambahan
+          daripada sebagai celah kosong. Di ponsel tingginya tetap dibatasi. */}
+      {/* `basis-0` di desktop: jumlah baris TIDAK ikut menentukan tinggi kolom. Tanpa itu daftar
+          50 fill membuat kolom kiri memanjang dan kotak chat di kanan ikut meregang kosong. */}
+      <div className="max-h-[260px] min-h-0 flex-1 overflow-y-auto pr-1 lg:max-h-none lg:grow lg:basis-0">
         {!loaded ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-faint">Loading…</div>
         ) : trades.length > 0 && shown.length === 0 ? (
