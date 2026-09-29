@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       </P>
 
       <H2>Stored in your browser</H2>
-      <P>Up to four keys, in localStorage, on your device only. They are never sent to us.</P>
+      <P>These keys, in localStorage, on your device only. They are never sent to us.</P>
       <UL>
         <li>
           <code className="text-ink">adexto_selected_chain</code> — which chain the interface is
@@ -48,12 +48,23 @@ export default function PrivacyPage() {
           theme yourself. Without it the site is dark.
         </li>
         <li>
+          <code className="text-ink">adexto_watchlist</code> — the markets you starred, only written once
+          you star one.
+        </li>
+        <li>
+          <code className="text-ink">adexto_wallet_rdns</code>, <code className="text-ink">adexto_wallet_disconnected</code>{" "}
+          and <code className="text-ink">adexto_wc_session</code> — which wallet you picked, whether you
+          disconnected it, and whether a WalletConnect session is open, so a reload does not reconnect a
+          wallet you closed.
+        </li>
+        <li>
           <code className="text-ink">adexto_cookie_consent</code> — your answer to the storage notice.
         </li>
       </UL>
       <P>
-        Choosing <strong>Essential only</strong> in that notice deletes the first three immediately and
-        stops them being written again. Your wallet will simply not reconnect on its own afterwards.
+        Choosing <strong>Essential only</strong> in that notice deletes the chain, address, theme and
+        watchlist keys immediately and stops them being written again. Your wallet will simply not
+        reconnect on its own afterwards, and a watchlist lasts only until you close the tab.
       </P>
 
       <H2>Cookies</H2>

@@ -16,7 +16,12 @@ import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import RealtimeCandleChart from "@/components/RealtimeCandleChart";
 import LiveOrderBook from "@/components/LiveOrderBook";
 import LiveTradeFeed from "@/components/LiveTradeFeed";
+import MarketStatsStrip from "@/components/MarketStatsStrip";
+import MyPositionPanel from "@/components/MyPositionPanel";
+import HoldersPanel from "@/components/HoldersPanel";
+import WatchStar from "@/components/WatchStar";
 import MarketOwnerActions from "@/components/MarketOwnerActions";
+import { refreshMarketTelemetry, useMarketTelemetry } from "@/lib/use-market-telemetry";
 import Link from "next/link";
 import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { claimCreatorFees, describeTxError } from "@/lib/dex";
@@ -114,6 +119,13 @@ export default function TokenTerminal({
 
   const swap = useSovereignSwap(market, address);
   const chain = swap.chain;
+
+  // Feed, strip statistik, dan filter membaca satu pengambilan yang sama.
+  const telemetry = useMarketTelemetry(project.symbol, project.chainId);
+  useEffect(() => {
+    // Perdagangan pengguna baru terkonfirmasi: ambil ulang sekarang, jangan tunggu polling.
+    if (swap.txHash) void refreshMarketTelemetry(project.symbol, project.chainId);
+  }, [swap.txHash, project.symbol, project.chainId]);
 
   const [prices, setPrices] = useState<AssetPrices>(STABLE_PRICES);
   const [showSlippage, setShowSlippage] = useState(false);
@@ -329,6 +341,7 @@ export default function TokenTerminal({
               <span className="rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
                 ${project.symbol}
               </span>
+              <WatchStar chainId={project.chainId} symbol={project.symbol} size="sm" />
               {project.verified ? (
                 <span className="inline-flex items-center gap-1 rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
                   <ShieldCheck className="w-3 h-3" /> Contract verified on-chain
@@ -491,6 +504,14 @@ export default function TokenTerminal({
         </div>
       </div>
 
+      {/* Statistik perdagangan, dari himpunan yang sama dengan feed di bawah. */}
+      <MarketStatsStrip
+        stats={telemetry.stats}
+        loaded={telemetry.loaded}
+        nativeSymbol={chain.nativeSymbol}
+        nativeUsd={nativeUsd}
+      />
+
       {/* Chain switcher. Selalu tampil, dan selalu menampilkan SEMUA chain yang
           didukung — bukan hanya chain tempat token ini ada. Dulu panel ini
           disembunyikan bila token hanya ada di satu chain, sehingga di terminal
@@ -652,6 +673,8 @@ export default function TokenTerminal({
                * data ulang saat itu juga alih-alih menunggu polling 15 detiknya.
                */
               refreshKey={swap.txHash}
+              me={isConnected ? address : null}
+              creator={project.creator}
             />
             <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-surface p-2.5 text-[11px] text-ink-soft">
               <span className="flex items-center gap-1.5 text-ink">
@@ -673,7 +696,14 @@ export default function TokenTerminal({
               />
             </div>
             <div className="glass-panel p-4 rounded-card border border-line min-h-[260px] shadow-[var(--shadow-panel)] bg-surface overflow-hidden">
-              <LiveTradeFeed symbol={project.symbol} chainId={project.chainId} nativeUsd={nativeUsd} />
+              <LiveTradeFeed
+                symbol={project.symbol}
+                chainId={project.chainId}
+                nativeUsd={nativeUsd}
+                me={isConnected ? address : null}
+                creator={project.creator}
+                supply={project.supply}
+              />
             </div>
           </div>
         </div>
@@ -767,6 +797,11 @@ export default function TokenTerminal({
               <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
               <WalletMenu />
             </div>
+          )}
+
+          {/* Posisi dompet ini di pasar ini, dari perdagangannya sendiri di chain. */}
+          {isConnected && address && (
+            <MyPositionPanel symbol={project.symbol} chainId={project.chainId} wallet={address} refreshKey={swap.txHash} />
           )}
 
           <div className="glass-panel space-y-3 rounded-card p-5">
@@ -890,6 +925,9 @@ export default function TokenTerminal({
               </p>
             )}
           </div>
+
+          {/* Distribusi pemegang, dari seluruh Transfer sejak mint. */}
+          <HoldersPanel symbol={project.symbol} chainId={project.chainId} me={isConnected ? address : null} />
 
           {/* Agent chat */}
           <div className="glass-panel p-4 rounded-card border border-line h-[340px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between overflow-hidden">

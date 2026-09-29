@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Flame, Activity, ExternalLink, Info } from "lucide-react";
 import { explorerTxUrl } from "@/lib/chains";
 import { formatSmallNumber } from "@/lib/pricing";
+import { tradeWallet } from "@/lib/market-stats";
+import { useMarketTelemetry } from "@/lib/use-market-telemetry";
 
 /**
  * Trade feed backed by the same telemetry endpoint as the chart.
@@ -24,6 +26,8 @@ interface Trade {
   nativeSymbol: string;
   priceNative: number;
   trader: string;
+  /** Penerima di event `Swap`; untuk beli lewat relai, inilah pembelinya. */
+  recipient?: string | null;
   timestamp: string;
   chainId: number;
   source: "onchain" | "agent" | "genesis";
@@ -60,45 +64,62 @@ interface Coverage {
   error: string | null;
 }
 
+/**
+ * Filter feed. "Large" berarti fill yang memindahkan setidaknya 1% suplai: ukuran yang
+ * berarti relatif terhadap pasarnya sendiri, tanpa bergantung pada kurs, dan bisa dijelaskan
+ * dalam satu kalimat. Ambang dolar tetap akan berarti "semua" di satu pasar dan "tidak ada"
+ * di pasar lain.
+ */
+type FeedFilter = "all" | "mine" | "dev" | "large";
+const LARGE_SHARE_OF_SUPPLY = 0.01;
+
 export default function LiveTradeFeed({
   symbol,
   chainId,
   nativeUsd,
+  me,
+  creator,
+  supply,
 }: {
   symbol: string;
   /** Which chain's fills to show — each chain has its own pool and history. */
   chainId: number;
   nativeUsd: number;
+  /** Dompet yang tersambung, untuk filter "Mine" dan tanda YOU. */
+  me?: string | null;
+  /** Alamat peluncur, untuk filter "Dev" dan tanda DEV. */
+  creator?: string | null;
+  /** Suplai utuh, untuk ambang "Large". */
+  supply: number;
 }) {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [source, setSource] = useState<string>("");
-  const [coverage, setCoverage] = useState<Coverage | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Satu pengambilan bersama dengan strip statistik; lihat `use-market-telemetry.ts`.
+  const telemetry = useMarketTelemetry(symbol, chainId);
+  const trades = telemetry.trades as Trade[];
+  const source = telemetry.source;
+  const coverage = telemetry.coverage as Coverage | null;
+  const loaded = telemetry.loaded;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch(`/api/agent/telemetry?symbol=${encodeURIComponent(symbol)}&chainId=${chainId}`);
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled) return;
-        setTrades(Array.isArray(json.trades) ? json.trades : []);
-        setSource(String(json.source || ""));
-        setCoverage(json.coverage ?? null);
-      } catch {
-        // keep previous
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    }
-    load();
-    const timer = setInterval(load, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [symbol, chainId]);
+  const [filter, setFilter] = useState<FeedFilter>("all");
+  const meL = (me || "").toLowerCase();
+  const devL = (creator || "").toLowerCase();
+  const largeMin = supply > 0 ? supply * LARGE_SHARE_OF_SUPPLY : Number.POSITIVE_INFINITY;
+  const isMine = (t: Trade) => Boolean(meL) && tradeWallet(t) === meL;
+  const isDev = (t: Trade) => Boolean(devL) && tradeWallet(t) === devL;
+  const isLarge = (t: Trade) => t.amountToken >= largeMin;
+  const shown = trades.filter((t) =>
+    filter === "mine" ? isMine(t) : filter === "dev" ? isDev(t) : filter === "large" ? isLarge(t) : true
+  );
+  const FILTERS: Array<{ key: FeedFilter; label: string; title: string; disabled?: boolean }> = [
+    { key: "all", label: "All", title: "Every fill" },
+    {
+      key: "mine",
+      label: "Mine",
+      title: meL ? "Fills where the connected wallet bought or sold" : "Connect a wallet to see your fills",
+      disabled: !meL,
+    },
+    { key: "dev", label: "Dev", title: "Fills by the wallet that launched this market" },
+    { key: "large", label: "Large", title: "Fills of at least 1% of the supply" },
+  ];
 
   const isLive = source === "onchain";
 
@@ -120,6 +141,30 @@ export default function LiveTradeFeed({
         </span>
       </div>
 
+      <div className="mb-2 flex shrink-0 items-center gap-1" role="group" aria-label="Filter trades">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            disabled={f.disabled}
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+            title={f.title}
+            data-feed-filter={f.key}
+            className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              filter === f.key
+                ? "border-accent/30 bg-accent-soft text-accent"
+                : "border-transparent bg-cream-3 text-ink-soft hover:text-ink"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+        <span className="ml-auto text-[9px] text-ink-faint" data-feed-count={shown.length}>
+          {loaded ? `${shown.length} fill${shown.length === 1 ? "" : "s"}` : ""}
+        </span>
+      </div>
+
       {/* Tabel, bukan tumpukan kartu.
           Versi sebelumnya menggambar tiap fill sebagai kartu berbingkai berwarna dengan
           isinya tersusun bebas, jadi tidak ada satu pun kolom yang bisa dibandingkan antar
@@ -131,6 +176,14 @@ export default function LiveTradeFeed({
       <div className="flex-1 overflow-y-auto max-h-[210px] pr-1">
         {!loaded ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-faint">Loading…</div>
+        ) : trades.length > 0 && shown.length === 0 ? (
+          <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-ink-soft">
+            {filter === "mine"
+              ? "The connected wallet has no fills in this market."
+              : filter === "dev"
+              ? "The creator has not traded in this market."
+              : "No fill has reached 1% of the supply."}
+          </div>
         ) : trades.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 px-3 text-center">
             <Info className="h-4 w-4 text-ink-faint" />
@@ -150,16 +203,22 @@ export default function LiveTradeFeed({
           <table className="w-full table-fixed border-collapse text-left">
             <thead className="sticky top-0 z-10 bg-surface">
               <tr className="text-[9px] uppercase tracking-[0.08em] text-ink-faint">
-                <th scope="col" className="w-[11%] pb-1.5 font-semibold">age</th>
-                <th scope="col" className="w-[16%] pb-1.5 font-semibold">side</th>
-                <th scope="col" className="w-[30%] pb-1.5 text-right font-semibold">size</th>
-                <th scope="col" className="w-[24%] pb-1.5 text-right font-semibold">price</th>
-                <th scope="col" className="w-[19%] pb-1.5 text-right font-semibold">trader</th>
+                <th scope="col" className="w-[9%] pb-1.5 font-semibold">age</th>
+                <th scope="col" className="w-[11%] pb-1.5 font-semibold">side</th>
+                <th scope="col" className="w-[27%] pb-1.5 text-right font-semibold">size</th>
+                <th scope="col" className="w-[22%] pb-1.5 text-right font-semibold">price</th>
+                <th scope="col" className="w-[31%] pb-1.5 text-right font-semibold">trader</th>
               </tr>
             </thead>
             <tbody>
-              {trades.slice(0, 50).map((t) => {
+              {shown.slice(0, 50).map((t) => {
                 const buy = t.type === "BUY";
+                // Alamat yang ditampilkan adalah pemegang hasilnya; untuk beli lewat relai itu
+                // penerimanya, dan relainya disebut di tooltip.
+                const wallet = tradeWallet(t);
+                const relayed = Boolean(t.recipient) && t.type === "BUY" && t.recipient!.toLowerCase() !== t.trader.toLowerCase();
+                const mine = isMine(t);
+                const dev = isDev(t);
                 const burn = t.type === "AUTO_BUYBACK";
                 const tone = burn ? "text-accent" : buy ? "text-ok" : "text-danger";
                 /* Harga per token, bukan nilai fill: itu yang membuat baris berurutan bisa
@@ -168,7 +227,13 @@ export default function LiveTradeFeed({
                    yang dikarang dari kurs nol. */
                 const priceUsd = t.priceNative * (nativeUsd || 0);
                 return (
-                  <tr key={t.id} className="border-t border-line/60 align-baseline">
+                  <tr
+                    key={t.id}
+                    className={`border-t border-line/60 align-baseline ${mine ? "bg-accent-soft/40" : ""}`}
+                    data-trade-row
+                    data-mine={mine ? "1" : "0"}
+                    data-dev={dev ? "1" : "0"}
+                  >
                     <td className="py-1.5 text-[10px] text-ink-faint">{ago(t.timestamp)}</td>
                     <td className={`py-1.5 text-[10px] font-semibold ${tone}`}>
                       {burn ? (
@@ -190,18 +255,30 @@ export default function LiveTradeFeed({
                       {t.source === "genesis" ? (
                         <span className="text-ink-faint">reference</span>
                       ) : (
-                        <a
-                          href={explorerTxUrl(t.chainId, t.txHash)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={`${t.trader} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
-                            nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
-                          }`}
-                          className="inline-flex items-center gap-0.5 font-mono text-accent hover:underline"
-                        >
-                          {t.trader.slice(0, 6)}…{t.trader.slice(-4)}
-                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                        </a>
+                        <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                          {mine && (
+                            <span className="rounded bg-accent-soft px-1 text-[8px] font-bold text-accent" title="Your wallet">
+                              YOU
+                            </span>
+                          )}
+                          {dev && (
+                            <span className="rounded bg-warn/15 px-1 text-[8px] font-bold text-warn" title="The wallet that launched this market">
+                              DEV
+                            </span>
+                          )}
+                          <a
+                            href={explorerTxUrl(t.chainId, t.txHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`${wallet}${relayed ? ` · bought through ${t.trader}` : ""} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
+                              nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
+                            }`}
+                            className="inline-flex items-center gap-0.5 font-mono text-accent hover:underline"
+                          >
+                            {wallet.slice(0, 6)}…{wallet.slice(-4)}
+                            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                          </a>
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -230,7 +307,7 @@ export default function LiveTradeFeed({
               only, older fills not read
             </span>
           )}
-          {trades.length > 50 && <span> · showing the latest 50</span>}
+          {shown.length > 50 && <span> · showing the latest 50</span>}
         </div>
       )}
     </div>

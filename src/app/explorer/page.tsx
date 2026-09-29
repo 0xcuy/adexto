@@ -6,9 +6,11 @@ import { CHAIN_LIST, explorerAddressUrl, resolveChainOrDefault } from "@/lib/cha
 import { STABLE_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, type AssetPrices } from "@/lib/pricing";
 import {
   Search, ExternalLink, ShieldCheck, ArrowUpRight, CheckCircle2,
-  CloudLightning, Sparkles, AlertTriangle, Lock, RefreshCw,
+  CloudLightning, Sparkles, AlertTriangle, Lock, RefreshCw, Star,
 } from "lucide-react";
 import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
+import WatchStar from "@/components/WatchStar";
+import { useWatchlist } from "@/lib/watchlist";
 
 /**
  * Live market index.
@@ -69,6 +71,9 @@ export default function ExplorerPage() {
   /** Urutan daftar. Lihat catatan di atas `sorted`. */
   const [sort, setSort] = useState<"largest" | "newest">("largest");
   const [search, setSearch] = useState("");
+  /** Hanya pasar berbintang. Watchlist disimpan di peramban ini saja (`src/lib/watchlist.ts`). */
+  const [watchOnly, setWatchOnly] = useState(false);
+  const watchlist = useWatchlist();
 
   useEffect(() => {
     let cancelled = false;
@@ -159,9 +164,10 @@ export default function ExplorerPage() {
           p.name.toLowerCase().includes(needle) ||
           p.symbol.toLowerCase().includes(needle) ||
           p.tokenAddress.toLowerCase().includes(needle);
-        return matchesCategory && matchesChain && matchesSearch;
+        const matchesWatch = !watchOnly || watchlist.keys.includes(p.marketKey);
+        return matchesCategory && matchesChain && matchesSearch && matchesWatch;
       }),
-    [projects, category, chainFilter, search]
+    [projects, category, chainFilter, search, watchOnly, watchlist.keys]
   );
 
   /**
@@ -273,6 +279,19 @@ export default function ExplorerPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setWatchOnly((v) => !v)}
+            aria-pressed={watchOnly}
+            title="Show only the markets you starred in this browser"
+            data-watch-filter
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              watchOnly ? "border-warn/40 bg-warn/10 text-warn" : "border-line bg-cream-2 text-ink-soft hover:text-ink"
+            }`}
+          >
+            <Star className="h-3.5 w-3.5" fill={watchOnly ? "currentColor" : "none"} />
+            Watchlist{watchlist.ready ? ` (${watchlist.keys.length})` : ""}
+          </button>
           <div role="group" aria-label="Filter markets by chain" className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
@@ -347,7 +366,11 @@ export default function ExplorerPage() {
           </Link>
         </div>
       ) : sorted.length === 0 ? (
-        <div className="py-20 text-center text-sm text-ink-soft">No markets match this filter.</div>
+        <div className="py-20 text-center text-sm text-ink-soft">
+          {watchOnly && watchlist.keys.length === 0
+            ? "Your watchlist is empty. Star a market to keep it here."
+            : "No markets match this filter."}
+        </div>
       ) : (
         <div className="glass-panel overflow-hidden rounded-card">
           {/* Kepala kolom hanya di desktop; di ponsel tiap baris jadi kartu ringkas.
@@ -438,6 +461,7 @@ export default function ExplorerPage() {
                     </span>
 
                     <span className="flex items-center justify-end gap-2">
+                      <WatchStar chainId={p.chainId} symbol={p.symbol} size="sm" />
                       <span className="text-right lg:hidden" data-numeric>
                         <span className="block text-[13px] font-medium text-ink">
                           {p.priceUsd > 0 ? formatUsd(p.priceUsd) : "—"}

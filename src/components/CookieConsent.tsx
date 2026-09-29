@@ -13,8 +13,9 @@ import { Cookie, X } from "lucide-react";
  * di repo ini: TIDAK ADA satu pun cookie yang kami setel, dan tidak ada analitik kami
  * sendiri. Yang benar-benar ada hanya ini:
  *
- *   - tiga kunci `localStorage`: `adexto_selected_chain`, `adexto_wallet_address`, dan
- *     `adexto_theme` (hanya ada bila pengguna pernah mengganti tema)
+ *   - empat kunci `localStorage`: `adexto_selected_chain`, `adexto_wallet_address`,
+ *     `adexto_theme` (hanya ada bila pengguna pernah mengganti tema), dan `adexto_watchlist`
+ *     (hanya ada bila pengguna pernah menandai pasar dengan bintang)
  *   - IP di MEMORI untuk pembatas laju, lewat `cf-connecting-ip`, dalam sebuah Map yang
  *     hilang begitu proses restart — tidak pernah ditulis ke disk
  *   - cookie keamanan Cloudflare (`__cf_bm` dan sejenisnya), disetel oleh jaringan di depan
@@ -35,7 +36,7 @@ import { Cookie, X } from "lucide-react";
 
 const KEY = "adexto_cookie_consent";
 /** Kunci yang dikelola pilihan ini. Semuanya preferensi, bukan kebutuhan keamanan. */
-const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address", "adexto_theme"];
+const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address", "adexto_theme", "adexto_watchlist"];
 
 type Choice = "all" | "essential";
 

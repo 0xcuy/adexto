@@ -10,9 +10,14 @@ import {
   LineStyle,
   PriceScaleMode,
   IChartApi,
+  createSeriesMarkers,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
 } from "lightweight-charts";
 import { ChartCandlestick, LineChart } from "lucide-react";
 import { formatSmallNumber } from "@/lib/pricing";
+import { tradeWallet } from "@/lib/market-stats";
 import { toUsdCandles } from "@/lib/usd-series";
 import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicators";
 import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
@@ -147,7 +152,22 @@ interface Props {
    * MCAP dan FDV bernilai sama, dan menyebutnya "market cap" tidak melebihkan apa pun.
    */
   supply: number;
+  /** Dompet yang tersambung. Perdagangannya ditandai B/S di chart. */
+  me?: string | null;
+  /** Alamat peluncur pasar. Perdagangannya ditandai DEV, supaya penjualan dev terlihat. */
+  creator?: string | null;
 }
+
+/**
+ * Warna tanda perdagangan. Milik sendiri memakai hijau/merah candle; milik dev memakai
+ * violet/jingga supaya tidak tertukar dengan milik sendiri di bar yang sama.
+ */
+const MARK_COLORS = {
+  meBuy: "#10b981",
+  meSell: "#f43f5e",
+  devBuy: "#b193ff",
+  devSell: "#f59e0b",
+} as const;
 
 /**
  * Interval sub-menit ada karena kurva yang baru lahir diperdagangkan per detik, bukan
@@ -304,8 +324,17 @@ export default function RealtimeCandleChart({
   refreshKey,
   supply,
   launchedAt,
+  me,
+  creator,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  /** Plugin tanda perdagangan untuk seri candle dan seri garis (v5: `createSeriesMarkers`). */
+  const candleMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const lineMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  /** Tanda perdagangan menyala secara bawaan; bisa dimatikan dari toolbar. */
+  const [showMarks, setShowMarks] = useState(true);
+  /** Ringkasan tanda yang sedang tergambar, dipasang sebagai atribut data untuk pemeriksaan. */
+  const [markSummary, setMarkSummary] = useState({ me: 0, dev: 0, bars: 0 });
   /**
    * Kontainer dan chart TERPISAH untuk osilator (RSI, MACD).
    *
@@ -783,6 +812,10 @@ export default function RealtimeCandleChart({
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+    // Satu plugin per seri: tanda di seri yang sedang disembunyikan ikut tersembunyi, jadi
+    // keduanya diisi sama dan yang tampil mengikuti bentuk chart.
+    candleMarksRef.current = createSeriesMarkers(candleSeries, []);
+    lineMarksRef.current = createSeriesMarkers(lineSeries, []);
 
     /**
      * ResizeObserver, bukan hanya event `resize` window.
@@ -811,6 +844,8 @@ export default function RealtimeCandleChart({
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      candleMarksRef.current = null;
+      lineMarksRef.current = null;
       overlayRefs.current = {};
       paneRefs.current = {};
     };
@@ -1199,6 +1234,58 @@ export default function RealtimeCandleChart({
           drawIndicators(sorted);
           setLegend(sorted[sorted.length - 1]);
 
+          /**
+           * Tanda perdagangan: milik dompet yang tersambung (B/S) dan milik peluncur (DEV).
+           *
+           * Satu tanda per bar per jenis per arah, dengan hitungan bila lebih dari satu —
+           * sepuluh panah bertumpuk di satu bar tidak terbaca. Hanya bar yang ADA di seri yang
+           * ditandai: tanda untuk waktu tanpa bar akan ditaruh pustaka di bar terdekat dan
+           * menyatakan perdagangan terjadi pada waktu yang salah.
+           *
+           * Dompet sebuah perdagangan adalah penerima token untuk beli dan penjual untuk jual
+           * (`tradeWallet`), jadi pembelian lewat relai x402 ditandai milik pembelinya.
+           */
+          const meL = (me || "").toLowerCase();
+          const devL = (creator || "").toLowerCase();
+          const barTimes = new Set(sorted.map((c) => c.time));
+          const groups = new Map<string, { time: number; kind: "me" | "dev"; buy: boolean; n: number }>();
+          if (showMarks && (meL || devL) && Array.isArray(data.trades)) {
+            for (const t of data.trades as Array<{ type: string; timestamp: string; trader: string; recipient?: string | null }>) {
+              if (t.type !== "BUY" && t.type !== "SELL") continue;
+              const wallet = tradeWallet(t);
+              const kind = meL && wallet === meL ? "me" : devL && wallet === devL ? "dev" : null;
+              if (!kind) continue;
+              const seconds = Math.floor(Date.parse(t.timestamp) / 1000);
+              if (!Number.isFinite(seconds)) continue;
+              const time = Math.floor(seconds / interval) * interval;
+              if (!barTimes.has(time)) continue;
+              const buy = t.type === "BUY";
+              const key = `${time}:${kind}:${buy}`;
+              const g = groups.get(key);
+              if (g) g.n += 1;
+              else groups.set(key, { time, kind, buy, n: 1 });
+            }
+          }
+          const marks: SeriesMarker<Time>[] = [...groups.values()]
+            .sort((a, b) => a.time - b.time)
+            .map((g) => ({
+              time: g.time as Time,
+              position: g.buy ? "belowBar" : "aboveBar",
+              shape: g.buy ? "arrowUp" : "arrowDown",
+              color: g.kind === "me" ? (g.buy ? MARK_COLORS.meBuy : MARK_COLORS.meSell) : g.buy ? MARK_COLORS.devBuy : MARK_COLORS.devSell,
+              // Label satu huruf: pada bar yang berdekatan label panjang ("DEV B ×4") saling
+              // menimpa dan tidak terbaca. Arah panah dan warna sudah menyatakan beli/jual dan
+              // milik siapa; "D" = peluncur.
+              text: g.kind === "me" ? (g.buy ? "B" : "S") : "D",
+            }));
+          candleMarksRef.current?.setMarkers(marks);
+          lineMarksRef.current?.setMarkers(marks);
+          setMarkSummary({
+            me: [...groups.values()].filter((g) => g.kind === "me").reduce((s, g) => s + g.n, 0),
+            dev: [...groups.values()].filter((g) => g.kind === "dev").reduce((s, g) => s + g.n, 0),
+            bars: marks.length,
+          });
+
           const fitKey = `${symbol}:${chainId}:${interval}:${range ?? ""}`;
           if (range && fittedFor.current !== fitKey) {
             /**
@@ -1389,7 +1476,7 @@ export default function RealtimeCandleChart({
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
+  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol, me, creator, showMarks]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -1683,6 +1770,25 @@ export default function RealtimeCandleChart({
             );
           })}
 
+          {/* Tanda perdagangan milik sendiri (B/S) dan milik peluncur (DEV). */}
+          <button
+            type="button"
+            onClick={() => setShowMarks((v) => !v)}
+            aria-pressed={showMarks}
+            title={
+              me
+                ? "Mark your trades (B/S) and the creator's trades (D) on the chart"
+                : "Mark the creator's trades (D) on the chart. Connect a wallet to mark yours too"
+            }
+            className={`ml-1 px-2 py-0.5 rounded font-bold border transition-colors ${
+              showMarks
+                ? "bg-accent-soft text-accent border-accent/30"
+                : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+            }`}
+          >
+            Marks
+          </button>
+
           <div className="relative ml-1">
             <button
               type="button"
@@ -1763,7 +1869,14 @@ export default function RealtimeCandleChart({
 
       {/* min-h dinaikkan dari 300 ke 460: tinggi chart sekarang dibaca dari kontainer ini,
           jadi kelas inilah yang menentukan seberapa besar terminalnya. */}
-      <div ref={containerRef} className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl" />
+      <div
+        ref={containerRef}
+        className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl"
+        data-testid="price-chart"
+        data-marks-me={markSummary.me}
+        data-marks-dev={markSummary.dev}
+        data-marks-bars={markSummary.bars}
+      />
 
       {/**
        * Kotak osilator: TERPISAH dari chart harga, bukan pane di dalamnya.
