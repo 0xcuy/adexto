@@ -1,6 +1,16 @@
 import { plainDecimal } from "@/lib/pricing";
 
 /**
+ * Versi tampilan kartu, ikut di URL kartu sebagai `&v=`.
+ *
+ * Kartu versi pertama dikirim dengan bawaan `ImageResponse`, `immutable, max-age=31536000`, jadi
+ * peramban dan pratinjau tautan yang pernah membukanya menyimpan kartu itu setahun tanpa pernah
+ * bertanya lagi — termasuk kartu yang tautannya `0.0.0.0:3000`. URL baru adalah satu-satunya
+ * cara menjangkau mereka. Naikkan angka ini setiap kali tampilan kartu berubah.
+ */
+export const SHARE_CARD_VERSION = 2;
+
+/**
  * Format angka uang untuk KARTU GAMBAR.
  *
  * Kartu tidak bisa memakai `formatUsd` situs ini, karena notasi subskripnya (`0.0₅58`) tidak

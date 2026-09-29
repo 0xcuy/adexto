@@ -8,6 +8,7 @@ import Mascot, { type MascotPose } from "@/components/Mascot";
 import { buildUpdateMessage, imageFingerprint } from "@/lib/market-update";
 import { readSquareLogoFile } from "@/lib/logo-upload";
 import { ACCEPT_ATTR, LOGO_PX, MAX_UPLOAD_MB } from "@/lib/logo-image";
+import { SHARE_CARD_VERSION } from "@/lib/share-card-format";
 
 /**
  * Tindakan pemilik pasar: bagikan, sunting keterangan, ganti gambar.
@@ -203,7 +204,7 @@ export default function MarketOwnerActions({
                 disimpan lewat tekan-tahan. */}
             <a
               role="menuitem"
-              href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}?chain=${chainId}`}
+              href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}?chain=${chainId}&v=${SHARE_CARD_VERSION}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-lg border-t border-line px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
@@ -218,7 +219,7 @@ export default function MarketOwnerActions({
             {isConnected && address && (
               <a
                 role="menuitem"
-                href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}/position?chain=${chainId}&holder=${address}`}
+                href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}/position?chain=${chainId}&holder=${address}&v=${SHARE_CARD_VERSION}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"

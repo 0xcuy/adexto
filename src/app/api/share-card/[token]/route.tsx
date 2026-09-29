@@ -2,9 +2,11 @@ import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
-import { STABLE_PRICES, assetPriceUsd, formatUsd } from "@/lib/pricing";
+import { nativePrices } from "@/lib/native-price";
+import { STABLE_PRICES, assetPriceUsd, formatUsd, type AssetPrices } from "@/lib/pricing";
 import { cardNative, cardUsd } from "@/lib/share-card-format";
-import { robotImage } from "@/lib/share-card-assets";
+import { brandMark, publicOrigin, robotImage, tokenLogoSrc } from "@/lib/share-card-assets";
+import { CARD_COLORS, ShareCard, chainChipLabel } from "@/lib/share-card-layout";
 
 /**
  * Kartu bagikan: gambar 1200x630 untuk sebuah pasar.
@@ -21,19 +23,27 @@ import { robotImage } from "@/lib/share-card-assets";
  * Tidak ada klaim performa, tidak ada "naik X%", dan tidak ada PnL. Angka seperti itu butuh
  * riwayat yang kami tidak punya untuk setiap pasar, dan kartu yang menjanjikannya akan
  * dibagikan lebih jauh daripada halaman yang bisa mengoreksinya. Yang ditulis hanya keadaan
- * saat kartu dibuat: harga, kapitalisasi, chain.
+ * saat kartu dibuat: kapitalisasi, harga, chain.
+ *
+ * TIDAK ADA YANG DIBACA LEWAT JARINGAN SENDIRI
+ *
+ * Alamat, harga, dan gambar semuanya diselesaikan di proses ini. Alasannya — `req.url` di
+ * dalam kontainer adalah `https://0.0.0.0:3000` — ada di `src/lib/share-card-assets.ts`.
  *
  * `runtime` dibiarkan Node (bawaan) karena registry membaca berkas dari disk.
  */
 
 export const dynamic = "force-dynamic";
 
-const CHARCOAL = "#17120d";
-const PANEL = "#221b15";
-const CREAM = "#f7f2e9";
-const CREAM_SOFT = "#dbcfbd";
-const CREAM_FAINT = "#bdab95";
-const VIOLET = "#b193ff";
+/**
+ * Lima menit, bukan setahun.
+ *
+ * Bawaan `ImageResponse` adalah `public, immutable, max-age=31536000` — benar untuk gambar OG
+ * statis, salah untuk kartu yang memuat harga hidup: peramban menyimpan kartu pertama yang
+ * dilihatnya selama setahun tanpa pernah bertanya lagi, jadi kartu yang pernah salah tetap
+ * salah di peramban itu walau servernya sudah diperbaiki.
+ */
+const CACHE_CONTROL = "public, max-age=300";
 
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -49,17 +59,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const chain = resolveChainOrDefault(project.chainId);
 
   /**
-   * Harga USD dibaca lewat endpoint kurs milik situs ini, bukan dari pihak ketiga langsung.
+   * Harga USD dari pustaka yang sama dengan `/api/prices`, dengan cache yang sama.
    *
-   * Kalau pembacaan itu gagal, kartunya TIDAK menebak: baris harga berbunyi apa adanya.
-   * Kartu yang diam-diam memakai kurs nol akan mencetak "$0.00" untuk pasar yang hidup, dan
-   * itu jenis kesalahan yang paling mungkin dibagikan ke mana-mana.
+   * Kalau pembacaan gagal, kartunya TIDAK menebak: harga ditulis dalam aset native dan market
+   * cap berbunyi apa adanya. Kartu yang diam-diam memakai kurs nol akan mencetak "$0.00" untuk
+   * pasar yang hidup, dan itu jenis kesalahan yang paling mungkin dibagikan ke mana-mana.
    */
-  let prices = STABLE_PRICES;
+  let prices: AssetPrices = STABLE_PRICES;
   try {
-    const res = await fetch(`${url.origin}/api/prices`, { cache: "no-store" });
-    const data = await res.json();
-    if (data?.prices) prices = { ...STABLE_PRICES, ...data.prices };
+    const read = await nativePrices();
+    prices = { ...STABLE_PRICES, ...read.prices };
   } catch {
     // kurs bawaan dipakai
   }
@@ -67,175 +76,38 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const priceUsd = project.priceNative * nativeUsd;
   const mcapUsd = priceUsd * project.supply;
 
-  const marketUrl = `${url.origin}/token/${project.slug}?chain=${project.chainId}`;
+  const marketUrl = `${publicOrigin()}/token/${project.slug}?chain=${project.chainId}`;
   const qr = await QRCode.toDataURL(marketUrl, {
     margin: 1,
-    width: 240,
-    color: { dark: "#141110", light: "#f7f2e9" },
+    width: 280,
+    color: { dark: "#141110", light: CARD_COLORS.cream },
   });
-
-  /**
-   * Satori hanya menggambar raster (PNG/JPEG/WebP), bukan SVG.
-   *
-   * Bawaan registry adalah `/logo.svg`, jadi tanpa cabang ini setiap pasar yang belum
-   * memilih gambar akan tampil dengan kotak KOSONG di kartunya — persis di gambar yang
-   * dibagikan ke luar. Kalau gambarnya bukan raster, dipakai monogram ticker.
-   */
-  const isRaster = project.image.startsWith("data:image/") || /\.(png|jpe?g|webp)$/i.test(project.image);
-  const logo = !isRaster
-    ? null
-    : project.image.startsWith("data:")
-    ? project.image
-    : `${url.origin}${project.image.startsWith("/") ? "" : "/"}${project.image}`;
-
-  const robot = robotImage(330);
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "1200px",
-          height: "630px",
-          display: "flex",
-          background: CHARCOAL,
-          color: CREAM,
-          fontFamily: "sans-serif",
-          position: "relative",
-        }}
-      >
-        {/*
-          Cahaya violet di kanan.
-          Bukan radial-gradient: satori merendernya sebagai cakram bertepi keras, yang di
-          kartu terlihat seperti bulatan ungu pekat alih-alih cahaya. Gradien linear
-          didukung penuh, jadi itu yang dipakai.
-        */}
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            width: "560px",
-            height: "630px",
-            display: "flex",
-            background: "linear-gradient(270deg, rgba(124,58,237,0.38) 0%, rgba(124,58,237,0.12) 45%, rgba(23,18,13,0) 100%)",
-          }}
-        />
-
-        <div style={{ display: "flex", flexDirection: "column", padding: "56px", width: "760px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-            <div
-              style={{
-                display: "flex",
-                width: "34px",
-                height: "34px",
-                borderRadius: "10px",
-                background: VIOLET,
-                color: CHARCOAL,
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "22px",
-                fontWeight: 700,
-              }}
-            >
-              A
-            </div>
-            <div style={{ display: "flex", fontSize: "26px", fontWeight: 600, letterSpacing: "-0.02em" }}>adexto.</div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "20px", marginTop: "44px" }}>
-            {logo ? (
-              <img
-                src={logo}
-                width={88}
-                height={88}
-                style={{ borderRadius: "22px", border: `1px solid ${CREAM_FAINT}`, objectFit: "cover" }}
-              />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  width: "88px",
-                  height: "88px",
-                  borderRadius: "22px",
-                  border: `1px solid ${CREAM_FAINT}`,
-                  background: PANEL,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "40px",
-                  fontWeight: 700,
-                  color: VIOLET,
-                }}
-              >
-                {project.symbol.slice(0, 2)}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", fontSize: "58px", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1 }}>
-                {`$${project.symbol}`}
-              </div>
-              <div style={{ display: "flex", fontSize: "22px", color: CREAM_SOFT, marginTop: "8px" }}>{project.name}</div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "40px", marginTop: "48px" }}>
-            {[
-              // `cardUsd`/`cardNative`, bukan `formatUsd`: notasi subskrip tidak punya glif di
-              // font bawaan satori. Alasan lengkapnya di `src/lib/share-card-format.ts`.
-              ["price", priceUsd > 0 ? cardUsd(priceUsd) : cardNative(project.priceNative, chain.nativeSymbol)],
-              ["market cap", mcapUsd > 0 ? formatUsd(mcapUsd, { compact: true }) : "not priced yet"],
-              ["chain", chain.name],
-            ].map(([label, value]) => (
-              <div key={label} style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: "16px", color: CREAM_FAINT, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  {label}
-                </div>
-                <div style={{ display: "flex", fontSize: "34px", fontWeight: 600, marginTop: "6px" }}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", marginTop: "auto" }}>
-            <div style={{ display: "flex", fontSize: "20px", color: CREAM_SOFT }}>
-              Trading on a curve that has no withdrawal function.
-            </div>
-            <div style={{ display: "flex", fontSize: "20px", color: VIOLET, marginTop: "8px" }}>
-              {marketUrl.replace(/^https?:\/\//, "")}
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            padding: "48px 48px 48px 0",
-            width: "440px",
-          }}
-        >
-          <img src={qr} width={132} height={132} style={{ borderRadius: "14px", background: CREAM, padding: "6px" }} />
-          {robot ? (
-            // Dibaca dari disk dengan lebar DAN tinggi eksplisit. Alasannya di
-            // `src/lib/share-card-assets.ts`: mengambilnya lewat URL membuat satori
-            // mengukur berkasnya sendiri lewat jaringan, dan itu gagal di produksi.
-            <img src={robot.src} width={robot.width} height={robot.height} style={{ objectFit: "contain" }} />
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            bottom: 0,
-            width: "1200px",
-            height: "6px",
-            background: PANEL,
-            display: "flex",
-          }}
-        />
-      </div>
+      <ShareCard
+        mark={brandMark(44)}
+        logoSrc={tokenLogoSrc(project.image)}
+        symbol={project.symbol}
+        title={`$${project.symbol}`}
+        subtitle={project.name}
+        chainLabel={chainChipLabel(chain.name)}
+        stats={[
+          // `cardUsd`/`cardNative`, bukan `formatUsd`, untuk angka kecil: notasi subskrip tidak
+          // punya glif di font bawaan satori. Alasan lengkapnya di `src/lib/share-card-format.ts`.
+          // `formatUsd` ringkas hanya dipakai dari $1 ke atas, di mana ia tidak memakai subskrip.
+          {
+            label: "market cap",
+            value: mcapUsd >= 1 ? formatUsd(mcapUsd, { compact: true }) : mcapUsd > 0 ? cardUsd(mcapUsd) : "not priced yet",
+          },
+          { label: "price", value: priceUsd > 0 ? cardUsd(priceUsd) : cardNative(project.priceNative, chain.nativeSymbol) },
+        ]}
+        note={{ text: "Trading on a curve that has no withdrawal function.", color: CARD_COLORS.creamSoft }}
+        marketUrl={marketUrl}
+        qr={qr}
+        robot={robotImage(300)}
+      />
     ),
-    { width: 1200, height: 630 }
+    { width: 1200, height: 630, headers: { "cache-control": CACHE_CONTROL } }
   );
 }

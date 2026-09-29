@@ -4,6 +4,7 @@ import TokenTerminal, { type TerminalProject, type TerminalDeployment } from "@/
 import { findProject, findProjectGroup } from "@/lib/registry";
 import { logoUrlFor } from "@/lib/logo-image";
 import { resolveChainOrDefault } from "@/lib/chains";
+import { SHARE_CARD_VERSION } from "@/lib/share-card-format";
 
 /**
  * Server-resolved market page.
@@ -21,9 +22,13 @@ interface PageProps {
   searchParams: Promise<{ chain?: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { token } = await params;
-  const project = findProject(token);
+  const { chain: chainParam } = await searchParams;
+  // Pratinjau mengikuti `?chain=` tautannya. Tanpa ini, tautan pasar Base untuk ticker yang juga
+  // ada di chain lain membawa kartu chain yang kebetulan terdaftar pertama.
+  const chainId = chainParam && Number.isFinite(Number(chainParam)) ? Number(chainParam) : null;
+  const project = (chainId !== null ? findProject(token, chainId) : null) ?? findProject(token);
   if (!project) return { title: "Market not found · ADEXTO" };
   /**
    * `og:image` menunjuk kartu yang dirender server, bukan gambar statis.
@@ -32,7 +37,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
    * pasar ITU, bukan satu gambar merek yang sama untuk semua pasar. Kartunya dibangun dari
    * registry yang sama dengan halamannya, jadi keduanya tidak bisa menyebut angka berbeda.
    */
-  const card = `/api/share-card/${encodeURIComponent(project.slug)}?chain=${project.chainId}`;
+  const card = `/api/share-card/${encodeURIComponent(project.slug)}?chain=${project.chainId}&v=${SHARE_CARD_VERSION}`;
   return {
     title: `${project.name} ($${project.symbol}) · ADEXTO Terminal`,
     description: `Trade $${project.symbol} on the ADEXTO Sovereign DEX (${project.chainLabel}).`,
