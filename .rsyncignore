@@ -4,6 +4,9 @@ node_modules/
 .data/
 data/
 .env.local
+# Backups of .env.local carry the same secrets, and without this pattern a local backup was copied
+# into the VPS build context by the next deploy. Keep backups out of the tree being shipped.
+.env.local.*
 devchain/cache/
 devchain/artifacts/
 devchain/node_modules/

@@ -146,7 +146,7 @@ Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Sol
 
 | Contract | Address | Notes |
 |---|---|---|
-| **AdextoFactory** | [`0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D`](https://chainscan.0g.ai/address/0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D) | **current · ADEXTO v1** · `VERSION` `1.0.0` · 21,806 B · block 45793987 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
+| **AdextoFactory** | [`0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D`](https://chainscan.0g.ai/address/0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 45793987 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
 | **AdextoFactory** | [`0x51c4168226463F7e5A141e1c6D30520734BC840a`](https://chainscan.0g.ai/address/0x51c4168226463F7e5A141e1c6D30520734BC840a) | superseded · `VERSION` `0.11.0` · 21,281 B · block 43704079 · `PROTOCOL_FEE_BPS` 10, charged on top · its markets keep these rates forever |
 | ERC-8004 agent (ours) | [`3545431`](https://chainscan.0g.ai/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
 | AdextoAgentStake | [`0x5b44AEA7AC49C7a6DA8f700D991852A2970b9231`](https://chainscan.0g.ai/address/0x5b44AEA7AC49C7a6DA8f700D991852A2970b9231) | **live** · stakes $ADEXTO for [Agent Compute](https://adexto.xyz/agent-compute) · `minStake` 5,000 · no `owner()` · 0G only |
@@ -155,7 +155,7 @@ Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Sol
 
 | Contract | Address | Notes |
 |---|---|---|
-| **AdextoFactory** | [`0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708`](https://basescan.org/address/0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708) | **current · ADEXTO v1** · `VERSION` `1.0.0` · 21,806 B · block 52008858 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
+| **AdextoFactory** | [`0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708`](https://basescan.org/address/0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 52008858 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
 | **AdextoFactory** | [`0x216E7880D64D94335B583c539802d3e61958d4A2`](https://basescan.org/address/0x216E7880D64D94335B583c539802d3e61958d4A2) | superseded · `VERSION` `0.11.0` · 21,281 B · block 50971523 · `PROTOCOL_FEE_BPS` 10, charged on top · its markets keep these rates forever |
 | ERC-8004 agent (ours) | [`84622`](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
 
@@ -163,7 +163,7 @@ Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Sol
 
 | Contract | Address | Notes |
 |---|---|---|
-| **AdextoFactory** | [`0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E`](https://arbiscan.io/address/0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E) | **current · ADEXTO v1** · `VERSION` `1.0.0` · 21,806 B · block 510474755 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
+| **AdextoFactory** | [`0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E`](https://arbiscan.io/address/0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 510474755 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
 | **AdextoFactory** | [`0xE17f1027FC5f294327D701829baeD9d6519e922C`](https://arbiscan.io/address/0xE17f1027FC5f294327D701829baeD9d6519e922C) | superseded · `VERSION` `0.11.0` · 21,281 B · block 502476317 · `PROTOCOL_FEE_BPS` 10, charged on top · its markets keep these rates forever |
 | ERC-8004 agent (ours) | [`1457`](https://arbiscan.io/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | registered, owned by the deployer · id is chain-specific |
 
@@ -171,7 +171,7 @@ Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Sol
 
 | Contract | Address | Notes |
 |---|---|---|
-| **AdextoFactory** | [`0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056`](https://monadscan.com/address/0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056) | **current · ADEXTO v1** · `VERSION` `1.0.0` · 21,806 B · block 109440540 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
+| **AdextoFactory** | [`0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056`](https://monadscan.com/address/0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 109440540 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 16 tickers reserved |
 | **AdextoFactory** | [`0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3`](https://monadscan.com/address/0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3) | superseded · `VERSION` `0.11.0` · 21,281 B · block 102583076 · `PROTOCOL_FEE_BPS` 10, charged on top · its markets keep these rates forever |
 | ERC-8004 agent (ours) | [`10247` and `10251`](https://monadscan.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | both registered and both owned by the deployer · `10251` is the id the live Monad markets bind · ids are chain-specific |
 
@@ -181,7 +181,7 @@ An Arbitrum Orbit chain. ADEXTO v1 is the first generation here, so there is no 
 
 | Contract | Address | Notes |
 |---|---|---|
-| **AdextoFactory** | [`0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D`](https://robinhoodchain.blockscout.com/address/0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D) | **current · ADEXTO v1** · `VERSION` `1.0.0` · 21,806 B · block 76864198 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 212 tickers reserved: the base 16, `USDG` and the 195 tokenized stocks active on the chain at deployment |
+| **AdextoFactory** | [`0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D`](https://robinhoodchain.blockscout.com/address/0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 76864198 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 212 tickers reserved: the base 16, `USDG` and the 195 tokenized stocks active on the chain at deployment |
 
 The factory sits at the deployer's first-nonce address, and on Base and Monad that same address holds an unrelated pre-release contract. An address means nothing without its chain id.
 
