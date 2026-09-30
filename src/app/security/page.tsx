@@ -527,10 +527,18 @@ export default function SecurityPage() {
                 salah SEBELUM $ADEXTO diluncurkan: kurva ticker buangan dari uji perekaman
                 mencatat 5 swap dan volume 0,0217 0G di 0G mainnet. Diperiksa on-chain lewat
                 `swapCount()`. Yang benar bukan "belum ada", melainkan "sangat sedikit, dan
-                bukan dari orang luar" — dan itu justru pernyataan yang lebih berguna. */}
-            <strong className="text-ink">Nothing has traded through these guarantees yet.</strong> $ADEXTO&apos;s curve
-            has taken no swaps at all, and the only mainnet volume so far came from our own recorded test runs — a few
-            hundredths of a 0G. So none of these guarantees has been exercised by outside volume.
+                bukan dari orang luar" — dan itu justru pernyataan yang lebih berguna.
+
+                Revisi kedua (2026-09-30) juga sudah basi: "$ADEXTO's curve has taken no swaps at
+                all" salah — `swapCount()` kurva $ADEXTO 27, volume ~1,18 0G. Diperiksa lewat
+                indeks pasar: dari 56 fill di enam pasar terdaftar, 55 dibuat atau diterima
+                deployer (uji sendiri dan pengiriman x402 lewat relayer kami); satu pengiriman
+                x402 ke alamat lain. Karena itu kalimatnya tanpa angka: angka di halaman statis
+                ini akan basi lagi, sedangkan "hampir semuanya milik kami" tetap bisa diperiksa. */}
+            <strong className="text-ink">Almost nothing has traded through these guarantees from outside.</strong>{" "}
+            Nearly every fill on the listed markets so far is ours: the deployer&apos;s own test trades, and x402 deliveries
+            through our relayer to the deployer&apos;s address. So these guarantees have barely been exercised by anyone
+            else.
           </li>
         </ul>
       </section>
