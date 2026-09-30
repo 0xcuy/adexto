@@ -1,18 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.37;
 
 /**
- * @dev Kedua interface ini dinamai berbeda dari yang ada di `SovereignCurve.sol`.
- *
- * Di sana namanya `IERC20Minimal` dan `IAdextoToken`. Aderyn menandai nama yang dipakai
- * ulang di berkas berbeda, dan itu benar: dua deklarasi bernama sama membuat pencarian
- * artifact berdasarkan NAMA jadi ambigu, sehingga skrip deploy yang meminta
- * `IERC20Minimal` bisa mengambil salah satu tanpa memberi tahu.
- *
- * Menariknya ke satu berkas bersama akan lebih rapi, tetapi itu berarti menyunting
- * `SovereignCurve.sol` — yang sengaja dibekukan supaya source di HEAD tetap cocok
- * dengan bytecode lima pasar yang hidup di 0G. Jadi yang dinamai ulang adalah berkas
- * yang belum di-deploy.
+ * @dev The ERC-20 surface the curve calls on its token. Named distinctly from the factory's
+ *      interface so that looking artifacts up by name is never ambiguous.
  */
 interface IERC20Curve {
     function transfer(address to, uint256 amount) external returns (bool);
@@ -28,170 +19,84 @@ interface IAdextoBurnable {
 
 /**
  * @title AdextoCurve
- * @notice Virtual-reserve bonding curve for ADEXTO (adexto.xyz).
+ * @notice Virtual-reserve bonding curve for one ADEXTO market (adexto.xyz). It is the market's
+ *         permanent venue: there is no graduation to another pool, no LP share, no owner and
+ *         no withdrawal function.
  *
- * @dev NAMANYA TIDAK MEMUAT NOMOR GENERASI, DAN ITU DISENGAJA
+ * @dev PRICING
  *
- * Berkas ini sempat bernama `SovereignCurveV2`. Suffix itu dibuang sebelum di-broadcast,
- * karena begitu sebuah kontrak diverifikasi di explorer, namanya permanen: ia tertanam
- * di source terverifikasi dan di setiap ABI yang orang integrasikan. Nama yang memuat
- * angka generasi memaksa perbaikan berikutnya mengarang angka lagi, dan pembaca jadi
- * mengejar nama alih-alih alamat.
- *
- * Efeknya juga menyesatkan ke luar. Proyek yang baru dimulai tetapi sudah memajang
- * "V2" terbaca seperti sudah dua kali dibongkar, padahal yang terjadi hanya satu
- * penambahan pada kaki fee. Nomor versinya tinggal di `VERSION` di bawah, tempat ia
- * bisa naik tanpa mengubah identitas kontrak.
- *
- * KENAPA BERKAS TERPISAH, BUKAN SUNTINGAN PADA SovereignCurve.sol
- *
- * `SovereignCurve` sudah hidup: lima pasar di 0G mainnet merujuk bytecode-nya, dan
- * ketiga tarif fee-nya `immutable`, tanpa setter dan tanpa admin. Menyuntingnya di
- * tempat akan membuat source di HEAD tidak lagi cocok dengan kontrak yang benar-benar
- * dijalankan pasar-pasar itu, sehingga siapa pun yang memverifikasi kurva live terhadap
- * repo ini akan menemukan ketidakcocokan — dan berhak tidak percaya.
- *
- * Jadi `SovereignCurve.sol` dibekukan sebagai source pasar yang sudah di-deploy, dan
- * berkas ini yang dipakai peluncuran baru. Duplikasinya adalah harga dari tidak punya
- * tuas upgrade, yang justru sifat yang dipilih proyek ini sejak awal.
- *
- * Pasar `SovereignCurve` yang sudah ada TIDAK AKAN PERNAH membayar fee protokol. Itu
- * bukan migrasi yang tertunda — itu permanen. Tidak ada jalur apa pun untuk membuat
- * ADEXTO, ADT, atau NOVA* membayarnya.
- *
- * WHAT CHANGED FROM SovereignCurve
- *
- * One addition: a fourth fee leg, `protocolFeeBps`, accruing to `protocolOwed` and
- * claimable only to the `immutable protocolTreasury`. Everything else — the
- * pricing, the solvency proof, the permissionless payout paths, the buyback size
- * cap — is unchanged.
- *
- * The protocol leg is ADDITIVE, not carved out of the existing split. A market
- * configured as 0.30% total now charges 0.40%: depth 0.15%, creator 0.10%,
- * buyback 0.05%, protocol 0.10%. Taking it out of depth would weaken the rising
- * price floor, and taking it out of the creator's share would gut the one thing
- * that replaces a free token allocation. Both were published as they stand, so
- * neither is available to quietly reduce. Charging traders 10bps more is the
- * honest option because it is the only one visible at the point of trade.
- *
- * WHY THERE IS NO SETTER AND NO TIMELOCK
- *
- * `protocolFeeBps` and `protocolTreasury` are both `immutable`. A setter would
- * make this contract owned, which contradicts the claim on /security that nobody
- * can change the terms of a launched market — and that claim is the product. A
- * timelock is only meaningful if something is mutable, so adding one would mean
- * first adding the admin it is supposed to restrain.
- *
- * `claimProtocolFees` is callable by anyone, exactly like `claimCreatorFees`,
- * because the destination is fixed at deployment and cannot be chosen by the
- * caller. Requiring an authorised caller would add a key that can be lost, and
- * losing it would strand `protocolOwed` forever since there is no withdrawal
- * function anywhere in this contract.
- *
- * WHY THIS EXISTS
- *
- * `SovereignHook` requires a real native seed (`require(msg.value > 0)`) that can
- * never be withdrawn. Measured on Base, that seed is ~16x the launch gas cost, and
- * a multi-chain launch needs it again in every chain's native asset. That is the
- * single largest barrier to a creator launching anything.
- *
- * This contract removes the seed entirely. The native side of the curve starts as
- * a *virtual* number in storage — `virtualNative` — which sets the opening price
- * without anyone depositing money. Real native only ever arrives from buyers, and
- * sellers are only ever paid from that real native.
- *
- * PRICING
- *
- *   nativeReserve = virtualNative + curveNative      (curveNative = real, starts 0)
+ *   nativeReserve = virtualNative + curveNative      (curveNative is real native, starts at 0)
  *   tokenReserve  = curveTokens   - tokensSold
  *   price         = nativeReserve / tokenReserve
  *
- * Because 100% of supply enters the curve, `virtualNative` is exactly the opening
- * market capitalisation denominated in the chain's native asset.
- *
- * SOLVENCY, PROVEN RATHER THAN CHECKED
- *
- * The dangerous failure in any launchpad is a pool that promises more than it
- * holds: early sellers drain it and later sellers get reverts. That cannot happen
- * here, and not because of a runtime `if`.
- *
- * Let F be the depth fees retained so far and C_pure the native that moved along
- * the curve, so curveNative = C_pure + F. The curve relation gives
- * C_pure = V*S/(T-S). Selling every outstanding token at once (ds = S) pays
- *
- *   grossOut = (V + C_pure + F) * S / T
- *            = V*S/(T-S) + F*S/T
- *            = C_pure + F*(S/T)
- *
- * and since S <= T that is <= C_pure + F = curveNative. So even the worst case —
- * everyone selling everything — is covered exactly, with the depth fees as slack.
- * Integer division floors every payout, which can only add to that slack.
- *
- * The protocol leg does not disturb this. Like the creator and buyback legs it is
- * excluded from `curveNative` on the way in and subtracted from it on the way out,
- * so it never appears in C_pure or F. The proof is about depth fees only, and the
- * number of carve-outs alongside them does not enter it.
- *
- * WHAT IS DELIBERATELY ABSENT
- *
- * No withdrawal function, no LP shares, no graduation to another pool. Migration
- * from a curve to an AMM is where most launchpad exploits live, and a permanent
- * curve keeps the "no rug lever" property the project already chose.
+ * Trades follow the constant product of those two reserves. `virtualNative` is a number in
+ * storage, never money: it sets the opening price without anybody depositing anything. Real
+ * native arrives only from buyers, and sellers are only ever paid from that real native.
+ * Because 100% of supply enters the curve, `virtualNative` equals the opening market
+ * capitalisation in the chain's native asset.
  *
  * FEES
  *
- * Four legs. Three of them stay inside the total the creator configured; the
- * protocol leg is added on top of it:
- *   - depth    -> stays in `curveNative`, so the price floor rises with volume
- *   - creator  -> accrues to `creatorOwed` for a locked creator address
- *   - buyback  -> accrues to `treasuryNative`, spent by `executeBuyback`
- *   - protocol -> accrues to `protocolOwed`, claimable only to `protocolTreasury`
+ * Four legs, each an immutable set by the factory at deployment. Together they are the whole
+ * fee a trader pays, readable in one call as `totalFeeBps()`:
+ *   - depth    stays in `curveNative`, so the price floor rises with volume;
+ *   - creator  accrues to `creatorOwed`, claimable only to the immutable `creator`;
+ *   - buyback  accrues to `treasuryNative`, spent only by `executeBuyback`;
+ *   - protocol accrues to `protocolOwed`, claimable only to the immutable `protocolTreasury`.
  *
- * Fees accrue and are claimed rather than pushed. Pushing native on every swap
- * would let a recipient contract that reverts brick trading for everyone.
+ * How the total is split is decided by the factory. The curve does not know whether the
+ * protocol leg was carved out of a total or added to one; it charges exactly the four rates it
+ * was given, capped together at `MAX_TOTAL_FEE_BPS`. Fees accrue and are claimed rather than
+ * pushed, because pushing native on every swap would let a recipient that reverts halt trading.
  *
- * The 1% anti-sniper window is enforced by `AdextoToken._update`, so it applies to
+ * SOLVENCY
+ *
+ * Let F be the depth fees retained so far and C the native that moved along the curve, so
+ * curveNative = C + F. The curve relation gives C = V*S/(T-S) for virtual reserve V, curve
+ * tokens T and tokens sold S. Selling every outstanding token at once (ds = S) pays
+ *
+ *   grossOut = (V + C + F) * S / T
+ *            = V*S/(T-S) + F*S/T
+ *            = C + F*(S/T)
+ *
+ * and since S <= T that is at most C + F = curveNative. Even everyone selling everything is
+ * covered, with depth fees as slack, and integer division only ever adds to that slack. The
+ * creator, buyback and protocol legs are excluded from curveNative on the way in and taken out
+ * of it on the way out, so they never enter C or F. `_assertSolvent` re-checks the balance
+ * after every state change.
+ *
+ * WHAT IS DELIBERATELY ABSENT
+ *
+ * No withdrawal, no rescue, no sweep, no setter, no owner, no graduation. Migration from a
+ * curve to a pool is where most launchpad exploits have happened, and a curve that stays the
+ * venue keeps the property that nobody can pull the market's reserves.
+ *
+ * The launch window's per-wallet limit is enforced by `AdextoToken._update`, so it applies to
  * curve payouts automatically.
  */
 contract AdextoCurve {
-    /**
-     * 0.12.0 KARENA PERILAKUNYA BERUBAH, dan nomor ini tidak boleh berbohong.
-     *
-     * `executeBuyback` mendapat cooldown (lihat catatan panjang pada fungsinya, temuan 1 di
-     * GHSA-g589-wjqq-86f2). Bytecode-nya ikut berubah — terukur: artifact 21.476 B lawan
-     * 21.281 B di chain — jadi membiarkan nomornya tetap 0.11.0 berarti dua bytecode berbeda
-     * mengaku sebagai generasi yang sama, dan tidak akan ada cara membedakannya dari luar.
-     *
-     * `src/config/contracts.ts` SENGAJA tetap 0.11.0: berkas itu mencatat generasi yang
-     * benar-benar HIDUP di keempat chain, dan `audit_consistency.mjs` membacanya lalu
-     * membandingkannya dengan `VERSION()` on-chain. Ia baru naik ketika 0.12.0 di-deploy.
-     */
-    string public constant VERSION = "0.12.0";
+    /// @notice Generation of this curve, equal to the factory that deploys it.
+    string public constant VERSION = "1.0.0";
 
     // ─── Immutable wiring ────────────────────────────────────────────────────
     address public immutable factory;
     /**
-     * @notice The agent identity this market was launched under (ERC-8004 style).
-     * @dev REFERENCE ONLY. This used to gate `executeBuyback` through an
-     *      `onlyAgent` modifier; it no longer authorises anything, because the
-     *      buyback is permissionless and bounded by size instead. Kept so the
-     *      declared agent stays readable on-chain and matches
-     *      `AdextoToken.agentIdentity`.
+     * @notice The agent identity this market was launched under.
+     * @dev Reference only. It authorises nothing on this contract, because the buyback is
+     *      permissionless and bounded by size and time instead. Kept so the declared agent is
+     *      readable on chain and matches `AdextoToken.agentIdentity`.
      */
     address public immutable agentTreasury;
-    /// @notice Fee recipient, fixed at deployment so it can never be redirected.
+    /// @notice Creator fee recipient, fixed at deployment so it can never be redirected.
     address public immutable creator;
     /**
      * @notice Protocol fee recipient, fixed at deployment.
-     * @dev Immutable for the same reason `creator` is: the only way to redirect
-     *      revenue away from where a trader was told it goes is a setter, and this
-     *      contract has none. Set by the factory, which hardcodes it as a constant,
-     *      so every market from one factory pays the same address and that address
-     *      is readable on-chain before anyone trades.
+     * @dev Immutable for the same reason as `creator`: the only way to redirect revenue from
+     *      where a trader was told it goes is a setter, and this contract has none.
      */
     address public immutable protocolTreasury;
 
-    /// @notice ERC-20 traded against the chain's native asset. Bound once by the factory.
+    /// @notice ERC-20 traded against the chain's native asset. Bound once, by the factory.
     address public targetToken;
 
     /// @notice Virtual native reserve. Never real money; sets the opening price.
@@ -200,19 +105,18 @@ contract AdextoCurve {
     uint256 public immutable depthFeeBps;
     uint256 public immutable creatorFeeBps;
     uint256 public immutable treasuryBuybackBps;
-    /// @notice Protocol share of every swap. Additive to the other three.
+    /// @notice Protocol share of every swap. One of the four legs that make up `totalFeeBps()`.
     uint256 public immutable protocolFeeBps;
 
     uint256 public constant MAX_TOTAL_FEE_BPS = 500; // hard cap 5%
     uint256 public constant BPS_DENOMINATOR = 10_000;
     /**
      * @notice Minimum gap between two buybacks on this curve.
-     * @dev One hour, and the figure is a trade-off rather than a magic number. What the
-     *      cooldown has to break is ATOMICITY: the profitable attack buys, loops the buyback
-     *      and sells inside one transaction, so the price it moved never reaches anyone else.
-     *      Any non-zero gap breaks that. An hour then also bounds the patient version — at most
-     *      24 buybacks a day, each capped at 1% of the reserve — while leaving the feature
-     *      usable, since a buyback is meant to run periodically and not per block.
+     * @dev What the cooldown must break is atomicity: the profitable attack buys, loops the
+     *      buyback and sells inside one transaction, so the price it moved never reaches anyone
+     *      else. Any gap breaks that. One hour also bounds the patient version, at most 24
+     *      buybacks a day of at most 1% of the reserve each, while keeping the feature usable,
+     *      since a buyback is meant to run periodically and not every block.
      */
     uint256 public constant BUYBACK_COOLDOWN = 1 hours;
 
@@ -222,24 +126,22 @@ contract AdextoCurve {
     /// @notice Tokens held by the curve at initialisation (T).
     uint256 public curveTokens;
 
-    /// @dev Real native accumulated along the curve (C). uint256 on purpose: the
-    ///      predecessor packed reserves into uint112 and every write went through
-    ///      an explicit narrowing cast, which in Solidity 0.8 truncates silently
-    ///      instead of reverting. One extra slot removes that class of failure.
+    /// @dev Real native accumulated along the curve (C). A full uint256 on purpose: packing
+    ///      reserves into a narrower type needs explicit narrowing casts, which in Solidity 0.8
+    ///      truncate silently instead of reverting.
     uint256 private _curveNative;
     /// @dev Tokens sold out of the curve (S).
     uint256 private _tokensSold;
 
     /// @notice Native owed to the creator, claimable. Excluded from the curve.
     uint256 public creatorOwed;
-    /// @notice Native accrued for the agent buyback vault. Excluded from the curve.
+    /// @notice Native accrued for buyback-and-burn. Excluded from the curve.
     uint256 public treasuryNative;
     /**
      * @notice Block timestamp of the most recent buyback. Zero until the first one.
-     * @dev Makes `executeBuyback`'s per-call cap a budget instead of a step size. Without it
-     *      the whole treasury could be pushed into the curve in a single transaction, since
-     *      each call raises the reserve and therefore the 1% ceiling. See the long note on
-     *      `executeBuyback`. Finding 1 in GHSA-g589-wjqq-86f2.
+     * @dev Turns `executeBuyback`'s per-call cap into a budget. Without it the whole buyback
+     *      bucket could be pushed into the curve in one transaction, because each call raises
+     *      the reserve and with it the 1% ceiling.
      */
     uint256 public lastBuybackAt;
     /// @notice Native owed to the protocol treasury, claimable. Excluded from the curve.
@@ -258,10 +160,9 @@ contract AdextoCurve {
     // ─── Events ──────────────────────────────────────────────────────────────
     event CurveInitialized(uint256 virtualNative, uint256 curveTokens, uint256 openingPrice);
     /**
-     * @dev Carries `protocolFee` as its own field rather than folding it into
-     *      `depthFee`. An indexer that could not separate them would report a
-     *      rising price floor that never rose, because the protocol leg leaves the
-     *      curve while the depth leg stays in it.
+     * @dev Carries `protocolFee` as its own field rather than folding it into `depthFee`. An
+     *      indexer that could not separate them would report a rising price floor that never
+     *      rose, because the protocol leg leaves the curve while the depth leg stays in it.
      */
     event Swap(
         address indexed trader,
@@ -281,21 +182,10 @@ contract AdextoCurve {
     event TreasuryFeeCollected(address indexed currency, uint256 amount);
     /**
      * @notice Buyback executed: native spent, tokens bought and burned.
-     * @dev CARRIES `depthFee` AND BOTH RESERVES ON PURPOSE.
-     *
-     * The previous signature was `(amountIn, tokensBurned)` only, and that made
-     * one number permanently unknowable to any indexer: `executeBuyback` adds to
-     * `totalDepthFeesRetained`, and the floor price is
-     * `(virtualNative + totalDepthFeesRetained) / curveTokens`. Without `depthFee`
-     * in the log, a reader had to either skip it — leaving the displayed floor
-     * price lower than the real one, permanently, drifting further with every
-     * buyback — or guess it, which moves a price floor on no evidence.
-     *
-     * The reserves are here for the same reason `Swap` carries them: a buyback
-     * moves the curve but emits no `Swap`, so a reader that only saw `amountIn`
-     * would have to re-derive the new reserves by arithmetic and would diverge
-     * from the contract on any rounding difference. Reading them from the log
-     * makes divergence impossible.
+     * @dev Carries `depthFee` and both reserves. A buyback adds to `totalDepthFeesRetained`,
+     *      which moves the floor price, and it moves the curve without emitting `Swap`. An
+     *      indexer reading only the amounts would have to guess the floor or re-derive the
+     *      reserves, and would drift from the contract on any rounding difference.
      */
     event AutoBuybackExecuted(
         uint256 amountIn,
@@ -343,9 +233,8 @@ contract AdextoCurve {
             _factory != address(0) && _agentTreasury != address(0) && _creator != address(0),
             "AdextoCurve: zero address"
         );
-        // Checked even when `_protocolFeeBps` is zero. A curve deployed with a zero
-        // treasury and a non-zero fee would accrue `protocolOwed` that can never be
-        // claimed, and since nothing here is mutable it would be stranded forever.
+        // Checked even when `_protocolFeeBps` is zero. A zero treasury with a non-zero fee would
+        // accrue `protocolOwed` that could never be claimed, and nothing here is mutable.
         require(_protocolTreasury != address(0), "AdextoCurve: zero protocol treasury");
         require(_virtualNative > 0, "AdextoCurve: zero virtual reserve");
         require(
@@ -372,8 +261,7 @@ contract AdextoCurve {
     }
 
     /**
-     * @notice Load the curve with tokens. Deliberately NOT payable — the whole
-     *         point is that no native seed is required.
+     * @notice Load the curve with tokens. Deliberately NOT payable: no native seed is needed.
      * @dev Caller must have approved `tokenAmount` first.
      */
     function initializeCurve(uint256 tokenAmount) external nonReentrant onlyFactory {
@@ -381,18 +269,8 @@ contract AdextoCurve {
         require(targetToken != address(0), "AdextoCurve: token not bound");
         require(tokenAmount > 0, "AdextoCurve: token seed required");
 
-        /**
-         * State DULU, transfer sesudahnya — checks-effects-interactions.
-         *
-         * Urutan lama menulis `curveTokens` dan `initialized` setelah `transferFrom`, yang
-         * dilaporkan Aderyn sebagai High "Reentrancy: State change after external call".
-         * `nonReentrant` dan `onlyFactory` sudah menutup jalurnya, tetapi bergantung pada guard
-         * ketika urutannya bisa dibuat benar berarti pembaca harus memverifikasi guard itu dulu
-         * untuk menyimpulkan fungsi ini aman.
-         *
-         * Aman ditukar: kalau transfernya gagal, seluruh transaksi revert dan kedua nilai ini
-         * kembali seperti semula.
-         */
+        // State first, transfer second (checks-effects-interactions). If the transfer fails the
+        // whole transaction reverts and both values return to what they were.
         curveTokens = tokenAmount;
         initialized = true;
 
@@ -406,7 +284,7 @@ contract AdextoCurve {
 
     // ─── Views ───────────────────────────────────────────────────────────────
 
-    /// @notice Pricing reserves. Native side includes the virtual component.
+    /// @notice Pricing reserves. The native side includes the virtual component.
     function getReserves() external view returns (uint256 reserveNative, uint256 reserveToken) {
         if (!initialized) return (0, 0);
         return (virtualNative + _curveNative, curveTokens - _tokensSold);
@@ -422,8 +300,8 @@ contract AdextoCurve {
     }
 
     /**
-     * @notice Lowest price the curve can return to, i.e. the price once every
-     *         outstanding token has been sold back. Rises as depth fees settle.
+     * @notice Lowest price the curve can return to, i.e. the price once every outstanding
+     *         token has been sold back. Rises as depth fees settle.
      */
     function floorPriceNativePerToken() external view returns (uint256) {
         if (!initialized || curveTokens == 0) return 0;
@@ -443,8 +321,8 @@ contract AdextoCurve {
     }
 
     /**
-     * @notice Every fee leg in one call, so a caller never has to add them up and
-     *         risk disagreeing with the contract about what a trade costs.
+     * @notice Every fee leg in one call, so a caller never has to add them up and risk
+     *         disagreeing with the contract about what a trade costs.
      */
     function totalFeeBps() external view returns (uint256) {
         return depthFeeBps + creatorFeeBps + treasuryBuybackBps + protocolFeeBps;
@@ -520,7 +398,7 @@ contract AdextoCurve {
         require(tokensOut >= minTokensOut, "AdextoCurve: slippage");
         require(tokensOut < curveTokens - _tokensSold, "AdextoCurve: insufficient curve liquidity");
 
-        // Depth fee stays with the curve; creator, buyback and protocol are carved out.
+        // Depth stays with the curve; creator, buyback and protocol are carved out of it.
         _curveNative = _curveNative + msg.value - creatorFee - treasuryFee - protocolFee;
         _tokensSold += tokensOut;
         creatorOwed += creatorFee;
@@ -538,8 +416,7 @@ contract AdextoCurve {
 
         _assertSolvent();
 
-        // Guarded: this fired on every swap regardless of value, and a zero-value
-        // log still costs the trader gas. `Swap` already carries `treasuryFee`.
+        // Guarded because a zero-value log still costs the trader gas. `Swap` carries the fee.
         if (treasuryFee > 0) emit TreasuryFeeCollected(address(0), treasuryFee);
         emit Swap(
             msg.sender,
@@ -599,10 +476,8 @@ contract AdextoCurve {
         protocolOwed += protocolFee;
         totalDepthFeesRetained += depthFee;
         totalTreasuryFeesCollected += treasuryFee;
-        // Gross, before fees, matching `buy()` which counts `msg.value`. This read
-        // `quotedOut` — the amount left AFTER fees — so buys were measured gross
-        // and sells net, and the same trade size registered as two different
-        // volumes depending on direction.
+        // Gross, before fees, the same basis as `buy()`, which counts `msg.value`. Counting the
+        // net payout would measure the same trade size differently depending on direction.
         totalVolumeNative += leaving + depthFee;
         swapCount += 1;
 
@@ -632,8 +507,8 @@ contract AdextoCurve {
     // ─── Creator revenue ─────────────────────────────────────────────────────
 
     /**
-     * @notice Pull accrued creator fees. Anyone may trigger it, but the funds can
-     *         only ever go to the immutable `creator` address.
+     * @notice Pull accrued creator fees. Anyone may trigger it, but the funds can only ever go
+     *         to the immutable `creator` address.
      */
     function claimCreatorFees() external nonReentrant returns (uint256 amount) {
         amount = creatorOwed;
@@ -641,16 +516,8 @@ contract AdextoCurve {
         creatorOwed = 0;
         totalCreatorFeesPaid += amount;
 
-                /**
-         * Redundan secara konstruksi, DAN DISENGAJA TETAP ADA.
-         *
-         * `creator` itu `immutable` dan konstruktor sudah menolak alamat nol, jadi cabang ini
-         * tidak akan pernah diambil. Yang dibelinya bukan keamanan tambahan melainkan
-         * keterbacaan: titik transfer menjadi jelas aman tanpa pembaca harus melacak ke
-         * konstruktor, dan Aderyn tidak lagi melaporkan "ETH transferred without address
-         * checks" sebagai High — temuan yang benar sebagai pembacaan statis, dan yang
-         * sebelumnya hanya bisa dijawab dengan prosa di halaman /security.
-         */
+        // Unreachable by construction, since the constructor rejects a zero `creator`, and kept
+        // on purpose: it makes the transfer visibly safe without tracing back to the constructor.
         require(creator != address(0), "AdextoCurve: zero creator");
         (bool sent, ) = payable(creator).call{value: amount}("");
         require(sent, "AdextoCurve: creator transfer failed");
@@ -663,20 +530,11 @@ contract AdextoCurve {
 
     /**
      * @notice Pull accrued protocol fees to the immutable `protocolTreasury`.
-     * @dev Deliberately identical in shape to `claimCreatorFees`: permissionless
-     *      trigger, fixed destination, accrue-then-claim rather than push.
-     *
-     *      Permissionless because the destination is immutable, so a caller cannot
-     *      choose where the money goes and gains nothing by calling it. The reason
-     *      to prefer that over an access check is failure mode, not convenience: a
-     *      privileged claimer is a key that can be lost, and there is no withdrawal
-     *      function anywhere in this contract, so a lost key would strand
-     *      `protocolOwed` permanently.
-     *
-     *      Accrue-then-claim rather than push, because pushing native on every swap
-     *      would let a treasury address that reverts on receive halt all trading.
-     *      An EOA cannot revert today, but `protocolTreasury` is immutable and this
-     *      contract cannot know what will control that address later.
+     * @dev Same shape as `claimCreatorFees`: permissionless trigger, fixed destination,
+     *      accrue-then-claim. Permissionless because the caller cannot choose where the money
+     *      goes and gains nothing by calling. A privileged claimer would be a key that can be
+     *      lost, and with no withdrawal function anywhere a lost key would strand
+     *      `protocolOwed` forever.
      */
     function claimProtocolFees() external nonReentrant returns (uint256 amount) {
         amount = protocolOwed;
@@ -684,16 +542,8 @@ contract AdextoCurve {
         protocolOwed = 0;
         totalProtocolFeesPaid += amount;
 
-                /**
-         * Redundan secara konstruksi, DAN DISENGAJA TETAP ADA.
-         *
-         * `protocolTreasury` itu `immutable` dan konstruktor sudah menolak alamat nol, jadi cabang ini
-         * tidak akan pernah diambil. Yang dibelinya bukan keamanan tambahan melainkan
-         * keterbacaan: titik transfer menjadi jelas aman tanpa pembaca harus melacak ke
-         * konstruktor, dan Aderyn tidak lagi melaporkan "ETH transferred without address
-         * checks" sebagai High — temuan yang benar sebagai pembacaan statis, dan yang
-         * sebelumnya hanya bisa dijawab dengan prosa di halaman /security.
-         */
+        // Unreachable by construction, like the check in `claimCreatorFees`, and kept for the
+        // same reason.
         require(protocolTreasury != address(0), "AdextoCurve: zero protocol treasury");
         (bool sent, ) = payable(protocolTreasury).call{value: amount}("");
         require(sent, "AdextoCurve: protocol transfer failed");
@@ -702,84 +552,37 @@ contract AdextoCurve {
         emit ProtocolFeesClaimed(protocolTreasury, amount);
     }
 
-    // ─── Agent buyback ───────────────────────────────────────────────────────
+    // ─── Buyback ─────────────────────────────────────────────────────────────
 
     /**
-     * @notice Spend accrued buyback native on tokens and burn them.
-     * @dev Buys along the curve, so the burn is priced by the same maths as any
-     *      other trade rather than at an administratively chosen rate.
+     * @notice Spend accrued buyback native on tokens along the curve, and burn them.
+     * @dev Priced by the same curve maths as any other trade, not at a chosen rate.
      *
-     * PERMISSIONLESS, AND WHY THE SIZE CAP IS WHAT MAKES THAT SAFE
+     * PERMISSIONLESS, AND WHAT MAKES THAT SAFE
      *
-     * This was `onlyAgent`, meaning `agentTreasury || factory`. In practice the
-     * factory passes the creator's own wallet as the agent and has no function
-     * that calls this, so the "autonomous 24/7 buyback" had exactly one possible
-     * caller: the creator, by hand. Across every testnet curve it was called zero
-     * times. Meanwhile `treasuryNative` accrues from every single swap and can
-     * leave through this function and nowhere else — there is no withdrawal path —
-     * so an idle creator meant the buyback share of every trade sat inert forever.
+     * Anyone may call this. `treasuryNative` fills from every swap and can leave only through
+     * this function, so gating it on one caller would let the buyback share sit idle whenever
+     * that caller did. Because the caller chooses `nativeAmount` and `minTokensBurned`, the
+     * risk is a sandwich: buy large, trigger the buyback at the inflated price so it burns less
+     * than the bucket paid for, then sell. Solvency still holds; what is lost is the bucket's
+     * purchasing power, and holders bear it.
      *
-     * Opening it to anyone fixes that, but not on its own. The caller chooses both
-     * `nativeAmount` and `minTokensBurned`, so an unbounded version is
-     * sandwichable: buy large, trigger the buyback with `minTokensBurned = 0` so
-     * it fills at the inflated price and burns fewer tokens than the treasury paid
-     * for, then sell. Curve solvency still holds; what is destroyed is the
-     * treasury's purchasing power, and the loss lands on holders.
+     * Two limits bound that. At most 1% of the native reserve per call, which keeps one
+     * buyback's price impact near the round-trip cost of the sandwich. And at most one call per
+     * `BUYBACK_COOLDOWN`. The per-call cap alone does not bound how many calls one transaction
+     * makes, and each call raises the reserve and therefore the next cap, so without the
+     * cooldown the whole bucket could be drained inside a single buy-then-sell (reported as
+     * finding 1 of GHSA-g589-wjqq-86f2). The cooldown makes the attack non-atomic: the moved
+     * price is exposed to everyone else before the attacker can close.
      *
-     * Whether that is profitable is a matter of magnitude, so it was measured
-     * against a real testnet curve (depth 15bps, creator 10bps, treasury 5bps,
-     * virtualNative 1500). At low volume `treasuryNative` is ~0.03% of the native
-     * reserve, so a buyback moves price ~3bps against a 60bps round trip — the
-     * attack loses money. But `treasuryNative` grows with cumulative volume while
-     * the reserve does not keep pace, so once cumulative volume reaches roughly
-     * 100x the reserve, the treasury is ~5% of it and a single unbounded buyback
-     * moves price ~5%. The attack becomes profitable precisely in the markets that
-     * succeeded.
+     * `minTokensBurned` remains a parameter so an honest caller can protect their own call.
      *
-     * Hence the cap: at most 1% of the native reserve per call. That holds the
-     * sandwich's ceiling near its 60bps cost. The real constraint is size per
-     * call, not the identity of the caller — so once the size is bounded,
-     * permission buys nothing and costs the feature its only working caller.
+     * NO FEE LEG IS CHARGED ON A BUYBACK
      *
-     * THE CAP ALONE WAS NOT ENOUGH, AND THIS PARAGRAPH USED TO CLAIM IT WAS.
-     *
-     * It said "each further attempt must wait for the treasury to refill from real
-     * volume". The cap was here; the waiting was not. A cap on one step does not
-     * bound how many steps a single transaction takes, and each call raises the
-     * reserve, so the 1% ceiling rises as a loop runs. The whole accrued treasury
-     * could be pushed into the curve in one transaction, in the middle of a
-     * buy-then-sell round trip.
-     *
-     * Measured by the reporter against a treasury built by real trades, using only
-     * this public entry point: 101.32 native drained in 3 calls, 65.96 profit on
-     * 3,000 of capital — about 65% of the bucket. A pre-buy five times the reserve
-     * captures closer to 98%. Solvency held throughout and `_assertSolvent()`
-     * passed, so what was extracted is fee revenue rather than user principal,
-     * which is why it was rated High and not Critical.
-     *
-     * `BUYBACK_COOLDOWN` is what makes the sentence true. It does not make the
-     * sandwich unprofitable by itself — it makes it non-atomic, which is the part
-     * that mattered: the attacker can no longer buy, drain and sell inside one
-     * transaction, so the moved price is exposed to everyone else before they can
-     * close. Reported as finding 1 in GHSA-g589-wjqq-86f2.
-     *
-     * THIS DOES NOT REACH THE MARKETS THAT ARE ALREADY LIVE. Their bytecode is
-     * frozen and has no owner, so there is no upgrade path. The fix applies to
-     * curves deployed by the next factory generation, and `/security` says so
-     * rather than implying the live ones carry it.
-     *
-     * `minTokensBurned` stays a parameter: an honest caller should still be able
-     * to protect their own call, and the cap already bounds what a dishonest one
-     * can waste.
-     *
-     * NO FEE LEG IS CHARGED ON A BUYBACK, INCLUDING THE PROTOCOL LEG.
-     *
-     * The whole `nativeAmount` moves from `treasuryNative` into `_curveNative`,
-     * while `getBuyQuote` sizes `tokensOut` as though fees had been taken. The
-     * difference stays in the curve. That is deliberately conservative, and the
-     * protocol leg follows the creator and buyback legs in being ignored here: a
-     * buyback is the protocol recycling money that already came from fees, not new
-     * trading volume, so charging it again would be taking a fee on a fee.
+     * The whole `nativeAmount` moves from `treasuryNative` into the curve, while `getBuyQuote`
+     * sizes `tokensOut` as though fees had been taken, and the difference stays in the curve.
+     * A buyback recycles money that already came from fees, so charging it again would be a
+     * fee on a fee.
      */
     function executeBuyback(uint256 nativeAmount, uint256 minTokensBurned)
         external
@@ -788,23 +591,16 @@ contract AdextoCurve {
         returns (uint256 tokensBurned)
     {
         require(nativeAmount > 0 && nativeAmount <= treasuryNative, "AdextoCurve: bad buyback amount");
-        // At most 1% of the native reserve in one call. Multiplied rather than
-        // divided so no precision is lost on small reserves.
+        // At most 1% of the native reserve in one call. Multiplied rather than divided so no
+        // precision is lost on small reserves.
         require(
             nativeAmount * 100 <= virtualNative + _curveNative,
             "AdextoCurve: buyback exceeds 1% of reserve"
         );
-        /**
-         * Turns the per-call cap into a budget. Checked before any state moves so a second
-         * call in the same transaction reverts rather than partially running.
-         *
-         * `lastBuybackAt == 0` is tested explicitly, and the first version of this fix did
-         * not. Zero means "never run", not "ran at the epoch": comparing
-         * `block.timestamp >= 0 + BUYBACK_COOLDOWN` blocks the very FIRST buyback on any
-         * chain whose timestamp is below the cooldown. Caught by
-         * `test/AdextoBuybackCooldown.t.sol`, where Foundry starts the clock at 1 and all
-         * five tests failed on the opening call.
-         */
+        // Checked before any state moves, so a second call in the same transaction reverts
+        // instead of partly running. Zero means "never run", not "ran at the epoch", which is
+        // why it is tested explicitly: otherwise the first buyback would be blocked on any chain
+        // whose timestamp is below the cooldown.
         require(
             lastBuybackAt == 0 || block.timestamp >= lastBuybackAt + BUYBACK_COOLDOWN,
             "AdextoCurve: buyback cooldown"
@@ -823,14 +619,11 @@ contract AdextoCurve {
         totalDepthFeesRetained += depthFee;
         swapCount += 1;
 
-        // Penghitung dinaikkan SEBELUM pembakaran, alasan yang sama seperti di
-        // `initializeCurve`: kalau pembakarannya gagal, transaksinya revert dan penghitungnya
-        // ikut kembali. Urutan lama membuat satu-satunya tulisan state di fungsi ini terjadi
-        // setelah panggilan eksternal.
+        // Counted before the burn call, so that every state write precedes the external call.
+        // If the burn fails the transaction reverts and the counter with it.
         totalTokensBurned += tokensOut;
-        // Tokens bought are burned by the token contract, permanently reducing supply.
+        // The bought tokens are burned by the token contract, permanently reducing supply.
         IAdextoBurnable(targetToken).executeTreasuryBuyback(tokensOut);
-
 
         _assertSolvent();
         emit AutoBuybackExecuted(
@@ -846,16 +639,10 @@ contract AdextoCurve {
     // ─── Invariant ───────────────────────────────────────────────────────────
 
     /**
-     * @dev Every native unit the contract holds is accounted for exactly once:
-     *      the curve, the creator's claim, the buyback vault, or the protocol's
-     *      claim. A shortfall would mean a payout path spent money it did not own.
-     *
-     *      `protocolOwed` MUST be a term here. Adding a fee leg that accrues a
-     *      balance without adding it to this sum would leave the assertion
-     *      satisfied by money the curve does not actually own free, so the curve
-     *      would read as solvent while being short by exactly the unclaimed
-     *      protocol fees, and the shortfall would only surface as a failed sell
-     *      for whoever happened to be last.
+     * @dev Every native unit the contract holds is accounted for exactly once: the curve, the
+     *      creator's claim, the buyback bucket or the protocol's claim. A shortfall would mean a
+     *      payout path spent money it did not own. `protocolOwed` must be a term here; leaving
+     *      it out would let the check pass on money that already belongs to the treasury.
      */
     function _assertSolvent() private view {
         require(

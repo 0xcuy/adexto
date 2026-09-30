@@ -5,11 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import {AdextoAgentStake} from "../contracts/AdextoAgentStake.sol";
 
 /**
- * Token uji yang MENGEMBALIKAN false alih-alih revert.
+ * Test token that RETURNS false instead of reverting.
  *
- * Dipakai karena itu perilaku ERC-20 yang sah dan nyata, dan `stake`/`unstake` memeriksa nilai
- * kembalian justru untuk kasus ini. Tanpa token seperti ini, pemeriksaan `require(...transfer...)`
- * di kontrak tidak pernah teruji — ia hanya terlihat benar.
+ * That is legitimate ERC-20 behaviour, and `stake`/`unstake` check the return value for exactly
+ * this case. Without a token like this, the `require(...transfer...)` checks in the contract would
+ * never be exercised; they would only look right.
  */
 contract SoftFailToken {
     string public name = "Adexto";
@@ -74,18 +74,18 @@ contract AdextoAgentStakeTest is Test {
         vm.stopPrank();
     }
 
-    // ── 1. Jalur normal ───────────────────────────────────────────────────────
+    // ── 1. The normal path ────────────────────────────────────────────────────
     function test_stakeMovesTokensAndActivates() public {
         uint256 before = token.balanceOf(alice);
         _stakeAs(alice, MIN);
 
-        assertEq(stakeContract.stakedOf(alice), MIN, "posisi tidak tercatat");
-        assertEq(stakeContract.totalStaked(), MIN, "total tidak naik");
-        assertEq(stakeContract.stakerCount(), 1, "jumlah staker salah");
-        assertTrue(stakeContract.isActive(alice), "belum aktif padahal sudah minimum");
-        assertEq(token.balanceOf(alice), before - MIN, "token tidak keluar dari dompet");
-        assertEq(token.balanceOf(address(stakeContract)), MIN, "token tidak masuk kontrak");
-        assertEq(stakeContract.lastStakeAt(alice), block.timestamp, "lastStakeAt tidak disetel");
+        assertEq(stakeContract.stakedOf(alice), MIN, "position not recorded");
+        assertEq(stakeContract.totalStaked(), MIN, "total did not increase");
+        assertEq(stakeContract.stakerCount(), 1, "wrong staker count");
+        assertTrue(stakeContract.isActive(alice), "not active at the minimum");
+        assertEq(token.balanceOf(alice), before - MIN, "tokens did not leave the wallet");
+        assertEq(token.balanceOf(address(stakeContract)), MIN, "tokens did not reach the contract");
+        assertEq(stakeContract.lastStakeAt(alice), block.timestamp, "lastStakeAt not set");
     }
 
     function test_unstakeReturnsTokensAndDeactivates() public {
@@ -96,14 +96,14 @@ contract AdextoAgentStakeTest is Test {
         assertEq(stakeContract.stakedOf(alice), 0);
         assertEq(stakeContract.totalStaked(), 0);
         assertEq(stakeContract.stakerCount(), 0);
-        assertFalse(stakeContract.isActive(alice), "masih aktif padahal sudah keluar");
-        assertEq(token.balanceOf(address(stakeContract)), 0, "token tertinggal di kontrak");
+        assertFalse(stakeContract.isActive(alice), "still active after exiting");
+        assertEq(token.balanceOf(address(stakeContract)), 0, "tokens left in the contract");
     }
 
-    // ── 2. Minimum diukur pada POSISI, bukan pada jumlah tambahan ─────────────
+    // ── 2. The minimum applies to the POSITION, not to each top-up ────────────
     //
-    // Ini yang membedakan "minimum stake" dari "minimum setoran". Tanpa test ini, menambah 1 token
-    // ke posisi besar akan ditolak dan tidak ada yang menyadarinya sampai ada pengguna mengeluh.
+    // This is what separates a minimum stake from a minimum deposit. Without this test, adding one
+    // token to a large position could be refused and nobody would notice until a user complained.
     function test_firstStakeBelowMinimumRejected() public {
         vm.startPrank(alice);
         token.approve(address(stakeContract), MIN);
@@ -114,17 +114,17 @@ contract AdextoAgentStakeTest is Test {
 
     function test_topUpBelowMinimumAllowedOnceActive() public {
         _stakeAs(alice, MIN);
-        _stakeAs(alice, 1); // jauh di bawah minimum, tapi posisinya sudah di atas
+        _stakeAs(alice, 1); // far below the minimum, but the position is already above it
         assertEq(stakeContract.stakedOf(alice), MIN + 1);
-        assertEq(stakeContract.stakerCount(), 1, "top-up tidak boleh menambah jumlah staker");
+        assertEq(stakeContract.stakerCount(), 1, "a top-up must not add a staker");
     }
 
-    // ── 3. Keluar sebagian tidak boleh meninggalkan posisi debu ──────────────
+    // ── 3. A partial exit must not leave a dust position ─────────────────────
     function test_partialExitLeavingDustRejected() public {
         _stakeAs(alice, MIN + 100 ether);
         vm.prank(alice);
         vm.expectRevert("AgentStake: remainder below minimum");
-        stakeContract.unstake(200 ether); // menyisakan MIN - 100, di bawah minimum
+        stakeContract.unstake(200 ether); // leaves MIN - 100, below the minimum
     }
 
     function test_partialExitKeepingMinimumAllowed() public {
@@ -135,9 +135,9 @@ contract AdextoAgentStakeTest is Test {
         assertTrue(stakeContract.isActive(alice));
     }
 
-    // ── 4. Tidak ada yang bisa menyentuh posisi orang lain ───────────────────
+    // ── 4. Nobody can touch another staker's position ────────────────────────
     //
-    // Inilah jaminan yang paling penting untuk diuji, sebab ia jaminan tentang APA YANG TIDAK ADA.
+    // The most important guarantee to test, because it is a guarantee about what does NOT exist.
     function test_cannotUnstakeMoreThanOwn() public {
         _stakeAs(alice, MIN);
         vm.prank(bob);
@@ -150,10 +150,10 @@ contract AdextoAgentStakeTest is Test {
         vm.prank(bob);
         vm.expectRevert("AgentStake: nothing staked");
         stakeContract.unstakeAll();
-        assertEq(stakeContract.stakedOf(alice), MIN, "posisi alice tersentuh");
+        assertEq(stakeContract.stakedOf(alice), MIN, "alice's position was touched");
     }
 
-    // ── 5. Transfer yang GAGAL TANPA REVERT tidak boleh mengkredit apa pun ───
+    // ── 5. A transfer that FAILS WITHOUT REVERTING must credit nothing ───────
     function test_softFailingTransferFromReverts() public {
         token.setFailTransfers(true);
         vm.startPrank(alice);
@@ -161,7 +161,7 @@ contract AdextoAgentStakeTest is Test {
         vm.expectRevert("AgentStake: transferFrom failed");
         stakeContract.stake(MIN);
         vm.stopPrank();
-        assertEq(stakeContract.stakedOf(alice), 0, "stake tercatat padahal token tidak pindah");
+        assertEq(stakeContract.stakedOf(alice), 0, "stake recorded although no tokens moved");
         assertEq(stakeContract.totalStaked(), 0);
     }
 
@@ -171,10 +171,10 @@ contract AdextoAgentStakeTest is Test {
         vm.prank(alice);
         vm.expectRevert("AgentStake: transfer failed");
         stakeContract.unstake(MIN);
-        assertEq(stakeContract.stakedOf(alice), MIN, "posisi hilang padahal token tidak keluar");
+        assertEq(stakeContract.stakedOf(alice), MIN, "position lost although no tokens left");
     }
 
-    // ── 6. Konstruktor menolak konfigurasi yang tidak bisa dipakai ───────────
+    // ── 6. The constructor rejects unusable configurations ───────────────────
     function test_constructorRejectsZeroToken() public {
         vm.expectRevert("AgentStake: zero token");
         new AdextoAgentStake(address(0), MIN);
@@ -185,22 +185,22 @@ contract AdextoAgentStakeTest is Test {
         new AdextoAgentStake(address(token), 0);
     }
 
-    // ── 7. Akuntansi memperlihatkan kelebihan, tidak menyembunyikannya ──────
+    // ── 7. Accounting shows a surplus instead of hiding it ───────────────────
     //
-    // Transfer langsung ke kontrak tidak mengkredit siapa pun dan tidak bisa ditarik. Yang penting
-    // adalah ia TERLIHAT, bukan mendistorsi totalStaked.
+    // A direct transfer to the contract credits nobody and cannot be withdrawn. What matters is
+    // that it is VISIBLE, and that it does not distort totalStaked.
     function test_directTransferShowsAsSurplus() public {
         _stakeAs(alice, MIN);
         vm.prank(bob);
         token.transfer(address(stakeContract), 777 ether);
 
         (uint256 held, uint256 accounted, uint256 surplus) = stakeContract.accounting();
-        assertEq(accounted, MIN, "totalStaked terdistorsi oleh transfer langsung");
+        assertEq(accounted, MIN, "totalStaked distorted by a direct transfer");
         assertEq(held, MIN + 777 ether);
-        assertEq(surplus, 777 ether, "kelebihan tidak terlihat");
+        assertEq(surplus, 777 ether, "surplus not visible");
     }
 
-    // ── 8. Banyak staker: total dan jumlah tetap konsisten ──────────────────
+    // ── 8. Many stakers: total and count stay consistent ─────────────────────
     function test_multipleStakersAccounting() public {
         _stakeAs(alice, MIN);
         _stakeAs(bob, MIN * 3);
@@ -214,18 +214,18 @@ contract AdextoAgentStakeTest is Test {
         assertTrue(stakeContract.isActive(bob));
     }
 
-    // ── 9. Tidak ada lock: keluar di blok yang sama harus BISA ──────────────
+    // ── 9. No lock: exiting in the same block MUST work ──────────────────────
     //
-    // Diuji secara eksplisit karena dokumentasi kontraknya menyatakan tidak ada cooldown. Kalau
-    // suatu saat lock ditambahkan, test ini yang gagal lebih dulu dan memaksa kalimat itu diperbarui.
+    // Tested explicitly because the contract's documentation says there is no cooldown. If a lock
+    // is ever added, this test fails first and forces that sentence to be updated.
     function test_noLockPeriod() public {
         _stakeAs(alice, MIN);
         vm.prank(alice);
         stakeContract.unstakeAll();
-        assertEq(token.balanceOf(address(stakeContract)), 0, "ada lock yang tidak didokumentasikan");
+        assertEq(token.balanceOf(address(stakeContract)), 0, "an undocumented lock exists");
     }
 
-    // ── 10. Fuzz: total selalu sama dengan saldo yang tercatat ──────────────
+    // ── 10. Fuzz: the total always equals the recorded positions ─────────────
     function testFuzz_totalMatchesSumOfPositions(uint256 aliceAmount, uint256 bobAmount) public {
         aliceAmount = bound(aliceAmount, MIN, 500_000 ether);
         bobAmount = bound(bobAmount, MIN, 500_000 ether);
@@ -234,8 +234,8 @@ contract AdextoAgentStakeTest is Test {
         assertEq(
             stakeContract.totalStaked(),
             stakeContract.stakedOf(alice) + stakeContract.stakedOf(bob),
-            "total menyimpang dari jumlah posisi"
+            "total drifted from the sum of positions"
         );
-        assertEq(token.balanceOf(address(stakeContract)), stakeContract.totalStaked(), "saldo != total");
+        assertEq(token.balanceOf(address(stakeContract)), stakeContract.totalStaked(), "balance != total");
     }
 }

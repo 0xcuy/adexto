@@ -6,19 +6,18 @@ import {AdextoCurve} from "../contracts/AdextoCurve.sol";
 import {AdextoToken} from "../contracts/AdextoToken.sol";
 
 /**
- * Pelaku aksi acak untuk v0.11.0.
+ * Random actor for the invariant suite.
  *
- * Sama alasannya dengan CurveHandler v0.10.0: fuzz stateless menguji satu panggilan
- * pada state bersih, dan yang tidak ditangkapnya adalah URUTAN. Bedanya di sini ada
- * kantong keempat yang bisa diklaim siapa pun, jadi urutan yang dicari termasuk
- * "klaim protokol di tengah rentetan jual" — tempat akuntansi yang benar per langkah
- * paling mungkin meleset saat digabung.
+ * Stateless fuzzing tests one call on a clean state; what it misses is ordering. With four fee
+ * buckets that anyone can claim, the sequences worth finding include "claim the protocol fees in
+ * the middle of a run of sells", where accounting that is right step by step is most likely to
+ * drift when steps combine.
  */
 contract AdextoCurveHandler {
     AdextoCurve public immutable curve;
     AdextoToken public immutable token;
 
-    /// Ghost: dijumlahkan sendiri supaya invarian tidak bergantung pada penghitung kontrak.
+    /// Ghost total, summed independently so the invariants do not rely on the contract's counters.
     uint256 public protocolAccrued;
     uint256 public buys;
     uint256 public sells;
@@ -34,23 +33,13 @@ contract AdextoCurveHandler {
     receive() external payable {}
 
     /**
-     * @dev BATAS BAWAH 0.001 ether, BUKAN 1 wei, DAN ITU BUKAN KELONGGARAN.
+     * @dev Lower bound 0.001 ether, not 1 wei, and that is not leniency.
      *
-     * Versi pertama memakai `_bound(seed, 1, 5_000 ether)`. Karena `_bound` mengambil
-     * `seed % rentang`, seed kecil menghasilkan pembelian sebesar beberapa ribu wei —
-     * terhadap reserve virtual 1500 ether. Diukur: seed 12345 membeli 12346 wei dan
-     * menerima 8.19e9 unit token dari persediaan 1e27.
-     *
-     * Akibatnya berantai. Penjualan berikutnya mengkuotasi
-     * `1.5e21 * jumlah / 1e27`, yang membulat ke NOL untuk jumlah sekecil itu,
-     * sehingga handler `return` lebih awal dan `sells` tidak pernah bertambah. Tabel
-     * Foundry tetap melaporkan `sell` dipanggil 6604 kali dengan 0 revert, jadi
-     * kelihatannya teruji padahal tidak ada satu pun penjualan yang terjadi.
-     *
-     * Tepi rentang 1 wei tidak hilang dari cakupan: itu justru yang diuji fuzz
-     * stateless di AdextoCurveFuzz.t.sol, yang sengaja membatasi dari 1 wei.
-     * Berkas ini bertugas mencari URUTAN, dan urutan hanya berarti kalau aksinya
-     * benar-benar terjadi.
+     * With a lower bound of 1 wei, small seeds bought a few thousand wei against a 1,500 ether
+     * virtual reserve. A later sell of that amount quoted zero, so the handler returned early and
+     * no sell ever happened, while Foundry still reported thousands of `sell` calls with no
+     * reverts. The 1 wei edge is covered by the stateless fuzz suite; this suite looks for
+     * sequences, and sequences only mean something if the actions actually happen.
      */
     function buy(uint256 seed) external {
         uint256 amount = _bound(seed, 0.001 ether, 5_000 ether);
@@ -62,11 +51,7 @@ contract AdextoCurveHandler {
         curve.buy{value: amount}(0, address(this), block.timestamp + 1);
     }
 
-    /**
-     * @dev Persentase kepemilikan, bukan jumlah absolut, dengan alasan yang sama:
-     *      `seed % held` condong ke jumlah kecil yang kuotasinya nol, sedangkan
-     *      persentase selalu berskala terhadap yang benar-benar dipegang.
-     */
+    /// A share of the holding rather than an absolute amount, for the same reason as above.
     function sell(uint256 seed) external {
         uint256 held = token.balanceOf(address(this));
         if (held == 0) return;
@@ -80,7 +65,7 @@ contract AdextoCurveHandler {
         curve.sell(amount, 0, address(this), block.timestamp + 1);
     }
 
-    /// Buyback memang permissionless, jadi handler memanggilnya seperti orang lain.
+    /// The buyback is permissionless, so the handler calls it like anyone else.
     function buyback(uint256 seed) external {
         uint256 treasury = curve.treasuryNative();
         if (treasury == 0) return;
@@ -101,7 +86,7 @@ contract AdextoCurveHandler {
         curve.claimCreatorFees();
     }
 
-    /// Juga permissionless, dan tujuannya immutable, jadi handler boleh memicunya.
+    /// Also permissionless, with an immutable destination, so the handler may trigger it.
     function claimProtocol() external {
         if (curve.protocolOwed() == 0) return;
         protocolClaims += 1;
@@ -132,158 +117,115 @@ contract AdextoCurveInvariantTest is AdextoCurveFixture {
     }
 
     /**
-     * Invarian 1 — SOLVENSI DENGAN KANTONG KEEMPAT. Ini yang paling penting di sini.
-     *
-     * Setiap wei yang dipegang kurva harus punya pemilik: kurva, klaim creator,
-     * kantong buyback, atau klaim protokol. Kalau `protocolOwed` tertinggal dari
-     * jumlah ini, kurva terbaca solven padahal kurang persis sebesar fee protokol
-     * yang belum diklaim.
+     * 1. Solvency with the fourth bucket, the most important property here. Every wei the curve
+     *    holds must have an owner: the curve, the creator's claim, the buyback bucket or the
+     *    protocol's claim.
      */
     function invariant_curveAlwaysSolventWithProtocolLeg() public view {
         uint256 accounted =
             curve.realNative() + curve.creatorOwed() + curve.treasuryNative() + curve.protocolOwed();
-        assertGe(address(curve).balance, accounted, "kurva insolven setelah urutan aksi acak");
+        assertGe(address(curve).balance, accounted, "curve insolvent after a random sequence");
     }
 
     /**
-     * Invarian 2 — tidak ada fee protokol yang hilang atau tercipta.
-     *
-     * Yang mengendap ditambah yang sudah dibayar harus persis sama dengan yang
-     * dihitung handler dari kuotasi. Kalau jumlahnya kurang, ada jalur yang
-     * membelanjakan fee protokol ke tempat lain; kalau lebih, ada jalur yang
-     * mengendapkannya dua kali.
+     * 2. No protocol fee is lost or created. What is owed plus what was paid must equal what the
+     *    handler summed from the quotes: less means a path spent protocol fees elsewhere, more
+     *    means a path accrued them twice.
      */
     function invariant_protocolFeesConserved() public view {
         assertEq(
             curve.protocolOwed() + curve.totalProtocolFeesPaid(),
             handler.protocolAccrued(),
-            "fee protokol hilang atau tercipta"
+            "protocol fees lost or created"
         );
     }
 
-    /**
-     * Invarian 3 — fee protokol yang sudah dibayar tidak pernah berkurang.
-     *
-     * `totalProtocolFeesPaid` hanya ditambah di `claimProtocolFees`. Kalau ia bisa
-     * turun, catatan pendapatan protokol tidak bisa dipakai untuk apa pun.
-     */
+    /// 3. Protocol fees paid never go down, or the revenue record would mean nothing.
     function invariant_totalProtocolPaidNeverFalls() public {
         uint256 paidNow = curve.totalProtocolFeesPaid();
-        assertGe(paidNow, lastTotalProtocolPaid, "total fee protokol terbayar turun");
+        assertGe(paidNow, lastTotalProtocolPaid, "total protocol fees paid went down");
         lastTotalProtocolPaid = paidNow;
     }
 
     /**
-     * Invarian 4 — treasury protokol tidak pernah menerima lebih dari yang tercatat.
-     *
-     * Saldo treasury adalah satu-satunya tempat fee protokol boleh mendarat, jadi ia
-     * harus sama dengan `totalProtocolFeesPaid`. Lebih besar berarti ada jalur lain
-     * yang mengirim uang ke sana — dan jalur yang tidak tercatat tidak bisa diaudit.
+     * 4. The treasury never receives more than recorded. It is the only place protocol fees may
+     *    land, so its balance must equal `totalProtocolFeesPaid`; more would mean an unrecorded
+     *    path, and an unrecorded path cannot be audited.
      */
     function invariant_treasuryBalanceMatchesPaid() public view {
         assertEq(
             PROTOCOL_TREASURY.balance,
             curve.totalProtocolFeesPaid(),
-            "saldo treasury tidak cocok dengan yang tercatat terbayar"
+            "treasury balance does not match what was recorded as paid"
         );
     }
 
     /**
-     * Invarian 5 — lantai harga tidak pernah turun.
-     *
-     * Kaki protokol keluar dari kurva, jadi kalau ia keliru dihitung sebagai fee depth
-     * di suatu tempat, lantai akan naik tanpa uangnya benar-benar ada di kurva —
-     * atau turun saat diklaim. Keduanya tertangkap di sini.
+     * 5. The price floor never falls. The protocol leg leaves the curve, so if it were counted as
+     *    depth anywhere, the floor would rise without the money being in the curve, or fall when
+     *    it was claimed. Both are caught here.
      */
     function invariant_floorNeverFalls() public {
         uint256 floorNow = curve.floorPriceNativePerToken();
-        assertGe(floorNow, lastFloor, "lantai harga turun");
+        assertGe(floorNow, lastFloor, "the price floor fell");
         lastFloor = floorNow;
     }
 
     function invariant_supplyNeverGrows() public view {
-        assertLe(token.totalSupply(), initialSupply, "total supply bertambah");
+        assertLe(token.totalSupply(), initialSupply, "total supply grew");
     }
 
     function invariant_tokensSoldWithinCurve() public view {
-        assertLe(curve.tokensSold(), curve.curveTokens(), "tokensSold melampaui curveTokens");
+        assertLe(curve.tokensSold(), curve.curveTokens(), "tokensSold exceeds curveTokens");
     }
 
     function invariant_inventoryMatchesBalance() public view {
         assertEq(
             token.balanceOf(address(curve)),
             curve.curveTokens() - curve.tokensSold(),
-            "persediaan internal tidak cocok dengan saldo ERC-20"
+            "internal inventory does not match the ERC-20 balance"
         );
     }
 
     function invariant_creatorHoldsNoTokens() public view {
-        assertEq(token.balanceOf(address(this)), 0, "creator memegang token");
+        assertEq(token.balanceOf(address(this)), 0, "the creator holds tokens");
     }
 
     /**
-     * Penjaga terhadap suite yang lolos tanpa menguji apa pun.
+     * Guard against a suite that passes while testing nothing.
      *
-     * Ini ditambahkan setelah temuan nyata. `fail_on_revert = false` di foundry.toml
-     * memang disengaja — handler menolak aksi yang tidak masuk akal dengan `return`,
-     * dan revert dari kontraknya sendiri tidak boleh menghentikan pencarian urutan.
-     * Efek sampingnya: kalau SETIAP aksi revert, tidak ada state yang berubah dan
-     * seluruh invarian di atas terpenuhi secara hampa.
+     * `fail_on_revert = false` is deliberate: the handler refuses nonsensical actions with
+     * `return`, and reverts must not stop the search for sequences. The side effect is that if
+     * every action failed, no state would change and every invariant above would hold vacuously.
+     * That has happened here twice: once in a mutation test where every buy reverted and this
+     * whole suite still passed, and once when every sell quoted zero and the handler returned
+     * early while thousands of calls were reported.
      *
-     * Itu bukan hipotesis. Saat `- protocolFee` dihapus dari akumulasi kurva sebagai
-     * uji mutasi, `_assertSolvent` mulai me-revert setiap pembelian; sembilan tes
-     * fuzz stateless menangkapnya, tetapi seluruh suite invariant ini LULUS karena
-     * handler-nya tidak pernah berhasil melakukan satu pun aksi.
-     *
-     * `afterInvariant` berjalan sekali di akhir setiap urutan, jadi di sinilah
-     * "handler tidak pernah bergerak" bisa dinyatakan gagal. `buys` bertambah sebelum
-     * panggilan, sehingga ia ikut ter-rollback kalau panggilannya revert — yang
-     * membuat penghitung ini hanya mencatat aksi yang benar-benar berhasil.
-     */
-    /**
-     * Penjaga terhadap suite yang lolos tanpa menguji apa pun.
-     *
-     * Ini ditambahkan setelah temuan nyata, bukan sebagai kelengkapan. `fail_on_revert
-     * = false` di foundry.toml memang disengaja: handler menolak aksi yang tidak masuk
-     * akal dengan `return`, dan revert dari kontraknya sendiri tidak boleh
-     * menghentikan pencarian urutan. Efek sampingnya: kalau SETIAP aksi gagal, tidak
-     * ada state yang berubah dan kesembilan invarian di atas terpenuhi secara hampa.
-     *
-     * Itu terbukti dua kali di sini. Pertama, saat `- protocolFee` dihapus dari
-     * akumulasi kurva sebagai uji mutasi: `_assertSolvent` mulai me-revert setiap
-     * pembelian, sembilan tes fuzz stateless menangkapnya, dan seluruh suite invariant
-     * ini LULUS. Kedua, dengan batas bawah `_bound` yang lama: `sell` dilaporkan
-     * dipanggil 6604 kali dengan 0 revert padahal `sells` tetap nol, karena setiap
-     * jumlah jual mengkuotasi ke nol dan handler keluar lebih awal.
-     *
-     * Ditulis sebagai tes biasa, BUKAN `afterInvariant`. `afterInvariant` sudah dicoba
-     * dan ternyata dievaluasi saat urutan baru berjalan satu panggilan, sehingga
-     * assertion kumulatif di sana gagal dengan `--match-path` tetapi lolos dengan
-     * `--match-test` — penjaga yang hasilnya bergantung pada cara pemanggilan tidak
-     * bisa dipercaya. Tes biasa berjalan sekali dan deterministik.
+     * Written as an ordinary test, not `afterInvariant`, which was tried and evaluated one call
+     * into a new sequence, so its result depended on how the suite was invoked.
      */
     function test_handlerCanActuallyPerformEveryAction() public {
         handler.buy(uint256(keccak256("buy")));
-        assertGt(handler.buys(), 0, "handler tidak bisa membeli: suite invariant akan hampa");
+        assertGt(handler.buys(), 0, "the handler cannot buy: the invariant suite would be vacuous");
 
         handler.sell(uint256(keccak256("sell")));
-        assertGt(handler.sells(), 0, "handler tidak bisa menjual: suite invariant akan hampa");
+        assertGt(handler.sells(), 0, "the handler cannot sell: the invariant suite would be vacuous");
 
         handler.buy(uint256(keccak256("buy2")));
         handler.buyback(uint256(keccak256("buyback")));
-        assertGt(handler.buybacks(), 0, "handler tidak bisa buyback: jalur itu tidak teruji");
+        assertGt(handler.buybacks(), 0, "the handler cannot buy back: that path is untested");
 
         handler.claimCreator();
-        assertGt(handler.creatorClaims(), 0, "handler tidak bisa klaim creator: jalur itu tidak teruji");
+        assertGt(handler.creatorClaims(), 0, "the handler cannot claim creator fees: that path is untested");
 
         handler.claimProtocol();
-        assertGt(handler.protocolClaims(), 0, "handler tidak bisa klaim protokol: jalur itu tidak teruji");
+        assertGt(handler.protocolClaims(), 0, "the handler cannot claim protocol fees: that path is untested");
 
-        // Dan setelah kelima jalur berjalan, akuntansinya harus tetap utuh.
+        // After all five paths have run, the accounting must still hold.
         assertEq(
             curve.protocolOwed() + curve.totalProtocolFeesPaid(),
             handler.protocolAccrued(),
-            "fee protokol hilang atau tercipta setelah kelima aksi"
+            "protocol fees lost or created after the five actions"
         );
         _assertSolvent();
     }

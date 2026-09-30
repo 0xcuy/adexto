@@ -2,21 +2,15 @@
 pragma solidity ^0.8.26;
 
 import {AdextoCurveFixture} from "./AdextoCurveFixture.sol";
-import {AdextoCurveFactory} from "../contracts/AdextoCurveFactory.sol";
 import {AdextoFactory} from "../contracts/AdextoFactory.sol";
-import {SovereignCurve} from "../contracts/SovereignCurve.sol";
 import {AdextoCurve} from "../contracts/AdextoCurve.sol";
-import {AdextoToken} from "../contracts/AdextoToken.sol";
 
 /**
- * Fuzz stateless untuk kaki fee protokol v0.11.0.
+ * Stateless fuzz properties of the curve and factory.
  *
- * Yang diuji di sini bukan ulang seluruh sifat kurva — itu sudah ada di
- * SovereignCurveFuzz.t.sol dan matematikanya tidak berubah. Yang diuji adalah hal
- * yang BARU dan hal yang bisa dirusak olehnya: apakah fee protokol benar-benar
- * ditagih, apakah ia aditif seperti yang diklaim, apakah ia hanya bisa mendarat di
- * treasury yang immutable, dan apakah solvensi masih berlaku setelah ada kantong
- * keempat.
+ * What is tested: the four fee legs are charged as published, the protocol leg is carved out of
+ * the total rather than added to it, each claim can only ever reach its immutable recipient,
+ * rounding always favours the curve, and solvency holds after every action.
  */
 contract AdextoCurveFuzzTest is AdextoCurveFixture {
     function setUp() public {
@@ -27,38 +21,31 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         return bound(raw, 1, 100_000 ether);
     }
 
-    // ── 1. Kaki fee terkonfigurasi seperti yang diklaim ───────────────────────
+    // ── 1. Fee legs are configured as published ──────────────────────────────
     //
-    // Angka-angka ini dipublikasikan, jadi kontraknya yang harus membuktikannya,
-    // bukan dokumentasinya.
+    // These numbers are published, so the contract has to prove them, not the documentation.
     function test_feeLegsMatchPublishedNumbers() public view {
-        assertEq(curve.depthFeeBps(), DEPTH_BPS, "depth bukan 10 bps");
-        assertEq(curve.creatorFeeBps(), CREATOR_BPS, "creator bukan 70 bps");
-        assertEq(curve.treasuryBuybackBps(), TREASURY_BPS, "buyback bukan 10 bps");
-        assertEq(curve.protocolFeeBps(), PROTOCOL_BPS, "protokol bukan 10 bps");
-        assertEq(curve.totalFeeBps(), TOTAL_PAID_BPS, "total yang dibayar bukan 100 bps");
-        assertEq(factory.PROTOCOL_FEE_BPS(), PROTOCOL_BPS, "konstanta factory bukan 10 bps");
-        /**
-         * Keempat kaki HARUS berjumlah tepat `swapFeeBps`, dan ini yang membedakan 0.12.0
-         * dari 0.11.0 dalam satu baris. Di 0.11.0 jumlahnya `swapFeeBps + 10` karena kaki
-         * protokol ditagih di atasnya; di sini tidak ada apa pun yang ditagih di atas, jadi
-         * angka yang dikutip ke trader adalah angka yang dikonfigurasi pembuat pasar.
-         */
+        assertEq(curve.depthFeeBps(), DEPTH_BPS, "depth is not 10 bps");
+        assertEq(curve.creatorFeeBps(), CREATOR_BPS, "creator is not 70 bps");
+        assertEq(curve.treasuryBuybackBps(), TREASURY_BPS, "buyback is not 10 bps");
+        assertEq(curve.protocolFeeBps(), PROTOCOL_BPS, "protocol is not 10 bps");
+        assertEq(curve.totalFeeBps(), TOTAL_PAID_BPS, "total paid is not 100 bps");
+        assertEq(factory.PROTOCOL_FEE_BPS(), PROTOCOL_BPS, "factory constant is not 10 bps");
+        // The four legs must add up to exactly `swapFeeBps`: nothing is charged outside the quote.
         assertEq(
             curve.depthFeeBps() + curve.creatorFeeBps() + curve.treasuryBuybackBps() + curve.protocolFeeBps(),
             SWAP_FEE_BPS,
-            "keempat kaki tidak berjumlah swapFeeBps: ada yang ditagih di luar kuotasi"
+            "the four legs do not add up to swapFeeBps"
         );
-        assertEq(curve.protocolTreasury(), PROTOCOL_TREASURY, "treasury protokol salah");
-        // Dibandingkan dengan SATU konstanta, dan satu sama lain. Yang kedua itu invarian
-        // sebenarnya: factory menanam creation code kurva, jadi dua nomor berbeda berarti
-        // salah satunya tidak pernah diperbarui.
-        assertEq(curve.VERSION(), SOURCE_VERSION, "versi kurva salah");
-        assertEq(factory.VERSION(), SOURCE_VERSION, "versi factory salah");
-        assertEq(curve.VERSION(), factory.VERSION(), "versi kurva dan factory berbeda");
+        assertEq(curve.protocolTreasury(), PROTOCOL_TREASURY, "wrong protocol treasury");
+        // The factory embeds the curve's creation code, so two different numbers would mean one
+        // of them was never updated.
+        assertEq(curve.VERSION(), SOURCE_VERSION, "wrong curve version");
+        assertEq(factory.VERSION(), SOURCE_VERSION, "wrong factory version");
+        assertEq(curve.VERSION(), factory.VERSION(), "curve and factory versions differ");
     }
 
-    // ── 2. Kuotasi harus SAMA dengan eksekusi, termasuk kaki protokol ─────────
+    // ── 2. Quotes equal execution, protocol leg included ─────────────────────
     function testFuzz_buyQuoteMatchesExecution(uint256 rawIn) public {
         uint256 nativeIn = _boundBuy(rawIn);
         vm.deal(address(this), nativeIn);
@@ -69,8 +56,8 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         uint256 owedBefore = curve.protocolOwed();
         uint256 received = curve.buy{value: nativeIn}(0, address(this), block.timestamp + 1);
 
-        assertEq(received, quoted, "nilai kembalian buy != kuotasi");
-        assertEq(curve.protocolOwed() - owedBefore, protocolFee, "fee protokol yang mengendap != kuotasi");
+        assertEq(received, quoted, "buy returned something other than the quote");
+        assertEq(curve.protocolOwed() - owedBefore, protocolFee, "accrued protocol fee differs from the quote");
         _assertSolvent();
     }
 
@@ -91,124 +78,69 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         uint256 owedBefore = curve.protocolOwed();
         uint256 out = curve.sell(amount, 0, address(this), block.timestamp + 1);
 
-        assertEq(out, quotedOut, "nilai kembalian sell != kuotasi");
-        assertEq(curve.protocolOwed() - owedBefore, protocolFee, "fee protokol pada jual != kuotasi");
+        assertEq(out, quotedOut, "sell returned something other than the quote");
+        assertEq(curve.protocolOwed() - owedBefore, protocolFee, "protocol fee on the sell differs from the quote");
         _assertSolvent();
     }
 
-    // ── 3. Fee protokol persis mengikuti aritmetika bps ───────────────────────
+    // ── 3. The protocol fee is exact bps arithmetic ──────────────────────────
     function testFuzz_protocolFeeIsExactBpsOfInput(uint256 rawIn) public view {
         uint256 nativeIn = _boundBuy(rawIn);
         (,,,, uint256 protocolFee) = curve.getBuyQuote(nativeIn);
-        assertEq(protocolFee, (nativeIn * PROTOCOL_BPS) / 10_000, "fee protokol != bps * masukan");
+        assertEq(protocolFee, (nativeIn * PROTOCOL_BPS) / 10_000, "protocol fee != bps * input");
     }
 
-    // ── 4. Total keempat kaki tidak pernah melebihi masukan ───────────────────
+    // ── 4. The four legs never exceed the input ──────────────────────────────
     function testFuzz_fourLegsNeverExceedInput(uint256 rawIn) public view {
         uint256 nativeIn = _boundBuy(rawIn);
         (, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee) =
             curve.getBuyQuote(nativeIn);
-        assertLe(depthFee + creatorFee + treasuryFee + protocolFee, nativeIn, "total fee melebihi masukan");
+        assertLe(depthFee + creatorFee + treasuryFee + protocolFee, nativeIn, "total fee exceeds the input");
     }
 
-    // ── 5. Fee protokol DIPOTONG DARI DALAM, bukan ditagih di atas ────────────
+    // ── 5. The protocol leg is carved out of the total, not added on top ─────
     //
-    // DIBALIK DI 0.12.0. Properti ini dulu bernama `testFuzz_protocolFeeIsAdditiveNotCarvedOut`
-    // dan membuktikan kebalikan persis dari yang sekarang: bahwa 10 bps protokol ditagih
-    // DI ATAS `swapFeeBps`, sehingga pembeli 0.11.0 menerima lebih sedikit token daripada
-    // pembeli 0.10.0 pada konfigurasi yang sama.
+    // A trader is quoted `swapFeeBps` and must pay exactly that. If the protocol leg were
+    // added on top, the fee on an input would be `swapFeeBps + PROTOCOL_BPS` of it, which is
+    // what generation 0.11.0 charged.
     //
-    // Dibalik dan bukan dihapus, karena properti yang dihapus tidak meninggalkan jejak
-    // bahwa perilakunya pernah berbeda. Yang dibuktikan sekarang, masih dengan cara yang
-    // sama — membandingkan langsung terhadap kurva 0.10.0 yang dikonfigurasi identik:
-    //
-    //   1. `depthFeeBps` BERBEDA, tepat sebesar `PROTOCOL_BPS`. Depth adalah sisa, jadi
-    //      di situlah kaki protokol diambil pada `swapFeeBps` yang sama.
-    //   2. creator dan buyback IDENTIK. Carve-out tidak boleh menyentuh dua kaki yang
-    //      sudah dijanjikan ke orang: creator dibayar, buyback dibakar.
-    //   3. total yang dibayar IDENTIK, jadi pembeli menerima jumlah token yang SAMA.
-    //      Ini pembuktian "tidak ada tambahan di luar kuotasi", dan di 0.11.0 justru
-    //      assertion inilah yang gagal.
-    //
-    // Perhatikan bahwa (1) hanya berlaku saat `swapFeeBps` kedua kurva disetel sama.
-    // Pada model peluncuran 0.12.0 yang sebenarnya, `swapFeeBps` naik 30 -> 100, sehingga
-    // creator justru naik 10 -> 70 bps. Tidak ada yang dibayar lebih sedikit; yang berubah
-    // adalah angka yang fee-nya dipotong dari situ.
-    function testFuzz_protocolFeeIsCarvedOutNotAdditive(uint256 rawIn) public {
-        AdextoCurveFactory legacyFactory = new AdextoCurveFactory();
-        (address lt, address lc) = legacyFactory.deployTrinity(
-            "Legacy Curve",
-            "LEG",
-            SUPPLY,
-            address(this),
-            VIRTUAL_NATIVE,
-            SWAP_FEE_BPS,
-            CREATOR_BPS,
-            TREASURY_BPS,
-            bytes32(0),
-            false,
-            0
-        );
-        SovereignCurve legacy = SovereignCurve(payable(lc));
-        AdextoToken(lt);
-        vm.roll(block.number + 6);
-
-        // 1. Depth menyerap kaki protokol, tepat sebesar PROTOCOL_BPS dan tidak lebih.
-        assertEq(
-            legacy.depthFeeBps() - curve.depthFeeBps(),
-            PROTOCOL_BPS,
-            "selisih depth bukan tepat PROTOCOL_BPS: carve-out mengambil dari tempat lain"
-        );
-
-        // 2. Dua kaki yang sudah dijanjikan ke orang tidak boleh tersentuh.
-        assertEq(legacy.creatorFeeBps(), curve.creatorFeeBps(), "creator berbeda: protokol mengambil dari creator");
-        assertEq(
-            legacy.treasuryBuybackBps(), curve.treasuryBuybackBps(), "buyback berbeda: protokol mengambil dari buyback"
-        );
-
-        // 3. Total dalam bps identik, jadi tidak ada satu pun kaki yang ditagih di atas.
-        assertEq(
-            curve.totalFeeBps(),
-            legacy.lpFeeBps() + legacy.creatorFeeBps() + legacy.treasuryBuybackBps(),
-            "total 0.12.0 != total 0.10.0 pada swapFeeBps yang sama: ada kaki yang ditagih di atas"
-        );
-
+    // Each leg is floored on its own, so four floors can undercut one floor of the total by at
+    // most three wei, and always in the trader's favour. The bound is exact, not a tolerance:
+    // a leg that genuinely moved would break it.
+    function testFuzz_protocolFeeIsCarvedOutOnBuy(uint256 rawIn) public view {
         uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
-        (uint256 legacyOut, uint256 lDepth, uint256 lCreator, uint256 lTreasury) = legacy.getBuyQuote(nativeIn);
-        (uint256 v2Out, uint256 nDepth, uint256 nCreator, uint256 nTreasury, uint256 protocolFee) =
+        (, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee) =
             curve.getBuyQuote(nativeIn);
-        vm.assume(legacyOut > 0 && v2Out > 0);
-
-        assertGt(protocolFee, 0, "fee protokol nol pada pembelian berukuran nyata");
-
-        /**
-         * Total dalam WEI tidak persis sama, dan itu benar — bukan toleransi yang dikarang.
-         *
-         * Tiap kaki dipotong sendiri-sendiri: `(nativeIn * bps) / 10_000`, membulat ke bawah.
-         * 0.10.0 memotong TIGA kali, 0.12.0 memotong EMPAT kali karena depth 20 bps terbelah
-         * menjadi depth 10 + protokol 10. Dan `floor(x*20)` bisa lebih besar 1 wei daripada
-         * `floor(x*10) + floor(x*10)`. Jadi selisih maksimumnya tepat 1 wei, bisa dihitung,
-         * bukan diperkirakan — dan batas ketat inilah yang akan gagal kalau suatu saat sebuah
-         * kaki benar-benar bergeser, yang tidak akan terdeteksi oleh `assertApproxEq` berpagu
-         * longgar.
-         *
-         * Arahnya juga ditegaskan: pembulatan ekstra membuat fee LEBIH KECIL, jadi selisihnya
-         * menguntungkan trader. Kalau tandanya terbalik, kurva memungut lebih dari yang
-         * dikonfigurasi dan itu temuan, bukan pembulatan.
-         */
-        uint256 legacyTotalFee = lDepth + lCreator + lTreasury;
-        uint256 newTotalFee = nDepth + nCreator + nTreasury + protocolFee;
-        assertLe(newTotalFee, legacyTotalFee, "fee 0.12.0 melebihi 0.10.0: carve-out memungut lebih");
-        assertLe(legacyTotalFee - newTotalFee, 1, "selisih fee > 1 wei: ada kaki yang benar-benar bergeser");
-
-        // Konsekuensi langsung dari kalimat di atas: pembeli tidak pernah lebih buruk.
-        assertGe(v2Out, legacyOut, "pembeli 0.12.0 menerima lebih sedikit: fee protokol bukan carve-out murni");
+        _assertCarvedOut(nativeIn, depthFee + creatorFee + treasuryFee + protocolFee, protocolFee);
     }
 
-    // ── 6. Fee protokol hanya bisa mendarat di treasury yang immutable ────────
+    function testFuzz_protocolFeeIsCarvedOutOnSell(uint256 rawIn) public {
+        uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
+        vm.deal(address(this), nativeIn);
+        (uint256 bought,,,,) = curve.getBuyQuote(nativeIn);
+        vm.assume(bought > 0);
+        curve.buy{value: nativeIn}(0, address(this), block.timestamp + 1);
+
+        (uint256 nativeOut, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee) =
+            curve.getSellQuote(bought);
+        uint256 charged = depthFee + creatorFee + treasuryFee + protocolFee;
+        _assertCarvedOut(nativeOut + charged, charged, protocolFee);
+    }
+
+    /// `gross` is what the fee is taken from: native in on a buy, gross proceeds on a sell.
+    function _assertCarvedOut(uint256 gross, uint256 charged, uint256 protocolFee) internal pure {
+        uint256 quotedTotal = (gross * SWAP_FEE_BPS) / 10_000;
+        uint256 additiveTotal = (gross * (SWAP_FEE_BPS + PROTOCOL_BPS)) / 10_000;
+        assertGt(protocolFee, 0, "no protocol fee on a real-sized trade");
+        assertLe(charged, quotedTotal, "charged more than the quoted total");
+        assertLe(quotedTotal - charged, 3, "more than rounding separates the legs from the total");
+        assertLt(charged, additiveTotal, "the protocol leg was charged on top of the total");
+    }
+
+    // ── 6. Protocol fees can only reach the immutable treasury ───────────────
     //
-    // `claimProtocolFees` tidak menerima parameter tujuan, jadi yang diuji: siapa pun
-    // boleh MEMICUnya, tapi uangnya selalu mendarat di treasury.
+    // `claimProtocolFees` takes no destination, so anyone may trigger it and the money must
+    // always land at the treasury.
     function testFuzz_protocolFeesOnlyReachTreasury(uint256 rawIn, address caller) public {
         vm.assume(caller != address(0) && caller != PROTOCOL_TREASURY && caller != address(this));
         vm.assume(caller.code.length == 0 && caller.balance == 0);
@@ -228,18 +160,17 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         vm.prank(caller);
         curve.claimProtocolFees();
 
-        assertEq(PROTOCOL_TREASURY.balance - treasuryBefore, owed, "treasury tidak menerima penuh");
-        assertEq(caller.balance, 0, "pemanggil menerima native padahal bukan treasury");
-        assertEq(address(this).balance, creatorBefore, "creator menerima fee protokol");
-        assertEq(curve.protocolOwed(), 0, "utang protokol tidak dinolkan");
-        assertEq(curve.totalProtocolFeesPaid(), owed, "total terbayar tidak tercatat");
+        assertEq(PROTOCOL_TREASURY.balance - treasuryBefore, owed, "treasury was not paid in full");
+        assertEq(caller.balance, 0, "the caller received native without being the treasury");
+        assertEq(address(this).balance, creatorBefore, "the creator received protocol fees");
+        assertEq(curve.protocolOwed(), 0, "protocol debt was not cleared");
+        assertEq(curve.totalProtocolFeesPaid(), owed, "total paid was not recorded");
         _assertSolvent();
     }
 
-    // ── 7. Klaim creator dan klaim protokol tidak saling mencuri ──────────────
+    // ── 7. Creator and protocol claims do not take from each other ───────────
     //
-    // Dua kantong yang keduanya bisa diklaim siapa pun adalah tempat wajar munculnya
-    // bug di mana satu klaim mengosongkan kantong yang lain.
+    // Two buckets that anyone can claim are where one claim emptying the other would appear.
     function testFuzz_creatorAndProtocolClaimsAreIndependent(uint256 rawIn) public {
         uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
         vm.deal(address(this), nativeIn);
@@ -252,20 +183,19 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         vm.assume(creatorOwed > 0 && protocolOwed > 0);
 
         curve.claimCreatorFees();
-        assertEq(curve.protocolOwed(), protocolOwed, "klaim creator mengubah utang protokol");
+        assertEq(curve.protocolOwed(), protocolOwed, "the creator claim changed protocol debt");
 
         uint256 treasuryBefore = PROTOCOL_TREASURY.balance;
         curve.claimProtocolFees();
-        assertEq(PROTOCOL_TREASURY.balance - treasuryBefore, protocolOwed, "treasury menerima jumlah yang salah");
-        assertEq(curve.creatorOwed(), 0, "utang creator berubah setelah klaim protokol");
+        assertEq(PROTOCOL_TREASURY.balance - treasuryBefore, protocolOwed, "the treasury received the wrong amount");
+        assertEq(curve.creatorOwed(), 0, "creator debt changed after the protocol claim");
         _assertSolvent();
     }
 
-    // ── 8. Buyback TIDAK menagih fee protokol ─────────────────────────────────
+    // ── 8. A buyback charges no protocol fee ─────────────────────────────────
     //
-    // Buyback memutar ulang uang yang sudah berasal dari fee. Menagihnya lagi berarti
-    // fee di atas fee, dan kaki protokol harus mengikuti kaki creator dan buyback yang
-    // sama-sama diabaikan di sana.
+    // A buyback recycles money that already came from fees, so charging it again would be a
+    // fee on a fee.
     function testFuzz_buybackChargesNoProtocolFee(uint256 rawIn) public {
         uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
         vm.deal(address(this), nativeIn);
@@ -285,11 +215,11 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         uint256 protocolBefore = curve.protocolOwed();
         curve.executeBuyback(spend, 0);
 
-        assertEq(curve.protocolOwed(), protocolBefore, "buyback menagih fee protokol: fee di atas fee");
+        assertEq(curve.protocolOwed(), protocolBefore, "the buyback charged a protocol fee");
         _assertSolvent();
     }
 
-    // ── 9. Bolak-balik tetap tidak menguntungkan, sekarang dengan 40 bps ──────
+    // ── 9. A round trip is never profitable ──────────────────────────────────
     function testFuzz_roundTripNeverProfitable(uint256 rawIn) public {
         uint256 nativeIn = _boundBuy(rawIn);
         vm.deal(address(this), nativeIn);
@@ -303,52 +233,41 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         token.approve(address(curve), bought);
         uint256 out = curve.sell(bought, 0, address(this), block.timestamp + 1);
 
-        assertLt(out, nativeIn, "bolak-balik menghasilkan untung: kurva bisa dikuras");
+        assertLt(out, nativeIn, "a round trip made a profit: the curve could be drained");
         _assertSolvent();
     }
 
-    // ── 10. Treasury protokol nol harus ditolak saat deployment ───────────────
+    // ── 10. A zero protocol treasury is rejected at deployment ───────────────
     //
-    // Kalau ini lolos, kurva akan mengendapkan `protocolOwed` yang tidak bisa diklaim
-    // siapa pun, dan karena tidak ada yang mutable, uang itu terkunci selamanya.
+    // If this passed, curves would accrue `protocolOwed` that nobody could claim, locked forever.
     function test_zeroProtocolTreasuryRejected() public {
         vm.expectRevert(bytes("Factory: zero protocol treasury"));
         new AdextoFactory(address(0), new string[](0));
     }
 
-    // ── 11. Batas 5% dihitung atas apa yang BENAR-BENAR dibayar pedagang ──────
+    // ── 11. The 5% cap applies to what a trader actually pays ────────────────
     //
-    // Klaimnya tidak berubah di 0.12.0 — batasnya tetap atas yang dibayar trader — tetapi
-    // ARITMETIKANYA berubah, jadi angka di test ini pun berubah. Karena kaki protokol
-    // sekarang dipotong dari dalam, `swapFeeBps` ITU SENDIRI adalah yang dibayar: 500 bps
-    // sekarang SAH dan tepat di batas, sementara di 0.11.0 ia ditolak karena 500 + 10 = 510.
-    //
-    // Batas itu diuji dari kedua sisi dengan sengaja. Menguji hanya sisi yang ditolak akan
-    // tetap lolos kalau batasnya diam-diam bergeser ke bawah, dan pasar yang sah jadi
-    // mustahil diluncurkan tanpa ada satu pun test yang mengeluh.
+    // Tested from both sides on purpose. Testing only the rejected side would still pass if the
+    // cap quietly moved down and legitimate markets became impossible to launch.
     function test_capCountsProtocolLeg() public {
         vm.expectRevert(bytes("Factory: fee too high"));
         factory.deployTrinity(
             "Over Cap", "OVER", SUPPLY, address(this), VIRTUAL_NATIVE, 501, 10, 5, bytes32(0), false, 0
         );
 
-        // 500 tepat di batas, dan protokol ada DI DALAMnya: depth = 500 - 10 - 5 - 10 = 475.
+        // 500 is exactly at the cap, with the protocol leg inside it: depth = 500 - 10 - 5 - 10.
         (, address c) = factory.deployTrinity(
             "At Cap", "ATCAP", SUPPLY, address(this), VIRTUAL_NATIVE, 500, 10, 5, bytes32(0), false, 0
         );
-        assertEq(AdextoCurve(payable(c)).totalFeeBps(), 500, "total di batas bukan 500 bps");
-        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 475, "depth di batas bukan 475 bps");
+        assertEq(AdextoCurve(payable(c)).totalFeeBps(), 500, "total at the cap is not 500 bps");
+        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 475, "depth at the cap is not 475 bps");
     }
 
-    // ── 12. `swapFeeBps` yang tidak menyisakan ruang untuk kaki protokol ditolak ─
+    // ── 12. A fee with no room for the protocol leg is rejected ──────────────
     //
-    // Konsekuensi langsung dari carve-out, dan satu-satunya cara ia bisa gagal buruk.
-    // Tanpa `PROTOCOL_FEE_BPS` di dalam require pembagian share, subtraksi yang menghitung
-    // `depthFeeBps` akan underflow — di solc 0.8.x itu panic tanpa pesan, jadi pembuat pasar
-    // melihat revert tak berpenjelasan untuk pembagian fee yang bagi dia terlihat benar.
-    //
-    // Dua kasus, karena keduanya gagal lewat jalan yang berbeda: fee yang lebih kecil dari
-    // kaki protokol, dan fee yang cukup besar tetapi sudah dihabiskan dua share lainnya.
+    // Without `PROTOCOL_FEE_BPS` in the shares check, computing `depthFeeBps` would underflow
+    // into a panic with no message. Two cases, because they fail by different routes: a fee
+    // smaller than the protocol leg, and a fee already used up by the other two shares.
     function test_feeTooSmallForProtocolLegRejected() public {
         vm.expectRevert(bytes("Factory: shares exceed fee"));
         factory.deployTrinity(
@@ -360,40 +279,31 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
             "No Room", "NOROOM", SUPPLY, address(this), VIRTUAL_NATIVE, 100, 70, 30, bytes32(0), false, 0
         );
 
-        // Tepat menyisakan ruang: 70 + 20 + 10 = 100, depth 0. Sah, dan depth nol memang
-        // diizinkan — yang tidak diizinkan adalah kaki protokol yang tidak kebagian.
+        // Exactly enough room: 70 + 20 + 10 = 100, depth 0. Legitimate: a zero depth leg is
+        // allowed, a protocol leg with no room is not.
         (, address c) = factory.deployTrinity(
             "Exact Room", "EXACT", SUPPLY, address(this), VIRTUAL_NATIVE, 100, 70, 20, bytes32(0), false, 0
         );
-        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 0, "depth bukan nol saat ruang habis tepat");
-        assertEq(AdextoCurve(payable(c)).protocolFeeBps(), PROTOCOL_BPS, "kaki protokol hilang saat ruang habis tepat");
+        assertEq(AdextoCurve(payable(c)).depthFeeBps(), 0, "depth is not zero when the room is used exactly");
+        assertEq(AdextoCurve(payable(c)).protocolFeeBps(), PROTOCOL_BPS, "protocol leg missing when the room is used exactly");
     }
 
-    // ── 13. Ticker yang dicadangkan di constructor tidak bisa diluncurkan siapa pun ──
+    // ── 13. Reserved tickers cannot be launched by anyone ────────────────────
     //
-    // Ini yang menutup lubang nyata: `symbolRegistry` adalah state MILIK SATU FACTORY,
-    // jadi factory baru lahir dengan buku kosong dan setiap nama yang sudah dipakai
-    // generasi sebelumnya bebas diklaim lagi. Terukur pada keempat factory 0.11.0 yang
-    // live sebelum perubahan ini: "ETH", "USDC" dan "BTC" bebas di keempat chain, dan
-    // "ADEXTO" bebas di Base, Arbitrum dan Monad.
-    //
-    // Diuji dari DUA alamat, dan itu bukan pengulangan: `deployTrinity` tidak punya access
-    // control sama sekali, jadi yang harus dibuktikan bukan "orang lain ditolak" melainkan
-    // "SEMUA ORANG ditolak, termasuk yang men-deploy factory ini". Kalau suatu saat
-    // pengecualian untuk deployer diselipkan, assertion kedua yang menangkapnya.
+    // `symbolRegistry` belongs to one factory, so a new factory starts with an empty book.
+    // Tested from two addresses: `deployTrinity` has no access control, so what must be proven
+    // is that everyone is refused, including the address that deployed the factory.
     function test_reservedSymbolsCannotBeLaunchedByAnyone() public {
         string[] memory reserved = reservedSymbols();
         address stranger = address(0xC0FFEE);
 
         for (uint256 i = 0; i < reserved.length; i++) {
-            // Dari alamat yang men-deploy factory.
             vm.expectRevert(bytes("Factory: symbol already taken"));
             factory.deployTrinity(
                 "Squat", reserved[i], SUPPLY, address(this), VIRTUAL_NATIVE,
                 SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
             );
 
-            // Dari alamat asing.
             vm.prank(stranger);
             vm.expectRevert(bytes("Factory: symbol already taken"));
             factory.deployTrinity(
@@ -401,66 +311,54 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
                 SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
             );
 
-            assertFalse(factory.isSymbolAvailable(reserved[i]), "isSymbolAvailable masih true untuk ticker cadangan");
+            assertFalse(factory.isSymbolAvailable(reserved[i]), "isSymbolAvailable is true for a reserved ticker");
             assertEq(
                 factory.symbolRegistry(keccak256(abi.encodePacked(reserved[i]))),
                 factory.SYMBOL_RESERVED(),
-                "slot cadangan tidak berisi penanda"
+                "reserved slot does not hold the marker"
             );
         }
     }
 
-    // ── 14. Cadangan tidak peka huruf besar-kecil ─────────────────────────────
+    // ── 14. Reservation is case-insensitive ──────────────────────────────────
     //
-    // `_toUpper` dipakai di constructor DAN di `deployTrinity`. Tanpa itu, mencadangkan
-    // "ETH" tidak akan menghalangi peluncuran "eth" — nama yang sama bagi setiap pembaca
-    // manusia, dan justru bentuk penyerobotan yang paling mudah dilewatkan.
+    // Without upper-casing in both places, reserving "ETH" would not stop "eth", which is the
+    // same name to every human reader.
     function test_reservedSymbolIsCaseInsensitive() public {
         vm.expectRevert(bytes("Factory: symbol already taken"));
         factory.deployTrinity(
             "lowercase eth", "eth", SUPPLY, address(this), VIRTUAL_NATIVE,
             SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
         );
-        assertFalse(factory.isSymbolAvailable("eth"), "eth huruf kecil masih tersedia");
-        assertFalse(factory.isSymbolAvailable("EtH"), "EtH campuran masih tersedia");
+        assertFalse(factory.isSymbolAvailable("eth"), "lower-case eth is still available");
+        assertFalse(factory.isSymbolAvailable("EtH"), "mixed-case EtH is still available");
     }
 
-    // ── 15. Ticker DI LUAR daftar cadangan tetap bisa diluncurkan ─────────────
+    // ── 15. A ticker outside the reserved list still launches ────────────────
     //
-    // Pasangan wajib dari test 13. Cadangan yang terlalu lebar akan mematikan produknya,
-    // dan kegagalan seperti itu tidak akan tertangkap oleh test yang hanya memastikan
-    // penolakan. Fixture sendiri sudah meluncurkan "FUZZ2" dengan daftar produksi
-    // terpasang, jadi ini menegaskannya untuk ticker kedua yang tidak dipakai fixture.
+    // The pair of test 13. A reservation that is too wide would kill the product, and a test
+    // that only checks refusals would not notice.
     function test_unreservedSymbolStillLaunches() public {
         (address t, address c) = factory.deployTrinity(
             "Not Reserved", "NOTRSV", SUPPLY, address(this), VIRTUAL_NATIVE,
             SWAP_FEE_BPS, CREATOR_BPS, TREASURY_BPS, bytes32(0), false, 0
         );
-        assertTrue(t != address(0) && c != address(0), "peluncuran ticker bebas gagal");
-        assertFalse(factory.isSymbolAvailable("NOTRSV"), "ticker tidak terklaim setelah diluncurkan");
-        assertEq(factory.symbolRegistry(keccak256(abi.encodePacked("NOTRSV"))), t, "slot tidak berisi alamat token");
+        assertTrue(t != address(0) && c != address(0), "launching a free ticker failed");
+        assertFalse(factory.isSymbolAvailable("NOTRSV"), "ticker not claimed after launch");
+        assertEq(factory.symbolRegistry(keccak256(abi.encodePacked("NOTRSV"))), t, "slot does not hold the token");
     }
 
-    // ── 16. Penanda cadangan tidak bisa tertukar dengan token sungguhan ───────
-    //
-    // `symbolRegistry` memetakan ticker ke ALAMAT TOKEN, dan slot cadangan tidak punya
-    // token. Yang dijaga di sini: penandanya adalah alamat tanpa kode, jadi tidak ada
-    // pembaca yang bisa memperlakukannya sebagai ERC-20 dan mendapat jawaban.
+    // ── 16. The reserved marker cannot be mistaken for a real token ──────────
     function test_reservedMarkerIsNotAContract() public view {
         address marker = factory.SYMBOL_RESERVED();
-        assertEq(marker.code.length, 0, "penanda cadangan punya kode: bisa disalahbaca sebagai token");
-        assertTrue(marker != address(0), "penanda cadangan nol: slot akan terbaca sebagai tersedia");
+        assertEq(marker.code.length, 0, "the reserved marker has code and could be read as a token");
+        assertTrue(marker != address(0), "a zero marker would read as available");
     }
 
-    // ── 17–20. Empat properti yang dulu HANYA ada di kurva 0.10.0 ──────────────
+    // ── 17. Buy rounding favours the curve ───────────────────────────────────
     //
-    // Diport 2026-09-30. Sebelumnya `SovereignCurveFuzz.t.sol` satu-satunya tempat arah
-    // pembulatan beli, klaim creator, batas jual, dan batas 1% buyback diuji sebagai properti
-    // sendiri — padahal kurva yang dipakai meluncurkan adalah yang ini. Versinya di sini
-    // memakai EMPAT kaki fee (termasuk protokol) dan cooldown buyback 0.12.0.
-
-    // 17. Pembulatan beli berpihak ke kurva. Dibandingkan dengan nilai rasional EKSAK lewat
-    //     perkalian silang, bukan dengan pembagian bulat kedua yang pasti sama dengan kuotasi.
+    // Compared with the exact rational value by cross-multiplication, not with a second integer
+    // division that would equal the quote by construction.
     function testFuzz_buyRoundsInFavourOfCurve(uint256 rawIn) public view {
         uint256 nativeIn = _boundBuy(rawIn);
         (uint256 reserveNative, uint256 reserveToken) = curve.getReserves();
@@ -471,11 +369,11 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         assertLe(
             quoted * (reserveNative + dx),
             reserveToken * dx,
-            "kuotasi melebihi nilai eksak: pembulatan berpihak ke pedagang"
+            "the quote exceeds the exact value: rounding favours the trader"
         );
     }
 
-    // 18. Tidak bisa menjual lebih dari yang beredar, berapa pun kelebihannya.
+    // ── 18. Nobody can sell more than is outstanding ─────────────────────────
     function testFuzz_cannotSellMoreThanOutstanding(uint256 rawIn, uint256 excess) public {
         uint256 nativeIn = _boundBuy(rawIn);
         vm.deal(address(this), nativeIn);
@@ -489,9 +387,10 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         curve.sell(over, 0, address(this), block.timestamp + 1);
     }
 
-    // 19. Buyback dibatasi 1% cadangan per panggilan, dari alamat mana pun, dan membakar supply.
-    //     Ini buyback PERTAMA kurva ini (`lastBuybackAt == 0`), jadi yang diuji batasnya, bukan
-    //     cooldown — cooldown punya suite sendiri di AdextoBuybackCooldown.t.sol.
+    // ── 19. A buyback is capped at 1% of the reserve per call, from any address ─
+    //
+    // This is the curve's first buyback (`lastBuybackAt == 0`), so the cap is what is tested,
+    // not the cooldown, which has its own suite in AdextoBuybackCooldown.t.sol.
     function testFuzz_buybackCappedAtOnePercent(uint256 rawIn, address caller) public {
         vm.assume(caller != address(0) && caller.code.length == 0);
         uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
@@ -519,12 +418,11 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         uint256 supplyBefore = token.totalSupply();
         vm.prank(caller);
         curve.executeBuyback(spend, 0);
-        assertLt(token.totalSupply(), supplyBefore, "buyback tidak mengurangi supply");
+        assertLt(token.totalSupply(), supplyBefore, "the buyback did not reduce supply");
         _assertSolvent();
     }
 
-    // 20. Klaim creator hanya sampai ke creator, siapa pun pemanggilnya, dan tidak menyentuh
-    //     treasury protokol — kaki keempat yang tidak ada di kurva 0.10.0.
+    // ── 20. Creator fees only reach the creator, whoever calls ───────────────
     function testFuzz_creatorFeesOnlyReachCreator(uint256 rawIn, address caller) public {
         vm.assume(
             caller != address(0) && caller != address(this) && caller != PROTOCOL_TREASURY && caller.code.length == 0
@@ -545,11 +443,11 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         vm.prank(caller);
         curve.claimCreatorFees();
 
-        assertEq(address(this).balance - creatorBefore, owed, "creator tidak menerima penuh");
-        assertEq(caller.balance, callerBefore, "pemanggil menerima native padahal bukan creator");
-        assertEq(PROTOCOL_TREASURY.balance, treasuryBefore, "klaim creator memindahkan native ke treasury protokol");
-        assertEq(curve.protocolOwed(), protocolOwedBefore, "klaim creator mengubah utang protokol");
-        assertEq(curve.creatorOwed(), 0, "utang creator tidak dinolkan");
+        assertEq(address(this).balance - creatorBefore, owed, "the creator was not paid in full");
+        assertEq(caller.balance, callerBefore, "the caller received native without being the creator");
+        assertEq(PROTOCOL_TREASURY.balance, treasuryBefore, "the creator claim moved native to the protocol treasury");
+        assertEq(curve.protocolOwed(), protocolOwedBefore, "the creator claim changed protocol debt");
+        assertEq(curve.creatorOwed(), 0, "creator debt was not cleared");
         _assertSolvent();
     }
 }

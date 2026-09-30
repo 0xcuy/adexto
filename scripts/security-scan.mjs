@@ -1,23 +1,22 @@
 /**
- * Menjalankan setiap mesin pemeriksa, lalu menulis SATU laporan terbaca-mesin.
+ * Runs every analysis engine, then writes ONE machine-readable report.
  *
- * KENAPA BERKAS INI ADA
+ * WHY THIS FILE EXISTS
  *
- * Halaman /security tidak boleh memuat satu angka pun yang ditulis tangan. Tabel
- * "Slither ✅" yang diketik manusia adalah badge dengan langkah tambahan: ia terlihat
- * seperti bukti, tapi tidak ada yang mengikatnya ke hasil sungguhan, dan ia tetap
- * hijau setelah kontraknya berubah. Jadi halaman itu MEMBACA `src/config/
- * security-report.json`, dan satu-satunya yang menulis berkas itu adalah skrip ini.
+ * The /security page must not contain a single hand-written number. A hand-typed "Slither ✅"
+ * table is a badge with extra steps: it looks like evidence, nothing ties it to a real result,
+ * and it stays green after the contracts change. So the page READS `src/config/
+ * security-report.json`, and this script is the only thing that writes that file.
  *
- * Aturan yang dipegang:
- *   - Mesin yang tidak terpasang dilaporkan `status: "not-installed"`, bukan dilewati.
- *     Cek yang hilang harus terlihat di halaman, bukan menghilang dari tabel.
- *   - Mesin yang gagal jalan dilaporkan `status: "error"` beserta pesannya.
- *   - Jumlah temuan diambil dari keluaran mesin, tidak pernah dari daftar di sini.
- *   - Commit hash dan status kotor/bersih ikut dicatat, supaya pembaca tahu laporan
- *     ini milik kode yang mana.
+ * Rules it keeps:
+ *   - An engine that is not installed is reported as `status: "not-installed"`, not skipped.
+ *     A missing check must be visible on the page, not vanish from the table.
+ *   - An engine that fails to run is reported as `status: "error"` with its message.
+ *   - Finding counts come from the engines' output, never from a list in this file.
+ *   - The commit hash, whether the tree was dirty, and a hash of every contract file are
+ *     recorded, so a reader knows which code the report belongs to.
  *
- * Pakai: node scripts/security-scan.mjs
+ * Usage: node scripts/security-scan.mjs
  */
 import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -41,53 +40,26 @@ const BIN = {
 };
 
 /**
- * Kontrak jalur peluncuran: yang benar-benar dijalankan sebuah launch.
+ * The launch path: the contracts a launch actually runs, ADEXTO v1.
  *
- * Pemisahan ini penting supaya angkanya bermakna. Repo ini masih memuat generasi v1
- * yang superseded dan receiver CCIP yang sudah diputuskan dicabut; temuan di sana
- * NYATA dan tetap dilaporkan, tapi mencampurnya dengan jalur yang dipakai orang akan
- * menyamarkan keduanya. Daftarnya ditulis di sini, bukan di halaman, supaya halaman
- * tidak bisa mengarang cakupannya sendiri.
+ * Findings on this path are counted separately (`launchPathCounts`) because the claim "0 High
+ * on the launch path" on /security is about exactly these files. The list lives here, not on
+ * the page, so the page cannot invent its own scope.
  */
 const LAUNCH_PATH = [
-  "contracts/AdextoCurveFactory.sol",
-  "contracts/SovereignCurve.sol",
-  // Generasi 0.11.0, SEKARANG SUDAH HIDUP di keempat mainnet — ia yang melayani setiap
-  // peluncuran baru, sementara AdextoCurveFactory/SovereignCurve di atas tetap dipindai
-  // karena pasar yang sudah dibuatnya masih diperdagangkan.
-  //
-  // Dulu baris-baris ini dimasukkan justru SEBELUM di-broadcast, dengan alasan yang masih
-  // benar: menunggu sampai ter-deploy akan membiarkan dua kontrak yang seluruh gunanya
-  // menjalankan peluncuran berada di repo tanpa tercakup klaim "0 High di jalur
-  // peluncuran". Keputusan itu tidak berubah, hanya kenyataannya yang sudah menyusul.
-  //
-  // Satu hal yang tetap perlu diketahui pembaca: sumber di `contracts/` menyatakan VERSION
-  // 0.12.0 sementara bytecode yang hidup 0.11.0. Jadi yang dipindai berkas ini adalah
-  // generasi BERIKUTNYA, bukan byte-per-byte yang ada di alamat produksi. Dinyatakan penuh
-  // di audit/README.md.
   "contracts/AdextoFactory.sol",
   "contracts/AdextoCurve.sol",
   "contracts/AdextoToken.sol",
   "contracts/IIdentityRegistry.sol",
-  "contracts/ISovereignLegacy.sol",
 ];
 
 /**
- * `AdextoAgentStake.sol` SENGAJA TIDAK ADA DI ATAS, dan itu perlu dinyatakan.
+ * `AdextoAgentStake.sol` is deliberately NOT in the list above.
  *
- * Ia hidup di 0G dan memegang token sungguhan — 10.000 ADEXTO ter-stake saat baris ini
- * ditulis — jadi naluri pertama adalah memasukkannya. Tapi daftar ini bernama LAUNCH_PATH
- * dan angkanya diterbitkan sebagai `launchPathCounts` yang menyuapi klaim "0 High di jalur
- * peluncuran" di /security. Sebuah peluncuran tidak pernah memanggil kontrak stake, jadi
- * memasukkannya akan membuat klaim itu mengukur sesuatu yang bukan namanya — bentuk
- * kesalahan yang sama dengan `factoryV2Address` yang dulu ikut dihitung sebagai "bisa
- * meluncurkan".
- *
- * Ia TETAP DIPINDAI: slither dan aderyn berjalan atas seluruh direktori, jadi temuan di
- * dalamnya masuk hitungan total. Yang tidak berlaku untuknya hanyalah klaim jalur
- * peluncuran, dan kalau suatu saat butuh klaim sendiri, ia butuh bucket sendiri — bukan
- * diselipkan ke bucket yang namanya sudah berarti hal lain. Cakupannya dinyatakan di
- * audit/README.md.
+ * It holds real tokens on 0G, but a launch never calls it, so counting it would make the
+ * launch-path claim measure something other than its name. It IS scanned: Slither and Aderyn
+ * run over the whole directory, so its findings are in the totals. If it ever needs a claim of
+ * its own, it gets a bucket of its own. Its scope is stated in audit/README.md.
  */
 const inLaunchPath = (f) => LAUNCH_PATH.some((p) => String(f || "").endsWith(p.replace(/^contracts\//, "contracts/")));
 
@@ -116,14 +88,14 @@ try {
   commitTime = sh("git", ["show", "-s", "--format=%cI", "HEAD"]).trim();
   dirty = sh("git", ["status", "--porcelain"]).trim().length > 0;
 } catch {
-  /* di luar git */
+  /* outside git */
 }
 
-// ── 1. Compiler jalur deploy ────────────────────────────────────────────────
+// ── 1. Deploy-path compiler ─────────────────────────────────────────────────
 //
-// Ini pipeline yang benar-benar menghasilkan bytecode yang di-deploy, jadi
-// warning-nya lebih berarti daripada warning build test.
-log("→ compiler (jalur deploy, solc via-IR)");
+// This is the pipeline that produces the deployed bytecode, so its warnings matter more than
+// those of the test build.
+log("→ compiler (deploy path, solc via-IR)");
 {
   try {
     const out = sh(process.execPath, ["scripts/compile-contracts.mjs", "--via-ir"]);
@@ -134,15 +106,15 @@ log("→ compiler (jalur deploy, solc via-IR)");
     add({
       id: "solc",
       name: "Compiler warnings",
-      tool: "solc 0.8.26 (via-IR, optimizer 200)",
-      version: "0.8.26",
+      tool: "solc 0.8.37 (via-IR, optimizer 200, evm cancun); AdextoAgentStake with 0.8.26",
+      version: "0.8.37",
       status: errors === 0 && warnings === 0 ? "clean" : "findings",
       ran: true,
       counts: { errors, warnings },
       detail: `${artifacts} artifacts compiled, ${warnings} warnings, ${errors} errors`,
     });
   } catch (e) {
-    add({ id: "solc", name: "Compiler warnings", tool: "solc 0.8.26", status: "error", ran: false, detail: String(e.message).slice(0, 200) });
+    add({ id: "solc", name: "Compiler warnings", tool: "solc 0.8.37", status: "error", ran: false, detail: String(e.message).slice(0, 200) });
   }
 }
 
@@ -158,13 +130,13 @@ if (!has(BIN.forge)) {
       const out = sh(BIN.forge, ["test", "--match-path", matchPath, "--json"], { env: { ...process.env, ...env } });
       return { ok: true, out };
     } catch (e) {
-      // forge keluar non-nol saat ada test gagal; stdout tetap berisi JSON.
+      // forge exits non-zero when a test fails; stdout still holds the JSON.
       return { ok: false, out: String(e.stdout || "") + String(e.stderr || "") };
     }
   };
 
   const parse = (raw) => {
-    // Baris JSON terakhir yang valid adalah ringkasannya.
+    // Every valid JSON line is one suite's results.
     let passed = 0, failed = 0, skipped = 0, cases = [];
     const suites = new Set();
     for (const line of raw.split("\n")) {
@@ -188,16 +160,12 @@ if (!has(BIN.forge)) {
   };
 
   /**
-   * Glob, BUKAN satu berkas.
+   * A glob, NOT one file.
    *
-   * Kedua path ini dulu ditulis tetap: `test/SovereignCurveFuzz.t.sol` dan
-   * `test/SovereignCurveInvariant.t.sol`. Begitu suite v0.11.0 ditambahkan, halaman
-   * /security melaporkan 9 properti fuzz padahal ada 21 yang lulus — dan yang tidak
-   * terlaporkan justru yang menguji kaki fee yang BARU.
-   *
-   * Kegagalannya juga tidak berbunyi: laporannya tetap "clean", hanya cakupannya yang
-   * mengecil secara diam-diam. Glob membuat setiap suite baru ikut terhitung tanpa
-   * seseorang harus ingat menambahkannya ke sini.
+   * These paths were once fixed file names, and when a new suite was added the page reported
+   * far fewer passing properties than actually ran, without any error: the report stayed
+   * "clean" while its coverage quietly shrank. The glob counts every new suite without anyone
+   * having to remember to add it here.
    */
   const fuzz = runForge("test/*Fuzz.t.sol", {});
   writeFileSync(path.join(OUT_DIR, "forge-fuzz.json"), fuzz.out);
@@ -226,9 +194,7 @@ if (!has(BIN.forge)) {
     status: i.failed === 0 && i.passed > 0 ? "clean" : "findings",
     ran: true,
     counts: { passed: i.passed, failed: i.failed },
-    // Sebelumnya "N invariant suite passed", padahal N menghitung FUNGSI tes, bukan
-    // suite. Dengan satu berkas dan satu fungsi angkanya kebetulan sama; begitu ada
-    // suite kedua dan tes penjaga tambahan, "2 invariant suite" jadi salah.
+    // Counts test functions, not suites, and says so.
     detail: `${i.passed} tests passed across ${i.suites} suites · 512 runs x 64 random actions`,
   });
 }
@@ -240,22 +206,13 @@ if (!has(BIN.slither)) {
 } else {
   const jsonPath = path.join(OUT_DIR, "slither.json");
   /**
-   * BERKAS HASIL DIHAPUS DULU, DAN INI MEMPERBAIKI HASIL BASI YANG DILAPORKAN SEGAR.
+   * The output file is deleted first, which stops a stale result being reported as fresh.
    *
-   * Slither MENOLAK menimpa berkas `--json` yang sudah ada; ia keluar dengan galat.
-   * Blok `catch` di bawah lalu memeriksa `existsSync(jsonPath)` dan menemukan berkas
-   * dari run SEBELUMNYA, sehingga `ok` tetap true dan skrip mem-parse hasil lama —
-   * lengkap dengan `ran: true`.
-   *
-   * Akibatnya: sejak berkas itu pertama kali ditulis, /security memasang angka Slither
-   * milik kode yang berbeda. Terdeteksi karena totalnya bertahan di 45 saat dua kontrak
-   * DITAMBAH lalu satu DIHAPUS, dan karena satu-satunya temuan High-nya masih menunjuk
-   * `contracts/AdextoTrinityFactoryV2.sol` setelah berkas itu tidak ada lagi.
-   *
-   * Dengan berkasnya dihapus lebih dulu, `existsSync` setelah kegagalan nyata bernilai
-   * false dan mesinnya dilaporkan `error` — bukan diam-diam memakai hasil lama.
-   * Keluar non-nol karena MENEMUKAN sesuatu tetap tertangani: pada kasus itu slither
-   * sudah menulis JSON-nya.
+   * Slither refuses to overwrite an existing `--json` file and exits with an error. The `catch`
+   * below then found the PREVIOUS run's file, so the script parsed old results and reported
+   * them with `ran: true`. With the file deleted first, a real failure leaves no file and the
+   * engine is reported as `error`. A non-zero exit because Slither FOUND something is still
+   * handled: in that case it has written its JSON.
    */
   if (existsSync(jsonPath)) rmSync(jsonPath);
   let ok = true, errMsg = null;
@@ -303,21 +260,12 @@ if (!has(BIN.aderyn)) {
   const jsonPath = path.join(OUT_DIR, "aderyn.json");
   try {
     /**
-     * `echidna/` IKUT DIKECUALIKAN, dan itu soal cakupan, bukan menutupi temuan.
+     * `echidna/` is excluded as a matter of scope, not to hide findings.
      *
-     * `contracts/echidna/EchidnaCurve.sol` adalah harness fuzz: ia membungkus kurva agar
-     * Echidna bisa memanggilnya, dan ia tidak pernah di-deploy ke chain mana pun. Sebelumnya ia
-     * ikut terpindai dan menyumbang 2 High instance ("locks Ether without a withdraw function",
-     * "state change after external call") plus 21 Low — semuanya tentang berkas yang tidak ada
-     * di produksi.
-     *
-     * Membiarkannya bukan cuma membesarkan angka, ia MENYESATKAN: pembaca /security melihat
-     * High dan menyimpulkan ada masalah pada kontrak yang memegang uangnya, padahal temuannya
-     * tentang alat uji. `test/` sudah dikecualikan dengan alasan yang sama persis; ini
-     * memperlakukan harness fuzz secara konsisten dengan itu.
-     *
-     * Yang TIDAK dikecualikan: seluruh kontrak produksi, termasuk generasi yang sudah
-     * digantikan, karena bytecode-nya masih diterbitkan dan masih bisa di-deploy.
+     * The Echidna harness wraps the curve so the fuzzer can call it and is never deployed. When
+     * it was scanned, it contributed High instances about a file that does not exist in
+     * production, which misled readers into thinking the contracts holding money had a problem.
+     * `test/` is excluded for exactly the same reason. Every production contract is scanned.
      */
     sh(BIN.aderyn, ["--src", "contracts", "--path-excludes", "test/,lib/,node_modules/,echidna/", "-o", jsonPath], {
       env: { ...process.env, PATH: `${path.join(HOME, ".foundry", "bin")}:${path.join(HOME, ".local", "bin")}:${process.env.PATH}` },
@@ -350,21 +298,12 @@ if (!has(BIN.solhint)) {
 } else {
   try {
     /**
-     * Stdout diarahkan LANGSUNG ke berkas, bukan ditangkap lewat pipe.
+     * Stdout goes straight to a file, not through a pipe.
      *
-     * Versi sebelumnya membaca `e.stdout` saat solhint keluar dengan kode != 0. Itu
-     * berjalan sampai keluarannya melewati ~143 KiB, lalu JSON-nya terpotong di tengah
-     * string dan `JSON.parse` melempar "Unterminated string in JSON at position
-     * 146176". Diukur: berkasnya persis 146176 byte, berakhir di tengah sebuah objek.
-     *
-     * Penyebabnya bukan `maxBuffer` — itu sudah 64 MiB. solhint memanggil
-     * `process.exit` saat menemukan error, dan tulisan ke stdout PIPE di Node bersifat
-     * asinkron, jadi sisa buffer hilang sebelum ter-flush. Tulisan ke deskriptor
-     * BERKAS bersifat sinkron dan tidak bisa terpotong seperti itu.
-     *
-     * Ini penting bukan karena solhint-nya penting, melainkan karena kegagalannya
-     * muncul sebagai `status: "error"` di halaman /security: satu mesin berhenti
-     * dilaporkan hanya karena kontrak yang diperiksa bertambah banyak.
+     * solhint calls `process.exit` when it finds errors, and writes to a stdout PIPE in Node
+     * are asynchronous, so output beyond roughly 143 KiB was cut off mid-string and the JSON
+     * failed to parse. Writes to a FILE descriptor are synchronous and cannot be truncated
+     * that way.
      */
     const solhintOut = path.join(OUT_DIR, "solhint.json");
     const fd = openSync(solhintOut, "w");
@@ -375,7 +314,7 @@ if (!has(BIN.solhint)) {
           stdio: ["ignore", fd, "pipe"],
         });
       } catch {
-        /* keluar != 0 saat ada temuan; laporannya sudah tertulis ke fd */
+        /* exits non-zero when it finds something; the report is already written to fd */
       }
     } finally {
       closeSync(fd);
@@ -424,10 +363,9 @@ if (!has(BIN.semgrep)) {
       ran: true,
       counts: { findings: results.length, filesScanned: scanned, configErrors: (j.errors ?? []).length },
       /**
-       * Disebut apa adanya: p/security-audit adalah aturan umum, bukan pack khusus
-       * Solidity. Registry `p/solidity` membalas HTTP 404, jadi pack itu tidak ada.
-       * Analisis Solidity yang sesungguhnya datang dari Slither dan Aderyn; Semgrep
-       * di sini pelengkap, dan halaman harus mengatakan begitu.
+       * Stated as it is: p/security-audit is a general ruleset, not a Solidity pack (the
+       * registry answers 404 for `p/solidity`). The Solidity analysis comes from Slither and
+       * Aderyn; Semgrep is a complement, and the page says so.
        */
       detail: `${results.length} findings across ${scanned} files · general p/security-audit ruleset`,
     });
@@ -443,7 +381,7 @@ log("→ echidna");
   try {
     sh(BIN.docker, ["image", "inspect", "ghcr.io/crytic/echidna/echidna:latest"], { stdio: ["ignore", "ignore", "ignore"] });
     imageOk = true;
-  } catch { /* image belum ada */ }
+  } catch { /* image not pulled */ }
 
   if (!imageOk) {
     add({ id: "echidna", name: "Echidna", tool: "echidna (docker)", status: "not-installed", ran: false, detail: "the ghcr.io/crytic/echidna image has not been pulled" });
@@ -452,19 +390,25 @@ log("→ echidna");
       const uid = process.getuid ? process.getuid() : 1000;
       const gid = process.getgid ? process.getgid() : 1000;
       /**
-       * DUA harness, satu per generasi kurva: `EchidnaCurve` (0.10.0, SovereignCurve) dan
-       * `EchidnaAdextoCurve` (0.12.0, AdextoCurve — ditambahkan 2026-09-30; sebelum itu kurva yang
-       * dipakai meluncurkan tidak pernah disentuh Echidna). Hasilnya digabung jadi satu baris mesin,
-       * dengan nama kasus diberi awalan harness supaya properti bernama sama tidak tertukar.
+       * One harness per curve contract in scope. Case names are prefixed with the harness so
+       * properties with the same name can never be confused if another harness is added.
        */
-      const HARNESSES = ["EchidnaCurve", "EchidnaAdextoCurve"];
+      const HARNESSES = ["EchidnaAdextoCurve"];
       const props = [];
       let calls = 0;
       let instr = 0;
       const logs = [];
       for (const harness of HARNESSES) {
+        /**
+         * The host's solc installs are mounted where forge inside the image looks for them
+         * (`$HOME/.local/share/svm`, with HOME=/tmp). The image's forge predates solc 0.8.37 and
+         * cannot download a compiler it does not know, so without this mount the harness would
+         * not compile. The binaries are the checksummed releases from binaries.soliditylang.org.
+         */
+        const svm = path.join(HOME, ".local", "share", "svm");
         const out = sh(BIN.docker, [
           "run", "--rm", "-v", `${ROOT}:/src`, "-w", "/src", "-u", `${uid}:${gid}`, "-e", "HOME=/tmp",
+          ...(existsSync(svm) ? ["-v", `${svm}:/tmp/.local/share/svm`] : []),
           "ghcr.io/crytic/echidna/echidna:latest",
           "sh", "-c", `echidna . --contract ${harness} --config echidna.yaml`,
         ]);
@@ -486,7 +430,7 @@ log("→ echidna");
         status: failed === 0 && props.length > 0 ? "clean" : "findings",
         ran: true,
         counts: { properties: props.length, failed, totalCalls: calls, uniqueInstructions: instr },
-        detail: `${props.length - failed}/${props.length} properties passed across ${HARNESSES.length} curve generations · ${calls.toLocaleString("en-US")} calls`,
+        detail: `${props.length - failed}/${props.length} properties passed · ${HARNESSES.length} harness${HARNESSES.length === 1 ? "" : "es"} · ${calls.toLocaleString("en-US")} calls`,
         cases: props.map((p) => p.name),
       });
     } catch (e) {
@@ -496,23 +440,12 @@ log("→ echidna");
 }
 
 /**
- * HASH TIAP BERKAS KONTRAK YANG BENAR-BENAR DIPINDAI.
+ * A hash of every contract file that was scanned.
  *
- * `commit` saja TIDAK cukup, dan itu bukan teori — penjaga deploy baru saja menolak
- * sebuah perubahan komentar karenanya.
- *
- * Urutan yang wajar adalah: sunting kontrak, pindai, lalu commit. Tapi scan mencatat
- * `HEAD` pada saat ia berjalan, dan pada saat itu suntingannya masih di working tree.
- * Jadi laporan berkata "saya memindai ccc727d" padahal yang dipindai adalah kode yang
- * beberapa saat kemudian menjadi e322885. Penjaga lalu menjalankan
- * `git diff <commit>..HEAD -- contracts/`, melihat berkas itu berubah, dan
- * menyimpulkan laporannya basi — padahal laporan itu justru menggambarkan kode yang
- * sekarang. `dirty: true` sudah dicatat, tetapi tidak ada yang membacanya.
- *
- * Memindai ulang sesudah commit "memperbaikinya" satu kali dan meninggalkan jebakannya
- * utuh untuk kali berikutnya. Hash isi berkas menghilangkan seluruh kelas masalah ini:
- * ia tidak peduli commit, tidak peduli urutan, dan menjawab pertanyaan yang sebenarnya
- * ingin dijawab penjaga — apakah kode yang dipindai sama dengan kode yang ada sekarang.
+ * `commit` alone is not enough. The natural order is edit, scan, then commit, so the report
+ * would name the commit BEFORE the edit while describing the code after it. A content hash per
+ * file answers the question that matters, whether the scanned code is the code that exists now,
+ * regardless of commit order.
  */
 const contractHashes = {};
 for (const f of readdirSync(path.join(ROOT, "contracts")).filter((f) => f.endsWith(".sol")).sort()) {
@@ -520,7 +453,7 @@ for (const f of readdirSync(path.join(ROOT, "contracts")).filter((f) => f.endsWi
   contractHashes[`contracts/${f}`] = createHash("sha256").update(source).digest("hex").slice(0, 16);
 }
 
-// ── tulis laporan ───────────────────────────────────────────────────────────
+// ── write the report ────────────────────────────────────────────────────────
 const report = {
   generatedAt: new Date().toISOString(),
   commit,
@@ -538,5 +471,5 @@ for (const e of engines) {
   console.log(`  ${String(e.status).padEnd(14)} ${e.name.padEnd(20)} ${e.detail ?? ""}`);
 }
 console.log(`${"─".repeat(70)}`);
-console.log(`commit ${commit ? commit.slice(0, 12) : "?"}${dirty ? " (kotor)" : ""}`);
-console.log(`ditulis: ${path.relative(ROOT, REPORT)}`);
+console.log(`commit ${commit ? commit.slice(0, 12) : "?"}${dirty ? " (dirty)" : ""}`);
+console.log(`written: ${path.relative(ROOT, REPORT)}`);

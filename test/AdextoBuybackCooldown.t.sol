@@ -5,20 +5,18 @@ import {AdextoCurveFixture} from "./AdextoCurveFixture.sol";
 import {AdextoCurve} from "../contracts/AdextoCurve.sol";
 
 /**
- * Buyback tidak boleh bisa dihabiskan dalam satu transaksi.
+ * The buyback bucket must not be drainable inside one transaction.
  *
- * KENAPA TEST INI ADA, DAN KENAPA YANG SUDAH ADA TIDAK MENANGKAPNYA
+ * WHY THIS SUITE EXISTS
  *
- * `executeBuyback` dibatasi 1% reserve per panggilan, dan setiap test yang sudah ada memanggilnya
- * TEPAT SEKALI lalu memeriksa invarian. `test/AdextoCurveInvariant.t.sol:95` dan
- * `test/AdextoCurveFuzz.t.sol:219` keduanya menghitung `min(treasury, reserve/100)` dan berhenti
- * di situ. Jadi sembilan invarian bisa lulus semua sementara serangannya jalan: yang tidak pernah
- * diuji adalah PENGULANGAN, dan justru di sana lubangnya — tiap panggilan menaikkan reserve,
- * sehingga plafon 1% ikut naik selama loop berjalan.
+ * `executeBuyback` is capped at 1% of the reserve per call, and every other test calls it exactly
+ * once and then checks the invariants. So every invariant can pass while the attack runs: what
+ * was never tested is repetition, and that is where the hole was. Each call raises the reserve,
+ * so the 1% ceiling rises while a loop runs.
  *
- * Pelapor GHSA-g589-wjqq-86f2 mengukur 101,32 native terkuras dalam 3 panggilan dengan profit
- * 65,96 dari modal 3.000. Test di bawah menguji sifat yang membuat itu mustahil, bukan angka
- * spesifiknya: panggilan kedua di blok yang sama harus revert.
+ * The reporter of GHSA-g589-wjqq-86f2 measured 101.32 native drained in 3 calls for a profit of
+ * 65.96 on 3,000 of capital. These tests check the property that makes that impossible rather than
+ * the specific numbers: a second call before the cooldown has passed must revert.
  */
 contract AdextoBuybackCooldownTest is AdextoCurveFixture {
     function setUp() public {
@@ -26,19 +24,13 @@ contract AdextoBuybackCooldownTest is AdextoCurveFixture {
     }
 
     /**
-     * Bangun `treasuryNative` lewat perdagangan sungguhan, bukan dengan menulis storage.
+     * Build `treasuryNative` through real trades, not by writing storage.
      *
-     * BOLAK-BALIK, BUKAN SATU PEMBELIAN BESAR — dan itu keharusan, bukan gaya.
-     *
-     * Satu pembelian besar menumbuhkan reserve dan treasury sekaligus, sehingga treasury tetap
-     * jauh di bawah plafon 1% reserve dan satu panggilan buyback sudah menghabiskannya. Pada
-     * keadaan itu tidak ada loop untuk diuji, dan versi pertama test ini gagal tepat karena itu:
-     * `treasuryNative` nol setelah panggilan pertama.
-     *
-     * Beli-lalu-jual mengembalikan native ke pembeli, jadi reserve kembali mendekati semula
-     * sementara fee dari KEDUA kaki mengendap di treasury. Itulah kondisi yang disebut komentar
-     * pada `executeBuyback`: volume kumulatif jauh di atas reserve. Di situlah serangannya hidup,
-     * jadi di situlah ia harus diuji.
+     * Round trips rather than one large purchase, and that is required, not style. One large
+     * purchase grows the reserve and the bucket together, so the bucket stays far below the 1%
+     * ceiling and a single buyback empties it: there is no loop left to test. Buying then selling
+     * returns native to the buyer, so the reserve stays near where it started while fees from both
+     * legs accrue in the bucket, which is the high-volume state the attack needs.
      */
     function _accrueTreasury(uint256 perTrade, uint256 rounds) internal {
         for (uint256 i = 0; i < rounds; i++) {
@@ -51,14 +43,14 @@ contract AdextoBuybackCooldownTest is AdextoCurveFixture {
         }
     }
 
-    /** Treasury harus melebihi plafon per panggilan, kalau tidak test ini tidak menguji apa pun. */
+    /// The bucket must exceed the per-call ceiling, or these tests test nothing.
     function _accrueUntilAboveCap() internal {
         for (uint256 round = 0; round < 40; round++) {
             _accrueTreasury(2_000 ether, 20);
             (uint256 reserveNative, ) = curve.getReserves();
             if (curve.treasuryNative() > reserveNative / 100) return;
         }
-        revert("treasury tidak pernah melewati plafon 1%: prasyarat test tidak terpenuhi");
+        revert("the bucket never passed the 1% ceiling: test precondition not met");
     }
 
     function _capped() internal view returns (uint256) {
@@ -68,24 +60,23 @@ contract AdextoBuybackCooldownTest is AdextoCurveFixture {
         return treasury > cap ? cap : treasury;
     }
 
-    // ── 1. Panggilan kedua dalam transaksi yang sama harus revert ─────────────
+    // ── 1. A second call in the same transaction reverts ─────────────────────
     function test_buybackCannotBeLoopedInOneTransaction() public {
         _accrueUntilAboveCap();
 
         uint256 first = _capped();
-        assertGt(first, 0, "treasury tidak terkumpul, test tidak menguji apa pun");
+        assertGt(first, 0, "no bucket accrued, the test tests nothing");
         curve.executeBuyback(first, 0);
 
         uint256 second = _capped();
-        assertGt(second, 0, "masih ada sisa treasury, jadi loop memang mungkin tanpa cooldown");
+        assertGt(second, 0, "the bucket is not empty, so a loop would be possible without the cooldown");
         vm.expectRevert("AdextoCurve: buyback cooldown");
         curve.executeBuyback(second, 0);
     }
 
-    // ── 2. Treasury tidak bisa dikuras habis dalam satu blok ─────────────────
+    // ── 2. The bucket cannot be emptied in one block ─────────────────────────
     //
-    // Inilah bentuk serangan yang dilaporkan: ulangi sampai bucket kosong. Yang diperiksa
-    // adalah treasury masih menyisakan sebagian besar isinya setelah percobaan menguras.
+    // The reported attack: repeat until the bucket is empty. Checks that most of it remains.
     function test_treasuryCannotBeDrainedInOneBlock() public {
         _accrueUntilAboveCap();
         uint256 before = curve.treasuryNative();
@@ -99,18 +90,18 @@ contract AdextoBuybackCooldownTest is AdextoCurveFixture {
         }
 
         uint256 remaining = curve.treasuryNative();
-        assertGt(remaining, 0, "treasury terkuras habis dalam satu blok");
-        // Satu panggilan dibatasi 1% reserve, jadi sisanya harus jauh lebih besar daripada
-        // yang terpakai. Ambang 50% dipilih longgar dengan sengaja: yang diuji sifatnya, bukan
-        // angka pastinya, supaya test ini tidak pecah ketika parameter fee berubah.
-        assertGt(remaining * 2, before, "lebih dari separuh treasury keluar dalam satu blok");
+        assertGt(remaining, 0, "the bucket was emptied in one block");
+        // One call is capped at 1% of the reserve, so what remains must be far larger than what
+        // was spent. The 50% threshold is loose on purpose, so fee parameters can change without
+        // breaking a test that is about the property.
+        assertGt(remaining * 2, before, "more than half the bucket left in one block");
         _assertSolvent();
     }
 
-    // ── 3. Sesudah cooldown lewat, ia boleh jalan lagi ────────────────────────
+    // ── 3. After the cooldown, it runs again ─────────────────────────────────
     //
-    // Penting: perbaikannya tidak boleh mematikan fiturnya. Tanpa test ini, cooldown yang
-    // keliru — misalnya yang tidak pernah kedaluwarsa — akan lulus kedua test di atas.
+    // The fix must not kill the feature. Without this test, a cooldown that never expires would
+    // pass both tests above.
     function test_buybackWorksAgainAfterCooldown() public {
         _accrueUntilAboveCap();
         curve.executeBuyback(_capped(), 0);
@@ -118,34 +109,33 @@ contract AdextoBuybackCooldownTest is AdextoCurveFixture {
         vm.warp(block.timestamp + curve.BUYBACK_COOLDOWN());
 
         uint256 amount = _capped();
-        assertGt(amount, 0, "tidak ada sisa treasury untuk menguji jalur setelah cooldown");
+        assertGt(amount, 0, "no bucket left to test the path after the cooldown");
         uint256 burnedBefore = curve.totalTokensBurned();
         curve.executeBuyback(amount, 0);
-        assertGt(curve.totalTokensBurned(), burnedBefore, "buyback tidak membakar apa pun setelah cooldown");
+        assertGt(curve.totalTokensBurned(), burnedBefore, "nothing was burned after the cooldown");
         _assertSolvent();
     }
 
-    // ── 4. Satu detik sebelum cooldown lewat, masih ditolak ──────────────────
+    // ── 4. One second early, it is still refused ─────────────────────────────
     function test_buybackStillBlockedOneSecondEarly() public {
         _accrueUntilAboveCap();
         curve.executeBuyback(_capped(), 0);
 
         vm.warp(block.timestamp + curve.BUYBACK_COOLDOWN() - 1);
 
-        // Dihitung SEBELUM `vm.expectRevert`, dan itu bukan soal kerapian. `expectRevert`
-        // mengikat panggilan kontrak BERIKUTNYA, dan `_capped()` sendiri memanggil
-        // `getReserves()` — yang tidak revert. Ditulis inline, harapannya termakan oleh
-        // panggilan view itu dan test lulus tanpa pernah menguji cooldown-nya.
+        // Computed before `vm.expectRevert`, and not for tidiness. `expectRevert` binds to the next
+        // external call, and `_capped()` calls `getReserves()`, which does not revert. Inline, the
+        // expectation would be consumed by that view call and the test would pass untested.
         uint256 amount = _capped();
         vm.expectRevert("AdextoCurve: buyback cooldown");
         curve.executeBuyback(amount, 0);
     }
 
-    // ── 5. lastBuybackAt dicatat, dan itu yang menahannya ────────────────────
+    // ── 5. lastBuybackAt is recorded, and that is what holds it back ─────────
     function test_lastBuybackAtRecorded() public {
-        assertEq(curve.lastBuybackAt(), 0, "lastBuybackAt harus nol sebelum buyback pertama");
+        assertEq(curve.lastBuybackAt(), 0, "lastBuybackAt must be zero before the first buyback");
         _accrueUntilAboveCap();
         curve.executeBuyback(_capped(), 0);
-        assertEq(curve.lastBuybackAt(), block.timestamp, "lastBuybackAt tidak disetel");
+        assertEq(curve.lastBuybackAt(), block.timestamp, "lastBuybackAt was not set");
     }
 }

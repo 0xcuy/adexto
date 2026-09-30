@@ -1,30 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.37;
 
 import {AdextoFactory} from "../AdextoFactory.sol";
 import {AdextoCurve} from "../AdextoCurve.sol";
 import {AdextoToken} from "../AdextoToken.sol";
 
 /**
- * Harness Echidna untuk kurva 0.12.0 — pasangan `EchidnaCurve.sol`, yang menguji kurva 0.10.0.
+ * Echidna harness for the AdextoFactory / AdextoCurve / AdextoToken generation.
  *
- * Ditambahkan 2026-09-30. Sampai saat itu Echidna hanya pernah menyerang `SovereignCurve`, jadi
- * kurva yang benar-benar dipakai meluncurkan hanya diuji satu mesin fuzz (Foundry). Harness ini
- * meluncurkan lewat `AdextoFactory` 0.12.0 dengan model fee produksi (100 bps: creator 70, depth 10,
- * buyback 10, protokol 10), sama seperti `test/AdextoCurveFixture.sol`.
+ * Launches through `AdextoFactory` with the production fee model (100 bps: creator 70, depth 10,
+ * buyback 10, protocol 10), the same as `test/AdextoCurveFixture.sol`, so a second fuzzing engine
+ * attacks the exact contracts that launch markets.
  *
- * Bedanya dengan harness 0.10.0: ada kaki keempat. `echidna_solvent` karena itu WAJIB memuat
- * `protocolOwed` — tanpa suku itu kurva terbaca solven memakai uang yang sudah milik treasury — dan
- * ada aksi `claimProtocol` plus properti bahwa saldo treasury sama persis dengan yang tercatat
- * terbayar.
+ * `echidna_solvent` must include `protocolOwed`: without that term the curve would read as solvent
+ * on money that already belongs to the treasury. The one-hour buyback cooldown does not stop
+ * buybacks here, because Echidna advances `block.timestamp` between transactions.
  *
- * Buyback: kurva 0.12.0 punya cooldown satu jam. Echidna memajukan `block.timestamp` secara acak di
- * antara transaksi, jadi buyback berikutnya tetap bisa terjadi dalam satu urutan, tidak seperti di
- * handler Foundry yang tidak pernah memajukan waktu.
- *
- * Seperti harness 0.10.0, creator DAN pedagang adalah kontrak ini, karena Echidna memanggil fungsi
- * pada satu kontrak uji. Properti "creator tidak memegang token" dinyatakan di
- * `test/AdextoCurveInvariant.t.sol`, yang punya handler terpisah.
+ * The creator and the trader are both this contract, because Echidna calls one contract. The
+ * property "the creator holds no tokens" lives in `test/AdextoCurveInvariant.t.sol`, which has a
+ * separate handler. The launch-window property below covers the per-wallet limit.
  */
 contract EchidnaAdextoCurve {
     AdextoFactory internal factory;
@@ -32,14 +26,14 @@ contract EchidnaAdextoCurve {
     AdextoToken internal token;
     uint256 internal initialSupply;
 
-    /// Alamat tanpa kode, BUKAN kontrak ini: kalau sama, fee protokol yang salah alamat tidak terlihat.
+    /// An address with no code, not this contract, so a misrouted protocol fee would show.
     address internal constant PROTOCOL_TREASURY = address(0xBEEF);
 
     constructor() payable {
         factory = new AdextoFactory(PROTOCOL_TREASURY, new string[](0));
         (address t, address c) = factory.deployTrinity(
             "Echidna Adexto Curve",
-            "ECH12",
+            "ECH13",
             1_000_000_000,
             address(this),
             1500 ether,
@@ -57,7 +51,7 @@ contract EchidnaAdextoCurve {
 
     receive() external payable {}
 
-    // ── Aksi yang boleh dicoba fuzzer ─────────────────────────────────────────
+    // ── Actions the fuzzer may try ────────────────────────────────────────────
 
     function buy(uint256 seed) public {
         uint256 amount = 1 + (seed % 5_000 ether);
@@ -100,32 +94,38 @@ contract EchidnaAdextoCurve {
         curve.claimProtocolFees();
     }
 
-    // ── Properti ──────────────────────────────────────────────────────────────
+    // ── Properties ────────────────────────────────────────────────────────────
 
-    /// Setiap wei yang dipegang kurva harus punya pemilik, termasuk treasury protokol.
+    /// Every wei the curve holds has an owner, the protocol treasury included.
     function echidna_solvent() public view returns (bool) {
         return
             address(curve).balance >=
             curve.realNative() + curve.creatorOwed() + curve.treasuryNative() + curve.protocolOwed();
     }
 
-    /// `_mint` sekali di konstruktor, tanpa fungsi mint: hanya bisa turun.
+    /// `_mint` runs once, in the constructor, and there is no mint function: supply only falls.
     function echidna_supplyNeverGrows() public view returns (bool) {
         return token.totalSupply() <= initialSupply;
     }
 
-    /// Persediaan internal harus cocok dengan saldo ERC-20 sesungguhnya.
+    /// The internal inventory matches the real ERC-20 balance.
     function echidna_inventoryMatchesBalance() public view returns (bool) {
         return token.balanceOf(address(curve)) == curve.curveTokens() - curve.tokensSold();
     }
 
-    /// Kalau ini bisa dilampaui, `curveTokens - _tokensSold` underflow.
+    /// If this could be exceeded, `curveTokens - _tokensSold` would underflow.
     function echidna_tokensSoldWithinCurve() public view returns (bool) {
         return curve.tokensSold() <= curve.curveTokens();
     }
 
-    /// Fee protokol hanya mendarat di treasury, dan tepat sebanyak yang tercatat terbayar.
+    /// Protocol fees land only at the treasury, and exactly as much as was recorded as paid.
     function echidna_treasuryBalanceMatchesPaid() public view returns (bool) {
         return PROTOCOL_TREASURY.balance == curve.totalProtocolFeesPaid();
+    }
+
+    /// Inside the launch window, no wallet holds more than the per-wallet limit.
+    function echidna_walletLimitDuringWindow() public view returns (bool) {
+        if (block.timestamp >= token.launchTime() + token.ANTI_SNIPE_WINDOW()) return true;
+        return token.balanceOf(address(this)) <= token.maxWalletAmount();
     }
 }
