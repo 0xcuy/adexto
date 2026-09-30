@@ -130,7 +130,9 @@ export default function WhitepaperPage() {
           <div className="p-4 rounded-xl bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink overflow-x-auto">
             <span className="text-ok font-bold block mb-2">// Revenue Flow Equation</span>
             R_total = SwapFees(AdextoCurve) + x402_CrossChainBuys<br />
-            Trader_Pays = swapFeeBps + PROTOCOL_FEE_BPS &nbsp;// the protocol leg is additive<br />
+            {/* Dulu "swapFeeBps + PROTOCOL_FEE_BPS // additive": aturan 0.11.0, bertentangan dengan
+                §2 halaman ini sendiri untuk setiap peluncuran 0.12.0. */}
+            Trader_Pays = swapFeeBps &nbsp;// 0.12.0: the protocol leg is carved out of it; 0.11.0 markets add PROTOCOL_FEE_BPS on top<br />
             Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
             Protocol_Share = PROTOCOL_FEE_BPS * Volume &nbsp;// to an immutable treasury, claimable by anyone<br />
             Buyback_Execution = AdextoCurve.executeBuyback(treasuryNative) &rarr; burn

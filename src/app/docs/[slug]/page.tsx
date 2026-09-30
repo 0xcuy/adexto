@@ -188,48 +188,47 @@ function FactsTable({ table }: { table: string }) {
   }
 
   if (table === "feeLegs") {
-    // Kaki depth/creator/buyback dibaca dari sebuah pasar hidup, bukan dituliskan di sini,
-    // supaya angkanya selalu angka yang benar-benar berlaku pada sebuah kurva.
-    const m = facts.markets[0];
-    const creator = m ? m.depthFeeBps + m.buybackBps : null;
+    /**
+     * DUA KOLOM GENERASI, karena satu kolom pasti salah untuk salah satunya.
+     *
+     * Versi sebelumnya hanya berisi aturan 0.11.0 ("added on top") — benar untuk keenam pasar
+     * yang hidup, salah untuk setiap peluncuran baru sejak factory 0.12.0. Aturannya dibaca
+     * dari sumber kedua generasi: 0.12.0 `swapFeeBps <= 500` dan
+     * `creator + buyback + PROTOCOL_FEE_BPS <= swapFeeBps`; 0.11.0 (commit 98ffb1c)
+     * `swapFeeBps + PROTOCOL_FEE_BPS <= 500`. Angka per pasar sengaja TIDAK ada di tabel:
+     * docs-facts tidak mencatat generasi tiap pasar, jadi angka `facts.markets[0]` akan diam-diam
+     * salah begitu pasar 0.12.0 pertama masuk daftar itu.
+     */
+    const p = facts.fees.protocolBps;
+    const max = facts.fees.maxTotalBps;
+    const rows: Array<[string, string, string]> = [
+      ["Creator", "chosen at launch", "chosen at launch"],
+      ["Buyback", "chosen at launch", "chosen at launch"],
+      ["Depth", "the rest: total − creator − buyback − protocol", "the rest: total − creator − buyback"],
+      ["Protocol", `${p} bps, inside the configured total`, `${p} bps, added on top of the configured total`],
+      ["Trader pays", "the configured total", `the configured total + ${p} bps`],
+      ["Ceiling", `total ≤ ${max} bps`, `total + ${p} bps ≤ ${max} bps`],
+    ];
     return wrap(
       <>
         <thead>
           <tr>
             <th className={head}>Leg</th>
-            <th className={head}>Bps</th>
-            <th className={head}>Comes from</th>
+            <th className={head}>0.12.0 factory · every new launch</th>
+            <th className={head}>0.11.0 factory · markets listed today</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className={cell}>Depth</td>
-            <td className={mono}>{m?.depthFeeBps ?? "—"}</td>
-            <td className={cell}>inside the creator&apos;s configured total; stays in the curve</td>
-          </tr>
-          <tr>
-            <td className={cell}>Buyback</td>
-            <td className={mono}>{m?.buybackBps ?? "—"}</td>
-            <td className={cell}>inside the configured total; accrues on the curve, then buys and burns</td>
-          </tr>
-          <tr>
-            <td className={cell}>Protocol</td>
-            <td className={mono}>{facts.fees.protocolBps}</td>
-            <td className={cell}>
-              <strong className="text-ink">added on top</strong> of the configured total
-            </td>
-          </tr>
-          <tr>
-            <td className={cell}>Hard ceiling</td>
-            <td className={mono}>{facts.fees.maxTotalBps}</td>
-            <td className={cell}>
-              checked against what a trader pays, in the factory and again in the curve
-            </td>
-          </tr>
+          {rows.map(([leg, current, previous]) => (
+            <tr key={leg}>
+              <td className={`${cell} font-semibold text-ink`}>{leg}</td>
+              <td className={cell}>{current}</td>
+              <td className={cell}>{previous}</td>
+            </tr>
+          ))}
         </tbody>
       </>,
     );
-    void creator;
   }
 
   if (table === "analysers") {

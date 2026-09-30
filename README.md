@@ -4,7 +4,7 @@
 > One transaction opens a bonding-curve market and it starts trading — with a full terminal, an agent that answers for it, and a price any machine can pay from another chain. Gas only, no liquidity deposit, on 0G, Base, Arbitrum or Monad.
 
 [![Website](https://img.shields.io/badge/Website-adexto.xyz-7C3AED?style=for-the-badge&logo=google-chrome&logoColor=white)](https://adexto.xyz)
-[![Version](https://img.shields.io/badge/Contracts-v0.11.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
+[![Version](https://img.shields.io/badge/Contracts-v0.12.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
 [![Terminal](https://img.shields.io/badge/Every_market-TRADES_FROM_BLOCK_ONE-10B981?style=for-the-badge&logo=tradingview&logoColor=white)](https://adexto.xyz/explorer)
 [![MCP](https://img.shields.io/badge/MCP-AI_AGENTS_CAN_BUY-10B981?style=for-the-badge&logo=anthropic&logoColor=white)](https://adexto.xyz/mcp)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004_agent_binding-VERIFIED_ON--CHAIN-10B981?style=for-the-badge&logo=ethereum&logoColor=white)](#erc-8004-agent-identity)
@@ -28,7 +28,7 @@ What is **not** here: no autonomous trading bot runs a market on a creator's beh
 
 ### How the market itself works
 
-The token opens **inside a bonding curve against a virtual reserve**. There is nothing to seed, so a launch costs gas and nothing else. 100% of supply enters the curve, so the creator holds no allocation to sell. Income arrives instead as 0.10% of every swap, and that 0.10% comes out of the 0.30% the creator already set — paying the creator does not make the trade more expensive. The protocol's own 0.10% is the one leg that is added on top, which is why a trader pays 0.40%. Full breakdown in [Fee split](#fee-split).
+The token opens **inside a bonding curve against a virtual reserve**. There is nothing to seed, so a launch costs gas and nothing else. 100% of supply enters the curve, so the creator holds no allocation to sell. Income arrives instead as a share of every swap, taken from inside the fee the trader already pays: on the studio's standard preset a trade costs 1.00% and 0.70% of it goes to the creator. Nothing is added on top. Markets created by the previous factory keep their own rates permanently. Full breakdown in [Fee split](#fee-split).
 
 The curve is the permanent venue. There is **no graduation step** and no migration into an external pool, which is where most launchpad exploits have historically happened. There is also no withdrawal function anywhere in the curve, so no one — including us — can drain a market.
 
@@ -36,25 +36,37 @@ That is a statement about the protocol, not a restriction on the token. `AdextoT
 
 ### Fee split
 
-The creator configures a total — 0.30% on the default preset — which the curve divides three ways on-chain. The protocol's own share is charged **on top of** that total rather than carved out of it, so a trader on the default preset pays **0.40%** and the creator still keeps the full 0.10%.
+Every swap pays four legs: creator, depth, buyback and protocol. Each rate is fixed when the market is created, and where the protocol leg sits depends on the factory generation that created it.
+
+**`AdextoFactory` `0.12.0`, which every launch from the studio uses.** The creator configures a total, and that total is exactly what a trader pays. The protocol's 0.10% is carved out of it rather than added on top. The studio's standard preset, as read from the first `0.12.0` curve on chain (`totalFeeBps` 100):
+
+| Share | Bps | Goes to |
+|---|---|---|
+| Creator | 0.70% | streamed to the creator's wallet on every swap |
+| Depth | 0.10% | stays in the curve, raising the price floor as volume accumulates |
+| Buyback | 0.10% | accrues on the curve as `treasuryNative`; a buyback call spends it on the curve and burns what it bought |
+| Protocol | 0.10% | `protocolOwed`, claimable only to the factory's immutable `protocolTreasury` |
+| **Trader pays** | **1.00%** | |
+
+**`AdextoFactory` `0.11.0`, which created the six markets listed today.** Its protocol leg is charged **on top of** the configured total. Those markets were configured at 0.30%, so a trader pays **0.40%** on them, permanently:
 
 | Share | Bps | Comes from | Goes to |
 |---|---|---|---|
-| Depth | 0.15% | inside the creator's 0.30% | stays in the curve, raising the price floor as volume accumulates |
-| Creator | 0.10% | inside the creator's 0.30% | streamed to the creator's wallet on every swap |
-| Buyback | 0.05% | inside the creator's 0.30% | accrues on the curve as `treasuryNative`; a buyback call spends it on the curve and burns what it bought |
-| Protocol | 0.10% | **added on top** | `protocolOwed`, claimable only to the factory's immutable `protocolTreasury` |
+| Depth | 0.15% | inside the creator's 0.30% | stays in the curve |
+| Creator | 0.10% | inside the creator's 0.30% | streamed to the creator's wallet |
+| Buyback | 0.05% | inside the creator's 0.30% | `treasuryNative`, spent on buy-and-burn |
+| Protocol | 0.10% | **added on top** | `protocolOwed`, claimable only to the immutable `protocolTreasury` |
 | **Trader pays** | **0.40%** | | |
 
-Read `totalFeeBps()` on the curve instead of adding these up. It is the contract's own answer to what a trade costs.
+Read `totalFeeBps()` on the curve instead of adding these up. It is the contract's own answer to what a trade costs, whichever generation created the market.
 
-The protocol leg is a `public constant PROTOCOL_FEE_BPS` on the factory and an `immutable protocolFeeBps` on each curve, with **no setter in either**. A setter would make the contracts owned, which is the opposite of what `/security` claims about them. So: **markets created by the previous factory can never pay it.** Their rates are immutable too. That is permanent, not a migration waiting to happen.
+The protocol leg is a `public constant PROTOCOL_FEE_BPS` on the factory and an `immutable protocolFeeBps` on each curve, with **no setter in either**. A setter would make the contracts owned, which is the opposite of what `/security` claims about them. So: **markets created by the `0.10.0` factory can never pay it**, and a `0.11.0` market can never move its leg inside the total. Their rates are immutable too. That is permanent, not a migration waiting to happen.
 
 `claimProtocolFees()` is permissionless — anyone may call it, and the native always lands at the immutable treasury. No key is needed to collect the fee. The treasury's key is only needed by its owner, later, to move the money elsewhere.
 
-The studio's three presets (0.10% / 0.30% / 0.50%) are UI only. The contract accepts any split subject to `swapFeeBps + PROTOCOL_FEE_BPS <= 500`; the protocol leg is inside that comparison because the 5% cap applies to what a trader pays. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps`, and the curve re-checks the sum against its own ceiling.
+The studio's three presets (0.60% / 1.00% / 2.00%) are UI only. The `0.12.0` contract accepts any split subject to `swapFeeBps <= 500` and `creatorShareBps + treasuryShareBps + PROTOCOL_FEE_BPS <= swapFeeBps`, so the 5% cap applies to what a trader pays and there is always room for the protocol leg. Depth is the residual, not an input: the factory computes `swapFeeBps − creatorShareBps − treasuryShareBps − PROTOCOL_FEE_BPS`, and the curve re-checks the sum against its own ceiling. On `0.11.0` the cap read `swapFeeBps + PROTOCOL_FEE_BPS <= 500` and depth was `swapFeeBps − creatorShareBps − treasuryShareBps`.
 
-The buyback is permissionless and self-contained. `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so **anyone** can trigger it, capped at 1% of the native reserve per call. The native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns whatever that purchase bought, so supply falls without paying anyone. That is deliberate — a burn path that depended on us being willing to run it would be a promise rather than a mechanism.
+The buyback is permissionless and self-contained. `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so **anyone** can trigger it, capped at 1% of the native reserve per call. Curves from the `0.12.0` factory also wait one hour between calls. The native never leaves the contract: the call moves `treasuryNative` into the curve reserve and burns whatever that purchase bought, so supply falls without paying anyone. That is deliberate — a burn path that depended on us being willing to run it would be a promise rather than a mechanism.
 
 ---
 
@@ -62,7 +74,7 @@ The buyback is permissionless and self-contained. `executeBuyback` carries only 
 
 ```mermaid
 graph TD
-    Creator([Creator]) -->|1 tx per chain, gas only<br/>deployTrinity is NOT payable| Factory[AdextoFactory v0.11.0]
+    Creator([Creator]) -->|1 tx per chain, gas only<br/>deployTrinity is NOT payable| Factory[AdextoFactory v0.12.0]
 
     Registry[[ERC-8004 Identity Registry<br/>optional, off by default]] -.->|ownerOf agentId — launch reverts<br/>unless the caller owns that agent| Factory
     Meta[0G DA<br/>launch metadata anchored] -.->|metadataRoot in calldata| Factory
@@ -73,12 +85,12 @@ graph TD
         Factory ==>|3. seeds 100% into the curve, then<br/>asserts its own balance is zero| Curve
     end
 
-    Curve -->|0.15% depth| Depth[stays in the curve,<br/>raising the floor]
-    Curve -->|0.10% creator| CreatorFee[claimCreatorFees →<br/>immutable creator address]
-    Curve -->|0.05% buyback| Vault[treasuryNative —<br/>a balance on the curve,<br/>not a separate contract]
-    Curve -->|0.10% protocol, charged ON TOP<br/>of the creator's 0.30%| Protocol[protocolOwed →<br/>claimProtocolFees is permissionless,<br/>destination is immutable]
+    Curve -->|0.10% depth| Depth[stays in the curve,<br/>raising the floor]
+    Curve -->|0.70% creator| CreatorFee[claimCreatorFees →<br/>immutable creator address]
+    Curve -->|0.10% buyback| Vault[treasuryNative —<br/>a balance on the curve,<br/>not a separate contract]
+    Curve -->|0.10% protocol, carved OUT OF<br/>the 1.00% standard preset| Protocol[protocolOwed →<br/>claimProtocolFees is permissionless,<br/>destination is immutable]
 
-    Vault -->|executeBuyback: no caller gate,<br/>max 1% of reserve per call| Burn[buys along the curve,<br/>burns what it bought]
+    Vault -->|executeBuyback: no caller gate,<br/>max 1% of reserve per call, 1h apart| Burn[buys along the curve,<br/>burns what it bought]
 
     classDef live fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px,color:#201810;
     classDef partial fill:#fffbeb,stroke:#f59e0b,stroke-width:2px,color:#201810;
@@ -92,7 +104,7 @@ Three things in that picture exist but are **not** part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent — the studio passes the creator's own wallet by default.
 - **The x402 edge is a customer of the curve, not an operator of it.** It calls `buy` with the payer as recipient, exactly like any other address, and it holds no privileged position: it cannot deposit into `treasuryNative`, which fills only from the buyback leg of swap fees. The 0G Compute agent is an inference route and holds no key to anything on-chain. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
-- **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call.
+- **The buyback burns, but nobody is in charge of it.** `executeBuyback` carries only `nonReentrant` and `live` — no caller gate — so anyone may trigger it, bounded to 1% of the reserve per call and, on `0.12.0` curves, one call per hour.
 
 ---
 
@@ -100,11 +112,11 @@ Three things in that picture exist but are **not** part of `deployTrinity`:
 
 Every address below was confirmed to hold bytecode by a direct `eth_getCode` call against the chain's RPC. Testnet deployments are deliberately not listed here — they belong in the operator runbook, not in the public README.
 
-`AdextoFactory` `0.11.0` is the current, executable generation: it deploys the token and its curve in one transaction, needs no liquidity deposit, can bind an ERC-8004 agent identity, and charges a 0.10% protocol fee on top of whatever the creator configures. Its runtime bytecode is **byte-identical across all four chains (21,281 bytes, keccak `0xcbb89e32ae973400723287f16f32e87f039efcef1c1f814c5805bd1a6fe3add8`)** and reproducible from source with `node scripts/compile-contracts.mjs --via-ir`.
+`AdextoFactory` `0.12.0` is the current, executable generation: it deploys the token and its curve in one transaction, needs no liquidity deposit, can bind an ERC-8004 agent identity, and takes its 0.10% protocol fee out of the total the creator configures. Its runtime bytecode is **byte-identical across all four chains (21,403 bytes, keccak `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f`)** and reproducible from source at commit `1f1cbfc` with `node scripts/compile-contracts.mjs --via-ir`: the compiled output differs from the chain only in the two slots that hold the immutable `protocolTreasury`. [`/security`](https://adexto.xyz/security#verify) has the commands to check each of these yourself.
 
 Byte-identical is not automatic here. `protocolTreasury` is `immutable`, and Solidity puts immutables **inside** the runtime bytecode, so the hashes match only because the same treasury was used on every chain. One chain with a different treasury and the claim is false.
 
-`0.10.0` and `0.9.0` are listed alongside it because they are **still deployed and still permissionless** — superseding a factory in the UI does not remove it from the chain, and the markets it already created keep trading. The three generations have different `deployTrinity` behaviour and, for `0.9.0`, a different selector, so they must not be confused. Each row below states its `VERSION` as read from the contract.
+`0.11.0`, `0.10.0` and `0.9.0` are listed alongside it because they are **still deployed and still permissionless** — superseding a factory in the UI does not remove it from the chain, and the markets it already created keep trading. The generations have different `deployTrinity` behaviour and, for `0.9.0`, a different selector, so they must not be confused. Each row below states its `VERSION` as read from the contract.
 
 Markets created by `0.10.0` pay **no protocol fee and never will**, because every fee rate in `SovereignCurve` is `immutable`. That is a permanent property of those markets, not a migration that has not happened yet.
 
@@ -166,7 +178,7 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 
 **Deployer:** `0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D`
 
-**Protocol treasury:** [`0x24268Fffc119ec5550F68e80D94476fD64daE967`](https://chainscan.0g.ai/address/0x24268Fffc119ec5550F68e80D94476fD64daE967) — the immutable destination of the 0.10% protocol leg on every `0.11.0` curve. Deliberately not the deployer: that key is online and is already the `creator` of live markets, which would make protocol revenue and creator revenue indistinguishable on-chain. It was a fresh address with no code, nonce 0 and no balance on all four mainnets when it was chosen.
+**Protocol treasury:** [`0x24268Fffc119ec5550F68e80D94476fD64daE967`](https://chainscan.0g.ai/address/0x24268Fffc119ec5550F68e80D94476fD64daE967) — the immutable destination of the 0.10% protocol leg on every `0.11.0` and `0.12.0` curve. Deliberately not the deployer: that key is online and is already the `creator` of live markets, which would make protocol revenue and creator revenue indistinguishable on-chain. It was a fresh address with no code, nonce 0 and no balance on all four mainnets when it was chosen.
 
 ---
 
@@ -174,12 +186,13 @@ Markets created by `0.10.0` pay **no protocol fee and never will**, because ever
 
 | Component | Works? | Exactly what that means |
 |---|---|---|
-| `AdextoFactory` `0.11.0` on 4 mainnets | **Live** | Broadcast and read back on each chain: `VERSION` `0.11.0`, `PROTOCOL_FEE_BPS` 10, `protocolTreasury` equal to the address published above, `totalProjectsCount` 0 at deployment, and runtime bytecode byte-identical across all four (21,281 B). |
+| `AdextoFactory` `0.12.0` on 4 mainnets | **Live, current** | Broadcast and read back on each chain: `VERSION` `0.12.0`, `PROTOCOL_FEE_BPS` 10 carved out of the total, `protocolTreasury` equal to the address published above, and runtime bytecode byte-identical across all four (21,403 B). `totalProjectsCount` reads `0 · 0 · 0 · 1` for 0G, Base, Arbitrum and Monad: the one launch is the `$VOLT` test market, opened to check the published curve ABI against a real `0.12.0` curve, and it is not listed. |
+| `AdextoFactory` `0.11.0` on 4 mainnets | **Live, superseded** | Superseded because `0.12.0` moves the protocol leg inside the total. Still deployed and still permissionless, and its six listed markets keep their 0.40% permanently. Broadcast and read back on each chain: `VERSION` `0.11.0`, `PROTOCOL_FEE_BPS` 10, `protocolTreasury` equal to the address published above, `totalProjectsCount` 0 at deployment, and runtime bytecode byte-identical across all four (21,281 B). |
 | Protocol fee revenue | **Live and collecting on all four chains** | The leg is charged and accrues on every `0.11.0` curve. Read from chain today: `0.000047209005338664 0G` has been claimed through to the treasury, and a further `0.000770149061102985 0G` sits accrued on the three 0G curves waiting for a permissionless claim — plus `0.008936947973117330 MON` on Monad, `0.0000000803 ETH` on Base and `0.0000002001 ETH` on Arbitrum. The treasury's nonce is `0` on all four chains, so nothing has ever been spent out of it. The destination is `immutable` on each curve, so it cannot be redirected and there is no setter to try. |
 | `AdextoCurveFactory` `0.10.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.11.0` adds the protocol fee leg. The markets it created on 0G keep trading on their original three-way split and can never pay a protocol fee, since their rates are immutable. |
 | `AdextoCurveFactory` `0.9.0` on 4 mainnets | **Live, superseded** | Still deployed and still permissionless. Superseded because `0.10.0` added the ERC-8004 binding, which changed the `deployTrinity` selector. All three generations are listed in the tables above so nobody mistakes one for another. |
 | ERC-8004 agent binding | **Works. Off unless you ask for it — and one live market lost it** | Pass an agent id at launch and the factory calls `ownerOf(agentId)`, reverting unless you own that agent. Leave it out and the launch is one transaction with no agent. Exercised on mainnet by `$PARCEL` and `$CURB` on Monad (`agentId 10251`) and by the **first** `$ADEXTO` market on 0G (`agentId 3545431`); the live `$ADEXTO` reads `agentBound false` because the relaunch onto `0.11.0` dropped the binding and `agentBound` is `immutable` — the full account is in [ERC-8004 agent identity](#erc-8004-agent-identity). What is NOT used: the Reputation and Validation registries, and `supportsInterface`. So this integrates with one of the standard's three registries — it is not ERC-8004 compliance and this file does not call it that. |
-| Launching through the site | **Enabled** | All four `NEXT_PUBLIC_CURVE_FACTORY_*` are set to the `0.11.0` addresses above, so the studio launches on the current generation. `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` carries the `0.10.0` addresses for verification only and is deliberately excluded from every "can this chain launch" check. |
+| Launching through the site | **Enabled** | All four `NEXT_PUBLIC_CURVE_FACTORY_*` are set to the `0.12.0` addresses above, so the studio launches on the current generation. `NEXT_PUBLIC_CURVE_FACTORY_PREV_*` carries the `0.11.0` addresses for verification only and is deliberately excluded from every "can this chain launch" check. |
 | Live markets | **6, across all four mainnets** | `$ADEXTO`, `$ADT` and `$ZEEBO` on 0G, `$PARCEL` on Monad, `$BLOOP` on Base, `$WOMBO` on Arbitrum One. `totalProjectsCount` on the `0.11.0` factories reads `3 · 1 · 1 · 2` for 0G, Base, Arbitrum and Monad — seven launches, six of them listed, because `$CURB` on Monad was delisted after `$PARCEL` replaced it and nothing can remove it from the chain. Every launch that exists on chain is recorded once in [`src/config/onchain-launches.json`](src/config/onchain-launches.json) with its status — live, superseded, or a throwaway test ticker from a demo recording — and `audit_consistency.mjs` fails the build if an on-chain launch appears that the file does not account for. `allProjects` is append-only with no delete, so the factories' raw counter can only rise; it is not a growth number and is not quoted as one. |
 | Trading / swap | **Live on all four mainnets** | Real fills exist on every chain. Read from the curves today: `$ADEXTO` `swapCount 21`, `$PARCEL` `12`, `$ZEEBO` `6`, `$WOMBO` `5`, `$BLOOP` `2`, `$ADT` `1`, and the delisted `$CURB` still at `5` — 47 fills across the listed markets, 52 counting `$CURB`. The `$PARCEL` session was `buy · buy · sell · buy · buy`, a shape a market makes rather than a demo that only ever buys. The sell leg matters most: it goes `approve` then `sell` against the curve, which is the exit path a bonding curve is usually accused of not having. |
 | MCP server for AI agents | **Live, 7 tools** | `https://adexto.xyz/api/mcp` answers `tools/list` with `list_markets`, `get_market`, `quote_buy`, `how_to_pay`, `buy_token`, `pay_and_buy` and `trade_history`, resolved from the same registry the site reads, so a market launched a minute ago answers on the first request. `pay_and_buy` is the one that finishes a purchase, and it is honest about how: **the signature is made by the operator's key on this server, not by a wallet the model controls.** It is gated on an `x-agent-key` header, capped at `0.20 USDC`, and every term — recipient, asset, amount — is taken from the gateway's own challenge rather than from the model, so a fully prompt-injected agent can at most buy one of our own markets and send the money to our own treasury. |
@@ -200,9 +213,9 @@ The reason is the launch model, and it is checkable in the contracts rather than
 |---|---|---|
 | Capital to open a market | none — the native side starts entirely virtual, and `deployTrinity` is not `payable`, so it cannot accept a deposit | real liquidity must be deposited by someone |
 | Creator's token position | none — the whole supply is minted to the factory and loaded into the curve in the same transaction, and the factory then requires its own balance to be zero before the launch can succeed | the creator must hold tokens to pair with liquidity |
-| Can reserves be pulled out | no — there is no `withdraw`, `rescue`, `sweep`, `drain` or `emergency` function anywhere, no owner and no `onlyOwner`; native leaves through exactly two paths, a seller's payout and the creator's fee claim to an immutable address | yes, and correctly so: a provider may withdraw at any time |
+| Can reserves be pulled out | no — there is no `withdraw`, `rescue`, `sweep`, `drain` or `emergency` function anywhere, no owner and no `onlyOwner`; native leaves only as a seller's payout or as a fee claim to an immutable address: the creator's on every curve, plus the protocol's on `0.11.0` and `0.12.0` curves | yes, and correctly so: a provider may withdraw at any time |
 | Migration step | none — the curve is the permanent venue | the usual launchpad pattern graduates a curve into a pool, and that step is where much of the historical exploit surface lives |
-| Creator fee | 0.10% of every swap accrues on-chain inside the 0.30% the creator configures, so paying the creator costs the trader nothing extra | fees accrue to liquidity providers; paying a creator needs custom hook support the venue may not offer |
+| Creator fee | a share of every swap accrues on-chain inside the total the trader pays (0.70% of 1.00% on the studio's standard preset), so paying the creator costs the trader nothing extra | fees accrue to liquidity providers; paying a creator needs custom hook support the venue may not offer |
 | Code paths across our four chains | one, byte-identical | whatever venue happens to exist per chain |
 
 Row three carries the weight. A liquidity provider being able to withdraw is not a flaw — it is what an AMM is for — but it means the venue can be pulled out from under holders, and "we won't" is only a promise. Here the guarantee is the absence of code that could do it.

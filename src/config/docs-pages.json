@@ -186,18 +186,18 @@
     },
     "fees": {
       "title": "Fees",
-      "lede": "The ADEXTO protocol implements four additive fee legs across all curve trades, combining creator, depth, buyback, and protocol components. Every fee rate is fixed permanently at contract creation, and balances route exclusively to immutable destinations.",
+      "lede": "Every swap on an ADEXTO curve pays four fee legs: creator, depth, buyback and protocol. Each rate is fixed when the market is created, and each balance can only go to a destination fixed at the same moment. Where the protocol leg sits depends on the factory generation that created the market.",
       "sections": [
         {
-          "heading": "Additive Fee Architecture",
+          "heading": "Four Fee Legs",
           "blocks": [
             {
               "type": "p",
-              "text": "Each transaction on an ADEXTO bonding curve incurs four distinct fee legs: the creator fee, the depth fee, the buyback fee, and the protocol fee. The creator defines the base fee rate when deploying a market, which cannot exceed the `maxTotalBps` limit of 500 bps."
+              "text": "Each trade on an ADEXTO bonding curve pays four fee legs: the creator fee, the depth fee, the buyback fee, and the protocol fee. The creator chooses the total and the creator and buyback shares at launch. Depth is whatever remains, and the protocol leg is a 10 bps constant set by the factory."
             },
             {
               "type": "p",
-              "text": "The depth fee and the buyback fee are carved directly out of the total configured by the creator. For deployed curves, `depthFeeBps` is set to 15 bps and `buybackBps` is set to 5 bps, leaving the remainder of the creator-configured total for the creator fee leg."
+              "text": "On the markets listed today, all created by the 0.11.0 factories, `depthFeeBps` is 15 bps and `buybackBps` is 5 bps. Read `totalFeeBps` on a curve for the exact figure a trade pays there."
             },
             {
               "type": "factsTable",
@@ -206,15 +206,19 @@
           ]
         },
         {
-          "heading": "Protocol Fee Surcharge and Trader Costs",
+          "heading": "Where the Protocol Leg Sits",
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol fee leg is defined by `protocolBps` at 10 bps and is applied on top of the creator-configured fee total rather than deducted from it. Because this fee leg is additive, a trader interacting with a curve pays 10 bps more than the rate configured by the creator."
+              "text": "On the 0.12.0 factory, which every new launch uses, the 10 bps protocol leg is carved out of the configured total. A trader pays exactly the total the creator set, and that total cannot exceed the `maxTotalBps` limit of 500 bps."
+            },
+            {
+              "type": "p",
+              "text": "On the 0.11.0 factory, which created every market listed today, the protocol leg is added on top of the configured total. A market configured at 30 bps charges a trader 40 bps, and the configured total plus the protocol leg cannot exceed 500 bps."
             },
             {
               "type": "note",
-              "text": "A market creator cannot reduce or waive the 10 bps protocol surcharge, and the creator-configured total remains constrained by the 500 bps maximum limit."
+              "text": "A creator cannot reduce or waive the 10 bps protocol leg in either generation. It is a constant in the factory and an immutable value in each curve."
             }
           ]
         },
@@ -227,7 +231,7 @@
             },
             {
               "type": "p",
-              "text": "Curves deployed under superseded factory generations do not incur any protocol fee. Because fee parameters are immutable once deployed, markets from older factory versions will never pay protocol fees."
+              "text": "Curves created by factories older than 0.11.0 pay no protocol fee at all. Because fee parameters are immutable once deployed, those markets never will, and a 0.11.0 market keeps its protocol leg on top of the configured total permanently."
             }
           ]
         },
@@ -249,7 +253,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The buyback function can be called by any account to acquire tokens using accumulated buyback reserves. Each invocation is capped per call to restrict the volume executed in a single transaction."
+              "text": "The buyback function can be called by any account to acquire tokens using accumulated buyback reserves. Each invocation is capped per call to restrict the volume executed in a single transaction, and curves from the 0.12.0 factory also wait one hour between calls."
             },
             {
               "type": "p",
@@ -295,7 +299,7 @@
             {
               "type": "code",
               "lang": "bash",
-              "code": "cast code 0x216E7880D64D94335B583c539802d3e61958d4A2 --rpc-url https://base-rpc.publicnode.com | cast keccak"
+              "code": "cast code 0xe5B9555fbbcE72A5739dD29c3939A23fd230136F --rpc-url https://base-rpc.publicnode.com | cast keccak"
             }
           ]
         },
@@ -783,6 +787,29 @@
             {
               "type": "note",
               "text": "The factory does not perform agent registration during market creation; it solely verifies ownership of an existing identifier via `ownerOf`."
+            }
+          ]
+        },
+        {
+          "heading": "Express Mode Defaults",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The Studio has two modes. Advanced is the five-step form. Express asks for a name, a ticker and an image, and launches through the same `deployTrinity` call with the settings below, simulated first. Every setting stays editable in Advanced before launch, and switching modes keeps what was typed."
+            },
+            {
+              "type": "list",
+              "items": [
+                "Chain: the one picked in Express, or the first chain that can launch.",
+                "Fee: the Standard tier, 1.00% per trade, of which 0.70% goes to the creator, 0.10% stays in the curve as depth, 0.10% funds the buyback and 0.10% is the protocol leg.",
+                "Supply: 1,000,000,000 tokens, all of them in the curve and none to the creator.",
+                "Market agent: a neutral persona that answers questions about the market. No ERC-8004 identity is bound.",
+                "Wallet prompts: one free signature that proves control of the address, then the launch transaction, which costs gas and takes no deposit."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "A link of the form `/studio?mode=express&name=…&symbol=…&chain=…` opens Express with those fields filled. The link launches nothing by itself; whoever opens it signs with their own wallet."
             }
           ]
         },

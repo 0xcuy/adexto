@@ -25,7 +25,7 @@ import docsPages from "@/config/docs-pages.json";
 const BLURBS: Record<string, string> = {
   launch: "One transaction, no liquidity deposit, no creator allocation.",
   trading: "The curve as a permanent venue, and the exit path.",
-  fees: "Four legs, and which one is added on top.",
+  fees: "Four legs, and where the protocol leg sits in each factory generation.",
   chains: "Four mainnets, and why the bytecode hashes match.",
   x402: "Pay with USDC over HTTP, receive on another chain.",
   mcp: "Seven tools. One spends money, and it says whose key signs.",
