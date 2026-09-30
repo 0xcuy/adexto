@@ -451,16 +451,32 @@ log("→ echidna");
     try {
       const uid = process.getuid ? process.getuid() : 1000;
       const gid = process.getgid ? process.getgid() : 1000;
-      const out = sh(BIN.docker, [
-        "run", "--rm", "-v", `${ROOT}:/src`, "-w", "/src", "-u", `${uid}:${gid}`, "-e", "HOME=/tmp",
-        "ghcr.io/crytic/echidna/echidna:latest",
-        "sh", "-c", "echidna . --contract EchidnaCurve --config echidna.yaml",
-      ]);
-      writeFileSync(path.join(OUT_DIR, "echidna.log"), out);
-      const clean = out.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
-      const props = [...clean.matchAll(/(echidna_\w+):\s*(passing|failed!?)/g)].map((m) => ({ name: m[1], passing: m[2].startsWith("passing") }));
-      const calls = Number((clean.match(/Total calls:\s*(\d+)/) || [])[1] || 0);
-      const instr = Number((clean.match(/Unique instructions:\s*(\d+)/) || [])[1] || 0);
+      /**
+       * DUA harness, satu per generasi kurva: `EchidnaCurve` (0.10.0, SovereignCurve) dan
+       * `EchidnaAdextoCurve` (0.12.0, AdextoCurve — ditambahkan 2026-09-30; sebelum itu kurva yang
+       * dipakai meluncurkan tidak pernah disentuh Echidna). Hasilnya digabung jadi satu baris mesin,
+       * dengan nama kasus diberi awalan harness supaya properti bernama sama tidak tertukar.
+       */
+      const HARNESSES = ["EchidnaCurve", "EchidnaAdextoCurve"];
+      const props = [];
+      let calls = 0;
+      let instr = 0;
+      const logs = [];
+      for (const harness of HARNESSES) {
+        const out = sh(BIN.docker, [
+          "run", "--rm", "-v", `${ROOT}:/src`, "-w", "/src", "-u", `${uid}:${gid}`, "-e", "HOME=/tmp",
+          "ghcr.io/crytic/echidna/echidna:latest",
+          "sh", "-c", `echidna . --contract ${harness} --config echidna.yaml`,
+        ]);
+        logs.push(`===== ${harness} =====\n${out}`);
+        const clean = out.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+        for (const m of clean.matchAll(/(echidna_\w+):\s*(passing|failed!?)/g)) {
+          props.push({ name: `${harness}.${m[1]}`, passing: m[2].startsWith("passing") });
+        }
+        calls += Number((clean.match(/Total calls:\s*(\d+)/) || [])[1] || 0);
+        instr += Number((clean.match(/Unique instructions:\s*(\d+)/) || [])[1] || 0);
+      }
+      writeFileSync(path.join(OUT_DIR, "echidna.log"), logs.join("\n"));
       const failed = props.filter((p) => !p.passing).length;
       add({
         id: "echidna",
@@ -470,7 +486,7 @@ log("→ echidna");
         status: failed === 0 && props.length > 0 ? "clean" : "findings",
         ran: true,
         counts: { properties: props.length, failed, totalCalls: calls, uniqueInstructions: instr },
-        detail: `${props.length - failed}/${props.length} properties passed · ${calls.toLocaleString("en-US")} calls`,
+        detail: `${props.length - failed}/${props.length} properties passed across ${HARNESSES.length} curve generations · ${calls.toLocaleString("en-US")} calls`,
         cases: props.map((p) => p.name),
       });
     } catch (e) {

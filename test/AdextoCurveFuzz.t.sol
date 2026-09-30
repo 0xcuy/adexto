@@ -451,4 +451,105 @@ contract AdextoCurveFuzzTest is AdextoCurveFixture {
         assertEq(marker.code.length, 0, "penanda cadangan punya kode: bisa disalahbaca sebagai token");
         assertTrue(marker != address(0), "penanda cadangan nol: slot akan terbaca sebagai tersedia");
     }
+
+    // ── 17–20. Empat properti yang dulu HANYA ada di kurva 0.10.0 ──────────────
+    //
+    // Diport 2026-09-30. Sebelumnya `SovereignCurveFuzz.t.sol` satu-satunya tempat arah
+    // pembulatan beli, klaim creator, batas jual, dan batas 1% buyback diuji sebagai properti
+    // sendiri — padahal kurva yang dipakai meluncurkan adalah yang ini. Versinya di sini
+    // memakai EMPAT kaki fee (termasuk protokol) dan cooldown buyback 0.12.0.
+
+    // 17. Pembulatan beli berpihak ke kurva. Dibandingkan dengan nilai rasional EKSAK lewat
+    //     perkalian silang, bukan dengan pembagian bulat kedua yang pasti sama dengan kuotasi.
+    function testFuzz_buyRoundsInFavourOfCurve(uint256 rawIn) public view {
+        uint256 nativeIn = _boundBuy(rawIn);
+        (uint256 reserveNative, uint256 reserveToken) = curve.getReserves();
+        (uint256 quoted, uint256 depthFee, uint256 creatorFee, uint256 treasuryFee, uint256 protocolFee) =
+            curve.getBuyQuote(nativeIn);
+        uint256 dx = nativeIn - depthFee - creatorFee - treasuryFee - protocolFee;
+        vm.assume(dx > 0);
+        assertLe(
+            quoted * (reserveNative + dx),
+            reserveToken * dx,
+            "kuotasi melebihi nilai eksak: pembulatan berpihak ke pedagang"
+        );
+    }
+
+    // 18. Tidak bisa menjual lebih dari yang beredar, berapa pun kelebihannya.
+    function testFuzz_cannotSellMoreThanOutstanding(uint256 rawIn, uint256 excess) public {
+        uint256 nativeIn = _boundBuy(rawIn);
+        vm.deal(address(this), nativeIn);
+        (uint256 bought,,,,) = curve.getBuyQuote(nativeIn);
+        vm.assume(bought > 0);
+        curve.buy{value: nativeIn}(0, address(this), block.timestamp + 1);
+
+        uint256 over = curve.tokensSold() + bound(excess, 1, 1e30);
+        token.approve(address(curve), over);
+        vm.expectRevert(bytes("AdextoCurve: exceeds outstanding supply"));
+        curve.sell(over, 0, address(this), block.timestamp + 1);
+    }
+
+    // 19. Buyback dibatasi 1% cadangan per panggilan, dari alamat mana pun, dan membakar supply.
+    //     Ini buyback PERTAMA kurva ini (`lastBuybackAt == 0`), jadi yang diuji batasnya, bukan
+    //     cooldown — cooldown punya suite sendiri di AdextoBuybackCooldown.t.sol.
+    function testFuzz_buybackCappedAtOnePercent(uint256 rawIn, address caller) public {
+        vm.assume(caller != address(0) && caller.code.length == 0);
+        uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
+        vm.deal(address(this), nativeIn);
+        (uint256 bought,,,,) = curve.getBuyQuote(nativeIn);
+        vm.assume(bought > 0);
+        curve.buy{value: nativeIn}(0, address(this), block.timestamp + 1);
+
+        uint256 treasury = curve.treasuryNative();
+        vm.assume(treasury > 0);
+        (uint256 reserveNative,) = curve.getReserves();
+        uint256 cap = reserveNative / 100;
+
+        if (treasury > cap) {
+            vm.prank(caller);
+            vm.expectRevert(bytes("AdextoCurve: buyback exceeds 1% of reserve"));
+            curve.executeBuyback(cap + 1, 0);
+        }
+
+        uint256 spend = treasury > cap ? cap : treasury;
+        vm.assume(spend > 0);
+        (uint256 willBurn,,,,) = curve.getBuyQuote(spend);
+        vm.assume(willBurn > 0);
+
+        uint256 supplyBefore = token.totalSupply();
+        vm.prank(caller);
+        curve.executeBuyback(spend, 0);
+        assertLt(token.totalSupply(), supplyBefore, "buyback tidak mengurangi supply");
+        _assertSolvent();
+    }
+
+    // 20. Klaim creator hanya sampai ke creator, siapa pun pemanggilnya, dan tidak menyentuh
+    //     treasury protokol — kaki keempat yang tidak ada di kurva 0.10.0.
+    function testFuzz_creatorFeesOnlyReachCreator(uint256 rawIn, address caller) public {
+        vm.assume(
+            caller != address(0) && caller != address(this) && caller != PROTOCOL_TREASURY && caller.code.length == 0
+        );
+        uint256 nativeIn = bound(rawIn, 1 ether, 100_000 ether);
+        vm.deal(address(this), nativeIn);
+        (uint256 bought,,,,) = curve.getBuyQuote(nativeIn);
+        vm.assume(bought > 0);
+        curve.buy{value: nativeIn}(0, address(this), block.timestamp + 1);
+
+        uint256 owed = curve.creatorOwed();
+        vm.assume(owed > 0);
+        uint256 creatorBefore = address(this).balance;
+        uint256 callerBefore = caller.balance;
+        uint256 treasuryBefore = PROTOCOL_TREASURY.balance;
+        uint256 protocolOwedBefore = curve.protocolOwed();
+
+        vm.prank(caller);
+        curve.claimCreatorFees();
+
+        assertEq(address(this).balance - creatorBefore, owed, "creator tidak menerima penuh");
+        assertEq(caller.balance, callerBefore, "pemanggil menerima native padahal bukan creator");
+        assertEq(PROTOCOL_TREASURY.balance, treasuryBefore, "klaim creator memindahkan native ke treasury protokol");
+        assertEq(curve.protocolOwed(), protocolOwedBefore, "klaim creator mengubah utang protokol");
+        assertEq(curve.creatorOwed(), 0, "utang creator tidak dinolkan");
+        _assertSolvent();
+    }
 }
