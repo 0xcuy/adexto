@@ -68,7 +68,9 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-line bg-cream/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-8">
+        {/* gap-6 dan px-2.5 di lg: tepat di 1024px kiri butuh 561px tapi hanya dapat 549px, dan
+            "Agent Compute" / "Agent demo" patah jadi dua baris. Ukuran penuh kembali mulai xl. */}
+        <div className="flex min-w-0 items-center gap-6 xl:gap-8">
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             {/* Slot 2.5rem. Yang penting bukan angka slotnya tapi tinggi tinta yang
                 terlihat: sekitar 30px di header yang tingginya 57px. Di tema gelap
@@ -88,7 +90,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`px-3 py-1.5 rounded-full text-[14px] font-medium transition-colors duration-150 ${
+                  className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[14px] font-medium transition-colors duration-150 xl:px-3 ${
                     active ? "text-ink bg-cream-3" : "text-ink-soft hover:text-ink hover:bg-cream-3"
                   }`}
                 >
