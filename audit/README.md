@@ -73,8 +73,9 @@ the way it is, and 144 are blank. That is deliberate and we are not asking you t
 but it will more than double a line-based estimate.
 
 Excluded from the figures above, and from any quote, because they are test fixtures that never
-reach a chain: `contracts/echidna/EchidnaCurve.sol` (74), `contracts/test/MockEIP3009Token.sol`
-(70), `contracts/test/MockIdentityRegistry.sol` (27). They stay in the repo because the suites need
+reach a chain: `contracts/echidna/EchidnaAdextoCurve.sol` (84), `contracts/echidna/EchidnaCurve.sol`
+(74), `contracts/test/MockEIP3009Token.sol` (70), `contracts/test/MockIdentityRegistry.sol` (27), all
+in SLOC. They stay in the repo because the suites need
 them — `MockIdentityRegistry` in particular has its runtime code injected at the ERC-8004 constant
 address, which is the only way the agent-binding path is reachable off mainnet.
 
@@ -100,7 +101,7 @@ our UI does not remove it from a chain — but a finding in it cannot be fixed: 
 frozen, and none of the listed markets run it. These files are also not byte-for-byte the deployed
 `0.10.0` code, because they carry fixes made after that deployment. They stay in the repo because
 the test suites use them: the carve-out property compares a `0.12.0` curve against a `0.10.0` one,
-and the Echidna harness runs against `SovereignCurve`. If a finding in `0.12.0` also applies to
+and one of the two Echidna harnesses runs against `SovereignCurve`. If a finding in `0.12.0` also applies to
 `0.10.0`, we will say so, and the only remedy there is operational.
 
 ### Deployed addresses
@@ -147,8 +148,9 @@ Full address tables including superseded generations are in the
 ### Which source matches which bytecode
 
 `AdextoFactory.sol` and `AdextoCurve.sol` both declare `VERSION = "0.12.0"`, and so do the four
-`0.12.0` factories above. `contracts/` is unchanged since commit
-[`1f1cbfc5ce97b417aa926e122e564738d4389e55`](https://github.com/0xcuy/adexto/commit/1f1cbfc5ce97b417aa926e122e564738d4389e55).
+`0.12.0` factories above. The eight contract files in `contracts/` are unchanged since commit
+[`1f1cbfc5ce97b417aa926e122e564738d4389e55`](https://github.com/0xcuy/adexto/commit/1f1cbfc5ce97b417aa926e122e564738d4389e55);
+the only addition since is a test harness under `contracts/echidna/`.
 Compiled from that commit with `node scripts/compile-contracts.mjs --via-ir`, the factory's runtime
 matches the code on all four chains apart from two 20-byte slots, both holding the immutable
 `protocolTreasury`; with those zeroed, chain code and artefact both hash to
@@ -247,17 +249,17 @@ path was dropped rather than patched. All four are off the launch path.
 | `nonReentrant` is not the first modifier | Order is `onlyFactory nonReentrant`; `onlyFactory` only compares `msg.sender` and makes no external call |
 | Aderyn "state change after external call" in `deployTrinity` (2, one per factory) | The external call is `ownerOf` on the ERC-8004 registry, which `IIdentityRegistry` declares `view`, so it compiles to `STATICCALL`: any state change, event or value transfer inside it reverts, and it cannot re-enter `deployTrinity`. What a hostile registry can still do — revert, burn the gas, or report the wrong owner — is item 7 below |
 
-Counts as published at `/security`, from the scan of 2026-09-28 (commit `fa4200b`, on a working tree
-whose `contracts/` matches `1f1cbfc` file for file), and reproduced unchanged against this tree on
-2026-09-30. Slither: 49 findings, none High, 30 of them on the launch path (13 Medium, 11 Low,
-6 Informational), 16 in the Echidna harness and 3 in `AdextoAgentStake`. Aderyn: 1 High kind across
-the 8 instances above, all on the launch path, and 5 Low kinds across 30 instances.
+Counts as published at `/security`, from the scan of 2026-09-30 on a clean checkout of commit
+`946c2fa`, whose eight contract files are identical to `1f1cbfc`. Slither: 67 findings, none High,
+30 of them on the launch path (13 Medium, 11 Low, 6 Informational), 34 in the two Echidna harnesses
+and 3 in `AdextoAgentStake`. Aderyn, which skips the harnesses: 1 High kind across the 8 instances
+above, all on the launch path, and 5 Low kinds across 30 instances.
 
 ## Properties already proven, and how
 
 Stating these so a reviewer can attack the *assumptions* rather than re-run the same checks.
 Foundry fuzz at 4,096 runs each, invariants at 512 runs × 64 random actions, Echidna at 50,000
-calls.
+calls per harness.
 
 Not every property runs against the code in scope, so each list says which curve it drives.
 
@@ -273,22 +275,22 @@ invariant_treasuryBalanceMatchesPaid
 
 The `0.10.0` curve has its own suite with `invariant_curveAlwaysSolvent` and five of the names above.
 
-Echidna runs four properties independently — `echidna_solvent`, `echidna_tokensSoldWithinCurve`,
-`echidna_supplyNeverGrows`, `echidna_inventoryMatchesBalance` — but its harness drives the `0.10.0`
-curve, `SovereignCurve`. **The `0.12.0` curve is covered by the Foundry suites only.**
+Echidna, independently, with one harness per curve generation. `EchidnaAdextoCurve` launches through
+the `0.12.0` factory with the production fee split and checks five properties: `echidna_solvent`
+(with `protocolOwed` as a term), `echidna_tokensSoldWithinCurve`, `echidna_supplyNeverGrows`,
+`echidna_inventoryMatchesBalance` and `echidna_treasuryBalanceMatchesPaid`. Echidna advances time
+between calls, so unlike the Foundry handler it also reaches buybacks after the cooldown.
+`EchidnaCurve` checks the first four on the `0.10.0` curve. Last run: 9 of 9 passing, 100,219 calls.
 
-Fuzz properties worth knowing about because they encode economic claims. Against the `0.12.0`
-curve: `testFuzz_roundTripNeverProfitable`, `testFuzz_fourLegsNeverExceedInput`,
+Fuzz properties worth knowing about because they encode economic claims, all against the `0.12.0`
+curve: `testFuzz_roundTripNeverProfitable`, `testFuzz_buyRoundsInFavourOfCurve` (against the exact
+rational value, by cross-multiplication), `testFuzz_fourLegsNeverExceedInput`,
 `testFuzz_protocolFeeIsCarvedOutNotAdditive` (named `testFuzz_protocolFeeIsAdditiveNotCarvedOut`
-until 0.12.0 inverted it) and `testFuzz_protocolFeesOnlyReachTreasury`. The buyback cooldown has its
-own `0.12.0` suite, including `test_buybackCannotBeLoopedInOneTransaction` and
-`test_treasuryCannotBeDrainedInOneBlock`.
-
-Four more exist **only against the `0.10.0` curve** and have not been ported:
-`testFuzz_buyRoundsInFavourOfCurve`, `testFuzz_creatorFeesOnlyReachCreator`,
-`testFuzz_cannotSellMoreThanOutstanding` and `testFuzz_buybackCappedAtOnePercent`. On the `0.12.0`
-curve those four claims are covered only indirectly, where an invariant above happens to touch
-them.
+until 0.12.0 inverted it), `testFuzz_creatorFeesOnlyReachCreator`,
+`testFuzz_protocolFeesOnlyReachTreasury`, `testFuzz_cannotSellMoreThanOutstanding` and
+`testFuzz_buybackCappedAtOnePercent`. Four of those were ported from the `0.10.0` suite on
+2026-09-30, which keeps its own copies. The buyback cooldown has its own `0.12.0` suite, including
+`test_buybackCannotBeLoopedInOneTransaction` and `test_treasuryCannotBeDrainedInOneBlock`.
 
 There is also `test_handlerCanActuallyPerformEveryAction`, in both invariant suites, which exists
 because an invariant suite whose handler silently fails every action passes while testing nothing.
@@ -386,8 +388,8 @@ node scripts/test-erc8004-binding.mjs            # 24 assertions, local devchain
 
 Expected, so a different result is recognisable as a difference rather than assumed to be normal:
 `compile-contracts.mjs` reports 10 sources and writes 38 artefacts, and `forge test` reports
-**51 tests passed, 0 failed** across 6 suites (run on 2026-09-30). In both invariant runs `buyback`
-reverts on most calls: 5,462 of 6,525 for `AdextoCurve` and 7,051 of 8,117 for `SovereignCurve` in
+**55 tests passed, 0 failed** across 6 suites (run on 2026-09-30). In both invariant runs `buyback`
+reverts on most calls: 5,526 of 6,575 for `AdextoCurve` and 7,232 of 8,239 for `SovereignCurve` in
 the last run. That is `BUYBACK_COOLDOWN` doing its job, not a broken handler. The handler already
 bounds every amount to the 1% cap and never advances time, so after the first buyback in a run
 every later one lands inside the cooldown. `test_handlerCanActuallyPerformEveryAction` exists to
