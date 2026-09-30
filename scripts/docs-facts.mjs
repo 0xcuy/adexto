@@ -44,7 +44,7 @@ const pick = (src, re, label) => {
 };
 
 // ── chain + factory ──────────────────────────────────────────────────────────
-const CHAIN_IDS = [16661, 8453, 42161, 143];
+const CHAIN_IDS = [16661, 8453, 42161, 143, 4663];
 
 /**
  * Alamat factory datang dari `public/abi/index.json`, BUKAN dari `src/config/contracts.ts`.
@@ -96,6 +96,7 @@ const CODE_FALLBACKS = {
   42161: ["https://arbitrum.drpc.org"],
   16661: [],
   143: ["https://rpc2.monad.xyz"],
+  4663: [],
 };
 for (const c of chains) {
   const urls = [c.rpcUrl, ...(CODE_FALLBACKS[c.chainId] ?? [])].filter(Boolean);
@@ -128,7 +129,9 @@ const bytecodeIdentical = hashes.size === 1 && chains.every((c) => c.factoryByte
 const fees = {
   maxTotalBps: Number(pick(curveSrc, /MAX_TOTAL_FEE_BPS\s*=\s*(\d+)/, "MAX_TOTAL_FEE_BPS")),
   protocolBps: Number(pick(factorySrc, /PROTOCOL_FEE_BPS\s*=\s*(\d+)/, "PROTOCOL_FEE_BPS")),
-  antiSnipeBlocks: Number(pick(tokenSrc, /ANTI_SNIPE_BLOCKS\s*=\s*(\d+)/, "ANTI_SNIPE_BLOCKS")),
+  // v1 launch window: for this many seconds no wallet may hold more than maxWalletBps of supply.
+  antiSnipeWindowSeconds: Number(pick(tokenSrc, /ANTI_SNIPE_WINDOW\s*=\s*(\d+)/, "ANTI_SNIPE_WINDOW")),
+  antiSnipeMaxWalletBps: Number(pick(factorySrc, /ANTI_SNIPER_BPS\s*=\s*(\d+)/, "ANTI_SNIPER_BPS")),
 };
 
 // ── pasar hidup, dari registry produksi ──────────────────────────────────────

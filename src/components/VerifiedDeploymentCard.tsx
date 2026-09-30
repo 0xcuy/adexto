@@ -36,6 +36,7 @@ export default function VerifiedDeploymentCard() {
     { key: "base", label: "Base Mainnet 8453" },
     { key: "arbitrum", label: "Arbitrum One 42161" },
     { key: "monad", label: "Monad Mainnet 143" },
+    { key: "robinhood", label: "Robinhood Chain 4663" },
   ] as const;
 
   const chainOf = (key: (typeof CHAINS)[number]["key"]) => ADEXTO_CONTRACTS[key];
@@ -91,33 +92,15 @@ export default function VerifiedDeploymentCard() {
      * checking our claims needs the address we actually call.
      */
     {
-      label: "ERC-8004 Identity Registry (same address on all four mainnets)",
+      label: "ERC-8004 Identity Registry (same address on all five mainnets)",
       address: ADEXTO_CONTRACTS.agentRegistry,
       explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.agentRegistry}`,
       badge: "third-party · upgradeable proxy",
       color: "border-warn/30 bg-warn/10 text-warn",
     },
-    // Superseded generation, kept because the addresses are real and permanent, and
-    // because deleting them would hide what earlier versions of this page claimed.
-    ...CHAINS.flatMap((c) => {
-      const chain = chainOf(c.key);
-      return [
-        {
-          label: `AdextoTrinityFactory (${c.label})`,
-          address: chain.factoryAddress,
-          explorerUrl: `${chain.blockExplorer}/address/${chain.factoryAddress}`,
-          badge: "superseded · v1",
-          color: "border-line bg-cream-3 text-ink-soft",
-        },
-        {
-          label: `SovereignHook (${c.label})`,
-          address: chain.sovereignHookAddress,
-          explorerUrl: `${chain.blockExplorer}/address/${chain.sovereignHookAddress}`,
-          badge: "superseded · cannot settle trades",
-          color: "border-line bg-cream-3 text-ink-soft",
-        },
-      ];
-    }),
+    // The pre-release hook-era contracts (AdextoTrinityFactory, SovereignHook) are no longer
+    // listed: they never settled a trade, no market lives on them, and the README dropped
+    // them too. Their addresses stay in src/config/contracts.ts.
     {
       // Badge ini dulu berbunyi "The Graph Published" dengan warna accent, dan
       // secara harfiah benar — NFT subgraph-nya memang ada di Arbitrum One. Tapi
@@ -207,15 +190,15 @@ export default function VerifiedDeploymentCard() {
                   sekarang dua-duanya dari konstanta yang sama, jadi caption tidak bisa lagi
                   menyebut generasi yang berbeda dari tabel di bawahnya. */}
               <code className="text-accent">{CURVE_FACTORY_GENERATION.contract}</code>{" "}
-              <strong className="text-ink">v{CURVE_FACTORY_GENERATION.version}</strong> is the generation that launches
-              tokens today, and the superseded{" "}
+              <strong className="text-ink">v{CURVE_FACTORY_GENERATION.version}</strong> (ADEXTO v1) is the generation
+              that launches tokens today, and the superseded{" "}
               <code className="text-accent">{SUPERSEDED_CURVE_FACTORY_GENERATION.contract}</code>{" "}
-              v{SUPERSEDED_CURVE_FACTORY_GENERATION.version} and v1 entries are kept because they remain deployed and
-              permanent — dropping them would hide what earlier versions of this page pointed readers at.
+              v{SUPERSEDED_CURVE_FACTORY_GENERATION.version} entries are kept because the six earlier markets were
+              created by them and still trade.
               {/* Kalimat ini dulu berbunyi "…but {LAUNCH_CLAUSE}, which is why there is still
                   nothing to trade." Dua-duanya berhenti benar begitu $ADEXTO diluncurkan:
                   klausanya berubah makna, dan ada pasar yang bisa diperdagangkan. */}
-              Launching is enabled on all four mainnets, and {LAUNCH_CLAUSE}.
+              Launching is enabled on all five mainnets, and {LAUNCH_CLAUSE}.
             </p>
           </div>
 

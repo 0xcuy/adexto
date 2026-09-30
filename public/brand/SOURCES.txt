@@ -37,6 +37,11 @@ sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/monad.svg.js
 lisensi   : MIT
 perubahan : tidak ada
 
+file      : robinhood.svg
+sumber    : simple-icons 16.29.0  icons/robinhood.svg
+lisensi   : CC0-1.0
+perubahan : atribut fill="#00C805" disuntikkan ke elemen <svg>, hex hijau resmi Robinhood yang diterbitkan simple-icons di data/simple-icons.json.
+
 file      : world.svg
 sumber    : @web3icons/core 4.0.55  dist/svgs/networks/branded/world.svg.js
 lisensi   : MIT

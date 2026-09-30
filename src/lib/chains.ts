@@ -15,7 +15,7 @@
 import { JsonRpcProvider } from "ethers";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 
-export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Devchain";
+export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Robinhood" | "Devchain";
 
 /**
  * Disposable test-chain slot, enabled only when NEXT_PUBLIC_DEVCHAIN_RPC is set.
@@ -182,6 +182,7 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     Arbitrum: 1,
     Base: 1,
     Monad: 60_000,
+    Robinhood: 1,
     Devchain: 1,
   };
   // Dikunci ke `key`, bukan ke `name`. Nama chain bisa diganti lewat
@@ -191,6 +192,7 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     Arbitrum: "/brand/arbitrum.svg",
     Base: "/brand/base.svg",
     Monad: "/brand/monad.svg",
+    Robinhood: "/brand/robinhood.svg",
     Devchain: null,
   };
 
@@ -274,6 +276,7 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
   Arbitrum: build("Arbitrum", ADEXTO_CONTRACTS.arbitrum, "Ether"),
   Base: build("Base", ADEXTO_CONTRACTS.base, "Ether"),
   Monad: build("Monad", ADEXTO_CONTRACTS.monad, "Monad"),
+  Robinhood: build("Robinhood", ADEXTO_CONTRACTS.robinhood, "Ether"),
   Devchain: {
     key: "Devchain",
     chainId: DEVCHAIN_ID,
@@ -312,6 +315,8 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
 export const CHAIN_LIST: ChainInfo[] = [
   CHAINS.Monad,
   CHAINS.Arbitrum,
+  // Robinhood Chain is an Arbitrum Orbit chain, so it sits next to Arbitrum One.
+  CHAINS.Robinhood,
   CHAINS.Base,
   CHAINS["0G"],
   ...(DEVCHAIN_ENABLED ? [CHAINS.Devchain] : []),
@@ -341,11 +346,13 @@ const CHAIN_ID_ALIASES: Record<number, ChainKey> = {
   421614: "Arbitrum",
   143: "Monad",
   10143: "Monad",
+  4663: "Robinhood",
+  46630: "Robinhood",
 };
 
 // Make every configured chainId resolvable, including ids injected by
 // NEXT_PUBLIC_CHAIN_OVERRIDES. Overrides win over the static aliases above.
-for (const chain of [CHAINS["0G"], CHAINS.Arbitrum, CHAINS.Base, CHAINS.Monad]) {
+for (const chain of [CHAINS["0G"], CHAINS.Arbitrum, CHAINS.Base, CHAINS.Monad, CHAINS.Robinhood]) {
   CHAIN_ID_ALIASES[chain.chainId] = chain.key;
 }
 
@@ -389,6 +396,7 @@ export function resolveChain(input: string | number | null | undefined): ChainIn
     ["Arbitrum", ["arbitrum", "arb one"]],
     ["Base", ["base"]],
     ["Monad", ["monad"]],
+    ["Robinhood", ["robinhood"]],
     ...(DEVCHAIN_ENABLED ? ([["Devchain", ["devchain", "local devchain"]]] as Array<[ChainKey, string[]]>) : []),
   ];
   for (const [key, terms] of needles) {
@@ -449,6 +457,8 @@ export function inputAssetsFor(chain: ChainInfo): string[] {
       return ["ETH", "USDC", "cbBTC"];
     case "Monad":
       return ["MON", "USDC", "USDT"];
+    case "Robinhood":
+      return ["ETH"];
     case "Devchain":
       return [DEVCHAIN_SYMBOL];
     default:

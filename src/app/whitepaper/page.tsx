@@ -119,7 +119,7 @@ export default function WhitepaperPage() {
         {/* Section 3 */}
         <section className="section-block space-y-4">
           <h2 className="text-xl font-bold text-ink flex items-center gap-2">
-            <span className="text-accent font-mono">§3.</span> Cross-Chain Buys over x402 &amp; Auto-Buyback
+            <span className="text-accent font-mono">§3.</span> Cross-Chain Buys over x402 &amp; Buyback-and-Burn
           </h2>
           <p className="text-ink">
             The x402 endpoint sells a <strong className="text-ink">cross-chain buy</strong>, not paid inference.
@@ -134,7 +134,7 @@ export default function WhitepaperPage() {
             R_total = SwapFees(AdextoCurve) + x402_CrossChainBuys<br />
             {/* Dulu "swapFeeBps + PROTOCOL_FEE_BPS // additive": aturan 0.11.0, bertentangan dengan
                 §2 halaman ini sendiri untuk setiap peluncuran 0.12.0. */}
-            Trader_Pays = swapFeeBps &nbsp;// 0.12.0: the protocol leg is carved out of it; 0.11.0 markets add PROTOCOL_FEE_BPS on top<br />
+            Trader_Pays = swapFeeBps &nbsp;// v1: the protocol leg is carved out of it; 0.11.0 markets add PROTOCOL_FEE_BPS on top<br />
             Creator_Share = creatorFeeBps * Volume &nbsp;// paid per swap, not from a token allocation<br />
             Protocol_Share = PROTOCOL_FEE_BPS * Volume &nbsp;// to an immutable treasury, claimable by anyone<br />
             Buyback_Execution = AdextoCurve.executeBuyback(treasuryNative) &rarr; burn
@@ -190,15 +190,15 @@ export default function WhitepaperPage() {
             999,999,925.84 rather than a round billion.
           </p>
           <p className="text-ink">
-            The 0.10% protocol fee is live, not planned. Factory{" "}
-            <code className="text-accent font-mono text-xs">0.12.0</code> is deployed on all four mainnets with{" "}
+            The 0.10% protocol fee is live, not planned. ADEXTO v1 (factory{" "}
+            <code className="text-accent font-mono text-xs">1.0.0</code>) is deployed on five mainnets with{" "}
             <code className="text-accent font-mono text-xs">PROTOCOL_FEE_BPS = 10</code> and an immutable{" "}
-            <code className="text-accent font-mono text-xs">protocolTreasury</code>, and markets have already paid it —
-            0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. Since 0.12.0 it is carved out of the configured swap fee
-            rather than added to it, so a market set to 1.00% costs a trader exactly 1.00%. Three generations are live
-            at once and each keeps its own rates permanently: markets from the 0.10.0 factory carry no protocol leg and
-            never can, markets from 0.11.0 pay 0.40% because their leg was additive, and only launches from 0.12.0 pay
-            1.00%. Every leg is immutable per curve, so none of this can be changed retroactively.
+            <code className="text-accent font-mono text-xs">protocolTreasury</code>, and the earlier markets have already
+            paid it — 0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. In v1 it is carved out of the configured swap
+            fee rather than added to it, so a market set to 1.00% costs a trader exactly 1.00%. Each market keeps the
+            rates it launched with: the six earlier markets come from the 0.11.0 factories and pay 0.40% because their
+            leg was added on top, while every v1 launch pays the configured total. Every leg is immutable per curve, so
+            none of this can be changed retroactively.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs pt-2">
             <div className="p-3.5 rounded-lg bg-surface border border-line">

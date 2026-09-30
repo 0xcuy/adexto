@@ -88,7 +88,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "ADEXTO — launch an AI agent token with no liquidity deposit",
     description:
-      "Gas-only launches on Monad, Arbitrum, Base and 0G. Creator paid 0.70% of every swap, no free token allocation.",
+      "Gas-only launches on Monad, Arbitrum, Robinhood Chain, Base and 0G. Creator paid 0.70% of every swap, no free token allocation.",
     images: ["/og.png"],
   },
 };

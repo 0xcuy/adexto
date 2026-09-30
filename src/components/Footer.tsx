@@ -31,7 +31,7 @@ export default function Footer() {
                 chain mengikuti CHAIN_LIST: Monad, Arbitrum, Base, 0G. */}
             <p className="text-ink-soft leading-relaxed text-xs">
               Launch an agent token on a bonding curve that needs no liquidity deposit, on Monad, Arbitrum,
-              Base or 0G. The creator is paid out of every swap instead of holding an allocation.
+              Robinhood Chain, Base or 0G. The creator is paid out of every swap instead of holding an allocation.
             </p>
             <div className="flex items-center gap-2 pt-2">
               {/* Dulu "● 0G TEE Mainnet Ready" dengan titik hijau — dan titik hijau
@@ -153,6 +153,7 @@ export default function Footer() {
               {[
                 { name: "Monad Mainnet", id: "143" },
                 { name: "Arbitrum One", id: "42161" },
+                { name: "Robinhood Chain", id: "4663" },
                 { name: "Base Mainnet", id: "8453" },
                 { name: "0G Mainnet", id: "16661" },
               ].map((c) => (

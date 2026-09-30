@@ -58,13 +58,36 @@ routes under `src/app/api/`, and the MCP server at `/api/mcp` including `pay_and
 
 ### Deployed addresses
 
-Listed here once v1 is broadcast, with each chain's deployment transaction. The factory's runtime
-bytecode is expected to be byte-identical on every chain, because its only immutable is the
-protocol treasury, which is the same address everywhere. Reserved tickers live in storage, so a
-chain-specific reserved list does not change the runtime code.
+`AdextoFactory` `1.0.0`, broadcast on 2026-10-01 from commit
+[`71b5adf`](https://github.com/0xcuy/adexto/commit/71b5adfe774ed7a93f9fe589b4430c8122febb1f) by
+`scripts/deploy-factory.mjs`. Each factory creates its markets' `AdextoToken` and `AdextoCurve`
+with `new`, so the creation code of both is part of the factory's runtime and every market it will
+ever create runs that code.
+
+| Chain | Chain ID | Factory | Block | Creation transaction | Reserved tickers |
+| --- | --- | --- | --- | --- | --- |
+| 0G | 16661 | `0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D` | 45793987 | `0xb9b2f592784abd532021c9a09d810a784782741dd6d2575fef31015541337bd7` | 16 |
+| Base | 8453 | `0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708` | 52008858 | `0xd30f5c751e10101a8efc4e7a914fd4610fdcc477372f1e177486d296a33005c0` | 16 |
+| Arbitrum One | 42161 | `0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E` | 510474755 | `0xf78fb444c72d5f2a150392a4ea4991e0caf0a11c060107d0a9f2d46f7b72ddf9` | 16 |
+| Monad | 143 | `0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056` | 109440540 | `0x3c7f6259a4b47ffe03489e4fcf976e38e4930907758f2bc8fca649941462cc67` | 16 |
+| Robinhood Chain | 4663 | `0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D` | 76864198 | `0x2a8f8a0c8ef6ff11ec907e13979788c927bd810b8efb8d250895be54705334c9` | 212 |
+
+The runtime bytecode is byte-identical on all five chains: 21,806 bytes, keccak
+`0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4`. Its only immutable is the
+protocol treasury `0x24268Fffc119ec5550F68e80D94476fD64daE967`, the same address everywhere; with
+its two slots zeroed the code hashes to the artifact's
+`0x0e70cb93fbb10b66109cc71d547329cb48b4c3953791c2c4609519ff92221d62`. Reserved tickers live in
+storage, so Robinhood Chain's longer list (`scripts/reserved-symbols.json`) does not change the code.
+Sourcify reports an exact match, creation and runtime, on all five.
 
 Earlier pre-release versions remain deployed on chain. They are not in this repository and are not
-in scope.
+in scope. The six markets listed on the site were created by the `0.11.0` factories, compiled from
+commit `98ffb1c`. One generation is retired with no listed market, and is named here once so an
+address found on an explorer can be placed:
+
+| Retired, no listed markets | 0G | Base | Arbitrum One | Monad |
+| --- | --- | --- | --- | --- |
+| `AdextoFactory` `0.12.0` (source `1f1cbfc`) | `0x06C80fD2d5d9365C20aC468c15874DBE748877e2` | `0xe5B9555fbbcE72A5739dD29c3939A23fd230136F` | `0x75EeDEd196D2BE283d815D52F617eB70bCe865bC` | `0xcA9c77f050CD1e0685b03D0236579966DA9B39B9` |
 
 ## Out of scope, and why
 

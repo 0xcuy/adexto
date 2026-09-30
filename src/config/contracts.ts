@@ -48,6 +48,7 @@ const CURVE_FACTORY = {
   arbitrum: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_ARBITRUM),
   base: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_BASE),
   monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_MONAD),
+  robinhood: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_ROBINHOOD),
 } as const;
 
 /**
@@ -101,7 +102,7 @@ export const X402_RELAYER = "0xDe1f5e5505c01aC6C847146fF76E0e067A49C627";
 
 export const CURVE_FACTORY_GENERATION = {
   contract: "AdextoFactory",
-  version: "0.12.0",
+  version: "1.0.0",
 } as const;
 
 /**
@@ -136,6 +137,26 @@ export const SUPERSEDED_CURVE_FACTORY_GENERATION = {
  * ditimpa: 0G 0xaA85bc0cceB35B524b6BB730612540Fb88df0f8e, Base
  * 0x2674654D4a8B79f84c1daC4Cf254EA066e59bC56, Monad 0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39,
  * Arbitrum 0x8F3948902c48489fc9E7287590E7eb8A8E915A64.
+ */
+
+/**
+ * ADEXTO v1 (AdextoFactory 1.0.0), broadcast 2026-10-01 from source commit 71b5adf. Every
+ * read-back passed: VERSION 1.0.0, protocolTreasury 0x24268Fff…, runtime equal to the artifact
+ * with the treasury in its immutable slot, and every reserved ticker unclaimable.
+ *
+ *   0G         16661   0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D   block 45793987
+ *   Base        8453   0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708   block 52008858
+ *   Arbitrum   42161   0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E   block 510474755
+ *   Monad        143   0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056   block 109440540
+ *   Robinhood   4663   0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D   block 76864198
+ *
+ * The six live markets stay on their 0.11.0 factories (`NEXT_PUBLIC_CURVE_FACTORY_PREV_*`).
+ * The 0.12.0 factories below are no longer read by the app; their only market is a test
+ * launch. Robinhood Chain has no earlier generation.
+ *
+ * On Robinhood the factory sits at the deployer's nonce-0 address, which on Base and Monad
+ * holds the unrelated legacy `factoryAddress` below. Same address, different chains,
+ * different contracts: always pair an address with its chain id.
  */
 
 /**
@@ -325,6 +346,26 @@ export const ADEXTO_CONTRACTS = {
     sovereignHookAddress: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
     governorAddress: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
     ccipReceiverAddress: "0x1eE8701Dd8CD8C456E71ef74bd3Dbf0b377B6D8d",
+    status: "Live On-Chain",
+  },
+  robinhood: {
+    chainId: 4663,
+    chainName: "Robinhood Chain",
+    nativeSymbol: "ETH",
+    /**
+     * The public endpoint Robinhood publishes. It is rate-limited, and it is unreachable from
+     * some networks (Indonesian ISPs time out on it), so server-side reads run from the VPS.
+     */
+    rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    // The explorer Robinhood's own docs list; it imports Sourcify verifications.
+    blockExplorer: "https://robinhoodchain.blockscout.com",
+    // ADEXTO v1 is the first generation here: no legacy factory, hook or governor.
+    factoryAddress: "",
+    curveFactoryAddress: CURVE_FACTORY.robinhood,
+    supersededCurveFactoryAddress: null,
+    sovereignHookAddress: "",
+    governorAddress: "",
+    ccipReceiverAddress: "",
     status: "Live On-Chain",
   },
 

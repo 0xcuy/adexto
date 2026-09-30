@@ -178,8 +178,8 @@ const PILLARS: Pillar[] = [
       <>
         An ERC-20 with <strong className="font-semibold text-ink">no owner at all</strong> — no admin function
         exists to renounce, because none was ever added. It carries one immutable agent address that cannot be
-        reassigned. 100% of supply enters the curve and is tradable from the launch transaction onward, with a
-        1%-of-supply transfer cap for the first 5 blocks.
+        reassigned. 100% of supply enters the curve and is tradable from the launch transaction onward, and for
+        the first 180 seconds no wallet may hold more than 1% of supply.
       </>
     ),
     footer: { label: "No owner · agent binding immutable", Icon: Lock },

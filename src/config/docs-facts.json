@@ -4,7 +4,7 @@
     "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
     "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
   ],
-  "generatedAt": "2026-09-28T23:35:35.288Z",
+  "generatedAt": "2026-09-30T22:56:24.800Z",
   "site": "https://adexto.xyz",
   "chains": [
     {
@@ -13,10 +13,10 @@
       "nativeSymbol": "0G",
       "explorer": "https://chainscan.0g.ai",
       "rpcUrl": "https://evmrpc.0g.ai",
-      "factory": "0x06C80fD2d5d9365C20aC468c15874DBE748877e2",
-      "factoryVersion": "0.12.0",
-      "factoryBytecodeBytes": 21403,
-      "factoryBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f"
+      "factory": "0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
     },
     {
       "chainId": 8453,
@@ -24,10 +24,10 @@
       "nativeSymbol": "ETH",
       "explorer": "https://basescan.org",
       "rpcUrl": "https://base-rpc.publicnode.com",
-      "factory": "0xe5B9555fbbcE72A5739dD29c3939A23fd230136F",
-      "factoryVersion": "0.12.0",
-      "factoryBytecodeBytes": 21403,
-      "factoryBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f"
+      "factory": "0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
     },
     {
       "chainId": 42161,
@@ -35,10 +35,10 @@
       "nativeSymbol": "ETH",
       "explorer": "https://arbiscan.io",
       "rpcUrl": "https://arb1.arbitrum.io/rpc",
-      "factory": "0x75EeDEd196D2BE283d815D52F617eB70bCe865bC",
-      "factoryVersion": "0.12.0",
-      "factoryBytecodeBytes": 21403,
-      "factoryBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f"
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
     },
     {
       "chainId": 143,
@@ -46,21 +46,33 @@
       "nativeSymbol": "MON",
       "explorer": "https://monadscan.com",
       "rpcUrl": "https://rpc1.monad.xyz",
-      "factory": "0xcA9c77f050CD1e0685b03D0236579966DA9B39B9",
-      "factoryVersion": "0.12.0",
-      "factoryBytecodeBytes": 21403,
-      "factoryBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f"
+      "factory": "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
+    },
+    {
+      "chainId": 4663,
+      "name": "Robinhood Chain",
+      "nativeSymbol": "ETH",
+      "explorer": "https://robinhoodchain.blockscout.com",
+      "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
     }
   ],
   "bytecode": {
     "identicalAcrossChains": true,
-    "bytes": 21403,
-    "keccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f"
+    "bytes": 21806,
+    "keccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
   },
   "fees": {
     "maxTotalBps": 500,
     "protocolBps": 10,
-    "antiSnipeBlocks": 5
+    "antiSnipeWindowSeconds": 180,
+    "antiSnipeMaxWalletBps": 100
   },
   "markets": [
     {
@@ -243,17 +255,17 @@
   "nativePrices": {
     "USDC": 1,
     "USDT": 1,
-    "ETH": 2689.98,
-    "0G": 0.288565,
-    "A0GI": 0.288565,
-    "MON": 0.02878693,
-    "ARB": 0.201106,
-    "cbBTC": 83567
+    "ETH": 2687.58,
+    "0G": 0.313879,
+    "A0GI": 0.313879,
+    "MON": 0.0302473,
+    "ARB": 0.204049,
+    "cbBTC": 83690
   },
   "analysers": [
     {
       "id": "solc",
-      "tool": "solc 0.8.26 (via-IR, optimizer 200)",
+      "tool": "solc 0.8.37 (via-IR, optimizer 200, evm cancun)",
       "status": "clean",
       "counts": {
         "errors": 0,
@@ -266,7 +278,7 @@
       "tool": "forge",
       "status": "clean",
       "counts": {
-        "passed": 26,
+        "passed": 32,
         "failed": 0
       },
       "launchPathCounts": null
@@ -276,7 +288,7 @@
       "tool": "forge",
       "status": "clean",
       "counts": {
-        "passed": 4,
+        "passed": 2,
         "failed": 0
       },
       "launchPathCounts": null
@@ -286,16 +298,16 @@
       "tool": "slither",
       "status": "triaged",
       "counts": {
-        "total": 49,
-        "Medium": 25,
-        "Low": 14,
-        "Informational": 6,
+        "total": 39,
+        "Medium": 21,
+        "Low": 10,
+        "Informational": 4,
         "Optimization": 4
       },
       "launchPathCounts": {
-        "Medium": 13,
-        "Low": 11,
-        "Informational": 6
+        "Medium": 7,
+        "Low": 6,
+        "Informational": 4
       }
     },
     {
@@ -304,12 +316,12 @@
       "status": "triaged",
       "counts": {
         "highKinds": 1,
-        "highInstances": 8,
+        "highInstances": 4,
         "lowKinds": 5,
-        "lowInstances": 30
+        "lowInstances": 21
       },
       "launchPathCounts": {
-        "HighInstances": 8
+        "HighInstances": 4
       }
     },
     {
@@ -318,7 +330,7 @@
       "status": "clean",
       "counts": {
         "errors": 0,
-        "warnings": 674
+        "warnings": 382
       },
       "launchPathCounts": null
     },
@@ -328,7 +340,7 @@
       "status": "clean",
       "counts": {
         "findings": 0,
-        "filesScanned": 9,
+        "filesScanned": 6,
         "configErrors": 0
       },
       "launchPathCounts": null
@@ -338,14 +350,14 @@
       "tool": "echidna (docker)",
       "status": "clean",
       "counts": {
-        "properties": 4,
+        "properties": 6,
         "failed": 0,
-        "totalCalls": 50107,
-        "uniqueInstructions": 7195
+        "totalCalls": 50093,
+        "uniqueInstructions": 7989
       },
       "launchPathCounts": null
     }
   ],
-  "analysersScannedAt": "2026-09-28T23:05:36.786Z",
-  "analysersCommit": "fa4200b5c93b94df6f40a9234bdd802eb307a738"
+  "analysersScannedAt": "2026-09-30T21:26:24.742Z",
+  "analysersCommit": "2b16426ebdac567fd61bd479d348fd3d266e7ba9"
 }

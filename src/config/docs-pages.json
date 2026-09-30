@@ -127,11 +127,11 @@
           "blocks": [
             {
               "type": "p",
-              "text": "Integrators must inspect the active swap fee by reading the `totalFeeBps` view function directly from the curve contract rather than summing individual fee legs off-chain. While the protocol specifies component parameters such as a `protocolBps` of 10 basis points, manually aggregating separate components risks computing incorrect rates during transient phases."
+              "text": "Integrators should read the swap fee from the curve with the `totalFeeBps` view rather than summing fee legs off-chain. Every leg is immutable per curve, but the generations differ: on the 0.11.0 curves the `protocolBps` leg of 10 basis points is added on top of the configured total, while on ADEXTO v1 curves it is carved out of it."
             },
             {
               "type": "p",
-              "text": "During early trading blocks governed by the `antiSnipeBlocks` parameter of 5 blocks, dynamic fee calculations alter the effective rate. The contract enforces an absolute ceiling where `maxTotalBps` is 500 basis points, and calling `totalFeeBps` retrieves the exact on-chain fee evaluated for the current block."
+              "text": "Fees never change after launch, and the launch window limits how much a wallet may hold without changing any fee. The contract enforces an absolute ceiling where `maxTotalBps` is 500 basis points, and `totalFeeBps` returns the total a trader pays on that curve."
             },
             {
               "type": "factsTable",
@@ -139,7 +139,7 @@
             },
             {
               "type": "note",
-              "text": "Aggregating fee values off-chain rather than calling `totalFeeBps` can lead to transaction reverts if parameter changes occur between quote calculation and block execution."
+              "text": "Summing the configured legs off-chain gives the wrong total on a 0.11.0 curve, where the protocol leg is added on top; `totalFeeBps` is correct for both generations."
             }
           ]
         },
@@ -210,7 +210,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "On the 0.12.0 factory, which every new launch uses, the 10 bps protocol leg is carved out of the configured total. A trader pays exactly the total the creator set, and that total cannot exceed the `maxTotalBps` limit of 500 bps."
+              "text": "On the ADEXTO v1 factory (1.0.0), which every new launch uses, the 10 bps protocol leg is carved out of the configured total. A trader pays exactly the total the creator set, and that total cannot exceed the `maxTotalBps` limit of 500 bps."
             },
             {
               "type": "p",
@@ -253,7 +253,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The buyback function can be called by any account to acquire tokens using accumulated buyback reserves. Each invocation is capped per call to restrict the volume executed in a single transaction, and curves from the 0.12.0 factory also wait one hour between calls."
+              "text": "The buyback function can be called by any account to acquire tokens using accumulated buyback reserves. Each invocation is capped per call to restrict the volume executed in a single transaction, and curves from the ADEXTO v1 factory also wait one hour between calls."
             },
             {
               "type": "p",
@@ -270,14 +270,14 @@
     },
     "chains": {
       "title": "Chains and deployments",
-      "lede": "The ADEXTO factory contract operates across four EVM mainnets under version 0.12.0. Each deployment contains exactly 21403 bytes of runtime bytecode with an identical keccak256 hash across all four networks.",
+      "lede": "The ADEXTO v1 factory (version 1.0.0) runs on five EVM mainnets. Each deployment contains exactly 21806 bytes of runtime bytecode with an identical keccak256 hash across all five networks.",
       "sections": [
         {
           "heading": "Factory Deployments",
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, and Monad Mainnet. Each network executes factory version 0.12.0 at a dedicated contract address."
+              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, Monad Mainnet and Robinhood Chain. Each network executes factory version 1.0.0 at a dedicated contract address."
             },
             {
               "type": "factsTable",
@@ -294,12 +294,12 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The deployed factory contracts share the exact keccak256 hash of `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f` across all four mainnets. This confirms that the deployed instruction sets are identical across all targets."
+              "text": "The deployed factory contracts share the exact keccak256 hash of `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4` across all five mainnets. This confirms that the deployed instruction sets are identical across all targets."
             },
             {
               "type": "code",
               "lang": "bash",
-              "code": "cast code 0xe5B9555fbbcE72A5739dD29c3939A23fd230136F --rpc-url https://base-rpc.publicnode.com | cast keccak"
+              "code": "cast code 0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708 --rpc-url https://base-rpc.publicnode.com | cast keccak"
             }
           ]
         },
@@ -618,7 +618,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "All four networks run factory version 0.12.0. The deployed bytecode is identical across each chain, measuring 21403 bytes with the keccak hash `0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f`."
+              "text": "All five networks run factory version 1.0.0. The deployed bytecode is identical across each chain, measuring 21806 bytes with the keccak hash `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4`."
             },
             {
               "type": "factsTable",
@@ -638,7 +638,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol enforces fixed fee parameters across its contracts. The protocol fee is set to 10 bps, the maximum total fee is bounded at 500 bps, and the anti-snipe window spans 5 blocks."
+              "text": "The protocol enforces fixed fee parameters across its contracts. The protocol fee is set to 10 bps and the maximum total fee is bounded at 500 bps. For 180 seconds after launch, no wallet may hold more than 1% of supply."
             },
             {
               "type": "p",
@@ -664,7 +664,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol deploys without proxies, fallback upgrade patterns, or delegatecall modifications. Across all deployed chains, the factory contract bytecode comprises 21403 bytes with a keccak hash of 0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f."
+              "text": "The protocol deploys without proxies, fallback upgrade patterns, or delegatecall modifications. Across all deployed chains, the factory contract bytecode comprises 21806 bytes with a keccak hash of 0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4."
             },
             {
               "type": "p",
@@ -744,19 +744,19 @@
           ]
         },
         {
-          "heading": "Anti-Sniper Window Mechanics",
+          "heading": "Launch Window Mechanics",
           "blocks": [
             {
               "type": "p",
-              "text": "The curve enforces a per-transaction purchase cap during an anti-sniper window defined by the `antiSnipeBlocks` parameter, which is set to 5 blocks. This cap limits the quantity of tokens a single buyer can acquire per transaction immediately after launch."
+              "text": "For `antiSnipeWindowSeconds` (180 seconds) after launch, the token refuses any transfer that would leave the receiving wallet holding more than `antiSnipeMaxWalletBps` (100 bps, 1%) of supply. The limit is on the wallet balance, not on a single transaction, so splitting a purchase across many transactions does not get around it."
             },
             {
               "type": "p",
-              "text": "The deployment transaction itself is exempt from the per-transaction cap because the launcher must transfer the entire token supply into the curve in that same transaction."
+              "text": "Three recipients are exempt: the curve, so holders can sell during the window; address(0), so buyback burns are never blocked; and the factory, which receives the mint and moves the whole supply into the curve in the launch transaction."
             },
             {
               "type": "note",
-              "text": "The purchase cap applies exclusively during the first 5 blocks following deployment, after which the limit expires."
+              "text": "The window is measured with block.timestamp, so it lasts 180 seconds on every chain, and it ends by itself: there is no switch to extend it. Markets from the 0.11.0 factories used an earlier form, a 1% cap per transfer for their first 5 blocks."
             }
           ]
         },

@@ -1004,7 +1004,15 @@ export function describeTxError(error: any): string {
     return "The pool is not approved to move your tokens yet. Approve, then sell.";
   }
   if (/Anti-sniper/i.test(cleaned)) {
-    return "Anti-sniper limit: this trade exceeds 1% of supply during the launch window. Reduce the size or wait a few blocks.";
+    /**
+     * Two token generations answer with this prefix. v1 caps the receiving WALLET at 1% of
+     * supply for 180 seconds after launch; 0.11.0 caps a single transfer for 5 blocks. The
+     * text covers both, because the revert string alone does not say which one refused.
+     */
+    return (
+      "Anti-sniper limit: right after launch no wallet may receive more than 1% of supply. " +
+      "Buy less, or wait a few minutes until the launch window closes."
+    );
   }
   if (/insufficient (token|native) liquidity/i.test(cleaned)) {
     return "Trade is too large for the current pool depth.";
@@ -1012,7 +1020,7 @@ export function describeTxError(error: any): string {
   if (/missing revert data|no data present|CALL_EXCEPTION/i.test(cleaned)) {
     return (
       "The contract rejected the call without returning a reason. Common causes: this address exposes no swap " +
-      "entrypoint, the trade exceeds the token's anti-sniper transfer limit during the launch window, or the size " +
+      "entrypoint, the trade would take a wallet past the token's 1% limit during the launch window, or the size " +
       "is larger than the pool can fill."
     );
   }

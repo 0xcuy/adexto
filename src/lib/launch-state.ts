@@ -55,7 +55,7 @@
  */
 
 /** Ringkas, untuk lencana dan label sempit. */
-export const LAUNCH_BADGE = "broadcast to 4 mainnets";
+export const LAUNCH_BADGE = "broadcast to 5 mainnets";
 
 /**
  * Satu klausa, untuk disisipkan di akhir kalimat lain.
@@ -84,7 +84,7 @@ export const LAUNCH_CLAUSE = "$ADEXTO is live on 0G with its entire supply in th
  * penerbitan tertentu.
  */
 export const LAUNCH_SENTENCE =
-  "The curve factory is live on all four mainnets, and markets launched through it are already trading — 100% of each supply inside the curve, with no liquidity deposit anywhere.";
+  "The launch factory is live on five mainnets, and markets launched through ADEXTO are already trading — 100% of each supply inside the curve, with no liquidity deposit anywhere.";
 
 /**
  * Judul dan penjelasan untuk keadaan kosong (registry, daftar market, pemilih).

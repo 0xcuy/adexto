@@ -32,24 +32,27 @@ import { nativePrices } from "@/lib/native-price";
  */
 
 /**
- * Satuan gas `deployTrinity`, DIUKUR ke factory 0.12.0 yang terpasang di mainnet
- * (2026-09-30) lewat `estimateGas` dengan argumen yang sama seperti yang dikirim Studio:
- * supply 1.000.000.000 token utuh, tier standar (100/70/10 bps), tanpa pengikatan agent.
+ * Gas units of `deployTrinity`, MEASURED against the ADEXTO v1 factories on mainnet
+ * (2026-10-01) with `estimateGas` and the arguments Studio sends: 1,000,000,000 whole tokens,
+ * the standard tier (100/70/10 bps), a non-zero metadata root, no agent binding.
  *
- * Angka 0.11.0 sebelumnya (3.135.771–3.159.225) 3,5–4,7% lebih rendah; factory 0.12.0
- * menyusun satu kaki fee lagi di dalam total, dan itu terlihat di gasnya. Sebaran antar chain
- * 2%, jadi satu konstanta per chain sudah lebih presisi daripada yang dibutuhkan halaman ini.
+ * About 0.9–2% above 0.12.0 (3,232,651–3,300,044), because the v1 token records its launch
+ * time for the per-wallet launch window. The spread across chains is under 1%, so one constant
+ * per chain is more precise than this page needs.
  *
- * Yang TIDAK termasuk: biaya data L1 di Base (dipungut terpisah dari satuan gas L2). Calldata
- * peluncuran sekitar 600 byte, jadi biaya itu sepersekian sen; halaman menyebut angkanya
- * perkiraan, bukan tagihan.
+ * NOT included: Base's L1 data fee, which is charged apart from L2 gas. Launch calldata is
+ * about 600 bytes, so that fee is a fraction of a cent; the page calls its figures estimates.
  */
-export const LAUNCH_GAS_UNITS: Partial<Record<ChainKey, number>> = {
-  "0G": 3_300_044,
-  Base: 3_271_628,
-  Arbitrum: 3_272_677,
-  Monad: 3_232_651,
+// Typed over every production chain, so adding a chain without measuring it fails to compile
+// instead of silently leaving it out of the cost table.
+const MEASURED_LAUNCH_GAS: Record<Exclude<ChainKey, "Devchain">, number> = {
+  "0G": 3_329_186,
+  Base: 3_300_657,
+  Arbitrum: 3_301_628,
+  Monad: 3_295_824,
+  Robinhood: 3_300_657,
 };
+export const LAUNCH_GAS_UNITS: Partial<Record<ChainKey, number>> = MEASURED_LAUNCH_GAS;
 
 export interface LaunchCost {
   chainKey: ChainKey;

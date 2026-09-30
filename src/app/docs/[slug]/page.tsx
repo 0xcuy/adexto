@@ -56,7 +56,7 @@ const facts = factsJson as unknown as {
     factoryVersion: string | null;
   }[];
   bytecode: { identicalAcrossChains: boolean; bytes: number | null; keccak: string | null };
-  fees: { maxTotalBps: number; protocolBps: number; antiSnipeBlocks: number };
+  fees: { maxTotalBps: number; protocolBps: number; antiSnipeWindowSeconds: number; antiSnipeMaxWalletBps: number };
   markets: {
     symbol: string;
     slug: string;
@@ -214,8 +214,8 @@ function FactsTable({ table }: { table: string }) {
         <thead>
           <tr>
             <th className={head}>Leg</th>
-            <th className={head}>0.12.0 factory · every new launch</th>
-            <th className={head}>0.11.0 factory · markets listed today</th>
+            <th className={head}>ADEXTO v1 (1.0.0) · every new launch</th>
+            <th className={head}>0.11.0 factory · the six earlier markets</th>
           </tr>
         </thead>
         <tbody>

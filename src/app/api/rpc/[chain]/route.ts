@@ -120,6 +120,15 @@ const ALLOWED = new Set([
  * menyangkut volume `eth_call` satu kutipan, bukan satu siaran tunggal.
  */
 const UPSTREAMS: Record<string, { chainId: number; urls: string[]; broadcast: string }> = {
+  /**
+   * Robinhood Chain, for the x402 Worker once it serves chain 4663. The public endpoint is
+   * rate-limited and unreachable from some networks, so the Worker reaches it through this VPS.
+   */
+  robinhood: {
+    chainId: 4663,
+    urls: ["https://rpc.mainnet.chain.robinhood.com"],
+    broadcast: "https://rpc.mainnet.chain.robinhood.com",
+  },
   base: {
     chainId: 8453,
     // Diukur 2026-09-21 dari VPS. Lihat tabel di atas sebelum menyusun ulang.

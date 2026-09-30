@@ -108,6 +108,15 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
    * lebih lambat, bukan menjadi riwayat perdagangan yang kosong.
    */
   143: 500_000, // Monad via Alchemy — diukur 2026-09-14; QuickNode hanya menerima 100
+  /**
+   * Robinhood Chain: blocks are ~0.1 s, so the 2,000-block default would reach back only
+   * about 53 minutes over 16 calls. Measured on 2026-10-01 against
+   * rpc.mainnet.chain.robinhood.com, from this machine and from the VPS, with a curve-style
+   * filter: 1,000,000, 5,000,000 and 8,000,000 blocks accepted, 10,000,000 rejected.
+   * 1,000,000 (about 28 hours per call, 18 days over the budget) keeps a wide margin below
+   * that ceiling, for the same reason Monad's value sits below its own.
+   */
+  4663: 1_000_000,
 };
 const DEFAULT_LOG_SPAN = 2_000;
 

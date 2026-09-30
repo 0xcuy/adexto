@@ -28,7 +28,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_maxTxPercentBps",
+        "name": "_maxWalletBps",
         "type": "uint256"
       },
       {
@@ -226,7 +226,7 @@
   },
   {
     "inputs": [],
-    "name": "ANTI_SNIPE_BLOCKS",
+    "name": "ANTI_SNIPE_WINDOW",
     "outputs": [
       {
         "internalType": "uint256",
@@ -397,7 +397,20 @@
   },
   {
     "inputs": [],
-    "name": "maxTxAmount",
+    "name": "launchTime",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxWalletAmount",
     "outputs": [
       {
         "internalType": "uint256",

@@ -103,7 +103,7 @@ export default async function DocsPage() {
             owner, tanpa setter, tarif immutable — adalah JAMINAN, dan itulah alasan tidak
             ada yang bisa mengalihkan atau menguras apa pun. Ditulis sebagai kekuatan ia
             memberi tahu hal yang sama tanpa terbaca seperti fitur yang gagal dibangun. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: the curve factory <code className="text-accent">0.12.0</code> on all four mainnets with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: ADEXTO v1, the launch factory <code className="text-accent">1.0.0</code>, on five mainnets (0G, Base, Arbitrum One, Monad and Robinhood Chain) with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, a 180-second per-wallet launch window, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}
@@ -150,7 +150,7 @@ export default async function DocsPage() {
                 di chain dan masih melayani pasar yang lahir dari factory sebelumnya,
                 jadi keduanya disebut — mengganti nama lama akan membuat pembaca yang
                 memeriksa pasar lama tidak menemukan kontrak yang mereka lihat. */}
-            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The configured fee is the whole fee a trader pays and splits four ways on-chain — depth stays in the curve, the creator is paid directly, buyback-and-burn that anyone can trigger, and a 0.10% protocol leg. Nothing is added on top. Three generations are live at once and each keeps its own rates permanently, because every rate is immutable: markets from before 0.11.0 run <code className="text-accent">SovereignCurve</code> with three legs and no protocol fee, markets from 0.11.0 pay 0.40% because their protocol leg was additive, and only launches from 0.12.0 pay 1.00%.</p>
+            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The configured fee is the whole fee a trader pays and splits four ways on-chain — depth stays in the curve, the creator is paid directly, buyback-and-burn that anyone can trigger, and a 0.10% protocol leg. Nothing is added on top. Every rate is immutable, so each market keeps the rates it launched with: the six earlier markets come from the 0.11.0 factories and pay 0.40% because their protocol leg was added on top, while every ADEXTO v1 launch pays the configured total (1.00% on the default tier).</p>
           </div>
 
           <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
@@ -401,8 +401,8 @@ export default async function DocsPage() {
               chain membelah likuiditas peluncuran kecil menjadi empat pasar tipis. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
             A launch targets one chain. That chain receives its own <code className="text-accent">AdextoToken</code> and
-            its own <code className="text-accent">SovereignCurve</code>, deployed by that chain&apos;s factory in a
-            single transaction. All four chains are available — one launch each. Addresses differ per chain and{" "}
+            its own <code className="text-accent">AdextoCurve</code>, deployed by that chain&apos;s factory in a
+            single transaction. All five chains are available — one launch each. Addresses differ per chain and{" "}
             <strong>supply is not shared</strong>: there is no bridge, so every market has its own depth and its own
             price.
           </p>
@@ -448,11 +448,13 @@ export default async function DocsPage() {
               blok, token tanpa owner sama sekali, dan buyback tanpa izin
               berplafon. */}
           <p className="text-xs text-ink leading-relaxed font-medium">
-            Caps any single transfer at 1% of supply for the first 5 blocks, so no wallet can take the opening
-            curve in one shot. This lives in <code className="text-accent">AdextoToken._update</code> and is
-            unrelated to any token standard. The token has <strong>no owner and no admin function</strong>, so
-            there is nothing to renounce and no lever to misuse. Buybacks are permissionless — anyone may
-            trigger one, bounded by size rather than by identity.
+            For 180 seconds after launch, no wallet may hold more than 1% of supply, so no single address can take
+            the opening curve, and splitting a buy across many transactions does not get around it. This lives in{" "}
+            <code className="text-accent">AdextoToken._update</code> and is unrelated to any token standard. (The six
+            0.11.0 markets used an earlier form: a 1% cap per transfer for their first 5 blocks.) The token has{" "}
+            <strong>no owner and no admin function</strong>, so there is nothing to renounce and no lever to misuse.
+            Buybacks are permissionless — anyone may trigger one, bounded by size and by a one-hour cooldown rather
+            than by identity.
           </p>
           <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft">
             require(nativeAmount * 100 &lt;= virtualNative + _curveNative);

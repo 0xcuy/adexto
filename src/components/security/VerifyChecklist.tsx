@@ -9,8 +9,9 @@ import CommandBlock from "./CommandBlock";
  * Checklist "Verify it yourself": perintah `cast` yang bisa ditempel pembaca, plus hasil yang
  * seharusnya keluar.
  *
- * Setiap perintah di berkas ini SUDAH DIJALANKAN apa adanya (2026-09-30) ke keempat mainnet, dan
- * setiap "Expected" adalah jawaban chain waktu itu — bukan dari ingatan atau dari sumber kode.
+ * Setiap perintah di berkas ini SUDAH DIJALANKAN apa adanya (2026-10-01, ADEXTO v1) ke kelima
+ * mainnet, dan setiap "Expected" adalah jawaban chain waktu itu — bukan dari ingatan atau dari
+ * sumber kode.
  * Semuanya immutable, jadi jawabannya tidak boleh berubah; kalau berubah, env situs menunjuk
  * kontrak lain.
  *
@@ -25,11 +26,12 @@ import CommandBlock from "./CommandBlock";
  * Teks yang dirender WAJIB bahasa Inggris.
  */
 
-const KEY_BY_CHAIN: Record<number, "og" | "base" | "arbitrum" | "monad"> = {
+const KEY_BY_CHAIN: Record<number, "og" | "base" | "arbitrum" | "monad" | "robinhood"> = {
   16661: "og",
   8453: "base",
   42161: "arbitrum",
   143: "monad",
+  4663: "robinhood",
 };
 
 /**
@@ -193,7 +195,7 @@ export default function VerifyChecklist() {
         </div>
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-        keccak256 of the runtime code{sameHash ? ", the same on all four chains" : ""}:{" "}
+        keccak256 of the runtime code{sameHash ? `, the same on all ${rows.length} chains` : ""}:{" "}
         <code className="break-all text-accent" data-testid="verify-keccak">
           {keccak}
         </code>
@@ -220,7 +222,7 @@ export default function VerifyChecklist() {
         <Step n={2} title="One program on every chain">
           <CommandBlock code={`cast code $FACTORY --rpc-url $RPC | cast keccak\ncast codesize $FACTORY --rpc-url $RPC`} />
           <Expected>
-            the hash above and <code className="text-ink">{rows[0]?.bytes}</code>, on each of the four chains.
+            the hash above and <code className="text-ink">{rows[0]?.bytes}</code>, on each of the {rows.length} chains.
           </Expected>
         </Step>
 
@@ -316,15 +318,13 @@ export default function VerifyChecklist() {
             VERSION() dan totalFeeBps() revert, 34 selector, enam fungsi pengubah state tanpa
             claimProtocolFees. Pasar yang terdaftar hari ini semuanya 0.11.0. */}
         <li>
-          <strong className="text-ink">Step 5 covers the 0.12.0 factory, which every new launch goes through.</strong>{" "}
-          The markets listed today were created by the 0.11.0 factories, and their curves report VERSION 0.11.0. Steps
-          6 and 7 work on them unchanged; step 5 does not, because it compiles the 0.12.0 source.
-        </li>
-        <li>
-          <strong className="text-ink">Curves from the 0.10.0 factory answer differently.</strong> They predate{" "}
-          <code className="text-accent">VERSION()</code> and <code className="text-accent">totalFeeBps()</code> on the
-          curve, so those two calls revert there, and step 7 prints six lines instead of seven because they have no
-          protocol leg to claim.
+          <strong className="text-ink">
+            Step 5 covers the {CURVE_FACTORY_GENERATION.version} factory (ADEXTO v1), which every new launch goes
+            through.
+          </strong>{" "}
+          The six earlier markets were created by the 0.11.0 factories, and their curves report VERSION 0.11.0. Steps 6
+          and 7 work on them unchanged; step 5 does not, because it compiles the {CURVE_FACTORY_GENERATION.version}{" "}
+          source.
         </li>
         <li>
           <strong className="text-ink">Matching bytecode shows which code runs, not that the code is correct.</strong>{" "}

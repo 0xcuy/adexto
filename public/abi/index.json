@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-28T23:35:21.885Z",
-  "note": "ABI for the AdextoFactory 0.11.0 generation. Verified against deployed runtime bytecode by function selector and event topic presence, which is immune to immutable values baked into the code.",
+  "generatedAt": "2026-09-30T22:37:45.080Z",
+  "note": "ABI of ADEXTO v1 (AdextoFactory 1.0.0). The factory is checked against its deployed runtime on every chain, with each differing byte accounted for as an immutable. The curve and token ABIs are proven by their creation code, which appears verbatim in every deployed factory runtime.",
   "contracts": {
     "AdextoFactory": {
       "sourceName": "contracts/AdextoFactory.sol",
@@ -1548,7 +1548,7 @@
             },
             {
               "internalType": "uint256",
-              "name": "_maxTxPercentBps",
+              "name": "_maxWalletBps",
               "type": "uint256"
             },
             {
@@ -1746,7 +1746,7 @@
         },
         {
           "inputs": [],
-          "name": "ANTI_SNIPE_BLOCKS",
+          "name": "ANTI_SNIPE_WINDOW",
           "outputs": [
             {
               "internalType": "uint256",
@@ -1917,7 +1917,20 @@
         },
         {
           "inputs": [],
-          "name": "maxTxAmount",
+          "name": "launchTime",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "maxWalletAmount",
           "outputs": [
             {
               "internalType": "uint256",
@@ -2039,58 +2052,71 @@
   "networks": {
     "0g": {
       "chainId": 16661,
-      "factory": "0x06C80fD2d5d9365C20aC468c15874DBE748877e2",
-      "factoryVersion": "0.12.0",
+      "factory": "0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D",
+      "factoryVersion": "1.0.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21403,
-      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
       "immutableRegions": 2,
-      "immutableBytes": 40
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
     },
     "base": {
       "chainId": 8453,
-      "factory": "0xe5B9555fbbcE72A5739dD29c3939A23fd230136F",
-      "factoryVersion": "0.12.0",
+      "factory": "0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708",
+      "factoryVersion": "1.0.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21403,
-      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
       "immutableRegions": 2,
-      "immutableBytes": 40
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
     },
     "arbitrum": {
       "chainId": 42161,
-      "factory": "0x75EeDEd196D2BE283d815D52F617eB70bCe865bC",
-      "factoryVersion": "0.12.0",
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "factoryVersion": "1.0.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21403,
-      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
       "immutableRegions": 2,
-      "immutableBytes": 40
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
     },
     "monad": {
       "chainId": 143,
-      "factory": "0xcA9c77f050CD1e0685b03D0236579966DA9B39B9",
-      "factoryVersion": "0.12.0",
+      "factory": "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056",
+      "factoryVersion": "1.0.0",
       "protocolFeeBps": 10,
       "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-      "runtimeBytecodeBytes": 21403,
-      "runtimeBytecodeKeccak": "0xc0841d5a2193f21df6b7f685bbe39fd5ee6411cbf89bf76e1b99d867174d8f0f",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
       "immutableRegions": 2,
-      "immutableBytes": 40
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
+    },
+    "robinhood": {
+      "chainId": 4663,
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "factoryVersion": "1.0.0",
+      "protocolFeeBps": 10,
+      "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
+      "immutableRegions": 2,
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
     }
   },
-  "liveMarkets": [
-    {
-      "symbol": "VOLT",
-      "token": "0x5A5578cc297b397a7dE68b46FB495Fe1AC8c529F",
-      "curve": "0xb251Bc7261e72B1Bc222cf5B94B54b842eB84fce",
-      "network": "monad",
-      "chainId": 143
-    }
-  ],
+  "liveMarkets": [],
   "events": {
     "AdextoCurve.AutoBuybackExecuted": {
       "signature": "AutoBuybackExecuted(uint256,uint256,uint256,uint256,uint256)",

@@ -1,45 +1,50 @@
 {
   "_README": [
-    "Blok dan transaksi pembuat AdextoFactory 0.12.0 di tiap mainnet.",
-    "Diperiksa 2026-09-30 langsung ke chain: di blok ini ada satu transaksi dari deployer",
-    "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D yang receipt-nya punya contractAddress = factory.",
-    "Dipakai checklist 'Verify it yourself' di /security.",
+    "Block and creation transaction of the ADEXTO v1 factory (AdextoFactory 1.0.0) on each mainnet.",
+    "Checked against the chain on 2026-10-01: each transaction is from the deployer below, and its receipt has contractAddress = factory.",
+    "Used by the Verify it yourself checklist on /security.",
     "",
-    "rpc: endpoint yang DIPERIKSA menjawab setiap perintah checklist, termasuk `cast receipt` untuk",
-    "transaksi lama. Base sengaja mainnet.base.org, bukan publicnode: publicnode menolak receipt lama",
-    "('Archive requests require a personal token').",
+    "rpc: the endpoint checked to answer every command in that checklist, including `cast receipt` for old transactions.",
     "",
-    "sourceCommit: commit yang contracts/-nya sama berkas-demi-berkas dengan contractHashes di",
-    "security-report.json (8/8; fa4200b hanya 7/8 karena AdextoFactory.sol beda). Dikompilasi ulang",
-    "2026-09-30 dari `git archive 1f1cbfc` dengan `--via-ir`: runtime AdextoFactory identik dengan",
-    "kode on-chain di keempat chain kecuali dua slot 20 byte, dan keduanya berisi protocolTreasury",
-    "(immutable). Setelah slot itu dinolkan, keccak kode chain = keccak artefak lokal = maskedKeccak."
+    "sourceCommit: the commit the factory was compiled from (solc 0.8.37, EVM cancun, 200 runs, via-IR).",
+    "Recompiled from that commit, the runtime equals the on-chain code on all five chains except two 20-byte slots, which hold protocolTreasury (immutable).",
+    "With those slots zeroed, keccak(chain code) = keccak(artifact runtime) = maskedKeccak. Sourcify reports an exact match on all five."
   ],
-  "version": "0.12.0",
+  "version": "1.0.0",
   "deployer": "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
-  "sourceCommit": "1f1cbfc5ce97b417aa926e122e564738d4389e55",
+  "sourceCommit": "71b5adfe774ed7a93f9fe589b4430c8122febb1f",
   "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
-  "maskedKeccak": "0x83adf2725ca03af986bf18a15a4b675eeba4e288b0515bbd370342d1de3dac3f",
+  "maskedKeccak": "0x0e70cb93fbb10b66109cc71d547329cb48b4c3953791c2c4609519ff92221d62",
   "chains": {
-    "16661": {
-      "block": 45602744,
-      "tx": "0x762c8baabcc16c0f8dd1ae5c3f5098b54b104aeb6a10db8e7ea8734e829dd819",
-      "rpc": "https://evmrpc.0g.ai"
+    "143": {
+      "factory": "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056",
+      "block": 109440540,
+      "tx": "0x3c7f6259a4b47ffe03489e4fcf976e38e4930907758f2bc8fca649941462cc67",
+      "rpc": "https://rpc1.monad.xyz"
+    },
+    "4663": {
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "block": 76864198,
+      "tx": "0x2a8f8a0c8ef6ff11ec907e13979788c927bd810b8efb8d250895be54705334c9",
+      "rpc": "https://rpc.mainnet.chain.robinhood.com"
     },
     "8453": {
-      "block": 51922828,
-      "tx": "0xfdcb584426ff1fb1c1edc6e13937df117fb36b5abf964e5e3dddca203620110b",
+      "factory": "0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708",
+      "block": 52008858,
+      "tx": "0xd30f5c751e10101a8efc4e7a914fd4610fdcc477372f1e177486d296a33005c0",
       "rpc": "https://mainnet.base.org"
     },
-    "42161": {
-      "block": 509845969,
-      "tx": "0x9084a9ae5d7a765563ff2c935980053fa11a6ff87fc114bc8c3c9bb35cec35f5",
-      "rpc": "https://arb1.arbitrum.io/rpc"
+    "16661": {
+      "factory": "0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D",
+      "block": 45793987,
+      "tx": "0xb9b2f592784abd532021c9a09d810a784782741dd6d2575fef31015541337bd7",
+      "rpc": "https://evmrpc.0g.ai"
     },
-    "143": {
-      "block": 108871845,
-      "tx": "0x2579cc3d1852a42fb0bb0f95ca18e51208096fd8a4da2759970f8a51f1b27030",
-      "rpc": "https://rpc1.monad.xyz"
+    "42161": {
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "block": 510474755,
+      "tx": "0xf78fb444c72d5f2a150392a4ea4991e0caf0a11c060107d0a9f2d46f7b72ddf9",
+      "rpc": "https://arb1.arbitrum.io/rpc"
     }
   }
 }

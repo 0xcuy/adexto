@@ -98,6 +98,7 @@ const ENDPOINT_ENV: Record<ChainKey, string> = {
   Arbitrum: "SUBGRAPH_URL_ARBITRUM",
   Base: "SUBGRAPH_URL_BASE",
   Monad: "SUBGRAPH_URL_MONAD",
+  Robinhood: "SUBGRAPH_URL_ROBINHOOD",
   Devchain: "SUBGRAPH_URL_DEVCHAIN",
 };
 
@@ -123,6 +124,7 @@ export const SUBGRAPH_ENDPOINTS: Record<ChainKey, string | null> = {
   Arbitrum: readEndpoint("Arbitrum"),
   Base: readEndpoint("Base"),
   Monad: readEndpoint("Monad"),
+  Robinhood: readEndpoint("Robinhood"),
   Devchain: readEndpoint("Devchain"),
 };
 

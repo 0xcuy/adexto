@@ -120,7 +120,7 @@ const STEPS = [
   {
     icon: Wallet,
     title: "Connect a wallet",
-    body: "Pick Monad, Arbitrum, Base or 0G. Each chain is its own market with its own price.",
+    body: "Pick Monad, Arbitrum, Robinhood Chain, Base or 0G. Each chain is its own market with its own price.",
   },
   {
     icon: PenLine,
@@ -177,7 +177,7 @@ const FAQ = [
   },
   {
     q: "What stops a sniper from taking the whole launch?",
-    a: "AdextoToken._update caps any single transfer at 1% of supply for the first 5 blocks after launch. Every swap also carries a slippage bound and a deadline, and buys are simulated before signing so a trade that would revert never costs gas.",
+    a: "For 180 seconds after launch, AdextoToken._update refuses any transfer that would leave a wallet holding more than 1% of supply, so splitting a buy across many transactions does not get around it. The window is measured in seconds, so it is the same length on every chain. Every swap also carries a slippage bound and a deadline, and buys are simulated before signing so a trade that would revert never costs gas.",
   },
   {
     q: "Where does the creator's money come from?",
@@ -322,6 +322,9 @@ export default async function HomePage() {
                       {c.key}
                     </li>
                   ))}
+                  {/* Robinhood Chain comes from CHAIN_LIST like every other chain, and only once
+                      NEXT_PUBLIC_CURVE_FACTORY_ROBINHOOD is set, so the chip never claims a
+                      factory that is not wired. */}
                 </ul>
               </div>
             ) : null}

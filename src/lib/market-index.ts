@@ -100,7 +100,8 @@ const TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
  * Konfirmasi sebelum log diambil. Kecil karena keempat chain ini final dalam hitungan detik;
  * cukup untuk tidak mengambil blok yang masih bisa diganti di ujung.
  */
-const CONFIRMATIONS: Record<number, number> = { 16661: 2, 8453: 3, 42161: 10, 143: 3 };
+// Robinhood Chain: 20 blocks of ~0.1 s, about two seconds behind the tip.
+const CONFIRMATIONS: Record<number, number> = { 16661: 2, 8453: 3, 42161: 10, 143: 3, 4663: 20 };
 const DEFAULT_CONFIRMATIONS = 5;
 
 /**

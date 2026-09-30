@@ -99,13 +99,13 @@ const STATUS: Record<string, { label: string; className: string; Icon: typeof Ch
 const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   {
     title: "No owner, no admin",
-    where: "AdextoToken.sol · AdextoCurve.sol · SovereignCurve.sol",
+    where: "AdextoToken.sol · AdextoCurve.sol · AdextoFactory.sol",
     how:
-      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. Every curve generation has a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native. The 0.11.0 and 0.12.0 curves add a protocol fee leg and no setter for it, so they stay ownerless.",
+      "AdextoToken imports exactly one thing: OpenZeppelin's ERC20. No Ownable, no owner(), no onlyOwner, no roles. The curve has a single privileged modifier, onlyFactory, and it gates only bindToken and initializeCurve — both one-shot, and neither moves native. The protocol fee leg has no setter, so the curve stays ownerless. The same holds for the 0.11.0 curves behind the six earlier markets.",
   },
   {
     title: "No upgradeability",
-    where: "AdextoFactory.sol · AdextoCurveFactory.sol",
+    where: "AdextoFactory.sol",
     how:
       "The token and the curve are created with a plain `new` (CREATE) — no proxy, no CREATE2. There is no implementation slot and no delegatecall anywhere in the three launch-path contracts. What is deployed is what runs, permanently.",
   },
@@ -117,13 +117,13 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
   },
   {
     title: "No arbitrary withdrawal",
-    where: "AdextoCurve.sol · SovereignCurve.sol",
+    where: "AdextoCurve.sol",
     how:
-      "On the 0.11.0 and 0.12.0 curves exactly three functions send native out: `sell` pays the seller, `claimCreatorFees` pays the immutable creator, and `claimProtocolFees` pays the immutable protocol treasury. The 0.10.0 curve has the first two. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback in either. Anyone may trigger either claim, and that is safe precisely because both destinations are immutable — a caller cannot redirect the money, only push it where it was always going.",
+      "Exactly three functions send native out: `sell` pays the seller, `claimCreatorFees` pays the immutable creator, and `claimProtocolFees` pays the immutable protocol treasury. There is no withdraw, rescue, sweep, drain, emergency, skim, migrate, selfdestruct or fallback, in v1 or in the 0.11.0 curves. Anyone may trigger either claim, and that is safe precisely because both destinations are immutable — a caller cannot redirect the money, only push it where it was always going.",
   },
   {
     title: "100% of supply enters the curve",
-    where: "AdextoFactory.sol · AdextoCurveFactory.sol",
+    where: "AdextoFactory.sol",
     how:
       "The whole supply is minted to the factory, moved into the curve in the same transaction, and then the factory requires its own balance to be zero before the launch is allowed to succeed. The creator receives no tokens at all — their income is a slice of each swap fee.",
   },
@@ -134,8 +134,14 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
       "`agentIdentity`, `agentId`, `agentRegistry`, `agentBound` and `sovereignDexHook` are all `immutable`, with no setters. An ERC-8004 binding is verified on-chain at launch and cannot be moved afterwards.",
   },
   {
+    title: "A launch window that ends by itself",
+    where: "AdextoToken.sol",
+    how:
+      "For 180 seconds after launch, no wallet may hold more than 1% of supply, so one address cannot take the opening of a market. The limit is on the receiving wallet's balance, not on a single transfer, so splitting a buy into many transactions does not get around it. It is measured in seconds rather than blocks because block times differ by chain. Three recipients are exempt: the curve (so holders can sell), address(0) (so buyback burns work) and the factory (which seeds the curve). There is no switch to extend it or turn it off.",
+  },
+  {
     title: "Permanent market",
-    where: "AdextoCurve.sol · SovereignCurve.sol",
+    where: "AdextoCurve.sol",
     how:
       "There is no graduation step and no migration to another venue. The curve is the market, permanently. The usual launchpad pattern moves a curve into an external pool, and that step is where much of the historical exploit surface lives.",
   },
@@ -156,9 +162,9 @@ const GUARANTEES: Array<{ title: string; where: string; how: string }> = [
    */
   {
     title: "Bounded, permissionless buyback",
-    where: "AdextoCurve.sol · SovereignCurve.sol",
+    where: "AdextoCurve.sol",
     how:
-      "`executeBuyback` deliberately has no caller gate. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned. Two limits apply in the source today: at most 1% of the native reserve per call, and a one-hour cooldown between calls. The cooldown was added after a report showed the per-call cap alone did not stop a single transaction from looping until the bucket was empty. Markets already deployed carry only the per-call cap, because their bytecode is frozen and has no owner — the cooldown reaches curves deployed from here on.",
+      "`executeBuyback` deliberately has no caller gate. The native never leaves the contract; it moves from the buyback bucket into the curve reserve, and the tokens it buys are burned. Nothing calls it on a schedule: anyone may, and our x402 gateway does after a delivery once the bucket covers three times the gas. Every v1 curve carries two limits: at most 1% of the native reserve per call, and a one-hour cooldown between calls. The cooldown was added after a report showed the per-call cap alone did not stop a single transaction from looping until the bucket was empty. The six 0.11.0 markets carry only the per-call cap, because their bytecode is frozen and has no owner.",
   },
 ];
 
@@ -184,16 +190,16 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
      * bentuk penyembunyian yang paling tidak disengaja dan paling mudah terjadi
      * setiap kali ada generasi baru.
      */
-    where: "AdextoCurve.getSellQuote · SovereignCurve.getSellQuote",
+    where: "AdextoCurve.getSellQuote (4 instances)",
     why:
       "Fees are computed from `grossOut`, which is itself the result of a division, so a little precision is genuinely lost. The direction is what settles it: the division floors, so the remainder always stays with the curve rather than the trader. The economic consequence is tested directly — the fuzz properties `roundTripNeverProfitable` and `buyRoundsInFavourOfCurve` fail if that direction ever inverts.",
   },
   {
     finding: "incorrect-equality",
-    engine: "Slither · Medium/High",
-    where: "AdextoFactory.deployTrinity · AdextoCurveFactory.deployTrinity",
+    engine: "Slither · Medium",
+    where: "AdextoFactory.deployTrinity",
     why:
-      "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory. Reported twice per factory generation, identically.",
+      "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory.",
   },
   /**
    * Disegarkan 2026-09-30 terhadap pemindaian yang sedang diterbitkan, dan dicocokkan dengan
@@ -206,15 +212,15 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
    */
   {
     finding: "reentrancy-no-eth",
-    engine: "Slither · Medium (4 instances, both curve generations)",
-    where: "AdextoCurve.sell and receive · SovereignCurve.sell and receive",
+    engine: "Slither · Medium (2 instances)",
+    where: "AdextoCurve.sell and receive",
     why:
-      "`sell` carries the `nonReentrant` modifier and `receive` takes the same `_locked` guard inline; Slither does not model a hand-written guard, so it flags them anyway. The only external callee on those paths is the market's own token, whose transfer hook calls nothing but the standard ERC-20 update — no callbacks. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines, Foundry and Echidna, and never broke.",
+      "`sell` carries the `nonReentrant` modifier and `receive` takes the same `_locked` guard inline; Slither does not model a hand-written guard, so it flags them anyway. The only external callee on those paths is the market's own token, whose `_update` calls nothing external: it adds one balance comparison during the launch window and otherwise defers to the standard ERC-20 update. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines, Foundry and Echidna, and never broke.",
   },
   {
     finding: "Reentrancy: state change after external call",
-    engine: "Aderyn · High (8 instances)",
-    where: "AdextoCurve.sell and SovereignCurve.sell (3 each) · deployTrinity on both factories (1 each)",
+    engine: "Aderyn · High (4 instances)",
+    where: "AdextoCurve.sell (3) · AdextoFactory.deployTrinity (1)",
     why:
       "In `sell`, the external calls are `balanceOf`, `allowance` and `transferFrom` on the market's own token, under the same guard as the row above. In `deployTrinity`, the call is `ownerOf` on the ERC-8004 Identity Registry, made only when a launch binds an agent. That registry is an upgradeable contract run by a third party, but the interface declares `ownerOf` as `view`, so it is compiled to STATICCALL: any state change, event or value transfer inside it reverts, and it cannot re-enter `deployTrinity`. What a hostile registry could still do is make a binding launch revert or report the wrong owner; that question is listed for reviewers in the audit scope.",
   },
@@ -238,6 +244,40 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
    * yang dibetulkan. Itu dicatat di daftar "what this page does not claim" di bawah
    * supaya penurunan angkanya tidak terbaca sebagai perbaikan keamanan.
    */
+  /**
+   * Temuan Low dan Informational di jalur peluncuran v1 (pemindaian 2b16426: 6 Low, 4
+   * Informational). Ditulis di sini supaya judul bagian "every finding that touches the launch
+   * path" benar untuk SEMUA tingkat, bukan hanya Medium ke atas. Sama dengan tabel triage di
+   * audit/README.md.
+   */
+  {
+    finding: "timestamp",
+    engine: "Slither · Low",
+    where: "AdextoToken._update · AdextoCurve.executeBuyback",
+    why:
+      "The launch window (180 s) and the buyback cooldown (1 h) are measured in seconds on purpose. A block producer can shift `block.timestamp` by seconds, which moves the edge of a window by the same seconds and nothing more.",
+  },
+  {
+    finding: "reentrancy-events / reentrancy-benign",
+    engine: "Slither · Low (3 instances)",
+    where: "AdextoCurve._buy and sell · AdextoFactory.deployTrinity",
+    why:
+      "Events are emitted after the external calls to the token, which calls nothing back. The curve functions are `nonReentrant`, and `deployTrinity` writes the ticker before its calls, so a re-entrant launch of the same ticker fails.",
+  },
+  {
+    finding: "missing-zero-check",
+    engine: "Slither · Low (2 instances)",
+    where: "AdextoCurve.sell recipient",
+    why:
+      "`to == address(0)` is replaced by `msg.sender` on the line that sets the recipient, so a zero recipient can never be paid.",
+  },
+  {
+    finding: "low-level-calls · missing-inheritance",
+    engine: "Slither · Informational (4 instances)",
+    where: "AdextoCurve.sell, claimCreatorFees, claimProtocolFees · AdextoToken",
+    why:
+      "The three native payouts use `call` and each checks the returned `success`; both claim destinations are immutable. `AdextoToken` does not formally inherit the one-function burn interface the curve declares locally, which names exactly what the curve calls.",
+  },
 ];
 
 function Count({ counts }: { counts?: Record<string, number> }) {
@@ -453,27 +493,17 @@ export default function SecurityPage() {
             names the contract and the mechanism precisely so it can be checked against the source — but if you do not
             check it, you are trusting our reasoning. Nobody outside the project has reviewed these judgements.
           </li>
-          {/* Dua angka bergerak sekaligus, dan keduanya akan disalahbaca kalau tidak
-              dijelaskan: High turun ke nol, dan totalnya justru NAIK. */}
+          {/* Dua catatan lama dicabut (2026-10-01): "High turun ke nol karena penghapusan" dan
+              "total naik karena pemindai rusak". Keduanya menjelaskan pergerakan angka pemindaian
+              LAMA atas tree yang masih memuat kontrak pra-rilis. Pemindaian yang diterbitkan kini
+              berjalan pada checkout bersih yang hanya memuat sumber v1, jadi angkanya tidak bisa
+              dibandingkan dengan yang lama — dan itu yang dinyatakan di bawah. */}
           <li>
-            <strong className="text-ink">Slither&apos;s High count reached zero by deletion, not by a fix.</strong> The
-            single High sat in <code className="text-accent">AdextoTrinityFactoryV2</code>, a factory never broadcast to
-            any chain. Checking rather than assuming settled that: all four{" "}
-            <code className="text-accent">NEXT_PUBLIC_FACTORY_V2_*</code> are empty, no address for it appears in the
-            registry, and the deployed code at every <code className="text-accent">factoryAddress</code> is 7216 bytes
-            with one identical hash while that artifact is 17672 bytes. Nothing on chain ran it, so the file was deleted.
-            No reentrancy was repaired.
-          </li>
-          <li>
-            <strong className="text-ink">
-              The Slither total went up because the scan was broken, not because the code got worse.
-            </strong>{" "}
-            Slither refuses to overwrite an existing <code className="text-accent">--json</code> output file, and the
-            scanner treated that failure as success whenever a file from an earlier run was still on disk — so it parsed
-            the old results and still recorded the engine as having run. The count sat at 45 while two contracts were
-            added and one removed, and its only High still pointed at a file that no longer existed. With the output
-            deleted before each run, the real figure on current code is 77. Every number on this page from before that
-            fix should be treated as belonging to an unknown earlier revision.
+            <strong className="text-ink">The numbers describe ADEXTO v1 only.</strong> The scan runs on a clean checkout
+            whose <code className="text-accent">contracts/</code> folder holds the v1 sources and nothing else, so its
+            counts are not comparable with scans published before v1, which covered pre-release contracts that are no
+            longer in the tree. The 0.11.0 contracts behind the six earlier markets were compiled from commit{" "}
+            <code className="text-accent">98ffb1c</code>; they are not part of this scan.
           </li>
           <li>
             <strong className="text-ink">No formal verification.</strong> The invariants below are tested against random
@@ -487,14 +517,11 @@ export default function SecurityPage() {
                 SovereignCurve/AdextoCurveFactory bukan lagi yang "menjalankan setiap pasar
                 live" — pasar yang mereka lahirkan sudah digantikan. Keduanya tetap difuzz
                 karena pasar itu masih bisa diperdagangkan langsung ke kurvanya. */}
-            <strong className="text-ink">Coverage is the curve, not everything on chain.</strong> The fuzz and invariant
-            suites target <code className="text-accent">AdextoCurve</code> and{" "}
-            <code className="text-accent">AdextoFactory</code>, which run every live market, plus{" "}
-            <code className="text-accent">SovereignCurve</code> and{" "}
-            <code className="text-accent">AdextoCurveFactory</code>, which created the superseded markets and are still
-            covered because those curves remain tradable directly, and <code className="text-accent">AdextoToken</code>.
-            The superseded v1 contracts and the inert cross-chain receivers are analysed statically but not fuzzed,
-            because nothing routes through them.
+            <strong className="text-ink">Coverage is the v1 source, not everything on chain.</strong> The fuzz and
+            invariant suites target <code className="text-accent">AdextoCurve</code>,{" "}
+            <code className="text-accent">AdextoFactory</code> and <code className="text-accent">AdextoToken</code>,
+            including the launch window, plus <code className="text-accent">AdextoAgentStake</code>. The 0.11.0 curves
+            share the curve design but not the launch window or the buyback cooldown, and are not fuzzed from this tree.
           </li>
           <li>
             <strong className="text-ink">Semgrep runs a general ruleset.</strong> The registry has no Solidity pack —{" "}
