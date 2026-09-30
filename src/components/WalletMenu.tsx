@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Wallet, LogOut, Copy, Check, RefreshCw, ChevronDown, QrCode, Users } from "lucide-react";
+import Link from "next/link";
+import { Wallet, LogOut, Copy, Check, RefreshCw, ChevronDown, QrCode, Users, Coins } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 
 /**
@@ -312,6 +313,17 @@ export default function WalletMenu({
             {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Address copied" : "Copy address"}
           </button>
+
+          {/* Penghasilan creator milik alamat ini, dari kurvanya sendiri. */}
+          <Link
+            href="/creator"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-bold text-ink hover:bg-cream-3"
+          >
+            <Coins className="h-3.5 w-3.5 text-accent" />
+            Creator earnings
+          </Link>
 
           <button
             type="button"

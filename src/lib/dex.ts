@@ -645,6 +645,47 @@ export async function claimCreatorFees(params: {
   return { hash: receipt?.hash ?? tx.hash };
 }
 
+/** Multicall3 kanonik. Kodenya diperiksa identik (keccak 0xd5c15df6…0891) di keempat mainnet. */
+export const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
+const MULTICALL3_ABI = [
+  "function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)",
+];
+
+/**
+ * Klaim fee creator dari BEBERAPA kurva di satu chain dalam SATU transaksi, lewat Multicall3.
+ *
+ * Aman karena `claimCreatorFees` permissionless dan tujuannya `immutable creator`: pemanggilnya
+ * (di sini kontrak Multicall3) tidak menentukan ke mana uangnya pergi, jadi membungkusnya tidak
+ * mengubah siapa yang dibayar. Tidak ada kontrak baru dan tidak ada persetujuan token.
+ *
+ * `allowFailure: false` dengan sengaja: pemanggil hanya mengirim kurva yang `creatorOwed`-nya
+ * > 0, jadi revert berarti ada yang tidak terduga — lebih baik seluruhnya gagal di simulasi
+ * daripada sebagian terklaim diam-diam. Disimulasikan dulu, sehingga kegagalan tidak memakan gas.
+ */
+export async function claimCreatorFeesBatch(params: {
+  ethereum: any;
+  chain: ChainInfo;
+  curveAddresses: string[];
+}): Promise<{ hash: string }> {
+  const { ethereum, chain, curveAddresses } = params;
+  if (curveAddresses.length === 0) throw new Error("Nothing to claim on this chain.");
+  await ensureWalletChain(ethereum, chain);
+  const provider = new ethers.BrowserProvider(ethereum);
+  const code = await provider.getCode(MULTICALL3_ADDRESS);
+  if (code === "0x") {
+    throw new Error(`Multicall3 is not deployed on ${chain.name}, so each market has to be claimed on its own.`);
+  }
+  const signer = await provider.getSigner();
+  const claim = new ethers.Interface(["function claimCreatorFees() returns (uint256)"]).encodeFunctionData("claimCreatorFees");
+  const calls = curveAddresses.map((target) => ({ target, allowFailure: false, callData: claim }));
+  const mc = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI, signer);
+  await mc.aggregate3.staticCall(calls);
+  const tx = await mc.aggregate3(calls);
+  const receipt = await tx.wait();
+  if (!receipt || receipt.status !== 1) throw new Error("The claim transaction reverted.");
+  return { hash: receipt.hash ?? tx.hash };
+}
+
 /**
  * TIDAK ADA pembungkus `claimProtocolFees` di sini, dan itu keputusan.
  *

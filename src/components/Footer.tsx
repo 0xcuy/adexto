@@ -69,6 +69,7 @@ export default function Footer() {
                 membantah begitu dibuka. */}
             <ul className="space-y-2 text-ink-soft">
               <li><Link href="/studio" className="hover:text-accent transition-colors">Studio</Link></li>
+              <li><Link href="/creator" className="hover:text-accent transition-colors">Creator earnings</Link></li>
               <li><Link href="/explorer" className="hover:text-accent transition-colors">Explorer</Link></li>
               <li><Link href="/swap" className="hover:text-accent transition-colors">Swap</Link></li>
               <li><Link href="/agent/demo" className="hover:text-accent transition-colors">Agent demo</Link></li>
