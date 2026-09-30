@@ -1,11 +1,8 @@
-import Link from "next/link";
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit, FileSearch } from "lucide-react";
 import report from "@/config/security-report.json";
-import {
-  ADEXTO_CONTRACTS,
-  CURVE_FACTORY_GENERATION,
-  SUPERSEDED_CURVE_FACTORY_GENERATION,
-} from "@/config/contracts";
+import deployments from "@/config/factory-deployments.json";
+import NoGraduation from "@/components/security/NoGraduation";
+import VerifyChecklist from "@/components/security/VerifyChecklist";
 
 
 export const metadata = {
@@ -258,13 +255,6 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
    */
 ];
 
-const CHAINS = [
-  { key: "og" as const, label: "0G Mainnet", id: 16661 },
-  { key: "base" as const, label: "Base Mainnet", id: 8453 },
-  { key: "arbitrum" as const, label: "Arbitrum One", id: 42161 },
-  { key: "monad" as const, label: "Monad Mainnet", id: 143 },
-];
-
 function Count({ counts }: { counts?: Record<string, number> }) {
   if (!counts) return <span className="text-ink-faint">—</span>;
   const order = ["High", "Medium", "Low", "Informational", "Optimization"];
@@ -289,6 +279,8 @@ function Count({ counts }: { counts?: Record<string, number> }) {
 
 export default function SecurityPage() {
   const commitShort = report.commit ? String(report.commit).slice(0, 12) : "unknown";
+  /** Commit yang contracts/-nya sama dengan yang dipindai DAN yang di-deploy. Lihat factory-deployments.json. */
+  const sourceShort = deployments.sourceCommit.slice(0, 12);
   const repoBase = "https://github.com/0xcuy/adexto";
 
   return (
@@ -427,6 +419,11 @@ export default function SecurityPage() {
         </div>
       </section>
 
+      {/* ── 2b. Kenapa tidak ada graduation ──────────────────────────────────
+          Memperluas kartu "Permanent market" di atas: apa yang dihapus desain ini,
+          dan daftar yang TETAP berisiko supaya tabelnya tidak terbaca sebagai nol risiko. */}
+      <NoGraduation />
+
       {/* ── 3. Triage ─────────────────────────────────────────────────────── */}
       <section className="mb-12">
         <h2 className="mb-1 text-xl font-semibold text-ink">Every finding that touches the launch path</h2>
@@ -539,12 +536,13 @@ export default function SecurityPage() {
       </section>
 
       {/* ── 5. Verify it yourself ─────────────────────────────────────────── */}
-      <section className="mb-4">
+      <section className="mb-4" id="verify">
         <h2 className="mb-1 text-xl font-semibold text-ink">Verify it yourself</h2>
         <p className="mb-4 text-xs leading-relaxed text-ink-soft">
-          The bytecode on each chain is reproducible from source at the commit above. This is the part that makes the
-          rest checkable: if the compiled output matches what is deployed, then the guarantees you read in the source are
-          the guarantees running on chain.
+          The factory bytecode on each chain can be rebuilt from the published source at commit{" "}
+          <code className="text-accent">{sourceShort}</code>, and step 5 below compares the two. That is the part that
+          makes the rest checkable: if the compiled output matches what is deployed, then the guarantees you read in the
+          source are the guarantees running on chain.
         </p>
 
         <div className="mb-4 rounded-xl border border-line bg-surface p-4">
@@ -553,7 +551,7 @@ export default function SecurityPage() {
           </div>
           <pre className="overflow-x-auto rounded-lg bg-cream-3 p-3 font-mono text-[10.5px] leading-relaxed text-ink">
 {`git clone ${repoBase}.git && cd adexto
-git checkout ${commitShort}
+git checkout ${sourceShort}
 npm install
 
 # the bytecode that gets deployed
@@ -565,49 +563,20 @@ node scripts/security-scan.mjs
 # fuzz + invariants only
 forge test`}
           </pre>
+          {/* Kenapa BUKAN commit di header: pemindaian berjalan di working tree kotor di atas
+              fa4200b, dan di commit itu AdextoFactory.sol berbeda dari yang dipindai dan yang
+              di-deploy. contractHashes di laporan cocok 8/8 dengan commit sourceCommit (fa4200b
+              hanya 7/8), jadi itu commit yang benar untuk di-checkout. */}
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+            The scan ran on a working tree with uncommitted changes, as the header says. Its{" "}
+            <code className="text-accent">contracts/</code> folder matches commit{" "}
+            <code className="text-accent">{sourceShort}</code> file for file (the report records a sha256 for each
+            contract file), so that is the commit to check out rather than{" "}
+            <code className="text-accent">{commitShort}</code>.
+          </p>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-line">
-          <div className="hidden sm:grid grid-cols-[auto_minmax(0,1fr)] gap-3 border-b border-line bg-cream-3/[0.04] px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">
-            <span>Chain</span>
-            <span>
-              {CURVE_FACTORY_GENERATION.contract} {CURVE_FACTORY_GENERATION.version} — the contract a launch runs
-            </span>
-          </div>
-          <div className="divide-y divide-line/[0.08]">
-            {CHAINS.map((c) => {
-              const chain = ADEXTO_CONTRACTS[c.key];
-              const addr = chain.curveFactoryAddress;
-              if (!addr) return null;
-              return (
-                <div key={c.id} className="grid grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-3">
-                  <span className="whitespace-nowrap text-[11px] font-bold text-ink">
-                    {c.label} <span className="font-mono text-[10px] text-ink-faint">{c.id}</span>
-                  </span>
-                  <a
-                    href={`${chain.blockExplorer}/address/${addr}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="addr min-w-0 truncate text-accent hover:underline"
-                  >
-                    {addr}
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-          The runtime bytecode of this factory is byte-identical on all four chains, which holds only because the same
-          protocol treasury was used on every one of them — <code className="text-accent">protocolTreasury</code> is
-          immutable, and Solidity stores immutables inside the runtime bytecode. Full address tables, including the
-          superseded generation, are on{" "}
-          <Link href="/docs" className="font-semibold text-accent hover:underline">
-            the technical status page
-          </Link>
-          .
-        </p>
+        <VerifyChecklist />
       </section>
     </div>
   );

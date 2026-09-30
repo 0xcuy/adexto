@@ -1,0 +1,45 @@
+{
+  "_README": [
+    "Blok dan transaksi pembuat AdextoFactory 0.12.0 di tiap mainnet.",
+    "Diperiksa 2026-09-30 langsung ke chain: di blok ini ada satu transaksi dari deployer",
+    "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D yang receipt-nya punya contractAddress = factory.",
+    "Dipakai checklist 'Verify it yourself' di /security.",
+    "",
+    "rpc: endpoint yang DIPERIKSA menjawab setiap perintah checklist, termasuk `cast receipt` untuk",
+    "transaksi lama. Base sengaja mainnet.base.org, bukan publicnode: publicnode menolak receipt lama",
+    "('Archive requests require a personal token').",
+    "",
+    "sourceCommit: commit yang contracts/-nya sama berkas-demi-berkas dengan contractHashes di",
+    "security-report.json (8/8; fa4200b hanya 7/8 karena AdextoFactory.sol beda). Dikompilasi ulang",
+    "2026-09-30 dari `git archive 1f1cbfc` dengan `--via-ir`: runtime AdextoFactory identik dengan",
+    "kode on-chain di keempat chain kecuali dua slot 20 byte, dan keduanya berisi protocolTreasury",
+    "(immutable). Setelah slot itu dinolkan, keccak kode chain = keccak artefak lokal = maskedKeccak."
+  ],
+  "version": "0.12.0",
+  "deployer": "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
+  "sourceCommit": "1f1cbfc5ce97b417aa926e122e564738d4389e55",
+  "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
+  "maskedKeccak": "0x83adf2725ca03af986bf18a15a4b675eeba4e288b0515bbd370342d1de3dac3f",
+  "chains": {
+    "16661": {
+      "block": 45602744,
+      "tx": "0x762c8baabcc16c0f8dd1ae5c3f5098b54b104aeb6a10db8e7ea8734e829dd819",
+      "rpc": "https://evmrpc.0g.ai"
+    },
+    "8453": {
+      "block": 51922828,
+      "tx": "0xfdcb584426ff1fb1c1edc6e13937df117fb36b5abf964e5e3dddca203620110b",
+      "rpc": "https://mainnet.base.org"
+    },
+    "42161": {
+      "block": 509845969,
+      "tx": "0x9084a9ae5d7a765563ff2c935980053fa11a6ff87fc114bc8c3c9bb35cec35f5",
+      "rpc": "https://arb1.arbitrum.io/rpc"
+    },
+    "143": {
+      "block": 108871845,
+      "tx": "0x2579cc3d1852a42fb0bb0f95ca18e51208096fd8a4da2759970f8a51f1b27030",
+      "rpc": "https://rpc1.monad.xyz"
+    }
+  }
+}
