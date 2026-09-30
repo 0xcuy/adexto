@@ -2,10 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Compass, ArrowDownUp, CloudLightning,
-  ShieldCheck, Sparkles, Twitter, Github
-} from "lucide-react";
+import { Compass, ArrowDownUp, ShieldCheck, Sparkles } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -54,7 +51,7 @@ export default function Navbar() {
      * pengunjung demi menonjolkan yang belum mereka cari.
      */
     { href: "/agent-compute", label: "Agent Compute", icon: Sparkles },
-    { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
+    // "Agent demo" dicabut dari header (2026-09-30): tautannya ada di footer setiap halaman.
     { href: "/docs", label: "Docs", icon: ShieldCheck },
     /**
      * Entri "Deck" ke /pitch DICABUT bersama rutenya.
@@ -103,30 +100,9 @@ export default function Navbar() {
 
         {/* Right Action Bar */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* Social + tema, desktop.
-              X dan GitHub disembunyikan di lg–xl (1024–1279px), tema tetap. Di lebar itu nav
-              desktop baru muncul dan header paling sempit: sejak chain bawaan Monad (dan
-              "Arbitrum" lebih lebar lagi), pil chain melebar dan "Agent Compute" kembali patah.
-              Kedua tautan tetap ada di footer setiap halaman. */}
+          {/* Tema, desktop. Ikon X dan GitHub dicabut dari header (2026-09-30): keduanya ada di
+              baris bawah footer setiap halaman, bersama Docs. */}
           <div className="hidden md:flex items-center gap-1 border-r border-line pr-2 mr-1">
-            <a
-              href="https://x.com/adexto_"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-xl text-ink-soft hover:text-accent hover:bg-cream-3 transition-colors lg:max-xl:hidden"
-              title="X (Twitter) @adexto_"
-            >
-              <Twitter className="w-4 h-4" />
-            </a>
-            <a
-              href="https://github.com/0xcuy/adexto"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-xl text-ink-soft hover:text-accent hover:bg-cream-3 transition-colors lg:max-xl:hidden"
-              title="GitHub Open-Source Repo"
-            >
-              <Github className="w-4 h-4" />
-            </a>
             <ThemeToggle />
           </div>
 

@@ -16,8 +16,10 @@ export default function WhitepaperPage() {
               dokumen ini. */}
           <span>REVISED AUGUST 2026</span>
         </div>
+        {/* Kepanjangan "Autonomous Decentralized EXchange & Token Orchestrator" dicabut
+            (2026-09-30), sama seperti di footer dan judul tab: produknya membuka pasar. */}
         <h1 className="font-display text-3xl font-light leading-tight tracking-tight text-ink sm:text-5xl">
-          ADEXTO: Autonomous Decentralized EXchange &amp; Token Orchestrator
+          ADEXTO: open a market, not just a token
         </h1>
         <p className="text-sm sm:text-base text-ink mt-4 leading-relaxed font-normal bg-surface p-4 rounded-xl border border-line">
           {/* Abstrak lama menyebut "1-Click Token Launchpads" dan "backed by 0G
