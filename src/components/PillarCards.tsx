@@ -98,9 +98,9 @@ const PILLARS: Pillar[] = [
     // berjalan per token. `agentModel` dan `agentPersona` di registry hanyalah string
     // tersimpan, bawaannya "Autonomous 24/7 quant market maker and liquidity
     // rebalancer.", dan tidak ada satu pun jalur kode yang mengeksekusinya — tidak ada
-    // layanan agent di docker-compose, dan `scripts/agent-autonomous-runner.ts` tidak
-    // terpasang. Yang benar-benar memanggil router 0G adalah `/api/generate-logo` dan
-    // `/api/chat`.
+    // layanan agent di docker-compose. `scripts/agent-autonomous-runner.ts`, yang dulu
+    // mengarang trade dengan `Math.random` untuk simbol yang tidak ada, sudah dihapus.
+    // Yang benar-benar memanggil router 0G adalah `/api/generate-logo` dan `/api/chat`.
     //
     // `agentIdentity` yang dikirim Studio juga bukan agent: argumen keempat
     // `deployTrinity` diisi `address`, yaitu dompet creator sendiri. Ia menjaga
