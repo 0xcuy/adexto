@@ -50,23 +50,34 @@ abstract contract AdextoCurveFixture is Test {
     /**
      * Tickers reserved in the factory constructor: the base list broadcast on every chain.
      *
-     * Major asset names, reserved so a curve token can never be mistaken for the real asset.
-     * The Robinhood Chain deployment adds the tickers of the tokenized equities on that chain
-     * to this list. ADEXTO's own market tickers are deliberately absent, so the generation can
-     * relaunch them.
+     * The first six are ADEXTO's own live markets. They trade on the 0.11.0 factories and stay
+     * there, so reserving them on v1 stops a lookalike from ever being launched under the same
+     * name on any chain. The other ten are major asset names, reserved so a curve token can never
+     * be mistaken for the real asset. The Robinhood Chain deployment appends the tickers of the
+     * tokenized equities on that chain.
+     *
+     * Must equal `base` in scripts/reserved-symbols.json, in the same order. The deploy script
+     * refuses to broadcast when the two differ, because a fixture that drifts from the deployed
+     * list would prove protection for a list nobody broadcast.
      */
     function reservedSymbols() internal pure returns (string[] memory list) {
-        list = new string[](10);
-        list[0] = "ETH";
-        list[1] = "WETH";
-        list[2] = "USDC";
-        list[3] = "USDT";
-        list[4] = "BTC";
-        list[5] = "WBTC";
-        list[6] = "0G";
-        list[7] = "A0GI";
-        list[8] = "MON";
-        list[9] = "ARB";
+        list = new string[](16);
+        list[0] = "ADEXTO";
+        list[1] = "ADT";
+        list[2] = "ZEEBO";
+        list[3] = "WOMBO";
+        list[4] = "BLOOP";
+        list[5] = "PARCEL";
+        list[6] = "ETH";
+        list[7] = "WETH";
+        list[8] = "USDC";
+        list[9] = "USDT";
+        list[10] = "BTC";
+        list[11] = "WBTC";
+        list[12] = "0G";
+        list[13] = "A0GI";
+        list[14] = "MON";
+        list[15] = "ARB";
     }
 
     /// Deploys the factory and one market, then moves past the launch window.
