@@ -251,8 +251,8 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
     supply: partial.supply ?? 1_000_000_000,
     lpFeeBps: partial.lpFeeBps ?? 20,
     treasuryBuybackBps: partial.treasuryBuybackBps ?? 10,
-    agentModel: partial.agentModel ?? "0G Compute (glm-5.3)",
-    agentPersona: partial.agentPersona ?? "Autonomous 24/7 quant market maker and liquidity rebalancer.",
+    agentModel: partial.agentModel ?? "0G Router (glm-5.3)",
+    agentPersona: partial.agentPersona ?? "Answers questions about this market: its curve, its fees and its depth.",
     // Bukan SEV-SNP. Router 0G menyatakan tee_type=TDX dengan verifier dstack;
     // "AMD SEV-SNP" adalah sisa klaim lama yang sudah diralat di landing page dan
     // footer tetapi terlewat di sini. "router-reported" ditulis eksplisit karena
@@ -397,9 +397,20 @@ function loadCustom(): ProjectRecord[] {
     ...r,
     description: normalizeDescription(r.description),
     links: normalizeLinks(r.links),
+    agentModel: normalizeAgentModel(r.agentModel),
   }));
   globalThis.__ADEXTO_PROJECT_CACHE__ = clean;
   return clean;
+}
+
+/**
+ * Stored labels written before 2026-10-01 read "Intel TDX attested" with no qualifier. The router
+ * reports TDX; ADEXTO reads that declaration and does not verify the quote, so every label is
+ * qualified on read, the same way stored links are re-cleaned on read.
+ */
+function normalizeAgentModel(value: unknown): string {
+  const text = typeof value === "string" && value.trim() ? value.trim() : "0G Router (glm-5.3)";
+  return /router-reported/i.test(text) ? text : text.replace(/Intel TDX attested/gi, "Intel TDX, router-reported");
 }
 
 function persist(records: ProjectRecord[]): void {

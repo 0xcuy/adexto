@@ -50,7 +50,9 @@ import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/li
 export const dynamic = "force-dynamic";
 
 // "+ AMD SEV-SNP" dibuang: router 0G menyatakan tee_type=TDX, verifier dstack.
-const AGENT_MODEL = "0G Router (glm-5.3 · Intel TDX attested)";
+// Names the model and nothing more. The router reports Intel TDX for it; ADEXTO does not verify
+// the quote, so "attested" does not belong in a stored label (see /docs and /api/tee).
+const AGENT_MODEL = "0G Router (glm-5.3)";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

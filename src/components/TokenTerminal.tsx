@@ -28,6 +28,7 @@ import { claimCreatorFees, describeTxError } from "@/lib/dex";
 import { STABLE_PRICES, assetPriceUsd, formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal, type AssetPrices } from "@/lib/pricing";
 import { useSovereignSwap } from "@/lib/use-sovereign-swap";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
+import { marketChatModel } from "@/lib/agent-model";
 
 /**
  * Market terminal.
@@ -242,7 +243,8 @@ export default function TokenTerminal({
       await streamChat(
         {
           messages: next,
-          model: "glm-5.3",
+          // The model named on this page, not a fixed one; see src/lib/agent-model.ts.
+          model: marketChatModel(project.agentModel).id,
           chain: chain.name,
           // Panel ini menawarkan "ask me about pool depth or swap telemetry", jadi
           // state pool NYATA harus ikut dikirim. Sebelumnya prompt hanya memuat
@@ -250,8 +252,12 @@ export default function TokenTerminal({
           // janji yang tidak pernah dipenuhi aplikasi.
           systemPrompt:
             `You are ${project.name} ($${project.symbol}), the agent bound to this token on ${chain.name} (chainId ${chain.chainId}). ` +
-            `Mandate: ${project.agentPersona}. Token ${project.tokenAddress}. ` +
-            `Curve ${project.poolAddress ?? "not deployed"}. Fees ${(project.lpFeeBps / 100).toFixed(2)}% depth retained by the curve / ${(project.treasuryBuybackBps / 100).toFixed(2)}% agent buyback` +
+            `Mandate stated by the creator: ${project.agentPersona}. ` +
+            // A mandate is the creator's words, and some promise bots that do not exist. The
+            // agent answers from this panel only, so it must never claim to act beyond it.
+            `You act only by answering in this chat: never claim to trade, make markets, rebalance, hedge or run anything on a schedule. ` +
+            `Token ${project.tokenAddress}. ` +
+            `Curve ${project.poolAddress ?? "not deployed"}. Fees ${(project.lpFeeBps / 100).toFixed(2)}% depth retained by the curve / ${(project.treasuryBuybackBps / 100).toFixed(2)}% buyback-and-burn share (spent when anyone calls executeBuyback)` +
             (swap.pool ? ` / ${(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% to the creator` : "") +
             `. 100% of supply sits in the curve and the creator holds no tokens, so creator income comes from swap fees, not an allocation. ` +
             (swap.pool
@@ -682,10 +688,15 @@ export default function TokenTerminal({
             />
             <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-surface p-2.5 text-[11px] text-ink-soft">
               <span className="flex items-center gap-1.5 text-ink">
-                <Cpu className="w-3.5 h-3.5 text-accent" /> {project.agentModel}
+                <Cpu className="w-3.5 h-3.5 text-accent" /> {marketChatModel(project.agentModel).label}
               </span>
-              <span className="text-accent font-bold">
-                {(project.treasuryBuybackBps / 100).toFixed(2)}% auto-buyback
+              {/* "buyback & burn", not "auto-buyback": the share accrues on every swap, but the
+                  burn runs only when someone calls executeBuyback. */}
+              <span
+                className="text-accent font-bold"
+                title="This share of every swap accrues in the curve and is spent on a buy-and-burn when anyone calls executeBuyback."
+              >
+                {(project.treasuryBuybackBps / 100).toFixed(2)}% buyback &amp; burn
               </span>
             </div>
           </div>

@@ -224,7 +224,13 @@ type FeeTier = keyof typeof FEE_TIERS;
  * perilaku yang tidak ada: tidak ada bot yang memperdagangkan pasar atas nama creator. Diganti
  * HANYA bila masih persis bawaan; persona yang sudah disunting creator tidak disentuh.
  */
-const DEFAULT_PERSONA = "24/7 quant market maker and liquidity rebalancer";
+/**
+ * Mandat preset menyebut apa yang BENAR-BENAR dilakukan agen sebuah pasar: menjawab
+ * pertanyaan di panel chat pasarnya. Versi lama ("24/7 quant market maker", "aggressive
+ * auto-buyback bot", "delta-neutral yield hedging") menjanjikan bot yang tidak pernah ada, dan
+ * teks ini ikut ke registrasi ERC-8004 serta ke metadata 0G DA yang permanen.
+ */
+const DEFAULT_PERSONA = "Explains this market's price, depth and fee split in plain numbers.";
 const EXPRESS_PERSONA = "Answers questions about this market: its curve, its fees and its depth.";
 
 /**
@@ -744,24 +750,24 @@ export default function StudioPage() {
       setCustomSubdomain("cdoge");
       setTokenSupply("1,000,000,000");
       applyFeeTier("meme");
-      setAgentPersona("Viral meme quant bot with aggressive auto-buyback");
-      setDescription("A meme market with an auto-buyback bot behind it.");
+      setAgentPersona("Answers questions about this meme market: its price, its fee and how the buyback share is burned.");
+      setDescription("A meme market with a 2% fee, part of which buys back and burns the token.");
     } else if (type === "quant") {
       setTokenName("Aegis Quant AI");
       setTokenTicker("AQUANT");
       setCustomSubdomain("aquant");
       setTokenSupply("1,000,000,000");
       applyFeeTier("standard");
-      setAgentPersona("24/7 quant market maker and liquidity rebalancer");
-      setDescription("A quant agent that makes markets around the clock.");
+      setAgentPersona(DEFAULT_PERSONA);
+      setDescription("A market whose agent explains its own curve, depth and fees.");
     } else {
       setTokenName("Nova Yield Protocol");
       setTokenTicker("NYIELD");
       setCustomSubdomain("novayield");
       setTokenSupply("500,000,000");
       applyFeeTier("low");
-      setAgentPersona("Delta-neutral yield hedging and institutional LP routing");
-      setDescription("Delta-neutral yield, hedged and routed automatically.");
+      setAgentPersona("Answers questions about this market for yield researchers: what each fee leg pays and to whom.");
+      setDescription("A low-fee market for a yield-research agent. The creator is paid from each swap, not from an allocation.");
     }
   };
 
