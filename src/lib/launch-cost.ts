@@ -32,18 +32,23 @@ import { nativePrices } from "@/lib/native-price";
  */
 
 /**
- * Satuan gas `deployTrinity`, DIUKUR ke factory 0.11.0 yang terpasang di mainnet
- * (2026-09-15) lewat `estimateGas` dengan argumen yang sama seperti yang dikirim Studio:
- * supply 1.000.000.000 token utuh, tanpa pengikatan agent.
+ * Satuan gas `deployTrinity`, DIUKUR ke factory 0.12.0 yang terpasang di mainnet
+ * (2026-09-30) lewat `estimateGas` dengan argumen yang sama seperti yang dikirim Studio:
+ * supply 1.000.000.000 token utuh, tier standar (100/70/10 bps), tanpa pengikatan agent.
  *
- * Sebaran antar chain 0,75%, jadi satu konstanta per chain sudah lebih presisi daripada
- * yang dibutuhkan halaman ini.
+ * Angka 0.11.0 sebelumnya (3.135.771–3.159.225) 3,5–4,7% lebih rendah; factory 0.12.0
+ * menyusun satu kaki fee lagi di dalam total, dan itu terlihat di gasnya. Sebaran antar chain
+ * 2%, jadi satu konstanta per chain sudah lebih presisi daripada yang dibutuhkan halaman ini.
+ *
+ * Yang TIDAK termasuk: biaya data L1 di Base (dipungut terpisah dari satuan gas L2). Calldata
+ * peluncuran sekitar 600 byte, jadi biaya itu sepersekian sen; halaman menyebut angkanya
+ * perkiraan, bukan tagihan.
  */
 export const LAUNCH_GAS_UNITS: Partial<Record<ChainKey, number>> = {
-  "0G": 3_150_718,
-  Base: 3_157_505,
-  Arbitrum: 3_159_225,
-  Monad: 3_135_771,
+  "0G": 3_300_044,
+  Base: 3_271_628,
+  Arbitrum: 3_272_677,
+  Monad: 3_232_651,
 };
 
 export interface LaunchCost {

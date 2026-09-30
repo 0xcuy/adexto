@@ -6,13 +6,16 @@ import { ethers } from "ethers";
 import {
   Cpu, RefreshCw, Sparkles, ShieldCheck, Send, Bot, ChevronDown,
   Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets, Fingerprint,
-  ImagePlus,
+  ImagePlus, Zap, SlidersHorizontal, Link2, Check,
 } from "lucide-react";
+import { buildStudioPrefillUrl, parseStudioPrefill, sanitizeSymbol, type StudioMode } from "@/lib/studio-prefill";
 
 import Mascot, { type MascotPose } from "@/components/Mascot";
 import { readSquareLogoFile } from "@/lib/logo-upload";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
+import LaunchCostCard from "@/components/LaunchCostCard";
+import LaunchAnnouncement from "@/components/LaunchAnnouncement";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
@@ -211,6 +214,25 @@ const FEE_TIERS = {
 
 type FeeTier = keyof typeof FEE_TIERS;
 
+/**
+ * Persona bawaan formulir (milik preset demo "Aegis Quant AI") dan pengganti netralnya untuk
+ * mode Express.
+ *
+ * Express dipakai orang yang hanya mengisi nama, ticker dan gambar, jadi persona "quant market
+ * maker" akan menempel ke token apa pun tanpa mereka pernah membacanya — dan menjanjikan
+ * perilaku yang tidak ada: tidak ada bot yang memperdagangkan pasar atas nama creator. Diganti
+ * HANYA bila masih persis bawaan; persona yang sudah disunting creator tidak disentuh.
+ */
+const DEFAULT_PERSONA = "24/7 quant market maker and liquidity rebalancer";
+const EXPRESS_PERSONA = "Answers questions about this market: its curve, its fees and its depth.";
+
+/** Server menolak attestation lebih tua dari 30 menit; Express menandatangani ulang sebelum itu. */
+const ATTESTATION_REFRESH_MS = 25 * 60_000;
+const attestationAge = (message: string) => {
+  const m = message.match(/Timestamp:\s*(\d+)/);
+  return m ? Date.now() - Number(m[1]) : Number.POSITIVE_INFINITY;
+};
+
 export default function StudioPage() {
   const { address, isConnected, isConnecting, connectWallet, switchToChain } = useWallet();
 
@@ -268,7 +290,7 @@ export default function StudioPage() {
   /** Harga native USD, untuk menampilkan market cap buka yang sama di tiap chain. */
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
   const [customSubdomain, setCustomSubdomain] = useState("aquant");
-  const [agentPersona, setAgentPersona] = useState("24/7 quant market maker and liquidity rebalancer");
+  const [agentPersona, setAgentPersona] = useState(DEFAULT_PERSONA);
   /**
    * Pitch dan tautan publik milik pasar ini. Semuanya OPSIONAL.
    *
@@ -365,6 +387,59 @@ export default function StudioPage() {
   const [deploying, setDeploying] = useState(false);
   const [results, setResults] = useState<ChainResult[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  /**
+   * Express = nama, ticker, gambar, lalu satu tombol. Advanced = formulir lima langkah.
+   *
+   * Bawaannya Advanced supaya perilaku halaman dan setiap harness audit yang menunjuk formulir
+   * lima langkah tidak berubah; Express dibuka lewat tombol di atas formulir atau tautan
+   * `?mode=express`. Keduanya memakai state yang SAMA — beralih mode tidak membuang isian.
+   */
+  const [mode, setMode] = useState<StudioMode>("advanced");
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const enterMode = (next: StudioMode) => {
+    setMode(next);
+    if (next === "express") setAgentPersona((p) => (p === DEFAULT_PERSONA ? EXPRESS_PERSONA : p));
+    // Mode ikut di URL supaya muat ulang tidak melempar creator kembali ke formulir panjang.
+    try {
+      const url = new URL(window.location.href);
+      if (next === "express") url.searchParams.set("mode", "express");
+      else url.searchParams.delete("mode");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      // Tanpa URL yang bisa ditulis, mode tetap berlaku untuk sesi ini.
+    }
+  };
+
+  /**
+   * Prefill dari query, sekali saat dimuat. Dibaca dari `window.location`, bukan
+   * `useSearchParams`, supaya halaman ini tidak butuh batas Suspense hanya untuk empat kunci.
+   *
+   * Tautan Express TANPA nama/ticker mengosongkan contoh "Aegis Quant AI / AQUANT": orang yang
+   * datang untuk meluncurkan tokennya sendiri tidak boleh mendapati ticker demo terisi dan
+   * satu klik dari mainnet.
+   */
+  useEffect(() => {
+    const p = parseStudioPrefill(window.location.search, liveChains);
+    if (p.mode === "express") {
+      setMode("express");
+      setAgentPersona((cur) => (cur === DEFAULT_PERSONA ? EXPRESS_PERSONA : cur));
+      if (!p.name) setTokenName("");
+      if (!p.symbol) {
+        setTokenTicker("");
+        setCustomSubdomain("");
+      }
+    }
+    if (p.name) setTokenName(p.name);
+    if (p.symbol) {
+      setTokenTicker(p.symbol);
+      setCustomSubdomain(p.symbol.toLowerCase());
+    }
+    if (p.chainId) setTargetChainIds([p.chainId]);
+    // Sekali saja: prefill adalah titik awal, bukan sinkronisasi dua arah dengan URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const supplyNumber = Number(tokenSupply.replace(/[^0-9]/g, "")) || 0;
 
@@ -771,6 +846,30 @@ export default function StudioPage() {
     }
   };
 
+  /**
+   * Minta tanda tangan attestation dan KEMBALIKAN hasilnya, selain menyimpannya.
+   *
+   * Dikembalikan karena Express menandatangani lalu langsung meluncurkan di klik yang sama:
+   * `setAttestation` baru terlihat di render berikutnya, jadi `handleDeploy` di klik itu
+   * akan membaca state lama (null) kalau tidak diberi nilainya langsung. Melempar bila
+   * pengguna menolak, dan pemanggil yang memutuskan pesan galatnya.
+   */
+  const signAttestation = async () => {
+    const ethereum = getActiveEip1193();
+    const provider = new ethers.BrowserProvider(ethereum);
+    const signer = await provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    const message =
+      `ADEXTO launch attestation\n` +
+      `Deployer: ${signerAddress}\n` +
+      `Ticker: ${tokenTicker.trim().toUpperCase()}\n` +
+      `Timestamp: ${Date.now()}`;
+    const signature = await signer.signMessage(message);
+    const signed = { signature, message, signer: signerAddress };
+    setAttestation(signed);
+    return signed;
+  };
+
   const handleAttest = async () => {
     if (!isConnected) {
       await connectWallet();
@@ -779,17 +878,7 @@ export default function StudioPage() {
     setAttesting(true);
     setGlobalError(null);
     try {
-      const ethereum = getActiveEip1193();
-      const provider = new ethers.BrowserProvider(ethereum);
-      const signer = await provider.getSigner();
-      const signerAddress = await signer.getAddress();
-      const message =
-        `ADEXTO launch attestation\n` +
-        `Deployer: ${signerAddress}\n` +
-        `Ticker: ${tokenTicker.trim().toUpperCase()}\n` +
-        `Timestamp: ${Date.now()}`;
-      const signature = await signer.signMessage(message);
-      setAttestation({ signature, message, signer: signerAddress });
+      await signAttestation();
     } catch (error) {
       setGlobalError(describeTxError(error));
     } finally {
@@ -884,13 +973,18 @@ export default function StudioPage() {
     setResults((prev) => prev.map((r) => (r.chainId === chainId ? { ...r, ...patch } : r)));
   }, []);
 
-  const handleDeploy = async () => {
+  /**
+   * `att` default-nya state attestation; Express mengopernya langsung setelah menandatangani
+   * (lihat `signAttestation`). Tombol Advanced WAJIB memanggil `handleDeploy()` tanpa argumen,
+   * bukan `onClick={handleDeploy}` — yang kedua mengoper event klik sebagai `att`.
+   */
+  const handleDeploy = async (att: { signature: string; message: string; signer: string } | null = attestation) => {
     setGlobalError(null);
     if (!isConnected || !address) {
       await connectWallet();
       return;
     }
-    if (!attestation) {
+    if (!att) {
       setGlobalError("Sign the launch attestation first.");
       return;
     }
@@ -965,8 +1059,8 @@ export default function StudioPage() {
           agentIds: agentBinding.enabled ? agentBinding.agentIds : null,
           deployer: address,
           targetChains: chains.map((c) => c.chainId),
-          attestationSignature: attestation.signature,
-          attestationMessage: attestation.message,
+          attestationSignature: att.signature,
+          attestationMessage: att.message,
         }),
       });
       const data = await res.json();
@@ -1151,6 +1245,53 @@ export default function StudioPage() {
     setDeploying(false);
   };
 
+  /**
+   * Satu tombol Express: sambungkan dompet, tandatangani attestation bila belum ada (atau
+   * sudah mendekati kedaluwarsa 30 menit di server, atau milik alamat lain), lalu luncurkan
+   * dengan jalur yang sama persis dengan Advanced. Tidak ada jalur deploy kedua.
+   *
+   * Setelah connect, fungsi ini BERHENTI: `isConnected`/`address` baru terbaca di render
+   * berikutnya, jadi melanjutkan di closure yang sama akan meluncurkan tanpa alamat. Label
+   * tombol berganti dan klik kedua melanjutkan.
+   */
+  const handleExpressLaunch = async () => {
+    setGlobalError(null);
+    if (!isConnected || !address) {
+      await connectWallet();
+      return;
+    }
+    let att = attestation;
+    const stale =
+      !att ||
+      att.signer.toLowerCase() !== address.toLowerCase() ||
+      attestationAge(att.message) > ATTESTATION_REFRESH_MS;
+    if (stale) {
+      setAttesting(true);
+      try {
+        att = await signAttestation();
+      } catch (error) {
+        setGlobalError(describeTxError(error));
+        return;
+      } finally {
+        setAttesting(false);
+      }
+    }
+    await handleDeploy(att);
+  };
+
+  /** Tautan yang membuka Studio di Express dengan nama, ticker dan chain ini. */
+  const copyPrefillLink = async () => {
+    const origin = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const url = buildStudioPrefillUrl(origin, { name: tokenName, symbol: tokenTicker, chainId: targetChainIds[0] ?? null });
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1800);
+    } catch {
+      setLinkCopied(false);
+    }
+  };
+
   // ── AI co-pilot ──────────────────────────────────────────────────────────
   const [inputMessage, setInputMessage] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -1312,6 +1453,320 @@ export default function StudioPage() {
    * pembagian kerja yang benar, karena angka negatif di sini berarti calldata-nya salah.
    */
   const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut - (protocolCarvedOut ? protocolCut : 0));
+
+  // ── Express ──────────────────────────────────────────────────────────────
+  /**
+   * Gerbang tombol Express: sama dengan `canDeploy`, minus attestation (ditandatangani di klik
+   * itu sendiri) dan minus koneksi (tombolnya yang menyambungkan). Ditambah nama, ticker, dan
+   * pemeriksaan ticker yang sudah selesai: di Express tidak ada langkah lain tempat creator
+   * akan melihat bahwa tickernya ternyata terpakai.
+   */
+  const expressReady =
+    Boolean(tokenName.trim()) &&
+    Boolean(tokenTicker.trim()) &&
+    !ticker.checking &&
+    agentBindingSatisfied &&
+    supplyNumber > 0 &&
+    liveChains.length > 0 &&
+    launchTargets.length > 0;
+
+  const expressLabel = deploying
+    ? "Deploying…"
+    : attesting
+    ? "Sign in your wallet…"
+    : liveChains.length === 0
+    ? "Factory not deployed yet"
+    : !isConnected
+    ? "Connect wallet"
+    : !tokenName.trim()
+    ? "Enter a name"
+    : !tokenTicker.trim()
+    ? "Enter a ticker"
+    : ticker.checking
+    ? "Checking the ticker…"
+    : launchTargets.length === 0
+    ? "Choose an available ticker"
+    : !agentBindingSatisfied
+    ? "Agent id needed, see Advanced"
+    : supplyNumber <= 0
+    ? "Set a supply in Advanced"
+    : `Launch on ${launchTargets[0]?.key ?? "—"} · gas only`;
+
+  const modeToggle = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div role="group" aria-label="Launch mode" className="inline-flex rounded-xl border border-line bg-cream-2 p-1">
+        {(
+          [
+            ["express", "Express", Zap],
+            ["advanced", "Advanced", SlidersHorizontal],
+          ] as const
+        ).map(([m, label, Icon]) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={mode === m}
+            onClick={() => enterMode(m)}
+            data-testid={`mode-${m}`}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+              mode === m ? "border-accent/40 bg-surface text-ink shadow-sm" : "border-transparent text-ink-soft hover:text-ink"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+      <span className="text-[10px] text-ink-faint">
+        {mode === "express" ? "Name, ticker and image, then one button." : "Every setting, in five steps."}
+      </span>
+    </div>
+  );
+
+  const expressPanel = (
+    <div className="space-y-3" data-testid="express-launch">
+      <div className="space-y-3 rounded-xl border border-accent/30 bg-accent-soft p-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Launch in one step</h2>
+          <p className="text-[11px] leading-relaxed text-ink-soft">
+            Name, ticker and an image. Everything else uses the settings listed below, and Advanced changes any of them
+            without losing what you typed here.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+          <Field label="Name">
+            <input
+              value={tokenName}
+              onChange={(e) => setTokenName(e.target.value)}
+              maxLength={64}
+              placeholder="e.g. Orbit Cat"
+              aria-label="Token name"
+              data-testid="express-name"
+              className={`${FIELD_CLASS} font-semibold`}
+            />
+          </Field>
+          <Field
+            label="Ticker"
+            hint={
+              !tokenTicker.trim()
+                ? "letters and digits, up to 12"
+                : ticker.checking
+                ? "checking…"
+                : launchTargets.length > 0
+                ? `available on ${launchTargets.map((c) => c.key).join(", ")}`
+                : tickerAvailable === false
+                ? tickerReason ?? "unavailable"
+                : undefined
+            }
+            hintTone={launchTargets.length > 0 && tokenTicker.trim() ? "ok" : tickerAvailable === false ? "error" : "muted"}
+          >
+            <input
+              value={tokenTicker}
+              onChange={(e) => {
+                const value = sanitizeSymbol(e.target.value);
+                setTokenTicker(value);
+                setCustomSubdomain(value.toLowerCase());
+              }}
+              placeholder="ORBIT"
+              aria-label="Ticker"
+              data-testid="express-ticker"
+              className={`${FIELD_CLASS} font-mono font-bold text-accent ${tickerAvailable === false ? "border-danger" : ""}`}
+            />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-2.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent/30 bg-cream-2 p-1">
+            <img src={generatedLogo ?? "/logo.svg"} alt="Token image preview" className="h-full w-full object-contain" />
+          </div>
+          {/* min-w supaya di layar sempit tombol turun ke baris baru, bukan menjepit teks ini
+              jadi kolom empat baris. */}
+          <div className="min-w-[9rem] flex-1">
+            <div className="text-[11px] font-bold text-ink">Image</div>
+            <span className="text-[10px] text-ink-soft">
+              {logoSource === "uploaded"
+                ? `Your image, resized to ${LOGO_PX}×${LOGO_PX}`
+                : logoSource === "generated"
+                ? logoInfo?.generated
+                  ? "Rendered on the 0G router"
+                  : "Placeholder emblem: the router did not return an image"
+                : logoSource === "preset"
+                ? "ADEXTO robot preset"
+                : "A square image of your own, or generate one"}
+            </span>
+          </div>
+          {/* Input tersembunyi yang sama dengan Advanced (satu ref): hanya satu mode yang dirender. */}
+          <input
+            ref={logoFileRef}
+            type="file"
+            accept={ACCEPT_ATTR}
+            className="hidden"
+            onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+          />
+          <div className="flex items-center gap-1.5">
+            {logoSource === "uploaded" && (
+              <button
+                type="button"
+                onClick={clearUploadedLogo}
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 py-1.5 text-xs font-bold text-ink-soft"
+              >
+                <XCircle className="h-3 w-3" /> Remove
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => logoFileRef.current?.click()}
+              disabled={isReadingLogo}
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+            >
+              {isReadingLogo ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+              {logoSource === "uploaded" ? "Replace" : "Upload"}
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateLogo}
+              disabled={isGeneratingLogo || logoSource === "uploaded" || !tokenName.trim()}
+              title={
+                logoSource === "uploaded"
+                  ? "Your own image is in use. Remove it to generate one instead."
+                  : !tokenName.trim()
+                  ? "Enter a name first: the image is drawn from it."
+                  : undefined
+              }
+              className="flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent-soft px-3 py-1.5 text-xs font-bold text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isGeneratingLogo ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+              {isGeneratingLogo ? "Rendering…" : "Generate"}
+            </button>
+          </div>
+        </div>
+        {logoError && <p className="text-[10px] text-danger">{logoError}</p>}
+
+        <div>
+          <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-ink-soft">Chain</div>
+          <div role="radiogroup" aria-label="Launch chain" className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-4">
+            {liveChains.map((chain) => {
+              const selected = targetChainIds.includes(chain.chainId);
+              const taken = blockedChainIds.has(chain.chainId);
+              return (
+                <button
+                  key={chain.chainId}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => selectChain(chain.chainId)}
+                  title={taken ? `${chain.name} · this ticker already has a market here` : chain.name}
+                  className={`flex items-center justify-between rounded-lg border p-2 text-left transition-all ${
+                    selected ? "border-accent/60 bg-surface text-ink shadow-[var(--glow-accent)]" : "border-line bg-cream-2 text-ink-soft"
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {selected ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-accent" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 shrink-0 rounded border border-line" />
+                    )}
+                    <span className="truncate font-bold">{chain.key}</span>
+                  </span>
+                  {taken && <XCircle className="h-3 w-3 shrink-0 text-danger" aria-label="ticker taken here" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-line bg-surface" data-testid="express-settings">
+        <div className="flex items-center justify-between gap-2 border-b border-line bg-cream-2 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ink">Settings used</span>
+          <button type="button" onClick={() => enterMode("advanced")} className="text-[10px] font-semibold text-accent hover:underline">
+            Change in Advanced
+          </button>
+        </div>
+        <dl className="grid grid-cols-1 gap-px bg-cream-3 text-[11px] sm:grid-cols-2">
+          <div className="bg-surface px-3 py-2">
+            <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Fee per trade</dt>
+            <dd className="mt-0.5 font-medium text-ink" data-testid="express-fee">
+              {totalPaidPct.toFixed(2)}% · {creatorCut.toFixed(2)}% of it to you
+            </dd>
+          </div>
+          <div className="bg-surface px-3 py-2">
+            <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Supply</dt>
+            <dd className="mt-0.5 font-medium text-ink">
+              {supplyNumber.toLocaleString("en-US")} · all in the curve, none to you
+            </dd>
+          </div>
+          <div className="bg-surface px-3 py-2">
+            <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Market agent</dt>
+            <dd className="mt-0.5 truncate font-medium text-ink" title={agentPersona}>
+              {agentPersona || "none"}
+            </dd>
+          </div>
+          <div className="bg-surface px-3 py-2">
+            <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Agent identity (ERC-8004)</dt>
+            <dd className="mt-0.5 font-medium text-ink">
+              {agentBinding.enabled ? "binding on, set in Advanced" : "not bound"}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <LaunchCostCard chainIds={launchTargets.map((c) => c.chainId)} traderPaysPct={totalPaidPct} creatorKeepsPct={creatorCut} />
+
+      {globalError && (
+        <div className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-[11px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
+          <span>{globalError}</span>
+        </div>
+      )}
+
+      {deploying && results.length > 0 && (
+        <div className="space-y-1.5">
+          {results.map((r) => (
+            <ResultRow key={r.chainId} result={r} />
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleExpressLaunch}
+        disabled={deploying || attesting || (isConnected && !expressReady)}
+        data-testid="express-launch-button"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft disabled:shadow-none"
+      >
+        {deploying || attesting ? (
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+        ) : !isConnected ? (
+          <Lock className="h-3.5 w-3.5" />
+        ) : (
+          <Zap className="h-3.5 w-3.5" />
+        )}
+        {expressLabel}
+      </button>
+      <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-ink-soft">
+        <Info className="mt-0.5 h-3 w-3 shrink-0" />
+        <span>
+          Your wallet asks twice: a free signature that proves you control this address, then the launch transaction,
+          which costs gas. There is no liquidity deposit.
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+        <span className="text-[10px] leading-relaxed text-ink-faint">
+          A link that opens this form with the same name, ticker and chain. Whoever opens it launches from their own
+          wallet.
+        </span>
+        <button
+          type="button"
+          onClick={copyPrefillLink}
+          data-testid="express-copy-link"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-ink hover:border-accent/40"
+        >
+          {linkCopied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Link2 className="h-3.5 w-3.5" />}
+          {linkCopied ? "Link copied" : "Copy launch link"}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     /* Halaman ini dulu dipatok setinggi viewport (`lg:h-[calc(100vh-4rem)]` +
@@ -1485,6 +1940,7 @@ export default function StudioPage() {
             <DeployReport
               results={results}
               symbol={tokenTicker.trim().toUpperCase()}
+              name={tokenName.trim()}
               onReset={() => {
                 setResults([]);
                 setGlobalError(null);
@@ -1492,6 +1948,11 @@ export default function StudioPage() {
             />
           ) : (
             <div className="space-y-3">
+              {modeToggle}
+              {mode === "express" ? (
+                expressPanel
+              ) : (
+              <>
               <StepRail
                 steps={[
                   { id: "step-chains", label: "Chains", done: launchTargets.length > 0 },
@@ -2218,6 +2679,14 @@ export default function StudioPage() {
               <div id="step-verify" className="scroll-mt-3 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
               <SectionHeading step={5} title="Verify" />
 
+              {/* Biaya di titik keputusan, sebelum tanda tangan: gas hidup per chain yang dipilih,
+                  tanpa setoran, dan fee per trade dari struktur factory chain itu. */}
+              <LaunchCostCard
+                chainIds={launchTargets.map((c) => c.chainId)}
+                traderPaysPct={totalPaidPct}
+                creatorKeepsPct={creatorCut}
+              />
+
               {/* Attestation */}
               <div className="p-3 rounded-xl bg-surface border border-line space-y-2">
                 <div className="flex items-center justify-between gap-3">
@@ -2304,7 +2773,7 @@ export default function StudioPage() {
               )}
 
               <button
-                onClick={handleDeploy}
+                onClick={() => handleDeploy()}
                 disabled={deploying || !canDeploy}
                 /* Keadaan nonaktif tidak lagi memakai `opacity-40`. Ungu pekat yang
                    diredupkan sampai 40% dengan teks putih di atasnya menghasilkan
@@ -2396,9 +2865,11 @@ export default function StudioPage() {
                   </div>
                   <div className="bg-surface p-3">
                     <p className="text-[9px] uppercase tracking-wider text-ink-faint">Per-chain cost</p>
+                    {/* Dulu "usually under $0.10" — angka tulisan tangan yang sudah salah untuk
+                        Arbitrum (~$0.18 terukur 2026-09-30). Angka hidupnya ada di kartu biaya. */}
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
-                      Gas only, usually under $0.10. You need a little of each chain&apos;s native asset to pay it —
-                      <span className="text-ok"> no liquidity deposit</span>.
+                      Gas only — the live figure for each chain is in the cost card above. You need a little of that
+                      chain&apos;s native asset to pay it — <span className="text-ok">no liquidity deposit</span>.
                     </p>
                   </div>
                 </div>
@@ -2413,6 +2884,8 @@ export default function StudioPage() {
                 token and pool addresses come from the receipt event and are verified server-side before the market is
                 registered.
               </p>
+              </>
+              )}
             </div>
           )}
         </div>
@@ -2786,10 +3259,13 @@ function ResultRow({ result }: { result: ChainResult }) {
 function DeployReport({
   results,
   symbol,
+  name,
   onReset,
 }: {
   results: ChainResult[];
   symbol: string;
+  /** Nama token, untuk draf pengumuman. */
+  name: string;
   onReset: () => void;
 }) {
   const successes = results.filter((r) => r.status === "success");
@@ -2853,6 +3329,21 @@ function DeployReport({
         ))}
       </div>
 
+      {/* Pengumuman: setiap peluncuran langsung punya jalur publikasi, dari akun peluncur
+          sendiri. Satu blok per chain yang berhasil, karena tiap chain adalah pasar sendiri. */}
+      {successes
+        .filter((r) => r.tokenAddress)
+        .map((r) => (
+          <LaunchAnnouncement
+            key={`announce-${r.chainId}`}
+            name={name}
+            symbol={symbol}
+            chainName={r.chainName}
+            chainId={r.chainId}
+            tokenAddress={r.tokenAddress as string}
+          />
+        ))}
+
       <div className="flex flex-col sm:flex-row gap-3 pt-2 font-sans">
         <button
           onClick={onReset}
@@ -2862,13 +3353,24 @@ function DeployReport({
         </button>
         {successes.length > 0 && (
           <Link
-            href={`/token/${symbol.toLowerCase()}`}
+            // `?chain=` dipaku: ticker yang sama bisa punya pasar di chain lain, dan tanpa ini
+            // tombolnya membuka pasar tertua, bukan yang baru saja diluncurkan.
+            href={`/token/${symbol.toLowerCase()}?chain=${successes[0].chainId}`}
             className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-strong text-white font-semibold text-xs text-center flex items-center justify-center gap-1"
           >
             Open ${symbol} terminal →
           </Link>
         )}
       </div>
+      {successes.length > 0 && (
+        <p className="text-center font-sans text-[11px] text-ink-soft">
+          Your share of every swap accrues from the first trade.{" "}
+          <Link href="/creator" className="font-semibold text-accent hover:underline" data-testid="report-creator-link">
+            Track and claim it on Creator earnings
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }
