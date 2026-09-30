@@ -227,6 +227,17 @@ type FeeTier = keyof typeof FEE_TIERS;
 const DEFAULT_PERSONA = "24/7 quant market maker and liquidity rebalancer";
 const EXPRESS_PERSONA = "Answers questions about this market: its curve, its fees and its depth.";
 
+/**
+ * Contoh isian formulir lima langkah. Sejak Studio membuka Express secara bawaan
+ * (2026-09-30), state awalnya KOSONG dan contoh ini baru dipasang untuk `?mode=advanced` —
+ * dan hanya untuk kolom yang tidak diisi tautan. Harness audit yang mengisi
+ * `input[value="AQUANT"]` karena itu membuka `/studio?mode=advanced`.
+ *
+ * Kosong di awal, bukan diisi lalu dikosongkan: halaman ini dirender statis, jadi isian awal
+ * ikut terkirim di HTML dan akan berkedip sebentar di kolom Express sebelum efek menghapusnya.
+ */
+const ADVANCED_EXAMPLE = { name: "Aegis Quant AI", symbol: "AQUANT", subdomain: "aquant" } as const;
+
 /** Server menolak attestation lebih tua dari 30 menit; Express menandatangani ulang sebelum itu. */
 const ATTESTATION_REFRESH_MS = 25 * 60_000;
 const attestationAge = (message: string) => {
@@ -238,8 +249,10 @@ export default function StudioPage() {
   const { address, isConnected, isConnecting, connectWallet, switchToChain } = useWallet();
 
   // ── form state ───────────────────────────────────────────────────────────
-  const [tokenName, setTokenName] = useState("Aegis Quant AI");
-  const [tokenTicker, setTokenTicker] = useState("AQUANT");
+  // Kosong: Studio membuka Express, dan orang yang datang untuk meluncurkan tokennya sendiri
+  // tidak boleh mendapati ticker demo terisi satu klik dari mainnet. Lihat ADVANCED_EXAMPLE.
+  const [tokenName, setTokenName] = useState("");
+  const [tokenTicker, setTokenTicker] = useState("");
   const [tokenSupply, setTokenSupply] = useState("1,000,000,000");
   /**
    * Kategori yang dipilih creator.
@@ -290,8 +303,8 @@ export default function StudioPage() {
   const [treasuryCut, setTreasuryCut] = useState<number>(FEE_TIERS.standard.cut);
   /** Harga native USD, untuk menampilkan market cap buka yang sama di tiap chain. */
   const [nativeUsd, setNativeUsd] = useState<Record<string, number>>({});
-  const [customSubdomain, setCustomSubdomain] = useState("aquant");
-  const [agentPersona, setAgentPersona] = useState(DEFAULT_PERSONA);
+  const [customSubdomain, setCustomSubdomain] = useState("");
+  const [agentPersona, setAgentPersona] = useState(EXPRESS_PERSONA);
   /**
    * Pitch dan tautan publik milik pasar ini. Semuanya OPSIONAL.
    *
@@ -392,20 +405,22 @@ export default function StudioPage() {
   /**
    * Express = nama, ticker, gambar, lalu satu tombol. Advanced = formulir lima langkah.
    *
-   * Bawaannya Advanced supaya perilaku halaman dan setiap harness audit yang menunjuk formulir
-   * lima langkah tidak berubah; Express dibuka lewat tombol di atas formulir atau tautan
-   * `?mode=express`. Keduanya memakai state yang SAMA — beralih mode tidak membuang isian.
+   * Bawaannya EXPRESS sejak 2026-09-30 (keputusan pemilik): tombol Launch di mana pun membuka
+   * jalan terpendek. Formulir lima langkah dibuka lewat kartu mode di atas atau
+   * `?mode=advanced`; `?mode=express` dari tautan lama dan tombol "Copy launch link" tetap
+   * berarti Express. Keduanya memakai state yang SAMA — beralih mode tidak membuang isian.
    */
-  const [mode, setMode] = useState<StudioMode>("advanced");
+  const [mode, setMode] = useState<StudioMode>("express");
   const [linkCopied, setLinkCopied] = useState(false);
 
   const enterMode = (next: StudioMode) => {
     setMode(next);
     if (next === "express") setAgentPersona((p) => (p === DEFAULT_PERSONA ? EXPRESS_PERSONA : p));
-    // Mode ikut di URL supaya muat ulang tidak melempar creator kembali ke formulir panjang.
+    // Mode ikut di URL supaya muat ulang tidak memindahkan creator ke mode lain. Express adalah
+    // bawaan, jadi ia tidak butuh parameter; Advanced yang ditulis.
     try {
       const url = new URL(window.location.href);
-      if (next === "express") url.searchParams.set("mode", "express");
+      if (next === "advanced") url.searchParams.set("mode", "advanced");
       else url.searchParams.delete("mode");
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     } catch {
@@ -417,19 +432,20 @@ export default function StudioPage() {
    * Prefill dari query, sekali saat dimuat. Dibaca dari `window.location`, bukan
    * `useSearchParams`, supaya halaman ini tidak butuh batas Suspense hanya untuk empat kunci.
    *
-   * Tautan Express TANPA nama/ticker mengosongkan contoh "Aegis Quant AI / AQUANT": orang yang
-   * datang untuk meluncurkan tokennya sendiri tidak boleh mendapati ticker demo terisi dan
-   * satu klik dari mainnet.
+   * `?mode=advanced` memasang ADVANCED_EXAMPLE dan persona demonya, tapi hanya untuk kolom
+   * yang tidak diisi tautan — perilaku yang sama dengan `/studio` biasa sebelum Express
+   * menjadi bawaan. Tanpa parameter mode, atau dengan `?mode=express`, state awal yang kosong
+   * dibiarkan apa adanya.
    */
   useEffect(() => {
     const p = parseStudioPrefill(window.location.search, liveChains);
-    if (p.mode === "express") {
-      setMode("express");
-      setAgentPersona((cur) => (cur === DEFAULT_PERSONA ? EXPRESS_PERSONA : cur));
-      if (!p.name) setTokenName("");
+    if (p.mode === "advanced") {
+      setMode("advanced");
+      setAgentPersona((cur) => (cur === EXPRESS_PERSONA ? DEFAULT_PERSONA : cur));
+      if (!p.name) setTokenName(ADVANCED_EXAMPLE.name);
       if (!p.symbol) {
-        setTokenTicker("");
-        setCustomSubdomain("");
+        setTokenTicker(ADVANCED_EXAMPLE.symbol);
+        setCustomSubdomain(ADVANCED_EXAMPLE.subdomain);
       }
     }
     if (p.name) setTokenName(p.name);

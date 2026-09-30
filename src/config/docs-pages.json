@@ -795,12 +795,12 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The Studio has two modes. Advanced is the five-step form. Express asks for a name, a ticker and an image, and launches through the same `deployTrinity` call with the settings below, simulated first. Every setting stays editable in Advanced before launch, and switching modes keeps what was typed."
+              "text": "The Studio has two modes and opens in Express. Express asks for a name, a ticker and an image, and launches through the same `deployTrinity` call with the settings below, simulated first. Advanced is the five-step form, at `/studio?mode=advanced`. Every setting stays editable in Advanced before launch, and switching modes keeps what was typed."
             },
             {
               "type": "list",
               "items": [
-                "Chain: the one picked in Express, or the first chain that can launch.",
+                "Chain: the one picked in Express, or else the first chain that can launch, in the order Monad, Arbitrum, Base, 0G.",
                 "Fee: the Standard tier, 1.00% per trade, of which 0.70% goes to the creator, 0.10% stays in the curve as depth, 0.10% funds the buyback and 0.10% is the protocol leg.",
                 "Supply: 1,000,000,000 tokens, all of them in the curve and none to the creator.",
                 "Market agent: a neutral persona that answers questions about the market. No ERC-8004 identity is bound.",
