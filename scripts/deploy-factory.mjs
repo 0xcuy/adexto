@@ -500,16 +500,29 @@ console.log("\nBroadcasting...");
 const contract = await factory.deploy(PROTOCOL_TREASURY, RESERVED_SYMBOLS, { gasLimit, nonce: nonceLatest });
 const tx = contract.deploymentTransaction();
 console.log(`tx: ${tx.hash}`);
-let receipt;
-try {
-  receipt = await tx.wait();
-} catch (e) {
+/**
+ * The receipt is polled rather than awaited with `tx.wait()`. The 0G RPC answers
+ * `no matching receipts found` for transactions that are already in a block, and `tx.wait()`
+ * turns that into a thrown error, which would report a successful deployment as a failure
+ * and skip recording it.
+ */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let receipt = null;
+for (const started = Date.now(); !receipt && Date.now() - started < 10 * 60_000; ) {
+  try {
+    receipt = await provider.getTransactionReceipt(tx.hash);
+  } catch {
+    receipt = null;
+  }
+  if (!receipt) await sleep(3000);
+}
+if (!receipt) {
   fail(
-    `Waiting for ${tx.hash} failed: ${(e.shortMessage ?? e.message).slice(0, 160)}\n` +
-      `It may still be mined. If it is, the factory is at ${PREDICTED_ADDRESS}. Check the explorer before anything else.`,
+    `No receipt for ${tx.hash} after 10 minutes. It may still be mined; if it is, the factory is at ` +
+      `${PREDICTED_ADDRESS}. Check the explorer before anything else, and do not deploy again yet.`,
   );
 }
-if (!receipt || receipt.status !== 1) fail(`Deployment transaction ${tx.hash} failed (status ${receipt?.status}).`);
+if (receipt.status !== 1) fail(`Deployment transaction ${tx.hash} failed (status ${receipt.status}).`);
 const address = ethers.getAddress(receipt.contractAddress);
 if (address !== PREDICTED_ADDRESS) console.log(`note: deployed at ${address}, not the predicted ${PREDICTED_ADDRESS}`);
 
@@ -569,7 +582,6 @@ function record(checks) {
 }
 record("pending");
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  * A read failure is never counted as a pass or a fail. Counting it as a fail would send someone
  * to redeploy a correct factory; ignoring it would pass a broken one. The address is on record
