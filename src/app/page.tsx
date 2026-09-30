@@ -44,6 +44,14 @@ import TiltStage from "@/components/landing/TiltStage";
 import TerminalShowcase from "@/components/landing/TerminalShowcase";
 import { launchCosts, launchCostRange, formatUsd } from "@/lib/launch-cost";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
+import { CHAIN_LIST, chainMark } from "@/lib/chains";
+
+/**
+ * Baris logo di bawah pintu hero: chain yang factory peluncurannya benar-benar ada
+ * (`dexLive`), dalam urutan CHAIN_LIST. Chain tanpa factory tidak ditulis "live", dan chain
+ * tanpa logo (devchain) tidak diberi logo karangan — keduanya disaring di sini.
+ */
+const HERO_CHAINS = CHAIN_LIST.filter((c) => c.dexLive && chainMark(c));
 
 /**
  * Kontrak yang ABI-nya diterbitkan. Daftar ini WAJIB sama dengan isi public/abi/,
@@ -112,7 +120,7 @@ const STEPS = [
   {
     icon: Wallet,
     title: "Connect a wallet",
-    body: "Pick 0G, Base, Arbitrum or Monad. Each chain is its own market with its own price.",
+    body: "Pick Monad, Arbitrum, Base or 0G. Each chain is its own market with its own price.",
   },
   {
     icon: PenLine,
@@ -290,6 +298,33 @@ export default async function HomePage() {
                 </Link>
               ))}
             </nav>
+
+            {/* Chain tempat pasar bisa dibuka, di celah kecil di bawah pintu. Logo tidak dipotong
+                bulat: logo Base persegi, dan memotong logo dicantumkan sebagai penyalahgunaan di
+                brand kit pemiliknya. */}
+            {HERO_CHAINS.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="hero-chains">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-faint">Live on</span>
+                <ul aria-label="Chains with a live launch factory" className="flex flex-wrap items-center gap-2">
+                  {HERO_CHAINS.map((c) => (
+                    <li
+                      key={c.chainId}
+                      className="glass inline-flex h-8 items-center gap-2 rounded-full pl-2 pr-3 text-[12.5px] font-medium text-ink"
+                    >
+                      <img
+                        src={chainMark(c) as string}
+                        alt=""
+                        aria-hidden="true"
+                        width={18}
+                        height={18}
+                        className="h-[18px] w-[18px] object-contain"
+                      />
+                      {c.key}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {/* Versi ponsel/tablet dari tumpukan kemampuan di kolom kanan: di bawah lg
                 kolom itu tidak dirender, dan kemampuan ini tidak boleh hanya ada di

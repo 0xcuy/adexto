@@ -20,18 +20,18 @@ export default function Footer() {
                   sudah tidak punya plat sendiri, kotak itu jadi kotak di dalam
                   kotak dan membuatnya terlihat sesak. Dibuang. */}
               <img src="/logo.svg" alt="ADEXTO Protocol Logo" className="w-12 h-12 object-contain shrink-0" />
-              <div>
-                <span className="font-display font-semibold text-ink tracking-tight text-lg block leading-tight">adexto<span className="text-accent">.</span></span>
-                <span className="text-[10px] text-ink-soft">Autonomous Decentralized EXchange &amp; Token Orchestrator</span>
-              </div>
+              {/* Kepanjangan "Autonomous Decentralized EXchange & Token Orchestrator" dicabut dari
+                  bawah wordmark (2026-09-30): produknya sekarang tempat membuka pasar, bukan
+                  "orkestrator", dan paragraf di bawah sudah menyebut apa yang dilakukannya. */}
+              <span className="font-display font-semibold text-ink tracking-tight text-lg block leading-tight">adexto<span className="text-accent">.</span></span>
             </div>
             {/* Dulu kalimat ini mengulang nama panjangnya lalu menambahkan
-                "powered by 0G Private Computer (TEE)". Pengulangannya sudah ada di
-                baris di atas, dan bagian TEE-nya adalah klaim yang tidak kami
-                verifikasi. Diganti dengan apa yang benar-benar dilakukan produk. */}
+                "powered by 0G Private Computer (TEE)". Bagian TEE-nya adalah klaim yang tidak
+                kami verifikasi. Diganti dengan apa yang benar-benar dilakukan produk. Urutan
+                chain mengikuti CHAIN_LIST: Monad, Arbitrum, Base, 0G. */}
             <p className="text-ink-soft leading-relaxed text-xs">
-              Launch an agent token on a bonding curve that needs no liquidity deposit, on 0G, Base,
-              Arbitrum or Monad. The creator is paid out of every swap instead of holding an allocation.
+              Launch an agent token on a bonding curve that needs no liquidity deposit, on Monad, Arbitrum,
+              Base or 0G. The creator is paid out of every swap instead of holding an allocation.
             </p>
             <div className="flex items-center gap-2 pt-2">
               {/* Dulu "● 0G TEE Mainnet Ready" dengan titik hijau — dan titik hijau
@@ -148,12 +148,13 @@ export default function Footer() {
                 chain didukung oleh aplikasi ini, tetapi belum ada satu pun yang
                 bisa meluncurkan token. Judul kolomnya juga diubah dari "Supported"
                 — kata itu tidak menjanjikan apa-apa — menjadi pernyataan status. */}
+            {/* Urutan sama dengan CHAIN_LIST (Monad, Arbitrum, Base, 0G). */}
             <ul className="divide-y divide-line text-xs">
               {[
-                { name: "0G Mainnet", id: "16661" },
-                { name: "Arbitrum One", id: "42161" },
                 { name: "Monad Mainnet", id: "143" },
+                { name: "Arbitrum One", id: "42161" },
                 { name: "Base Mainnet", id: "8453" },
+                { name: "0G Mainnet", id: "16661" },
               ].map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="text-ink-soft">{c.name}</span>

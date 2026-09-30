@@ -37,10 +37,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * Judul tab dulu memakai kepanjangan "Autonomous Decentralized EXchange & Token Orchestrator".
+ * Dicabut 2026-09-30 bersama baris yang sama di footer: produknya membuka pasar, dan judulnya
+ * sekarang kalimat hero yang sama.
+ *
+ * "0.70%" di ketiga deskripsi adalah bagian creator pada tier Standard factory yang sedang
+ * dipakai meluncurkan (lihat FEE_TIERS di Studio dan FAQ halaman depan). Dulu tertulis 0.10%,
+ * angka generasi 0.11.0 — deskripsi ini tersalin ke pratinjau tautan dan cache mesin pencari,
+ * jadi angka basi di sini hidup jauh lebih lama daripada halamannya.
+ */
 export const metadata: Metadata = {
-  title: "ADEXTO — Autonomous Decentralized EXchange & Token Orchestrator",
+  title: "ADEXTO — Open a market, not just a token",
   description:
-    "ADEXTO (adexto.xyz): launch an agent-bound token on a sovereign bonding curve that needs no liquidity deposit. 100% of supply enters the curve, the creator holds none and is paid 0.10% of every swap instead.",
+    "ADEXTO (adexto.xyz): launch an agent-bound token on a sovereign bonding curve that needs no liquidity deposit. 100% of supply enters the curve, the creator holds none and is paid 0.70% of every swap instead.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -70,7 +80,7 @@ export const metadata: Metadata = {
      * halamannya sendiri. Penggantinya menyebut ERC-8004, yang benar-benar berjalan.
      */
     description:
-      "100% of supply enters a sovereign bonding curve, a launch costs gas only, and the creator earns 0.10% of every swap. Tokens can be bound to an ERC-8004 agent identity at launch.",
+      "100% of supply enters a sovereign bonding curve, a launch costs gas only, and the creator earns 0.70% of every swap. Tokens can be bound to an ERC-8004 agent identity at launch.",
     url: "/",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "ADEXTO — sovereign bonding curve launchpad" }],
   },
@@ -78,7 +88,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "ADEXTO — launch an AI agent token with no liquidity deposit",
     description:
-      "Gas-only launches on 0G, Base, Arbitrum and Monad. Creator paid 0.10% of every swap, no free token allocation.",
+      "Gas-only launches on Monad, Arbitrum, Base and 0G. Creator paid 0.70% of every swap, no free token allocation.",
     images: ["/og.png"],
   },
 };
