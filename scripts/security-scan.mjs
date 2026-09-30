@@ -106,7 +106,7 @@ log("→ compiler (deploy path, solc via-IR)");
     add({
       id: "solc",
       name: "Compiler warnings",
-      tool: "solc 0.8.37 (via-IR, optimizer 200, evm cancun); AdextoAgentStake with 0.8.26",
+      tool: "solc 0.8.37 (via-IR, optimizer 200, evm cancun)",
       version: "0.8.37",
       status: errors === 0 && warnings === 0 ? "clean" : "findings",
       ran: true,

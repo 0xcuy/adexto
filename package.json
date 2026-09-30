@@ -22,7 +22,6 @@
     "qrcode": "1.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "solc-0.8.26": "npm:solc@0.8.26",
     "tailwind-merge": "^2.5.5",
     "three": "^0.170.0",
     "zod": "^3.25.76"

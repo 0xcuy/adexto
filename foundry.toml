@@ -13,11 +13,9 @@ test = "test"
 out = "build/forge-out"
 cache_path = "build/forge-cache"
 libs = ["lib", "node_modules"]
-# Compiler chosen per file from its pragma, matching compile-contracts.mjs: solc 0.8.37 for the
-# market contracts, 0.8.26 for AdextoAgentStake, which is live on 0G and must keep matching its
-# deployed bytecode. Optimizer settings and the EVM target are the deploy build's. If either
-# drifts, what is tested is no longer what is deployed.
-auto_detect_solc = true
+# Matched to scripts/compile-contracts.mjs: solc 0.8.37, optimizer 200 runs, EVM cancun, via-IR.
+# If any of these drifts, what is tested is no longer what is deployed.
+solc = "0.8.37"
 optimizer = true
 optimizer_runs = 200
 evm_version = "cancun"

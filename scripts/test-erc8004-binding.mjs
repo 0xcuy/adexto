@@ -101,12 +101,17 @@ async function registerAgent(signer, uri) {
 }
 
 // ── deploy the factory ──────────────────────────────────────────────────────
-const facArt = art("AdextoCurveFactory");
-const factory = await new ethers.ContractFactory(facArt.abi, facArt.bytecode, creator).deploy();
+const facArt = art("AdextoFactory");
+// v1 takes the protocol treasury and the reserved tickers. The creator's own address stands in
+// for the treasury here; this suite is about agent binding, not fees.
+const factory = await new ethers.ContractFactory(facArt.abi, facArt.bytecode, creator).deploy(
+  await creator.getAddress(),
+  []
+);
 await factory.waitForDeployment();
 const factoryAddr = await factory.getAddress();
 console.log(`factory   : ${factoryAddr}  VERSION ${await factory.VERSION()}\n`);
-check("factory VERSION is 0.10.0", (await factory.VERSION()) === "0.10.0", await factory.VERSION());
+check("factory VERSION is 1.0.0", (await factory.VERSION()) === "1.0.0", await factory.VERSION());
 check(
   "AGENT_REGISTRY constant is the ERC-8004 address",
   (await factory.AGENT_REGISTRY()).toLowerCase() === REGISTRY.toLowerCase()
