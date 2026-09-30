@@ -257,6 +257,18 @@ export function nativeAssetLogo(symbol: string | null | undefined): string | nul
   }
 }
 
+/**
+ * Mark PERSEGI sebuah chain, untuk chip dan baris logo yang harus terbaca di kedua tema.
+ *
+ * Sama dengan `brandLogo`, kecuali 0G: `brandLogo`-nya wordmark hitam 248x120 yang
+ * praktis hilang di tema gelap dan tidak sebentuk dengan tetangganya. Di 0G chain dan
+ * asetnya satu hal, jadi logo token violet resminya yang dipakai (lihat catatan di
+ * `nativeAssetLogo` dan public/brand/SOURCES.txt). Devchain tetap null — tidak dikarang.
+ */
+export function chainMark(chain: Pick<ChainInfo, "key" | "brandLogo">): string | null {
+  return chain.key === "0G" ? "/brand/0g-token.png" : chain.brandLogo;
+}
+
 export const CHAINS: Record<ChainKey, ChainInfo> = {
   "0G": build("0G", ADEXTO_CONTRACTS.og, "0G"),
   Arbitrum: build("Arbitrum", ADEXTO_CONTRACTS.arbitrum, "Ether"),
@@ -288,15 +300,36 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
   },
 };
 
+/**
+ * Urutan tampil SEMUA daftar chain di antarmuka: Monad, Arbitrum, Base, 0G (keputusan
+ * pemilik, 2026-09-30). Pemilih chain di header, chip chain Studio, filter explorer dan
+ * pasar, tabel biaya, dan baris logo hero semuanya membaca urutan ini — jadi chain pertama
+ * yang bisa meluncurkan (bawaan Studio) ikut menjadi Monad.
+ *
+ * Urutan di sini tidak dipakai untuk mencocokkan apa pun: `resolveChainSet` mengurutkan
+ * menurut posisi di label, dan setiap pencarian lain memakai chainId.
+ */
 export const CHAIN_LIST: ChainInfo[] = [
-  CHAINS["0G"],
+  CHAINS.Monad,
   CHAINS.Arbitrum,
   CHAINS.Base,
-  CHAINS.Monad,
+  CHAINS["0G"],
   ...(DEVCHAIN_ENABLED ? [CHAINS.Devchain] : []),
 ];
 
-export const DEFAULT_CHAIN = CHAINS["0G"];
+/** Chain yang dipilih antarmuka untuk pengunjung yang belum pernah memilih sendiri. */
+export const DEFAULT_CHAIN = CHAINS.Monad;
+
+/**
+ * Fallback DATA — BUKAN pilihan antarmuka, dan sengaja dipisah dari `DEFAULT_CHAIN`.
+ *
+ * `resolveChainOrDefault` dipakai registry, telemetry, API pool/share-card/MCP, dan tautan
+ * explorer untuk catatan yang chain-nya tidak terbaca. Catatan semacam itu lahir di 0G
+ * (chain pertama proyek ini), jadi di sana ia harus tetap jatuh ke 0G. Kalau fallback ini
+ * ikut pindah ke Monad bersama pilihan antarmuka, catatan lama tanpa chainId akan diam-diam
+ * dibaca dari RPC chain yang salah.
+ */
+const DATA_FALLBACK_CHAIN = CHAINS["0G"];
 
 /** Testnet ids are mapped to their mainnet sibling for UI purposes. */
 const CHAIN_ID_ALIASES: Record<number, ChainKey> = {
@@ -373,7 +406,7 @@ export function resolveChain(input: string | number | null | undefined): ChainIn
 }
 
 export function resolveChainOrDefault(input: string | number | null | undefined): ChainInfo {
-  return resolveChain(input) ?? DEFAULT_CHAIN;
+  return resolveChain(input) ?? DATA_FALLBACK_CHAIN;
 }
 
 /** All chains referenced by a label, in the order they appear. */

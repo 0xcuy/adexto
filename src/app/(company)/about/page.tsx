@@ -27,7 +27,7 @@ export default function AboutPage() {
       <P>
         ADEXTO is a market venue. One transaction opens a live market on a bonding curve, and it
         trades from its first block — no liquidity deposit, no founder allocation, no listing queue.
-        It runs on four mainnets: 0G, Base, Arbitrum One and Monad.
+        It runs on four mainnets: Monad, Arbitrum One, Base and 0G.
       </P>
 
       <H2>What arrives with a market</H2>

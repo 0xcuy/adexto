@@ -1,4 +1,4 @@
-import { CHAINS, type ChainInfo, type ChainKey } from "@/lib/chains";
+import { CHAIN_LIST, type ChainInfo, type ChainKey } from "@/lib/chains";
 import { nativePrices } from "@/lib/native-price";
 
 /**
@@ -109,9 +109,12 @@ async function gasPriceGwei(chain: ChainInfo): Promise<number | null> {
  * halaman depan.
  */
 export async function launchCosts(): Promise<LaunchCost[]> {
-  const chains = (Object.keys(LAUNCH_GAS_UNITS) as ChainKey[])
-    .map((key) => ({ key, chain: CHAINS[key] }))
-    .filter(({ chain }) => chain && chain.launchGeneration === "curve");
+  // Urutan CHAIN_LIST (Monad, Arbitrum, Base, 0G), bukan urutan kunci LAUNCH_GAS_UNITS:
+  // tabel biaya di halaman depan dan /api/launch-cost harus berbaris sama dengan setiap
+  // daftar chain lain di situs.
+  const chains = CHAIN_LIST.filter((chain) => LAUNCH_GAS_UNITS[chain.key] != null)
+    .map((chain) => ({ key: chain.key, chain }))
+    .filter(({ chain }) => chain.launchGeneration === "curve");
 
   const [feed, gasPrices] = await Promise.all([
     nativePrices(),
