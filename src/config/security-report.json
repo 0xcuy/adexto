@@ -1,42 +1,36 @@
 {
-  "generatedAt": "2026-09-30T15:43:24.446Z",
-  "commit": "946c2fa66dc3e10a4de9d2c823d6c86d3d6a6b53",
-  "commitTime": "2026-09-30T22:40:48+07:00",
+  "generatedAt": "2026-09-30T21:26:24.742Z",
+  "commit": "2b16426ebdac567fd61bd479d348fd3d266e7ba9",
+  "commitTime": "2026-10-01T04:25:05+07:00",
   "dirty": false,
   "contractHashes": {
-    "contracts/AdextoAgentStake.sol": "c818f8ad79f68915",
-    "contracts/AdextoCurve.sol": "82299dcff0d5e8eb",
-    "contracts/AdextoCurveFactory.sol": "ac70f981b7edb6c7",
-    "contracts/AdextoFactory.sol": "681838ed53b54efa",
-    "contracts/AdextoToken.sol": "8728f5d436a81619",
-    "contracts/IIdentityRegistry.sol": "b87d4e38c8916738",
-    "contracts/ISovereignLegacy.sol": "754f26409d4d8314",
-    "contracts/SovereignCurve.sol": "e92d92245fa01320"
+    "contracts/AdextoAgentStake.sol": "ae967fcd4dd80d4b",
+    "contracts/AdextoCurve.sol": "829d3864057a6567",
+    "contracts/AdextoFactory.sol": "d790a8a4878a8aca",
+    "contracts/AdextoToken.sol": "d6a128d79dd15437",
+    "contracts/IIdentityRegistry.sol": "c222489dec4c36ea"
   },
   "scope": {
     "launchPath": [
-      "contracts/AdextoCurveFactory.sol",
-      "contracts/SovereignCurve.sol",
       "contracts/AdextoFactory.sol",
       "contracts/AdextoCurve.sol",
       "contracts/AdextoToken.sol",
-      "contracts/IIdentityRegistry.sol",
-      "contracts/ISovereignLegacy.sol"
+      "contracts/IIdentityRegistry.sol"
     ]
   },
   "engines": [
     {
       "id": "solc",
       "name": "Compiler warnings",
-      "tool": "solc 0.8.26 (via-IR, optimizer 200)",
-      "version": "0.8.26",
+      "tool": "solc 0.8.37 (via-IR, optimizer 200, evm cancun)",
+      "version": "0.8.37",
       "status": "clean",
       "ran": true,
       "counts": {
         "errors": 0,
         "warnings": 0
       },
-      "detail": "38 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "33 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -46,10 +40,10 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "passed": 30,
+        "passed": 32,
         "failed": 0
       },
-      "detail": "30 properties passed, 0 failed · 2 suites · 4096 runs each",
+      "detail": "32 properties passed, 0 failed · 2 suites · 4096 runs each",
       "cases": [
         "testFuzz_buyQuoteMatchesExecution(uint256)",
         "testFuzz_buyRoundsInFavourOfCurve(uint256)",
@@ -59,7 +53,8 @@
         "testFuzz_creatorAndProtocolClaimsAreIndependent(uint256)",
         "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
         "testFuzz_fourLegsNeverExceedInput(uint256)",
-        "testFuzz_protocolFeeIsCarvedOutNotAdditive(uint256)",
+        "testFuzz_protocolFeeIsCarvedOutOnBuy(uint256)",
+        "testFuzz_protocolFeeIsCarvedOutOnSell(uint256)",
         "testFuzz_protocolFeeIsExactBpsOfInput(uint256)",
         "testFuzz_protocolFeesOnlyReachTreasury(uint256,address)",
         "testFuzz_roundTripNeverProfitable(uint256)",
@@ -72,15 +67,16 @@
         "test_reservedSymbolsCannotBeLaunchedByAnyone()",
         "test_unreservedSymbolStillLaunches()",
         "test_zeroProtocolTreasuryRejected()",
-        "testFuzz_buyQuoteMatchesExecution(uint256)",
-        "testFuzz_buyRoundsInFavourOfCurve(uint256)",
-        "testFuzz_buybackCappedAtOnePercent(uint256,address)",
-        "testFuzz_cannotSellMoreThanOutstanding(uint256,uint256)",
-        "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
-        "testFuzz_feesNeverExceedInput(uint256)",
-        "testFuzz_roundTripNeverProfitable(uint256)",
-        "testFuzz_sellQuoteMatchesExecution(uint256,uint256)",
-        "testFuzz_supplyNeverGrows(uint256)"
+        "testFuzz_windowNeverLetsAWalletPassLimit(uint256,uint256)",
+        "test_buyUpToLimitSucceeds()",
+        "test_buybackBurnWorksDuringWindow()",
+        "test_lastSecondOfWindowStillLimited()",
+        "test_noLimitAfterWindow()",
+        "test_sellsWorkDuringWindow()",
+        "test_singleBuyAboveLimitReverts()",
+        "test_splitBuysCannotPassLimit()",
+        "test_transfersCannotCollectAboveLimit()",
+        "test_windowParameters()"
       ]
     },
     {
@@ -91,10 +87,10 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "passed": 4,
+        "passed": 2,
         "failed": 0
       },
-      "detail": "4 tests passed across 2 suites · 512 runs x 64 random actions"
+      "detail": "2 tests passed across 1 suites · 512 runs x 64 random actions"
     },
     {
       "id": "slither",
@@ -104,18 +100,18 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 67,
-        "Medium": 39,
-        "Low": 14,
-        "Informational": 6,
-        "Optimization": 8
+        "total": 39,
+        "Medium": 21,
+        "Low": 10,
+        "Informational": 4,
+        "Optimization": 4
       },
       "launchPathCounts": {
-        "Medium": 13,
-        "Low": 11,
-        "Informational": 6
+        "Medium": 7,
+        "Low": 6,
+        "Informational": 4
       },
-      "detail": "67 findings across 102 detectors · 0 High on the launch path"
+      "detail": "39 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -126,12 +122,12 @@
       "ran": true,
       "counts": {
         "highKinds": 1,
-        "highInstances": 8,
+        "highInstances": 4,
         "lowKinds": 5,
-        "lowInstances": 30
+        "lowInstances": 21
       },
       "launchPathCounts": {
-        "HighInstances": 8
+        "HighInstances": 4
       },
       "detail": "1 High kinds / 5 Low kinds · 88 detectors"
     },
@@ -144,9 +140,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 674
+        "warnings": 382
       },
-      "detail": "0 errors, 674 warnings (style & gas rules)"
+      "detail": "0 errors, 382 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -157,10 +153,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 10,
+        "filesScanned": 6,
         "configErrors": 0
       },
-      "detail": "0 findings across 10 files · general p/security-audit ruleset"
+      "detail": "0 findings across 6 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -170,21 +166,18 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "properties": 9,
+        "properties": 6,
         "failed": 0,
-        "totalCalls": 100219,
-        "uniqueInstructions": 15102
+        "totalCalls": 50093,
+        "uniqueInstructions": 7989
       },
-      "detail": "9/9 properties passed across 2 curve generations · 100,219 calls",
+      "detail": "6/6 properties passed · 1 harness · 50,093 calls",
       "cases": [
-        "EchidnaCurve.echidna_solvent",
-        "EchidnaCurve.echidna_tokensSoldWithinCurve",
-        "EchidnaCurve.echidna_supplyNeverGrows",
-        "EchidnaCurve.echidna_inventoryMatchesBalance",
         "EchidnaAdextoCurve.echidna_solvent",
         "EchidnaAdextoCurve.echidna_tokensSoldWithinCurve",
         "EchidnaAdextoCurve.echidna_supplyNeverGrows",
         "EchidnaAdextoCurve.echidna_inventoryMatchesBalance",
+        "EchidnaAdextoCurve.echidna_walletLimitDuringWindow",
         "EchidnaAdextoCurve.echidna_treasuryBalanceMatchesPaid"
       ]
     }
