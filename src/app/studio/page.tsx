@@ -6,9 +6,10 @@ import { ethers } from "ethers";
 import {
   Cpu, RefreshCw, Sparkles, ShieldCheck, Send, Bot, ChevronDown,
   Lock, CheckCircle2, AlertTriangle, Wand2, Dices, XCircle, Info, Droplets, Fingerprint,
-  ImagePlus, Zap, SlidersHorizontal, Link2, Check,
+  ImagePlus, Zap, SlidersHorizontal, Link2, Check, Fuel, HandCoins,
 } from "lucide-react";
 import { buildStudioPrefillUrl, parseStudioPrefill, sanitizeSymbol, type StudioMode } from "@/lib/studio-prefill";
+import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 
 import Mascot, { type MascotPose } from "@/components/Mascot";
 import { readSquareLogoFile } from "@/lib/logo-upload";
@@ -1314,7 +1315,7 @@ export default function StudioPage() {
         content:
           `⚡ **ADEXTO Studio**\n\n` +
           `• Model: **0G Router (${selectedModel})**\n` +
-          `• Factory: **AdextoCurveFactory** (token + bonding curve in one transaction, no liquidity deposit)\n` +
+          `• Factory: **${CURVE_FACTORY_GENERATION.contract} ${CURVE_FACTORY_GENERATION.version}** (token + bonding curve in one transaction, no liquidity deposit)\n` +
           `• Live chains: **${liveChains.length > 0 ? liveChains.map((c) => c.key).join(", ") : "none yet"}**\n\n` +
           `Describe your concept, or configure the launch on the left.`,
       },
@@ -1453,6 +1454,8 @@ export default function StudioPage() {
    * pembagian kerja yang benar, karena angka negatif di sini berarti calldata-nya salah.
    */
   const depthCut = Math.max(0, totalSwapFee - creatorCut - treasuryCut - (protocolCarvedOut ? protocolCut : 0));
+  /** Struktur fee factory tiap chain tujuan sudah terbaca dari /api/deploy. */
+  const feeLegsKnown = launchTargets.length > 0 && launchTargets.every((c) => c.chainId in protocolCarvedByChain);
 
   // ── Express ──────────────────────────────────────────────────────────────
   /**
@@ -1492,32 +1495,46 @@ export default function StudioPage() {
     ? "Set a supply in Advanced"
     : `Launch on ${launchTargets[0]?.key ?? "—"} · gas only`;
 
+  /**
+   * Pilihan mode sebagai dua kartu, bukan sakelar kecil.
+   *
+   * Sakelar 11px di pojok membuat Express — jalan tersingkat untuk orang yang baru mencoba —
+   * nyaris tak terlihat, padahal itu keputusan pertama di halaman ini. `data-testid` dan
+   * `aria-pressed` dipertahankan: probe dan harness menunjuk keduanya.
+   */
   const modeToggle = (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div role="group" aria-label="Launch mode" className="inline-flex rounded-xl border border-line bg-cream-2 p-1">
-        {(
-          [
-            ["express", "Express", Zap],
-            ["advanced", "Advanced", SlidersHorizontal],
-          ] as const
-        ).map(([m, label, Icon]) => (
-          <button
-            key={m}
-            type="button"
-            aria-pressed={mode === m}
-            onClick={() => enterMode(m)}
-            data-testid={`mode-${m}`}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
-              mode === m ? "border-accent/40 bg-surface text-ink shadow-sm" : "border-transparent text-ink-soft hover:text-ink"
+    <div role="group" aria-label="Launch mode" className="grid grid-cols-2 gap-2">
+      {(
+        [
+          ["express", "Express", Zap, "Name, ticker, image — then one button."],
+          ["advanced", "Advanced", SlidersHorizontal, "Every setting, in five steps."],
+        ] as const
+      ).map(([m, label, Icon, blurb]) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={mode === m}
+          onClick={() => enterMode(m)}
+          data-testid={`mode-${m}`}
+          className={`group flex items-start gap-2.5 rounded-xl border p-3 text-left transition-[border-color,background-color,box-shadow] duration-200 ${
+            mode === m
+              ? "border-accent/50 bg-accent-soft shadow-[var(--glow-accent)]"
+              : "border-line bg-cream-2 hover:border-accent/30"
+          }`}
+        >
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+              mode === m ? "bg-accent text-white" : "bg-surface text-accent"
             }`}
           >
-            <Icon className="h-3.5 w-3.5" /> {label}
-          </button>
-        ))}
-      </div>
-      <span className="text-[10px] text-ink-faint">
-        {mode === "express" ? "Name, ticker and image, then one button." : "Every setting, in five steps."}
-      </span>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-bold text-ink">{label}</span>
+            <span className="block text-[11px] leading-snug text-ink-soft">{blurb}</span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 
@@ -1775,23 +1792,70 @@ export default function StudioPage() {
        dan rel kanan yang menempel — ringkasan launch selalu terlihat tanpa
        memenjarakan formulirnya. */
     <div className="mx-auto w-full max-w-[1400px] px-3 py-5 sm:px-5">
-      <div className="mb-4">
-        <p className="kicker mb-2">ADEXTO Studio</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">
-          Launch a market
-        </h1>
-        <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-ink-soft">
-          Name it, sign one attestation, and deploy. Gas only — no liquidity deposit, and you keep none of the supply.
-        </p>
+      {/* Sambutan. Tiga janji di chip adalah fakta kontrak yang sama dengan yang dijelaskan di
+          langkah-langkah di bawah (tidak payable, 100% supply ke kurva, tanpa owner) — bukan
+          klaim baru, hanya diletakkan di tempat orang memutuskan untuk mulai. */}
+      <div className="studio-welcome relative mb-4 overflow-hidden rounded-card border border-line p-5 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-24 -top-32 h-80 w-80 rounded-full opacity-60 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.35), transparent)" }}
+        />
+        <div className="relative flex items-end gap-4">
+          <div className="min-w-0 flex-1">
+            {/* Ponsel: maskot kecil di samping judul, pola yang sama dengan hero landing di ponsel.
+                Maskot besar di kanan baru muncul mulai sm; berkasnya sama, jadi tidak ada unduhan kedua. */}
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="kicker mb-2">ADEXTO Studio</p>
+                <h1 className="font-display text-[1.9rem] font-light leading-[1.08] tracking-tight text-ink sm:text-[2.6rem]">
+                  Let&apos;s open your market.
+                </h1>
+              </div>
+              <Mascot
+                pose="wave"
+                priority
+                className="mascot-float h-[4.5rem] w-auto shrink-0 drop-shadow-[0_12px_20px_rgba(76,29,149,0.4)] sm:hidden"
+              />
+            </div>
+            <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-ink-soft sm:text-[15px]">
+              One transaction, and it trades from the first block. You pay the chain&apos;s gas and nothing else, and
+              a share of every swap is yours from the first one.
+            </p>
+            {/* Ponsel: kisi 2×2 yang ringkas (dua baris, bukan tiga) supaya pilihan mode tetap
+                terlihat tanpa menggulir jauh. */}
+            <ul className="mt-4 grid grid-cols-2 gap-1.5 text-[11.5px] sm:flex sm:flex-wrap sm:gap-2 sm:text-[12px]">
+              {(
+                [
+                  [Fuel, "Gas only"],
+                  [Droplets, "No liquidity deposit"],
+                  [HandCoins, "You earn on every swap"],
+                  [ShieldCheck, "No owner, no admin key"],
+                ] as const
+              ).map(([Icon, label]) => (
+                <li
+                  key={label}
+                  className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-line bg-surface/70 px-2.5 py-1 font-medium text-ink backdrop-blur sm:px-3"
+                >
+                  <Icon className="h-3.5 w-3.5 text-accent" aria-hidden="true" /> {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <Mascot
+            pose="wave"
+            priority
+            className="mascot-float relative hidden h-28 w-auto shrink-0 drop-shadow-[0_18px_30px_rgba(76,29,149,0.45)] sm:block lg:h-36"
+          />
+        </div>
       </div>
 
       {/* Top strip */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5 sm:gap-4">
+        {/* Label "ADEXTO STUDIO" di sini dicabut: kartu sambutan di atasnya sudah membawanya,
+            jadi yang tersisa di strip hanya keadaan dompet dan pilihan model. */}
         <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-accent" /> ADEXTO STUDIO
-          </span>
-          <span className="text-ink-faint text-xs">/</span>
+          <span className="text-[11px] font-medium text-ink-faint">Wallet</span>
           {isConnected ? (
             <span className="text-ok font-mono text-xs font-medium flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
@@ -1980,26 +2044,15 @@ export default function StudioPage() {
               )}
 
               {/* Chain matrix */}
-              <div id="step-chains" className="scroll-mt-3 p-2.5 rounded-xl bg-accent-soft border border-accent/30 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white"
-                  >
-                    1
-                  </span>
-                  <h2 className="text-sm font-semibold text-ink">
-                    Chain — one per launch
-                  </h2>
-                </div>
+              <div id="step-chains" className="scroll-mt-12 space-y-2.5 rounded-xl border border-accent/30 bg-accent-soft p-3.5">
+                <SectionHeading step={1} title="Where it lives" />
 
                 {/* Satu chain per peluncuran. Kalimat ini ada di depan supaya creator
                     tidak perlu menemukannya sendiri setelah bertanya-tanya kenapa
                     pilihannya berpindah, bukan bertambah. */}
-                <p className="text-[10px] leading-relaxed text-ink-soft">
-                  Picking a chain replaces the previous one. Each chain is a separate market with its own supply and
-                  its own price — nothing bridges between them — so a launch goes to one chain at a time. To be on
-                  another chain, launch again there once this one is live.
+                <p className="pl-8 text-[11.5px] leading-relaxed text-ink-soft">
+                  Pick one chain. Each chain is its own market with its own supply and price, and nothing bridges
+                  between them. Want to be on another chain too? Launch there as well once this one is live.
                 </p>
 
                 <div role="radiogroup" aria-label="Launch chain" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
@@ -2067,7 +2120,12 @@ export default function StudioPage() {
               </div>
 
               {/* Token */}
-              <Section id="step-token" step={2} title="Token">
+              <Section
+                id="step-token"
+                step={2}
+                title="Your token"
+                blurb="What people will see: the name, the ticker and the picture."
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <Field label="Name">
                     <input
@@ -2240,8 +2298,11 @@ export default function StudioPage() {
                     logo adalah kasus yang lebih umum, dan sebelumnya mereka tidak punya
                     jalan sama sekali selain menerima apa pun yang keluar dari model. */}
                 <div className="p-2.5 rounded-xl bg-surface border border-line space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                  {/* `flex-wrap` + `min-w` pada blok teks: di layar sempit tombol turun ke baris
+                      sendiri. Sebelumnya tombol `shrink-0` memakan ~280px dari 320px, dan teks
+                      di sebelahnya terjepit jadi kolom 44px — satu kata per baris (terukur 390px). */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-[12rem] flex-1 items-center gap-3">
                       <div className="w-10 h-10 rounded-xl overflow-hidden bg-surface border border-accent/30 p-1 flex items-center justify-center shrink-0">
                         <img src={generatedLogo ?? "/logo.svg"} alt="Token logo preview" className="w-full h-full object-contain" />
                       </div>
@@ -2272,7 +2333,7 @@ export default function StudioPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {/* Input asli disembunyikan, bukan dihapus: tombol di sebelahnya yang
                           memicunya, supaya gayanya sama dengan tombol lain di form ini dan
                           tetap bisa dijangkau keyboard lewat tombol itu. */}
@@ -2411,7 +2472,8 @@ export default function StudioPage() {
               <Section
                 id="step-curve"
                 step={3}
-                title="Bonding curve"
+                title="Price and fees"
+                blurb="How trades are priced, and your share of every one."
                 defaultOpen={false}
                 hint={`${totalSwapFee.toFixed(2)}% swap fee · ${creatorCut.toFixed(2)}% to you`}
               >
@@ -2419,8 +2481,8 @@ export default function StudioPage() {
                   <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" />
                   <span className="text-ink-soft">
                     <strong className="text-ok">No liquidity deposit.</strong> The curve opens with a virtual
-                    reserve, so you pay gas only — typically under $0.10 per chain. Every token is tradable from the
-                    launch transaction onward.
+                    reserve, so you pay gas only — the live figure for your chain is in the cost card under Verify.
+                    Every token is tradable from the launch transaction onward.
                   </span>
                 </div>
 
@@ -2462,12 +2524,16 @@ export default function StudioPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  {/* Split dari total yang DIKONFIGURASI: depth · creator · buyback.
+                <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                  {/* Split dari total yang DIKONFIGURASI: depth · creator · buyback (· protocol).
                       Bagian creator inilah yang menggantikan alokasi token gratis,
-                      jadi tidak ada apa pun yang bisa di-dump creator. Kaki protokol
-                      TIDAK ada di sini karena bukan bagian dari total ini — ia
-                      dipungut di atasnya, dan ditampilkan terpisah di bawah. */}
+                      jadi tidak ada apa pun yang bisa di-dump creator.
+
+                      Depth di tombol WAJIB dihitung dengan aturan yang sama dengan `depthCut`.
+                      Versi sebelumnya memakai `fee - creator - cut` — rumus 0.11.0 — sehingga
+                      sejak 0.12.0 tombol Standard menulis "0.20% depth" sementara baris di
+                      bawahnya (dan calldata) 0.10%: dua angka berbeda untuk satu kurva di
+                      layar yang sama. */}
                   {(Object.entries(FEE_TIERS) as Array<[FeeTier, (typeof FEE_TIERS)[FeeTier]]>).map(
                     ([tier, { fee, creator, cut, label }]) => (
                       <button
@@ -2480,9 +2546,15 @@ export default function StudioPage() {
                         }`}
                       >
                         <span className="font-bold block text-[11px] text-accent">{label}</span>
-                        <span className="text-[9px] text-ink-soft">
-                          {(fee - creator - cut).toFixed(2)}% depth · {creator.toFixed(2)}% you ·{" "}
-                          {cut.toFixed(2)}% buyback
+                        {/* Depth hanya ditulis setelah struktur fee factory chain ini terbaca dari
+                            /api/deploy: sebelum itu tidak diketahui apakah kaki protokol ada di dalam
+                            total, dan menebak berarti menulis angka yang salah selama sedetik. */}
+                        <span className="text-[10px] leading-snug text-ink-soft" data-testid={`tier-split-${tier}`}>
+                          {feeLegsKnown
+                            ? `${Math.max(0, fee - creator - cut - (protocolCarvedOut ? protocolCut : 0)).toFixed(2)}% depth · `
+                            : ""}
+                          {creator.toFixed(2)}% you · {cut.toFixed(2)}% buyback
+                          {feeLegsKnown && protocolCarvedOut && protocolCut > 0 ? ` · ${protocolCut.toFixed(2)}% protocol` : ""}
                         </span>
                       </button>
                     )
@@ -2501,7 +2573,10 @@ export default function StudioPage() {
                       sendiri. Di 0.11.0 justru inilah yang menahan segmen keempat dari
                       meluber keluar batang. */}
                   <div className="flex flex-wrap justify-between gap-x-3 text-[10px]">
-                    <span className="text-accent font-medium">Curve depth: {depthCut.toFixed(2)}%</span>
+                    {/* Angka depth menunggu struktur fee factory, alasannya sama dengan tombol tier. */}
+                    <span className="text-accent font-medium" data-testid="fee-bar-depth">
+                      Curve depth: {feeLegsKnown ? `${depthCut.toFixed(2)}%` : "…"}
+                    </span>
                     <span className="text-ok font-medium">Your revenue: {creatorCut.toFixed(2)}%</span>
                     <span className="text-accent font-medium">Buyback: {treasuryCut.toFixed(2)}%</span>
                     {protocolCut > 0 ? (
@@ -2539,7 +2614,8 @@ export default function StudioPage() {
               <Section
                 id="step-agent"
                 step={4}
-                title="0G TEE agent"
+                title="Market agent"
+                blurb="What your market's agent tells holders, running on 0G Compute."
                 defaultOpen={false}
                 hint={selectedModel}
               >
@@ -2676,8 +2752,13 @@ export default function StudioPage() {
                   Sebelumnya keduanya berupa dua kotak lepas tanpa judul di antara
                   seksi bernomor, sehingga terbaca seperti catatan pinggir alih-alih
                   syarat yang menahan tombol launch. */}
-              <div id="step-verify" className="scroll-mt-3 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
-              <SectionHeading step={5} title="Verify" />
+              <div id="step-verify" className="scroll-mt-12 space-y-2.5 rounded-xl border border-line bg-cream-2 p-3.5">
+              <div>
+                <SectionHeading step={5} title="Check and sign" />
+                <p className="mt-0.5 pl-8 text-[11.5px] leading-snug text-ink-faint">
+                  See what the launch costs, then sign once to prove the address is yours. The signature is free.
+                </p>
+              </div>
 
               {/* Biaya di titik keputusan, sebelum tanda tangan: gas hidup per chain yang dipilih,
                   tanpa setoran, dan fee per trade dari struktur factory chain itu. */}
@@ -2772,9 +2853,13 @@ export default function StudioPage() {
                 </div>
               )}
 
+              {/* Belum tersambung = tombol ini YANG menyambungkan (handleDeploy memanggil
+                  connectWallet). Dulu ia mati sambil bertuliskan "Connect wallet", jadi label
+                  yang menyuruh menyambung justru tidak bisa diklik — terutama di ponsel, tempat
+                  tombol connect di strip atas tidak terlihat di layar yang sama. */}
               <button
                 onClick={() => handleDeploy()}
-                disabled={deploying || !canDeploy}
+                disabled={deploying || liveChains.length === 0 || (isConnected && !canDeploy)}
                 /* Keadaan nonaktif tidak lagi memakai `opacity-40`. Ungu pekat yang
                    diredupkan sampai 40% dengan teks putih di atasnya menghasilkan
                    rasio kontras di bawah 2:1 — dan justru di keadaan inilah
@@ -2953,9 +3038,16 @@ export default function StudioPage() {
             <p className="flex items-start gap-1.5 border-t border-line px-3 py-2 text-[10px] leading-relaxed text-ink-faint">
               <Droplets className="mt-0.5 h-3 w-3 shrink-0 text-ok" />
               <span>
+                {/* Depth dan kaki protokol menunggu `feeLegsKnown`, sama seperti tombol tier: sebelum
+                    /api/deploy menjawab, depth yang tertulis di sini adalah rumus 0.11.0 (0.20%)
+                    padahal kurvanya akan ter-deploy dengan 0.10%. */}
                 Gas only — <span className="text-ok">no liquidity deposit</span>. Split:{" "}
-                {depthCut.toFixed(2)}% depth · {creatorCut.toFixed(2)}% creator · {treasuryCut.toFixed(2)}% buyback
-                {protocolCut > 0 ? ` · ${protocolCut.toFixed(2)}% protocol` : ""}.
+                <span data-testid="launch-summary-split">
+                  {feeLegsKnown ? `${depthCut.toFixed(2)}% depth · ` : ""}
+                  {creatorCut.toFixed(2)}% creator · {treasuryCut.toFixed(2)}% buyback
+                  {feeLegsKnown && protocolCut > 0 ? ` · ${protocolCut.toFixed(2)}% protocol` : ""}
+                </span>
+                .
               </span>
             </p>
           </div>
@@ -3102,6 +3194,7 @@ function Section({
   step,
   title,
   hint,
+  blurb,
   defaultOpen = true,
   children,
 }: {
@@ -3110,6 +3203,8 @@ function Section({
   title: string;
   /** Ringkasan satu baris yang tetap terbaca saat panelnya tertutup. */
   hint?: string;
+  /** Satu kalimat "langkah ini untuk apa", dengan bahasa orang yang baru pertama kali. */
+  blurb?: string;
   /**
    * Terbuka saat halaman dimuat.
    *
@@ -3126,11 +3221,16 @@ function Section({
     <details
       id={id}
       open={defaultOpen}
-      className="group scroll-mt-3 rounded-xl border border-line bg-cream-2 [&_summary::-webkit-details-marker]:hidden"
+      className="group scroll-mt-12 rounded-xl border border-line bg-cream-2 [&_summary::-webkit-details-marker]:hidden"
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 p-3.5">
-        <SectionHeading step={step} title={title} />
-        {hint ? <span className="ml-auto truncate text-[10px] text-ink-faint">{hint}</span> : null}
+        <div className="min-w-0">
+          <SectionHeading step={step} title={title} />
+          {blurb ? <p className="mt-0.5 pl-8 text-[11.5px] leading-snug text-ink-faint">{blurb}</p> : null}
+          {/* Di ponsel ringkasan pindah ke bawah judul: di kanan ia terpotong jadi "1.00% sw…". */}
+          {hint ? <p className="mt-0.5 pl-8 text-[11px] font-medium text-accent sm:hidden">{hint}</p> : null}
+        </div>
+        {hint ? <span className="ml-auto hidden truncate text-[10.5px] text-ink-faint sm:inline">{hint}</span> : null}
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform duration-200 group-open:rotate-180 ${
             hint ? "" : "ml-auto"
@@ -3147,11 +3247,11 @@ function SectionHeading({ step, title }: { step: number; title: string }) {
     <div className="flex items-center gap-2">
       <span
         aria-hidden="true"
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white shadow-[var(--glow-accent)]"
       >
         {step}
       </span>
-      <h2 className="text-sm font-semibold text-ink">{title}</h2>
+      <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
     </div>
   );
 }
@@ -3226,8 +3326,8 @@ function Field({
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-medium text-ink-soft">{label}</span>
-        {hint && <span className={`text-[9px] ${hintColor} truncate`}>{hint}</span>}
+        <span className="text-[11px] font-medium text-ink-soft">{label}</span>
+        {hint && <span className={`text-[10px] ${hintColor} truncate`}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -3278,16 +3378,27 @@ function DeployReport({
   return (
     <div className="space-y-4 my-auto">
       <div
-        className={`p-4 rounded-2xl border space-y-1 ${
+        className={`relative overflow-hidden p-4 rounded-2xl border space-y-1 ${
           allFailed ? "bg-danger/10 border-danger/30" : "bg-ok/10 border-ok/30"
         }`}
       >
+        {!allFailed && (
+          <Mascot
+            pose="celebrate"
+            className="mascot-float pointer-events-none absolute -bottom-2 right-2 h-20 w-auto opacity-95 sm:h-24"
+          />
+        )}
         <div className={`flex items-center gap-2 font-bold text-sm ${allFailed ? "text-danger" : "text-ok"}`}>
           {allFailed ? <XCircle className="w-5 h-5 text-danger" /> : <CheckCircle2 className="w-5 h-5 text-ok" />}
           {allFailed
             ? `Launch failed on all ${results.length} chain(s)`
             : `${symbol} live on ${successes.length} of ${results.length} chain(s)`}
         </div>
+        {!allFailed && (
+          <p className="max-w-[75%] text-[12.5px] leading-relaxed text-ink-soft">
+            It is trading now. Tell people where to find it — your share of every swap starts with the first trade.
+          </p>
+        )}
         {failures.length > 0 && !allFailed && (
           <p className="text-[11px] text-warn">
             {failures.length} chain(s) failed — details below. Nothing was registered for those.

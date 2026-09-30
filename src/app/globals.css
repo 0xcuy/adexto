@@ -880,6 +880,26 @@ select option {
 }
 
 /* ============================================================================
+   Sambutan Studio
+   ----------------------------------------------------------------------------
+   Kartu pembuka Studio: gradasi aksen yang hangat di atas permukaan biasa, bukan
+   blok ungu penuh. Di tema terang aksennya lebih tipis supaya teks cokelat tetap
+   kontras penuh.
+   ========================================================================== */
+.studio-welcome {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(var(--accent-fill-rgb) / 0.16), transparent 55%),
+    linear-gradient(180deg, rgb(var(--cream-3-rgb) / 0.35), transparent 70%),
+    var(--surface-2);
+  box-shadow: var(--shadow-panel);
+}
+:root:not([data-theme="dark"]) .studio-welcome {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(var(--accent-fill-rgb) / 0.09), transparent 55%),
+    var(--surface-2);
+}
+
+/* ============================================================================
    Kaca (glassmorphism)
    ----------------------------------------------------------------------------
    Kaca hanya terbaca sebagai kaca di atas sesuatu yang berwarna, jadi `.glass`
