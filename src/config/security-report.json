@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-28T23:05:36.786Z",
-  "commit": "fa4200b5c93b94df6f40a9234bdd802eb307a738",
-  "commitTime": "2026-09-26T02:28:48+07:00",
-  "dirty": true,
+  "generatedAt": "2026-09-30T15:43:24.446Z",
+  "commit": "946c2fa66dc3e10a4de9d2c823d6c86d3d6a6b53",
+  "commitTime": "2026-09-30T22:40:48+07:00",
+  "dirty": false,
   "contractHashes": {
     "contracts/AdextoAgentStake.sol": "c818f8ad79f68915",
     "contracts/AdextoCurve.sol": "82299dcff0d5e8eb",
@@ -46,14 +46,18 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "passed": 26,
+        "passed": 30,
         "failed": 0
       },
-      "detail": "26 properties passed, 0 failed · 2 suites · 4096 runs each",
+      "detail": "30 properties passed, 0 failed · 2 suites · 4096 runs each",
       "cases": [
         "testFuzz_buyQuoteMatchesExecution(uint256)",
+        "testFuzz_buyRoundsInFavourOfCurve(uint256)",
+        "testFuzz_buybackCappedAtOnePercent(uint256,address)",
         "testFuzz_buybackChargesNoProtocolFee(uint256)",
+        "testFuzz_cannotSellMoreThanOutstanding(uint256,uint256)",
         "testFuzz_creatorAndProtocolClaimsAreIndependent(uint256)",
+        "testFuzz_creatorFeesOnlyReachCreator(uint256,address)",
         "testFuzz_fourLegsNeverExceedInput(uint256)",
         "testFuzz_protocolFeeIsCarvedOutNotAdditive(uint256)",
         "testFuzz_protocolFeeIsExactBpsOfInput(uint256)",
@@ -100,18 +104,18 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 49,
-        "Medium": 25,
+        "total": 67,
+        "Medium": 39,
         "Low": 14,
         "Informational": 6,
-        "Optimization": 4
+        "Optimization": 8
       },
       "launchPathCounts": {
         "Medium": 13,
         "Low": 11,
         "Informational": 6
       },
-      "detail": "49 findings across 102 detectors · 0 High on the launch path"
+      "detail": "67 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -153,10 +157,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 9,
+        "filesScanned": 10,
         "configErrors": 0
       },
-      "detail": "0 findings across 9 files · general p/security-audit ruleset"
+      "detail": "0 findings across 10 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -166,17 +170,22 @@
       "status": "clean",
       "ran": true,
       "counts": {
-        "properties": 4,
+        "properties": 9,
         "failed": 0,
-        "totalCalls": 50107,
-        "uniqueInstructions": 7195
+        "totalCalls": 100219,
+        "uniqueInstructions": 15102
       },
-      "detail": "4/4 properties passed · 50,107 calls",
+      "detail": "9/9 properties passed across 2 curve generations · 100,219 calls",
       "cases": [
-        "echidna_solvent",
-        "echidna_tokensSoldWithinCurve",
-        "echidna_supplyNeverGrows",
-        "echidna_inventoryMatchesBalance"
+        "EchidnaCurve.echidna_solvent",
+        "EchidnaCurve.echidna_tokensSoldWithinCurve",
+        "EchidnaCurve.echidna_supplyNeverGrows",
+        "EchidnaCurve.echidna_inventoryMatchesBalance",
+        "EchidnaAdextoCurve.echidna_solvent",
+        "EchidnaAdextoCurve.echidna_tokensSoldWithinCurve",
+        "EchidnaAdextoCurve.echidna_supplyNeverGrows",
+        "EchidnaAdextoCurve.echidna_inventoryMatchesBalance",
+        "EchidnaAdextoCurve.echidna_treasuryBalanceMatchesPaid"
       ]
     }
   ]
