@@ -2891,7 +2891,10 @@ export default function StudioPage() {
         </div>
 
         {/* Right: rel yang menempel — ringkasan launch di atas, co-pilot di bawah. */}
-        <div className="space-y-3 lg:sticky lg:top-4 lg:col-span-4">
+        {/* top-20 = 70px (rem situs 14px) = navbar 57px + 13px. Sticky baru bekerja setelah body berhenti
+            menjadi kontainer gulir (lihat catatan overflow-x di globals.css); dengan top-4 rel
+            ini menempel DI BAWAH navbar dan kepalanya tertutup. */}
+        <div className="space-y-3 lg:sticky lg:top-20 lg:col-span-4">
           {/* Ringkasan launch.
               HANYA MEMBACA state yang sudah ada (nama, ticker, logo, supply, chain
               tujuan, pembagian fee yang sudah dihitung di atas). Tidak ada input, tidak
@@ -3173,7 +3176,7 @@ function StepRail({
   steps: Array<{ id: string; label: string; done: boolean }>;
 }) {
   return (
-    <nav aria-label="Launch steps" className="sticky top-0 z-10 -mx-3 mb-1 bg-surface/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
+    <nav aria-label="Launch steps" className="sticky top-16 z-10 -mx-3 mb-1 bg-surface/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[10px]">
         {steps.map((step, i) => (
           <li key={step.id} className="flex items-center gap-1">

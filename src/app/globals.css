@@ -231,8 +231,21 @@ body {
   background-attachment: fixed;
   /* Diisi oleh next/font di layout; fallback sistem hanya untuk keadaan darurat. */
   font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* `clip`, BUKAN `hidden` — `hidden` tetap ada hanya sebagai cadangan browser lama.
+     `overflow-x: hidden` memaksa `overflow-y` menjadi `auto`, sehingga <body> menjadi
+     kontainer gulir yang tidak pernah menggulir (yang menggulir adalah viewport). Dua hal
+     patah diam-diam karenanya, terukur 2026-09-30: setiap `position: sticky` (navbar, rel
+     kanan Studio, rel langkah) ikut menggulir pergi — header berada di top −900 pada
+     scrollY 900 — dan setiap `animation-timeline: view()` membeku di progres 1 karena
+     elemennya selalu "terlihat" di dalam body. `clip` memotong luapan horizontal yang sama
+     tanpa membuat kontainer gulir. */
   overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
+  /* Navbar sekarang benar-benar menempel (57px: h-16 pada rem 14px + border), jadi lompatan
+     ke #anchor harus menyisakan ruangnya — kalau tidak, judul seksi yang dituju mendarat di
+     bawah navbar. */
+  scroll-padding-top: 5rem;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1;
