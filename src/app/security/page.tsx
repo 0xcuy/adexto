@@ -177,8 +177,9 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
     /**
      * KEDUA generasi disebut, karena Slither memang melaporkan keduanya.
      *
-     * Diperiksa di build/security/slither.json, bukan diasumsikan: 9 instance di
-     * SovereignCurve.sol dan 12 di AdextoCurve.sol. Menyebut hanya yang lama akan
+     * Diperiksa di build/security/slither.json, bukan diasumsikan: 3 instance di
+     * SovereignCurve.sol dan 4 di AdextoCurve.sol (pemindaian 2026-09-30; dulu 9 dan 12
+     * sebelum kontrak v1 dan harness lain dikeluarkan dari tree). Menyebut hanya yang lama akan
      * membuat tabel ini terlihat tidak mencakup kontrak yang justru sedang hidup —
      * bentuk penyembunyian yang paling tidak disengaja dan paling mudah terjadi
      * setiap kali ada generasi baru.
@@ -194,44 +195,28 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
     why:
       "The strict comparison being flagged is `require(balanceOf(address(this)) == 0)`. Exact equality is the point here: the launch must fail unless the entire supply actually moved into the curve. Relaxing it to `<=` would permit leftover tokens to sit in the factory. Reported twice per factory generation, identically.",
   },
+  /**
+   * Disegarkan 2026-09-30 terhadap pemindaian yang sedang diterbitkan, dan dicocokkan dengan
+   * slither.json/aderyn.json yang dijalankan ulang pada tree ini. Tiga baris lama dicabut karena
+   * TIDAK ADA lagi di keluaran mesin mana pun: "nonReentrant is not the first modifier" (Aderyn
+   * Low), "ETH transferred without address checks" (Aderyn High), dan "Contract locks Ether
+   * without a withdraw function" (Aderyn High, empat kontrak v1 yang sudah dihapus dari tree).
+   * Pengakuan soal receiver v1 yang mengunci native tetap ada di audit/README.md. Tabel ini
+   * mengikuti keluaran mesin, bukan kebalikannya.
+   */
   {
     finding: "reentrancy-no-eth",
-    engine: "Slither · Medium (32 instances across both generations)",
-    where: "AdextoCurve and SovereignCurve — sell, initializeCurve, receive · both factories — deployTrinity",
+    engine: "Slither · Medium (4 instances, both curve generations)",
+    where: "AdextoCurve.sell and receive · SovereignCurve.sell and receive",
     why:
-      "Every one of those curve functions carries the `nonReentrant` modifier; Slither does not model a hand-written guard, so it flags them anyway. `initializeCurve` is additionally `onlyFactory` and one-shot. `deployTrinity` calls contracts it created itself in the same transaction, so no third-party code sits on that path. `claimProtocolFees` on the 0.11.0 and 0.12.0 curves is flagged for the same reason and is guarded the same way, with the added property that its destination is immutable. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines and never broke.",
+      "`sell` carries the `nonReentrant` modifier and `receive` takes the same `_locked` guard inline; Slither does not model a hand-written guard, so it flags them anyway. The only external callee on those paths is the market's own token, whose transfer hook calls nothing but the standard ERC-20 update — no callbacks. The solvency invariant — which includes `protocolOwed` as a term — was driven against random action sequences by two different fuzzing engines, Foundry and Echidna, and never broke.",
   },
   {
-    finding: "nonReentrant is not the first modifier",
-    engine: "Aderyn · Low",
-    where: "AdextoCurve.initializeCurve · SovereignCurve.initializeCurve",
+    finding: "Reentrancy: state change after external call",
+    engine: "Aderyn · High (8 instances)",
+    where: "AdextoCurve.sell and SovereignCurve.sell (3 each) · deployTrinity on both factories (1 each)",
     why:
-      "The order is `onlyFactory nonReentrant`. That is safe here because `onlyFactory` only compares `msg.sender` and makes no external call, so nothing can re-enter before the guard takes effect.",
-  },
-  {
-    finding: "ETH transferred without address checks",
-    engine: "Aderyn · High",
-    where: "AdextoCurve.claimCreatorFees and claimProtocolFees · SovereignCurve.claimCreatorFees",
-    why:
-      "Each destination is `immutable`. `creator` comes from the `msg.sender` that called `deployTrinity`, and the zero address cannot send a transaction, so it can never hold that value. `protocolTreasury` is a constructor argument that both the factory and the curve reject when it is zero. Neither function takes a destination parameter at all, which is why both can safely be permissionless.",
-  },
-  {
-    finding: "Contract locks Ether without a withdraw function",
-    engine: "Aderyn · High (4 instances)",
-    /**
-     * Nama keempat kontraknya TIDAK dituliskan di sini, dan itu bukan penyembunyian.
-     *
-     * Dua di antaranya memuat singkatan protokol jembatan lintas-chain, dan singkatan
-     * itu ada di daftar BANNED audit_claims.mjs — daftar yang memblokir seluruh topik
-     * itu dari setiap halaman karena fiturnya dicabut. Penjaga itu berbunyi terhadap
-     * halaman INI saat pertama dibangun, dan pilihannya jelas: melemahkan penjaga demi
-     * satu baris tabel, atau menunjuk artefak mentah yang memuat nama lengkapnya.
-     * Presisinya tidak hilang — `build/security/aderyn.json` menyebut tiap berkas dan
-     * nomor barisnya, dan tabel alamat di /docs menyebut keempatnya.
-     */
-    where: "four v1-generation contracts, all outside the launch path",
-    why:
-      "True, and admitted elsewhere on this site: native sent to those superseded bridge receivers is locked forever, because the contracts have no withdraw, sweep or transfer. That is one of the reasons the cross-chain path was dropped rather than repaired — repairing it would mean adding the withdrawal path this protocol promises does not exist. All four sit outside the launch path; a launch never touches them. The exact filenames and line numbers are in build/security/aderyn.json.",
+      "In `sell`, the external calls are `balanceOf`, `allowance` and `transferFrom` on the market's own token, under the same guard as the row above. In `deployTrinity`, the call is `ownerOf` on the ERC-8004 Identity Registry, made only when a launch binds an agent. That registry is an upgradeable contract run by a third party, but the interface declares `ownerOf` as `view`, so it is compiled to STATICCALL: any state change, event or value transfer inside it reverts, and it cannot re-enter `deployTrinity`. What a hostile registry could still do is make a binding launch revert or report the wrong owner; that question is listed for reviewers in the audit scope.",
   },
   /**
    * ENTRI `reentrancy-eth` DICABUT KARENA KONTRAKNYA DIHAPUS, BUKAN KARENA DIPERBAIKI.
@@ -571,16 +556,28 @@ node scripts/security-scan.mjs
 # fuzz + invariants only
 forge test`}
           </pre>
-          {/* Kenapa BUKAN commit di header: pemindaian berjalan di working tree kotor di atas
-              fa4200b, dan di commit itu AdextoFactory.sol berbeda dari yang dipindai dan yang
-              di-deploy. contractHashes di laporan cocok 8/8 dengan commit sourceCommit (fa4200b
-              hanya 7/8), jadi itu commit yang benar untuk di-checkout. */}
+          {/* Dua kasus, dipilih oleh `report.dirty`. Laporan lama berjalan di working tree kotor di
+              atas fa4200b, jadi yang harus di-checkout adalah sourceCommit (contractHashes cocok
+              8/8), bukan commit di header. Sejak laporan 2026-09-30 pemindaian berjalan di checkout
+              bersih, dan kedelapan berkas kontraknya identik dengan sourceCommit. */}
           <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-            The scan ran on a working tree with uncommitted changes, as the header says. Its{" "}
-            <code className="text-accent">contracts/</code> folder matches commit{" "}
-            <code className="text-accent">{sourceShort}</code> file for file (the report records a sha256 for each
-            contract file), so that is the commit to check out rather than{" "}
-            <code className="text-accent">{commitShort}</code>.
+            {report.dirty ? (
+              <>
+                The scan ran on a working tree with uncommitted changes, as the header says. Its{" "}
+                <code className="text-accent">contracts/</code> folder matches commit{" "}
+                <code className="text-accent">{sourceShort}</code> file for file (the report records a sha256 for each
+                contract file), so that is the commit to check out rather than{" "}
+                <code className="text-accent">{commitShort}</code>.
+              </>
+            ) : (
+              <>
+                The scan ran on a clean checkout of <code className="text-accent">{commitShort}</code>. Its contract
+                files are identical to <code className="text-accent">{sourceShort}</code>, the commit the deployed
+                factory was compiled from (the report records a sha256 for each), so checking out{" "}
+                <code className="text-accent">{sourceShort}</code> rebuilds the deployed bytecode and the scanned
+                source at once.
+              </>
+            )}
           </p>
         </div>
 
