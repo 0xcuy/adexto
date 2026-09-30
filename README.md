@@ -375,18 +375,18 @@ npm run dev          # http://localhost:3000
 Contracts compile reproducibly, with no Hardhat run required:
 
 ```bash
-node scripts/compile-contracts.mjs --via-ir     # -> build/artifacts/
-node scripts/deploy-sovereign-curve.mjs --chain base            # dry run, no gas
-node scripts/deploy-sovereign-curve.mjs --chain base --broadcast # spends gas
+node scripts/compile-contracts.mjs --via-ir               # -> build/artifacts/
+node scripts/deploy-factory.mjs --chain base              # dry run, no gas
+node scripts/deploy-factory.mjs --chain base --broadcast  # spends gas
 ```
 
-The dry run checks the RPC chain ID, the deployer balance and `estimateGas` before anything is sent, and refuses to broadcast if the balance cannot cover the deployment.
+Before anything is sent, the dry run proves that the artifact was compiled from the current sources with the pinned compiler settings, that the chain executes the opcodes the bytecode uses, and that simulating the creation returns the artifact's runtime code with the treasury in its immutable slot. It prints every reserved ticker (`scripts/reserved-symbols.json`), because reservations are permanent. A mainnet broadcast refuses unless those sources are committed and pushed, and every fact is read back from the chain afterwards.
 
 A full launch, buy and claim can be driven through the UI against a local chain instead of mainnet:
 
 ```bash
 cd devchain && npx hardhat node                                     # chain 31337 on :8545
-node scripts/deploy-sovereign-curve.mjs --chain devchain --broadcast
+node scripts/deploy-factory.mjs --chain devchain --broadcast
 set -a && . ./.env.local && set +a && source scripts/devchain-env.sh
 npx next build && npx next start -p 3100                            # NEXT_PUBLIC_* are inlined at build time
 ```

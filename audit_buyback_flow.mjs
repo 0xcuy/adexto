@@ -19,7 +19,7 @@
  *   6. Invarian solvensi tetap utuh sesudahnya.
  *
  *   cd devchain && npx hardhat node
- *   node scripts/deploy-sovereign-curve.mjs --chain devchain --broadcast
+ *   node scripts/deploy-factory.mjs --chain devchain --broadcast
  *   node audit_buyback_flow.mjs
  */
 import { ethers } from "ethers";

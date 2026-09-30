@@ -72,7 +72,7 @@ export NEXT_PUBLIC_CHAIN_OVERRIDES
 
 if [ -z "$NEXT_PUBLIC_CHAIN_OVERRIDES" ] || [ "$NEXT_PUBLIC_CHAIN_OVERRIDES" = "{}" ]; then
   echo "GAGAL: build/deployments.json tidak memuat satu pun curveFactory testnet." >&2
-  echo "       Jalankan: node scripts/deploy-sovereign-curve.mjs --chain 0g-testnet --broadcast" >&2
+  echo "       Jalankan: node scripts/deploy-factory.mjs --chain 0g-testnet --broadcast" >&2
   return 1 2>/dev/null || exit 1
 fi
 

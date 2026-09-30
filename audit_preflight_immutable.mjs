@@ -143,14 +143,11 @@ if (deployedNets[0]) {
    * `isSymbolAvailable` adalah fungsi yang dipakai studio dan /api/deploy untuk
    * memutuskan, jadi ia yang ditanya.
    *
-   * Daftar di bawah HARUS sama dengan `RESERVED_SYMBOLS` di
-   * scripts/deploy-sovereign-curve.mjs dan `reservedSymbols()` di
-   * test/AdextoCurveFixture.sol.
+   * Daftarnya dibaca dari scripts/reserved-symbols.json (`base`), sumber yang sama
+   * dengan scripts/deploy-factory.mjs; skrip deploy juga menolak broadcast kalau
+   * `reservedSymbols()` di test/AdextoCurveFixture.sol berbeda darinya.
    */
-  const SHOULD_BE_RESERVED = [
-    "ADEXTO", "ADT", "ZEEBO", "WOMBO", "BLOOP", "PARCEL",
-    "ETH", "WETH", "USDC", "USDT", "BTC", "WBTC", "0G", "A0GI", "MON", "ARB",
-  ];
+  const SHOULD_BE_RESERVED = JSON.parse(readFileSync("scripts/reserved-symbols.json", "utf8")).base;
   const fRes = new ethers.Contract(
     deployedNets[0].dep.curveFactory,
     FACTORY_MIN,

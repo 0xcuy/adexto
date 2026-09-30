@@ -201,7 +201,7 @@ export const SUPERSEDED_CURVE_FACTORY_GENERATION = {
  * `0x5a2f13f1efb86bd1e1814a5212690a2b765c85c8`. Ia sah dan lengkap, tetapi tidak dipakai —
  * deployment pertama gagal di pemeriksaan cadangan karena `base-rpc.publicnode.com`
  * membatasi laju pada `eth_call` ketiga, yang terbaca seperti kontraknya revert. Penyebabnya
- * sudah diperbaiki di `scripts/deploy-sovereign-curve.mjs` (jeda 150 ms per pembacaan, dan
+ * sudah diperbaiki di `scripts/deploy-factory.mjs` (jeda 150 ms per pembacaan, dan
  * galat baca sekarang berhenti dengan pesan alih-alih dihitung sebagai ticker bebas).
  * JANGAN memasukkan alamat itu ke konfigurasi mana pun.
  */

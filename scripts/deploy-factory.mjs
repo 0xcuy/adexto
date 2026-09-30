@@ -1,283 +1,517 @@
 /**
- * Broadcast AdextoFactory (VERSION 0.11.0), which deploys AdextoCurve markets.
+ * Deploy the ADEXTO v1 launch factory: AdextoFactory, VERSION "1.0.0".
  *
- * Dry run first (no transaction, no gas):
- *   node scripts/deploy-sovereign-curve.mjs --chain 0g
+ * The factory creates every market (one AdextoToken and one AdextoCurve per launch), so it is
+ * the only contract ADEXTO deploys per chain. It has no owner, and neither does anything it
+ * creates.
  *
- * Real broadcast (spends gas):
- *   node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast
+ *   node scripts/compile-contracts.mjs --via-ir                  # writes build/artifacts/
+ *   node scripts/deploy-factory.mjs --chain arbitrum             # dry run: no transaction, no gas
+ *   node scripts/deploy-factory.mjs --chain arbitrum --broadcast # spends gas
  *
- * Supported --chain: 0g | arbitrum | base | monad | devchain
+ * Mainnets: 0g | base | arbitrum | monad | robinhood
+ * Testnets: 0g-testnet | base-sepolia | arbitrum-sepolia | monad-testnet
+ * Local:    devchain (chain 31337 on :8545)
  *
- * REQUIRES A PROTOCOL TREASURY, and refuses to run without one:
+ * Reads .env.local: OG_PRIVATE_KEY or PRIVATE_KEY, and PROTOCOL_TREASURY (or --treasury 0x…).
+ * DEPLOY_RPC overrides the RPC of the selected chain.
  *
- *   PROTOCOL_TREASURY=0x…   in .env.local, or --treasury 0x…
+ * WHAT CANNOT BE CHANGED AFTER A BROADCAST
+ * Both constructor arguments are permanent:
+ *   - `protocolTreasury` is immutable in the factory and in every curve it creates. There is no
+ *     setter, because a setter needs an owner and these contracts have none.
+ *   - the reserved tickers (scripts/reserved-symbols.json) are written once, in the
+ *     constructor. No function releases one, so a typo locks that name on this factory forever.
+ * That is why the checks below refuse instead of warning.
  *
- * `AdextoFactory`'s constructor takes that address and stores it `immutable`; each
- * curve it deploys stores it `immutable` too. There is no setter in either
- * contract, on purpose — a setter would make them owned, which is the opposite of
- * what /security claims about them. So the address baked in here is where every
- * protocol fee from every market this factory ever creates will go, forever. A
- * typo cannot be corrected; it can only be abandoned by deploying a new factory
- * and relaunching every market on it.
+ * WHAT THE DRY RUN PROVES BEFORE ANY GAS IS SPENT
+ *   1. The artifact was compiled from the source files as they are now (the keccak256 of every
+ *      source is in the solc metadata), with solc 0.8.37, EVM cancun, 200 optimizer runs and
+ *      via-IR, and the source declares VERSION "1.0.0". On a mainnet those files must also be
+ *      committed and pushed, so the recorded commit is the public source of the deployment.
+ *   2. The Foundry fixture reserves exactly the base list broadcast here.
+ *   3. The chain executes the post-London opcodes the bytecode contains (PUSH0 and MCOPY).
+ *   4. Simulating the creation returns the artifact's runtime code, with the treasury in its
+ *      immutable slot.
+ *   5. The deployer can pay for it, including the L1 data fee on Base.
  *
- * That is why the checks below are refusals rather than warnings. Previous
- * versions of this script deployed `AdextoCurveFactory` with NO constructor
- * arguments at all, so running it unchanged against the new artifact would revert
- * on `zero protocol treasury` — the good case. The bad case is passing an address
- * that is merely wrong, which succeeds silently.
+ * After a broadcast the same facts are read back from the chain. The deployment is written to
+ * build/deployments.json as soon as it has a receipt, and marked `checks: "passed"` only when
+ * every read-back holds.
  */
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
 
+const ROOT = process.cwd();
+const CONTRACT_NAME = "AdextoFactory";
+const EXPECTED_VERSION = "1.0.0";
+const EXPECTED_COMPILER = "0.8.37";
+const EXPECTED_EVM = "cancun";
+const EXPECTED_RUNS = 200;
+/** Headroom over eth_estimateGas. Unused gas is refunded everywhere except Monad, which charges the limit. */
+const GAS_MARGIN_PCT = 10n;
+/** A ticker nobody reserves. If the factory reports even this one as taken, the read-back is broken. */
+const CONTROL_SYMBOL = "V1CONTROL";
+/**
+ * Creation code that stores 0x2a, copies it with MCOPY and returns the copy. It also uses PUSH0.
+ * Run through eth_call it proves the chain executes both, and it cannot change any state.
+ */
+const OPCODE_PROBE = "0x602a5f5260205f60205e60206020f3";
+/** Opcodes newer than London that this script knows how to probe. Anything else refuses. */
+const PROBED_OPCODES = new Set(["PUSH0", "MCOPY"]);
+const POST_LONDON_OPCODES = {
+  0x5f: "PUSH0",
+  0x5e: "MCOPY",
+  0x5c: "TLOAD",
+  0x5d: "TSTORE",
+  0x49: "BLOBHASH",
+  0x4a: "BLOBBASEFEE",
+};
+/** OP Stack GasPriceOracle predeploy, which prices the L1 data fee on Base. */
+const OP_GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F";
+
 const NETWORKS = {
   // Mainnets
-  "0g": { chainId: 16661, rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai", explorer: "https://chainscan.0g.ai", native: "0G" },
+  "0g": {
+    chainId: 16661,
+    rpc: process.env.OG_RPC_URL || "https://evmrpc.0g.ai",
+    explorer: "https://chainscan.0g.ai",
+    native: "0G",
+  },
+  base: { chainId: 8453, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", native: "ETH", opStack: true },
   arbitrum: { chainId: 42161, rpc: "https://arb1.arbitrum.io/rpc", explorer: "https://arbiscan.io", native: "ETH" },
-  base: { chainId: 8453, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", native: "ETH" },
-  monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadscan.com", native: "MON" },
+  monad: {
+    chainId: 143,
+    rpc: "https://rpc.monad.xyz",
+    explorer: "https://monadscan.com",
+    native: "MON",
+    chargesGasLimit: true,
+  },
+  robinhood: {
+    chainId: 4663,
+    rpc: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com",
+    explorer: "https://robinhoodchain.blockscout.com",
+    native: "ETH",
+  },
 
-  // Testnets — prove the flow on the real remote EVM before spending mainnet gas.
+  // Testnets: prove the flow on a real remote EVM before spending mainnet gas.
   "0g-testnet": {
     chainId: 16602,
     rpc: process.env.OG_TESTNET_RPC_URL || "https://evmrpc-testnet.0g.ai",
     explorer: "https://chainscan-newton.0g.ai",
     native: "0G",
+    testnet: true,
+  },
+  "base-sepolia": {
+    chainId: 84532,
+    rpc: "https://sepolia.base.org",
+    explorer: "https://sepolia.basescan.org",
+    native: "ETH",
+    opStack: true,
+    testnet: true,
   },
   "arbitrum-sepolia": {
     chainId: 421614,
     rpc: "https://sepolia-rollup.arbitrum.io/rpc",
     explorer: "https://sepolia.arbiscan.io",
     native: "ETH",
+    testnet: true,
   },
-  "base-sepolia": { chainId: 84532, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org", native: "ETH" },
-  "monad-testnet": { chainId: 10143, rpc: "https://testnet-rpc.monad.xyz", explorer: "", native: "MON" },
+  "monad-testnet": {
+    chainId: 10143,
+    rpc: "https://testnet-rpc.monad.xyz",
+    explorer: "",
+    native: "MON",
+    chargesGasLimit: true,
+    testnet: true,
+  },
 
-  devchain: { chainId: 31337, rpc: "http://127.0.0.1:8545", explorer: "", native: "ETH" },
+  devchain: { chainId: 31337, rpc: "http://127.0.0.1:8545", explorer: "", native: "ETH", local: true },
 };
 
+function fail(message) {
+  console.error(`\n${message}`);
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
-const chainKey = (args[args.indexOf("--chain") + 1] || "").toLowerCase();
+const argValue = (flag) => {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] ?? "" : "";
+};
+const chainKey = argValue("--chain").toLowerCase();
 const BROADCAST = args.includes("--broadcast");
 const net = NETWORKS[chainKey];
-// RPC publik kadang 503 (sepolia.base.org pernah begitu berulang). Satu env
-// override menghindari harus menyunting skrip demi penyedia yang sedang rewel.
-if (net && process.env.DEPLOY_RPC) net.rpc = process.env.DEPLOY_RPC;
-
 if (!net) {
-  console.error(`Usage: node scripts/deploy-sovereign-curve.mjs --chain <${Object.keys(NETWORKS).join("|")}> [--broadcast]`);
-  process.exit(1);
+  fail(`Usage: node scripts/deploy-factory.mjs --chain <${Object.keys(NETWORKS).join("|")}> [--broadcast]`);
+}
+// Public RPCs sometimes return 503 for minutes at a time; this avoids editing the script for it.
+if (process.env.DEPLOY_RPC) net.rpc = process.env.DEPLOY_RPC;
+const IS_MAINNET = !net.testnet && !net.local;
+
+// ─── 1. The artifact is the source tree, compiled with the pinned settings ────────────────────
+
+const artifactPath = path.join(ROOT, "build", "artifacts", `${CONTRACT_NAME}.json`);
+if (!fs.existsSync(artifactPath)) fail("Artifact missing. Run: node scripts/compile-contracts.mjs --via-ir");
+const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+if (!artifact.metadata || !artifact.immutableReferences) {
+  fail("Artifact has no metadata or immutableReferences. Recompile: node scripts/compile-contracts.mjs --via-ir");
+}
+const metadata = JSON.parse(artifact.metadata);
+const settings = metadata.settings ?? {};
+
+if (!String(metadata.compiler?.version).startsWith(`${EXPECTED_COMPILER}+`)) {
+  fail(`Artifact was compiled with solc ${metadata.compiler?.version}, expected ${EXPECTED_COMPILER}.`);
+}
+if (settings.evmVersion !== EXPECTED_EVM) fail(`Artifact targets EVM ${settings.evmVersion}, expected ${EXPECTED_EVM}.`);
+if (settings.optimizer?.enabled !== true || settings.optimizer?.runs !== EXPECTED_RUNS) {
+  fail(`Artifact optimizer is ${JSON.stringify(settings.optimizer)}, expected enabled with ${EXPECTED_RUNS} runs.`);
+}
+if (settings.viaIR !== true) fail("Artifact was compiled without via-IR. Recompile with --via-ir.");
+
+/**
+ * The keccak256 the compiler recorded for every source must equal the file on disk. A stale
+ * artifact would otherwise deploy code that no longer matches the source anyone can read, and
+ * verification would fail only after the address exists.
+ */
+const sourceFiles = Object.keys(metadata.sources ?? {});
+for (const source of sourceFiles) {
+  const onDisk = source.startsWith("@") ? path.join(ROOT, "node_modules", source) : path.join(ROOT, source);
+  if (!fs.existsSync(onDisk)) fail(`Source ${source} from the artifact metadata is missing on disk.`);
+  const actual = ethers.keccak256(fs.readFileSync(onDisk));
+  if (actual !== metadata.sources[source].keccak256) {
+    fail(`${source} changed after the artifact was compiled. Recompile: node scripts/compile-contracts.mjs --via-ir`);
+  }
 }
 
-const IS_TESTNET = chainKey.includes("testnet") || chainKey.includes("sepolia");
-const PK = chainKey === "devchain"
+for (const file of ["contracts/AdextoFactory.sol", "contracts/AdextoCurve.sol"]) {
+  const declared = fs.readFileSync(path.join(ROOT, file), "utf8").match(/string public constant VERSION = "([^"]+)";/);
+  if (declared?.[1] !== EXPECTED_VERSION) {
+    fail(`${file} declares VERSION ${declared?.[1] ?? "(none)"}, expected ${EXPECTED_VERSION}.`);
+  }
+}
+
+/**
+ * The constructor shape is read from the ABI rather than assumed, so the next constructor change
+ * fails here instead of producing a deployment whose immutables nobody intended.
+ */
+const ctorInputs = artifact.abi.find((f) => f.type === "constructor")?.inputs ?? [];
+if (ctorInputs.length !== 2 || ctorInputs[0].type !== "address" || ctorInputs[1].type !== "string[]") {
+  fail(
+    `Unexpected ${CONTRACT_NAME} constructor: expected (address, string[]), got ` +
+      `[${ctorInputs.map((i) => `${i.type} ${i.name}`).join(", ")}]. Update this script deliberately.`,
+  );
+}
+
+/**
+ * The factory has exactly one immutable, `protocolTreasury`. The read-back below compares it
+ * with the treasury sent, so a second immutable must be handled here before it can ship.
+ */
+const immutableIds = Object.keys(artifact.immutableReferences);
+if (immutableIds.length !== 1) {
+  fail(`Expected one immutable (protocolTreasury), the artifact has ${immutableIds.length}. Update this script.`);
+}
+const immutableRanges = artifact.immutableReferences[immutableIds[0]];
+
+// ─── 2. The reserved tickers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Why reserve at all: `symbolRegistry` belongs to one factory, so a new factory starts with an
+ * empty book, and every name an earlier generation used is claimable again. `deployTrinity` has
+ * no access control, so an off-chain list only stops a listing on the site, not a launch.
+ *
+ * `base` goes to every chain: ADEXTO's six live markets (they stay on the 0.11.0 factories, and
+ * reserving them here stops a lookalike on v1) and ten major asset names. `perChain` entries
+ * are appended on their chain only. On Robinhood Chain that is USDG and the tokenized stocks.
+ */
+const reservedFile = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "reserved-symbols.json"), "utf8"));
+const BASE_RESERVED = reservedFile.base ?? [];
+const CHAIN_RESERVED = reservedFile.perChain?.[chainKey]?.symbols ?? [];
+const RESERVED_SYMBOLS = [...BASE_RESERVED, ...CHAIN_RESERVED];
+
+// The factory accepts 1 to 12 bytes; anything else could never be launched, so it is a typo.
+const malformed = RESERVED_SYMBOLS.filter((s) => typeof s !== "string" || !/^[A-Z0-9]{1,12}$/.test(s));
+if (malformed.length > 0) fail(`Malformed reserved tickers (expected A-Z and 0-9, 1 to 12 characters): ${malformed.join(", ")}`);
+const duplicates = RESERVED_SYMBOLS.filter((s, i) => RESERVED_SYMBOLS.indexOf(s) !== i);
+if (duplicates.length > 0) fail(`Duplicate reserved tickers: ${[...new Set(duplicates)].join(", ")}`);
+if (BASE_RESERVED.length === 0) fail("scripts/reserved-symbols.json has an empty base list.");
+
+/**
+ * The Foundry suite deploys the factory with `reservedSymbols()` from the fixture. If that list
+ * drifts from the one broadcast here, the tests prove protection for a list nobody deployed.
+ */
+const fixtureSource = fs.readFileSync(path.join(ROOT, "test", "AdextoCurveFixture.sol"), "utf8");
+const fixtureBody = fixtureSource.match(/function reservedSymbols\(\)[\s\S]*?\n    \}/)?.[0] ?? "";
+const fixtureSize = Number(fixtureBody.match(/new string\[\]\((\d+)\)/)?.[1] ?? -1);
+const fixtureList = [...fixtureBody.matchAll(/list\[(\d+)\] = "([^"]*)";/g)]
+  .sort((a, b) => Number(a[1]) - Number(b[1]))
+  .map((m) => m[2]);
+if (fixtureSize !== BASE_RESERVED.length || fixtureList.join(",") !== BASE_RESERVED.join(",")) {
+  fail(
+    "test/AdextoCurveFixture.sol reservedSymbols() differs from the base list in scripts/reserved-symbols.json.\n" +
+      `  fixture: ${fixtureList.join(", ")}\n  base   : ${BASE_RESERVED.join(", ")}`,
+  );
+}
+
+const coder = ethers.AbiCoder.defaultAbiCoder();
+const RESERVED_HASH = ethers.keccak256(coder.encode(["string[]"], [RESERVED_SYMBOLS]));
+
+// ─── 3. The source is committed and public (mainnet broadcasts) ──────────────────────────────
+
+/**
+ * A mainnet factory is verified against a public commit, so the commit recorded with it has to
+ * contain exactly what was compiled. A dry run only reports; a broadcast refuses.
+ */
+const git = (...gitArgs) => execFileSync("git", gitArgs, { cwd: ROOT, encoding: "utf8" }).trim();
+const SOURCE_COMMIT = git("rev-parse", "HEAD");
+const sourceProblems = [];
+{
+  const tracked = [...sourceFiles.filter((f) => !f.startsWith("@")), "scripts/reserved-symbols.json", "test/AdextoCurveFixture.sol"];
+  const dirty = git("status", "--porcelain", "--", ...tracked);
+  if (dirty) sourceProblems.push(`uncommitted changes in deployed sources or the reserved list:\n${dirty}`);
+  try {
+    git("merge-base", "--is-ancestor", "HEAD", "origin/main");
+  } catch {
+    if (!args.includes("--allow-unpushed")) sourceProblems.push(`HEAD ${SOURCE_COMMIT.slice(0, 7)} is not on origin/main`);
+  }
+}
+if (IS_MAINNET && BROADCAST && sourceProblems.length > 0) {
+  fail(`Refusing a mainnet broadcast from a source that is not public:\n  - ${sourceProblems.join("\n  - ")}\nCommit and push first.`);
+}
+
+// ─── 4. Key, chain and treasury ──────────────────────────────────────────────────────────────
+
+const PK = net.local
   ? process.env.DEVCHAIN_PK || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
   : process.env.OG_PRIVATE_KEY || process.env.PRIVATE_KEY;
-
-if (!PK) {
-  console.error("Missing OG_PRIVATE_KEY / PRIVATE_KEY in .env.local");
-  process.exit(1);
-}
-
-const CONTRACT_NAME = "AdextoFactory";
-const artifactPath = path.join(process.cwd(), "build", "artifacts", `${CONTRACT_NAME}.json`);
-if (!fs.existsSync(artifactPath)) {
-  console.error("Artifact missing. Run: node scripts/compile-contracts.mjs --via-ir");
-  process.exit(1);
-}
-const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+if (!PK) fail("Missing OG_PRIVATE_KEY / PRIVATE_KEY in .env.local");
 
 /**
- * The constructor signature is READ FROM THE ARTIFACT rather than assumed.
- *
- * This script used to call `factory.deploy()` with no arguments, which was correct
- * for the previous factory and silently wrong for this one. Deriving the arity here
- * means the next constructor change fails loudly at this line instead of producing
- * a deployment whose immutables are not what anyone intended.
+ * Static network, so ethers never re-detects it mid-run on a load-balanced RPC; the explicit
+ * eth_chainId check below is what proves the RPC is the intended chain. No batching, because
+ * some public RPCs reject or throttle JSON-RPC batches.
  */
-const ctor = artifact.abi.find((f) => f.type === "constructor");
-const ctorInputs = ctor?.inputs ?? [];
-if (ctorInputs.length !== 2 || ctorInputs[0].type !== "address" || ctorInputs[1].type !== "string[]") {
-  console.error(
-    `Unexpected ${CONTRACT_NAME} constructor: expected (address protocolTreasury, string[] reservedSymbols), got ` +
-      `[${ctorInputs.map((i) => `${i.type} ${i.name}`).join(", ")}]. Recompile, or update this script deliberately.`
-  );
-  process.exit(1);
-}
-
-/**
- * Ticker yang dicadangkan di buku factory saat kelahirannya. PERMANEN.
- *
- * KENAPA DAFTAR INI ADA. `symbolRegistry` adalah state milik SATU factory, bukan daftar
- * global, jadi factory baru lahir dengan buku kosong dan setiap nama yang sudah dipakai
- * generasi sebelumnya bebas diklaim lagi. Diukur pada keempat factory 0.11.0 yang live
- * sebelum ini dibuat: "ETH", "USDC" dan "BTC" bebas di keempat chain, dan "ADEXTO" bebas
- * di Base, Arbitrum dan Monad. Daftar reserved off-chain tidak menutup itu karena
- * `deployTrinity` tidak punya access control — ia hanya menahan PENDAFTARAN di situs.
- *
- * HARUS SAMA dengan `reservedSymbols()` di test/AdextoCurveFixture.sol. Kalau keduanya
- * berpisah, test membuktikan perlindungan atas daftar yang tidak pernah ter-deploy.
- *
- * Enam pertama adalah pasar yang hidup di UI, diambil dari registry produksi. Sepuluh
- * sisanya nama aset besar. `CURB` sengaja TIDAK ada: ia terklaim on-chain di Monad tetapi
- * bukan pasar kami dan tidak pernah tampil di situs, jadi mencadangkannya berarti
- * mengunci nama orang lain di keempat chain.
- *
- * Lima ticker protokol yang belum diluncurkan — ADX, AEGIS, QNOVA, CSENT, MQUANT — juga
- * TIDAK di-seed, atas permintaan: mencadangkannya di sini berarti kami sendiri tidak akan
- * pernah bisa memakainya. Keduanya tetap terlindung off-chain lewat `RESERVED_SYMBOLS`,
- * jadi tidak bisa tampil di situs walau bisa diklaim on-chain.
- *
- * SATU SALAH KETIK MENGUNCI NAMA ITU SELAMANYA di factory ini. Tidak ada fungsi untuk
- * melepas. Periksa daftarnya sebelum --broadcast, bukan sesudahnya.
- */
-const RESERVED_SYMBOLS = [
-  // Pasar yang live di UI.
-  "ADEXTO",
-  "ADT",
-  "ZEEBO",
-  "WOMBO",
-  "BLOOP",
-  "PARCEL",
-  // Nama aset besar. Tidak ada pengecualian, termasuk untuk kami.
-  "ETH",
-  "WETH",
-  "USDC",
-  "USDT",
-  "BTC",
-  "WBTC",
-  "0G",
-  "A0GI",
-  "MON",
-  "ARB",
-];
-
-const provider = new ethers.JsonRpcProvider(net.rpc);
+const provider = new ethers.JsonRpcProvider(net.rpc, net.chainId, { staticNetwork: true, batchMaxCount: 1 });
 const wallet = new ethers.Wallet(PK, provider);
 
-/**
- * Protocol treasury: immutable, permanent, and therefore validated hard.
- *
- * The deployer key is rejected explicitly. It is online by definition (it deploys
- * and it places demo trades) and on 0G it is already the `creator` of live markets,
- * so pointing the protocol leg at it would make protocol revenue and creator
- * revenue indistinguishable on-chain for anyone auditing the split.
- */
-const treasuryRaw = (args[args.indexOf("--treasury") + 1] || "").startsWith("0x")
-  ? args[args.indexOf("--treasury") + 1]
-  : process.env.PROTOCOL_TREASURY || "";
+// The chain comes first: every read below is only meaningful on the intended chain.
+const rpcChainId = Number(await provider.send("eth_chainId", []));
+if (rpcChainId !== net.chainId) fail(`RPC chainId mismatch: expected ${net.chainId}, got ${rpcChainId}`);
 
+const treasuryRaw = (argValue("--treasury").startsWith("0x") ? argValue("--treasury") : process.env.PROTOCOL_TREASURY) || "";
 if (!treasuryRaw) {
-  console.error(
+  fail(
     "Missing protocol treasury. Set PROTOCOL_TREASURY in .env.local or pass --treasury 0x…\n" +
-      "It is stored immutable in the factory and in every curve the factory deploys, so it cannot be changed later."
+      "It is stored immutable in the factory and in every curve it creates.",
   );
-  process.exit(1);
 }
-
 let PROTOCOL_TREASURY;
 try {
   PROTOCOL_TREASURY = ethers.getAddress(treasuryRaw.trim());
 } catch {
-  console.error(`Protocol treasury is not a valid address: ${treasuryRaw}`);
-  process.exit(1);
+  fail(`Protocol treasury is not a valid address: ${treasuryRaw}`);
 }
+if (PROTOCOL_TREASURY === ethers.ZeroAddress) fail("Protocol treasury is the zero address; the constructor would revert.");
+/**
+ * The deployer is a hot key and already the creator of live markets. As the treasury it would
+ * merge protocol revenue with creator revenue on-chain, permanently.
+ */
+if (PROTOCOL_TREASURY === wallet.address) fail(`Protocol treasury equals the deployer (${wallet.address}). Use a separate address.`);
 
-if (PROTOCOL_TREASURY === ethers.ZeroAddress) {
-  console.error("Protocol treasury is the zero address. The constructor would revert, and rightly so.");
-  process.exit(1);
-}
-
-if (PROTOCOL_TREASURY.toLowerCase() === wallet.address.toLowerCase()) {
-  console.error(
-    `Protocol treasury equals the deployer (${wallet.address}). Refusing.\n` +
-      "The deployer is a hot key and is already a market creator, so this would permanently merge\n" +
-      "protocol revenue with creator revenue. Use a separate address."
+const deploymentsFile = path.join(ROOT, "build", "deployments.json");
+const deployments = fs.existsSync(deploymentsFile) ? JSON.parse(fs.readFileSync(deploymentsFile, "utf8")) : {};
+const previous = deployments[chainKey];
+// Every generation on a chain has paid the same treasury. A different one is a changed .env.local
+// until someone says otherwise.
+if (previous?.protocolTreasury && ethers.getAddress(previous.protocolTreasury) !== PROTOCOL_TREASURY && !args.includes("--new-treasury")) {
+  fail(
+    `Treasury ${PROTOCOL_TREASURY} differs from the one the previous factory on ${chainKey} pays ` +
+      `(${previous.protocolTreasury}). Re-run with --new-treasury if that is intended.`,
   );
-  process.exit(1);
 }
 
 /**
- * A contract treasury is allowed but not by accident.
- *
- * `claimProtocolFees()` pushes native with a plain `call`; a contract with no
- * `receive`/`fallback`, or one that runs out of the forwarded gas, makes the claim
- * revert every time and strands the accrued fees permanently. A Safe handles this
- * fine, which is why the flag exists rather than a flat ban.
+ * A contract treasury is allowed, but not by accident: `claimProtocolFees()` pushes native with a
+ * plain call, so a contract that cannot receive it strands every fee. A Safe receives fine.
  */
-// Chain dipastikan dulu. Probe `getCode` di bawah hanya bermakna kalau kita benar
-// sedang bicara dengan chain yang dimaksud — kalau RPC-nya chain lain, jawabannya
-// tentang alamat lain.
-const onChain = await provider.getNetwork();
-if (Number(onChain.chainId) !== net.chainId) {
-  console.error(`RPC chainId mismatch: expected ${net.chainId}, got ${onChain.chainId}`);
-  process.exit(1);
-}
-
 const treasuryCode = await provider.getCode(PROTOCOL_TREASURY);
 const treasuryIsContract = treasuryCode !== "0x";
 if (treasuryIsContract && !args.includes("--allow-contract-treasury")) {
-  console.error(
-    `Protocol treasury ${PROTOCOL_TREASURY} is a contract on ${chainKey} (${(treasuryCode.length - 2) / 2} bytes of code).\n` +
-      "If it cannot receive plain native transfers, every claimProtocolFees() call reverts and the fees are stranded forever.\n" +
-      "Confirm it accepts native (a Safe does), then re-run with --allow-contract-treasury."
+  fail(
+    `Protocol treasury ${PROTOCOL_TREASURY} is a contract on ${chainKey}. If it cannot receive plain native ` +
+      "transfers, every claimProtocolFees() reverts. Confirm it can, then re-run with --allow-contract-treasury.",
   );
-  process.exit(1);
 }
 
-const balance = await provider.getBalance(wallet.address);
-const feeData = await provider.getFeeData();
-const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("1", "gwei");
+// ─── 5. The chain runs this bytecode ─────────────────────────────────────────────────────────
+
+/** Linear disassembly that skips PUSH immediates, with the trailing CBOR metadata removed. */
+function postLondonOpcodes(hex) {
+  const code = hex.replace(/^0x/, "");
+  const cborLength = parseInt(code.slice(-4), 16);
+  const body = code.slice(0, code.length - 4 - cborLength * 2);
+  const found = new Set();
+  for (let i = 0; i < body.length / 2; ) {
+    const op = parseInt(body.slice(i * 2, i * 2 + 2), 16);
+    if (POST_LONDON_OPCODES[op]) found.add(POST_LONDON_OPCODES[op]);
+    i += op >= 0x60 && op <= 0x7f ? 1 + (op - 0x5f) : 1;
+  }
+  return found;
+}
+const usedOpcodes = new Set();
+for (const name of ["AdextoFactory", "AdextoToken", "AdextoCurve"]) {
+  const a = JSON.parse(fs.readFileSync(path.join(ROOT, "build", "artifacts", `${name}.json`), "utf8"));
+  for (const op of postLondonOpcodes(a.deployedBytecode)) usedOpcodes.add(op);
+}
+const unprobed = [...usedOpcodes].filter((op) => !PROBED_OPCODES.has(op));
+if (unprobed.length > 0) fail(`The bytecode uses ${unprobed.join(", ")}, which this script does not probe. Extend OPCODE_PROBE first.`);
+
+try {
+  const probe = await provider.call({ data: OPCODE_PROBE });
+  if (BigInt(probe) !== 0x2an) fail(`Opcode probe returned ${probe}, expected 0x…2a.`);
+} catch (e) {
+  fail(`${chainKey} did not execute PUSH0/MCOPY (${(e.shortMessage ?? e.message).slice(0, 160)}). Do not deploy cancun bytecode here.`);
+}
 
 const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet);
 const deployTx = await factory.getDeployTransaction(PROTOCOL_TREASURY, RESERVED_SYMBOLS);
+const CONSTRUCTOR_ARGS = coder.encode(["address", "string[]"], [PROTOCOL_TREASURY, RESERVED_SYMBOLS]);
+if (deployTx.data !== artifact.bytecode + CONSTRUCTOR_ARGS.slice(2)) fail("Deploy data is not bytecode + constructor args.");
+
+/** Runtime code with the immutable ranges zeroed, as solc leaves them in the artifact. */
+function masked(hex) {
+  const bytes = ethers.getBytes(hex);
+  for (const { start, length } of immutableRanges) bytes.fill(0, start, start + length);
+  return ethers.hexlify(bytes);
+}
+/** The value in every immutable range must be the treasury, left-padded to 32 bytes. */
+function immutableHoldsTreasury(hex) {
+  const bytes = ethers.getBytes(hex);
+  const expected = ethers.zeroPadValue(PROTOCOL_TREASURY, 32).toLowerCase();
+  return immutableRanges.every(({ start, length }) => ethers.hexlify(bytes.slice(start, start + length)) === expected);
+}
+function checkRuntime(code, label) {
+  if (!code || code === "0x") return `${label}: no runtime code`;
+  if (masked(code) !== artifact.deployedBytecode.toLowerCase()) return `${label}: runtime code differs from the artifact`;
+  if (!immutableHoldsTreasury(code)) return `${label}: the immutable slot does not hold ${PROTOCOL_TREASURY}`;
+  return null;
+}
+
 let gasEstimate;
 try {
   gasEstimate = await provider.estimateGas({ from: wallet.address, data: deployTx.data });
 } catch (e) {
-  console.error(`estimateGas failed: ${e.shortMessage || e.message}`);
-  process.exit(1);
+  fail(`estimateGas failed: ${e.shortMessage || e.message}`);
 }
-const cost = gasEstimate * gasPrice;
+const gasLimit = (gasEstimate * (100n + GAS_MARGIN_PCT)) / 100n;
 
-console.log(`network      : ${chainKey} (chainId ${net.chainId})${IS_TESTNET ? "  [TESTNET — dana uji]" : chainKey === "devchain" ? "  [LOKAL]" : "  [MAINNET — gas nyata]"}`);
-console.log(`contract     : ${CONTRACT_NAME}`);
-console.log(`deployer     : ${wallet.address}`);
-console.log(`treasury     : ${PROTOCOL_TREASURY}${treasuryIsContract ? "  [CONTRACT — allowed by flag]" : "  [EOA]"}`);
-console.log(`balance      : ${ethers.formatEther(balance)} ${net.native}`);
-console.log(`bytecode     : ${(artifact.bytecode.length / 2 / 1024).toFixed(2)} KiB`);
-// Dicetak UTUH, bukan sebagai jumlah. Daftar ini permanen dan tidak bisa dilepas, jadi
-// dry run harus menampilkan setiap namanya supaya salah ketik terlihat sebelum broadcast
-// dan bukan setelah ticker itu terkunci selamanya.
-console.log(`reserved     : ${RESERVED_SYMBOLS.length} ticker — ${RESERVED_SYMBOLS.join(", ")}`);
-console.log(`gas estimate : ${gasEstimate}`);
-console.log(`gas price    : ${ethers.formatUnits(gasPrice, "gwei")} gwei`);
-console.log(`max cost     : ~${ethers.formatEther(cost)} ${net.native}`);
-
-if (balance < cost) {
-  console.error(`\nInsufficient balance: need ~${ethers.formatEther(cost)} ${net.native}`);
-  process.exit(1);
+let simulatedRuntime;
+try {
+  simulatedRuntime = await provider.call({ from: wallet.address, data: deployTx.data, gasLimit });
+} catch (e) {
+  fail(`Simulating the creation failed: ${(e.shortMessage ?? e.message).slice(0, 160)}`);
 }
+const simulationProblem = checkRuntime(simulatedRuntime, "simulation");
+if (simulationProblem) fail(`${simulationProblem}. Nothing was sent.`);
+
+// ─── 6. The deployer can pay ─────────────────────────────────────────────────────────────────
+
+const balance = await provider.getBalance(wallet.address);
+const feeData = await provider.getFeeData();
+const nonceLatest = await provider.getTransactionCount(wallet.address, "latest");
+// Not every RPC serves the pending tag; without it this check is skipped, not failed.
+const noncePending = await provider.getTransactionCount(wallet.address, "pending").catch(() => null);
+// A pending transaction from the deployer would take this nonce, or be replaced by it.
+if (noncePending !== null && noncePending !== nonceLatest) {
+  fail(`The deployer has a pending transaction (nonce ${nonceLatest} latest, ${noncePending} pending). Wait for it.`);
+}
+const PREDICTED_ADDRESS = ethers.getCreateAddress({ from: wallet.address, nonce: nonceLatest });
+
+const gasPrice = feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
+const maxFeePerGas = feeData.maxFeePerGas ?? gasPrice;
+
+let l1Fee = 0n;
+if (net.opStack) {
+  const unsigned = ethers.Transaction.from({
+    type: 2,
+    chainId: net.chainId,
+    nonce: nonceLatest,
+    gasLimit,
+    maxFeePerGas,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0n,
+    to: null,
+    value: 0n,
+    data: deployTx.data,
+  }).unsignedSerialized;
+  const oracle = new ethers.Contract(OP_GAS_PRICE_ORACLE, ["function getL1Fee(bytes) view returns (uint256)"], provider);
+  l1Fee = await oracle.getL1Fee(unsigned);
+}
+// Monad charges the gas limit, not the gas used.
+const expectedCost = (net.chargesGasLimit ? gasLimit : gasEstimate) * gasPrice + l1Fee;
+const maxCost = gasLimit * maxFeePerGas + l1Fee;
+
+const label = net.local ? "[local]" : net.testnet ? "[testnet]" : "[MAINNET: real gas]";
+const fmt = (wei) => `${ethers.formatEther(wei)} ${net.native}`;
+console.log(`network      : ${chainKey} (chainId ${net.chainId})  ${label}`);
+console.log(`contract     : ${CONTRACT_NAME} ${EXPECTED_VERSION}, solc ${metadata.compiler.version}, evm ${settings.evmVersion}, via-IR`);
+console.log(`source       : ${SOURCE_COMMIT}  (${sourceFiles.length} files match the artifact)`);
+console.log(`deployer     : ${wallet.address}  (nonce ${nonceLatest}, factory would be ${PREDICTED_ADDRESS})`);
+console.log(`treasury     : ${PROTOCOL_TREASURY}${treasuryIsContract ? "  [contract, allowed by flag]" : "  [EOA]"}`);
+console.log(`bytecode     : ${((artifact.bytecode.length - 2) / 2 / 1024).toFixed(2)} KiB init, ${((artifact.deployedBytecode.length - 2) / 2 / 1024).toFixed(2)} KiB runtime`);
+console.log(`opcodes      : ${[...usedOpcodes].join(", ")} used; probe executed on ${chainKey}`);
+console.log(`simulation   : creation returns the artifact runtime, treasury in the immutable slot`);
+/**
+ * Printed in full, never as a count. The list is permanent, so every name has to be readable
+ * here, while a typo still costs nothing.
+ */
+console.log(
+  `reserved     : ${RESERVED_SYMBOLS.length} tickers (${BASE_RESERVED.length} base` +
+    `${CHAIN_RESERVED.length ? ` + ${CHAIN_RESERVED.length} ${chainKey}` : ""}), keccak ${RESERVED_HASH}`,
+);
+for (let i = 0; i < RESERVED_SYMBOLS.length; i += 16) console.log(`               ${RESERVED_SYMBOLS.slice(i, i + 16).join(" ")}`);
+console.log(`gas          : ${gasEstimate} estimated, limit ${gasLimit}`);
+console.log(`gas price    : ${ethers.formatUnits(gasPrice, "gwei")} gwei (max fee ${ethers.formatUnits(maxFeePerGas, "gwei")} gwei)`);
+if (net.opStack) console.log(`L1 data fee  : ${fmt(l1Fee)}`);
+console.log(`cost         : ~${fmt(expectedCost)} expected, ${fmt(maxCost)} at most`);
+console.log(`balance      : ${fmt(balance)}`);
+
+if (balance < maxCost) fail(`Insufficient balance: the transaction can cost up to ${fmt(maxCost)}.`);
 
 if (!BROADCAST) {
+  if (IS_MAINNET && sourceProblems.length > 0) {
+    console.log(`\nA broadcast would refuse until this is fixed:\n  - ${sourceProblems.join("\n  - ")}`);
+  }
   console.log(
-    `\nDRY RUN — nothing was sent. Re-run with --broadcast to deploy.\n` +
-      `If broadcast, ${PROTOCOL_TREASURY} becomes the permanent protocol fee destination on ${chainKey}.`
+    `\nDRY RUN: nothing was sent. Re-run with --broadcast to deploy.\n` +
+      `If broadcast, ${PROTOCOL_TREASURY} becomes the permanent protocol fee destination on ${chainKey}, ` +
+      `and the ${RESERVED_SYMBOLS.length} tickers above can never be launched on this factory.`,
   );
   process.exit(0);
 }
 
+// ─── 7. Broadcast, record, read back ─────────────────────────────────────────────────────────
+
 console.log("\nBroadcasting...");
-const contract = await factory.deploy(PROTOCOL_TREASURY, RESERVED_SYMBOLS);
+const contract = await factory.deploy(PROTOCOL_TREASURY, RESERVED_SYMBOLS, { gasLimit, nonce: nonceLatest });
 const tx = contract.deploymentTransaction();
 console.log(`tx: ${tx.hash}`);
-await contract.waitForDeployment();
-const address = await contract.getAddress();
-const receipt = await provider.getTransactionReceipt(tx.hash);
+let receipt;
+try {
+  receipt = await tx.wait();
+} catch (e) {
+  fail(
+    `Waiting for ${tx.hash} failed: ${(e.shortMessage ?? e.message).slice(0, 160)}\n` +
+      `It may still be mined. If it is, the factory is at ${PREDICTED_ADDRESS}. Check the explorer before anything else.`,
+  );
+}
+if (!receipt || receipt.status !== 1) fail(`Deployment transaction ${tx.hash} failed (status ${receipt?.status}).`);
+const address = ethers.getAddress(receipt.contractAddress);
+if (address !== PREDICTED_ADDRESS) console.log(`note: deployed at ${address}, not the predicted ${PREDICTED_ADDRESS}`);
 
 console.log(`\n${CONTRACT_NAME} deployed`);
 console.log(`  address : ${address}`);
@@ -286,181 +520,144 @@ console.log(`  gasUsed : ${receipt.gasUsed}`);
 if (net.explorer) console.log(`  explorer: ${net.explorer}/address/${address}`);
 
 /**
- * Read the immutables BACK from the chain instead of trusting the constructor
- * argument we just sent. This is the last moment the value is checkable at all —
- * after this the address is unchangeable, so a mismatch has to surface now, loudly,
- * while the only cost is one wasted deployment.
+ * Recorded as soon as a receipt exists, before any read-back. The 0.12.0 factory on 0G
+ * (0x06C80fD2) was deployed correctly and never recorded, because a check crashed first.
+ * Earlier factories on the chain stay on record: their markets trade forever, and the subgraph
+ * start blocks and source verification still point at them.
  */
+const superseded =
+  previous?.curveFactory && previous.curveFactory !== address
+    ? [
+        ...(previous.supersededCurveFactories ?? []),
+        {
+          contract: previous.contract ?? null,
+          version: previous.version ?? null,
+          curveFactory: previous.curveFactory,
+          txHash: previous.txHash ?? null,
+          blockNumber: previous.blockNumber ?? null,
+          startBlock: previous.startBlock ?? null,
+          deployedAt: previous.deployedAt ?? null,
+        },
+      ]
+    : previous?.supersededCurveFactories ?? [];
+function record(checks) {
+  deployments[chainKey] = {
+    chainId: net.chainId,
+    contract: CONTRACT_NAME,
+    version: EXPECTED_VERSION,
+    curveFactory: address,
+    protocolTreasury: PROTOCOL_TREASURY,
+    deployer: wallet.address,
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+    // Subgraphs and indexers start here; guessing lower means scanning millions of empty blocks.
+    startBlock: receipt.blockNumber,
+    gasUsed: receipt.gasUsed.toString(),
+    deployedAt: new Date().toISOString(),
+    sourceCommit: SOURCE_COMMIT,
+    compiler: metadata.compiler.version,
+    evmVersion: settings.evmVersion,
+    reservedCount: RESERVED_SYMBOLS.length,
+    reservedHash: RESERVED_HASH,
+    // What an explorer's verification form asks for, without the 0x.
+    constructorArgs: CONSTRUCTOR_ARGS.slice(2),
+    checks,
+    ...(superseded.length > 0 ? { supersededCurveFactories: superseded } : {}),
+  };
+  fs.mkdirSync(path.dirname(deploymentsFile), { recursive: true });
+  fs.writeFileSync(deploymentsFile, JSON.stringify(deployments, null, 2));
+}
+record("pending");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/**
+ * A read failure is never counted as a pass or a fail. Counting it as a fail would send someone
+ * to redeploy a correct factory; ignoring it would pass a broken one. The address is on record
+ * either way, so it can be checked against another RPC.
+ */
+function unverifiable(what, e) {
+  record(`unverifiable: ${what}`);
+  fail(
+    `CANNOT VERIFY ${what}: ${(e?.shortMessage ?? e?.message ?? String(e)).slice(0, 160)}\n` +
+      `The factory at ${address} IS deployed and recorded. Check it against another RPC before using it. Do not deploy again yet.`,
+  );
+}
+function mismatch(what) {
+  record(`failed: ${what}`);
+  fail(`${what.toUpperCase()}. Do NOT put ${address} into NEXT_PUBLIC_CURVE_FACTORY_*. Constructor state cannot be repaired; deploy again.`);
+}
+
+// Load-balanced RPCs can answer from a node that has not seen the block yet.
+let runtime = "0x";
+for (let attempt = 0; attempt < 10 && runtime === "0x"; attempt++) {
+  if (attempt > 0) await sleep(1500);
+  try {
+    runtime = await provider.getCode(address);
+  } catch (e) {
+    if (attempt === 9) unverifiable("the runtime code", e);
+  }
+}
+const runtimeProblem = checkRuntime(runtime, "on-chain");
+if (runtimeProblem) mismatch(runtimeProblem);
+
 const deployed = new ethers.Contract(
   address,
   [
     "function VERSION() view returns (string)",
     "function protocolTreasury() view returns (address)",
     "function PROTOCOL_FEE_BPS() view returns (uint256)",
-    // WAJIB ADA DI SINI. Pemeriksaan cadangan ticker di bawah memanggilnya, dan tanpa
-    // baris ini ia gagal dengan `is not a function` SETELAH factory ter-deploy —
-    // terbukti pada deployment 0G 0x06C80fD2: kontraknya benar, verifikasinya yang
-    // patah, dan `build/deployments.json` tidak ikut tertulis karena prosesnya mati
-    // sebelum sampai ke sana.
     "function isSymbolAvailable(string symbol) view returns (bool)",
   ],
-  provider
+  provider,
 );
-const [onChainVersion, onChainTreasury, onChainFeeBps] = await Promise.all([
-  deployed.VERSION(),
-  deployed.protocolTreasury(),
-  deployed.PROTOCOL_FEE_BPS(),
-]);
+let onChainVersion, onChainTreasury, onChainFeeBps;
+try {
+  [onChainVersion, onChainTreasury, onChainFeeBps] = await Promise.all([
+    deployed.VERSION(),
+    deployed.protocolTreasury(),
+    deployed.PROTOCOL_FEE_BPS(),
+  ]);
+} catch (e) {
+  unverifiable("VERSION / protocolTreasury / PROTOCOL_FEE_BPS", e);
+}
 console.log(`  VERSION : ${onChainVersion}`);
 console.log(`  treasury: ${onChainTreasury}`);
 console.log(`  protocol fee: ${onChainFeeBps} bps (${(Number(onChainFeeBps) / 100).toFixed(2)}%, carved out of swapFeeBps)`);
-
-if (ethers.getAddress(onChainTreasury) !== PROTOCOL_TREASURY) {
-  console.error(
-    `\nTREASURY MISMATCH. Sent ${PROTOCOL_TREASURY}, chain reports ${onChainTreasury}.\n` +
-      "Do NOT put this factory into NEXT_PUBLIC_CURVE_FACTORY_*. Deploy again."
-  );
-  process.exit(1);
-}
+if (onChainVersion !== EXPECTED_VERSION) mismatch(`version mismatch: chain reports ${onChainVersion}`);
+if (ethers.getAddress(onChainTreasury) !== PROTOCOL_TREASURY) mismatch(`treasury mismatch: chain reports ${onChainTreasury}`);
 
 /**
- * Cadangan ticker DIBACA ULANG DARI CHAIN, bukan dianggap berhasil karena tx tidak revert.
+ * Reservations are read back through `isSymbolAvailable`, the function the Studio and
+ * /api/deploy actually use. A constructor can succeed while reserving the wrong list (swapped
+ * arguments, an empty array), and none of that reverts.
  *
- * Constructor bisa jalan tanpa galat sambil mencadangkan daftar yang salah — argumen
- * tertukar, array kosong karena satu typo di nama variabel, atau `_toUpper` yang tidak
- * berlaku sehingga "eth" dan "ETH" jadi dua kunci berbeda. Tidak satu pun dari itu memicu
- * revert, dan semuanya menghasilkan factory yang tampak sehat dengan lubang di dalamnya.
- *
- * Diperiksa lewat `isSymbolAvailable`, yaitu fungsi yang BENAR-BENAR dipakai studio dan
- * /api/deploy untuk memutuskan, bukan lewat `symbolRegistry` mentah. Kalau ada satu saja
- * yang masih tersedia, factory ini tidak boleh masuk konfigurasi.
- */
-/**
- * DIBERI JEDA, dan itu memperbaiki kegagalan nyata yang membuang satu deployment.
- *
- * Enam belas `eth_call` berurutan tanpa jeda membuat `base-rpc.publicnode.com` menjawab
- * dengan galat tanpa data pada panggilan ketiga — `missing revert data`, `data: null`.
- * Itu terbaca seperti kontraknya revert padahal RPC-nya yang membatasi laju, dan karena
- * pemeriksaan ini berjalan SETELAH broadcast, kegagalannya berarti satu factory sudah
- * terbayar lalu dianggap gagal. Terjadi dua kali di Base sebelum jeda ini dipasang:
- * 0x5a2f13f1 terbuang, 0xe5B9555f yang dipakai.
- *
- * 150 ms per panggilan menambah ~2,4 detik pada seluruh deployment. Itu harga yang jauh
- * lebih murah daripada satu deployment ulang, dan di chain dengan saldo tipis seperti
- * Arbitrum perbedaannya bukan soal biaya tapi soal bisa atau tidak.
+ * Spaced 150 ms apart: back-to-back eth_calls made a public Base RPC fail the third read with
+ * `missing revert data`, which cost one factory before the spacing existed.
  */
 const stillFree = [];
-for (const sym of RESERVED_SYMBOLS) {
-  await new Promise((r) => setTimeout(r, 150));
+for (const sym of [...RESERVED_SYMBOLS, CONTROL_SYMBOL]) {
+  await sleep(150);
+  let available;
   try {
-    if (await deployed.isSymbolAvailable(sym)) stillFree.push(sym);
+    available = await deployed.isSymbolAvailable(sym);
   } catch (e) {
-    /**
-     * Galat baca TIDAK dihitung sebagai ticker bebas, dan tidak pula diabaikan.
-     *
-     * Keduanya salah: menghitungnya bebas akan menyuruh deploy ulang factory yang sudah
-     * benar, sementara mengabaikannya akan meloloskan factory yang cadangannya memang
-     * gagal. Jadi prosesnya berhenti dengan menyebut apa yang tidak bisa dibuktikan, dan
-     * alamatnya tetap dilaporkan supaya bisa diverifikasi manual lewat RPC lain.
-     */
-    console.error(
-      `\nCANNOT VERIFY. Reading isSymbolAvailable("${sym}") failed: ` +
-        `${(e.shortMessage ?? e.message).slice(0, 120)}\n` +
-        `The factory at ${address} IS deployed — this is a read failure, not a deployment ` +
-        `failure. Verify the ${RESERVED_SYMBOLS.length} reservations against another RPC before ` +
-        `putting it in NEXT_PUBLIC_CURVE_FACTORY_*. Do not deploy again yet.`
-    );
-    process.exit(1);
+    unverifiable(`isSymbolAvailable("${sym}")`, e);
+  }
+  if (sym === CONTROL_SYMBOL) {
+    if (!available) mismatch(`control ticker ${CONTROL_SYMBOL} reads as taken, so the reservation read-back proves nothing`);
+  } else if (available) {
+    stillFree.push(sym);
   }
 }
-if (stillFree.length > 0) {
-  console.error(
-    `\nRESERVATION FAILED. ${stillFree.length} of ${RESERVED_SYMBOLS.length} tickers are still claimable: ` +
-      `${stillFree.join(", ")}.\nDo NOT put this factory into NEXT_PUBLIC_CURVE_FACTORY_*. ` +
-      "Reservations happen only in the constructor, so this cannot be repaired — deploy again."
-  );
-  process.exit(1);
-}
-console.log(`  reserved: ${RESERVED_SYMBOLS.length}/${RESERVED_SYMBOLS.length} ticker terkonfirmasi tidak bisa diklaim`);
+if (stillFree.length > 0) mismatch(`reservation failed: ${stillFree.length} tickers are still claimable: ${stillFree.join(", ")}`);
+console.log(`  reserved: ${RESERVED_SYMBOLS.length}/${RESERVED_SYMBOLS.length} tickers confirmed unclaimable, control ticker free`);
 
-const outFile = path.join(process.cwd(), "build", "deployments.json");
-const existing = fs.existsSync(outFile) ? JSON.parse(fs.readFileSync(outFile, "utf8")) : {};
-/**
- * Kunci `curveFactory`, BUKAN `factoryV2`.
- *
- * Skrip ini men-deploy AdextoCurveFactory tetapi menulis alamatnya di bawah
- * kunci `factoryV2` — generasi yang berbeda, yang mewajibkan seed native. Jadi
- * `build/deployments.json` menamai setiap alamat kurva sebagai pool berseed.
- * Runbook §4b sudah memuat peringatan tentang salah-nama-field yang pernah
- * menyesatkan ("`/api/deploy` mengembalikan `factoryV2`, bukan
- * `factoryV2Address`"); ini kemunculan berikutnya dari kesalahan yang sama.
- *
- * `startBlock` ditambahkan karena subgraph membutuhkannya, dan blok deploy adalah
- * satu-satunya tempat nilai itu diketahui dengan pasti. Tanpa itu, manifest
- * subgraph harus menebak — dan menebak terlalu rendah berarti memindai jutaan
- * blok kosong di setiap chain.
- */
-/**
- * Alamat factory sebelumnya DIPERTAHANKAN, tidak ditimpa.
- *
- * Sampai 0.11.0 setiap chain hanya punya satu factory, jadi menulis ulang kunci
- * chain-nya tidak menghilangkan apa pun. Sekarang tidak lagi: enam pasar di 0G
- * dibuat oleh factory 0.10.0 dan bytecode-nya tidak bisa diubah, jadi alamat itu
- * tetap harus bisa ditemukan — untuk verifikasi source-vs-chain, untuk startBlock
- * subgraph yang sudah mengindeksnya, dan supaya tidak ada yang menyimpulkan pasar
- * lama tidak pernah ada karena catatannya hilang.
- */
-const previous = existing[chainKey];
-const superseded = previous?.curveFactory && previous.curveFactory !== address
-  ? [
-      ...(previous.supersededCurveFactories ?? []),
-      {
-        contract: previous.contract ?? "AdextoCurveFactory",
-        curveFactory: previous.curveFactory,
-        txHash: previous.txHash ?? null,
-        blockNumber: previous.blockNumber ?? null,
-        startBlock: previous.startBlock ?? null,
-        deployedAt: previous.deployedAt ?? null,
-      },
-    ]
-  : previous?.supersededCurveFactories ?? [];
+record("passed");
+console.log(`\nSaved to build/deployments.json (checks: passed)`);
 
-existing[chainKey] = {
-  chainId: net.chainId,
-  contract: CONTRACT_NAME,
-  version: onChainVersion,
-  curveFactory: address,
-  protocolTreasury: PROTOCOL_TREASURY,
-  protocolFeeBps: Number(onChainFeeBps),
-  deployer: wallet.address,
-  txHash: tx.hash,
-  blockNumber: receipt.blockNumber,
-  startBlock: receipt.blockNumber,
-  deployedAt: new Date().toISOString(),
-  ...(superseded.length > 0 ? { supersededCurveFactories: superseded } : {}),
-};
-fs.mkdirSync(path.dirname(outFile), { recursive: true });
-fs.writeFileSync(outFile, JSON.stringify(existing, null, 2));
-console.log(`\nSaved to build/deployments.json`);
-
-/**
- * Urutannya disebutkan di sini karena inilah tempat orang membacanya.
- *
- * `audit_consistency.mjs` membaca `totalProjectsCount()` dari
- * `NEXT_PUBLIC_CURVE_FACTORY_*`. Menukar env ke factory baru SEBELUM meluncurkan
- * ulang berarti situs menunjuk factory dengan nol peluncuran sementara halamannya
- * masih menyatakan $ADEXTO hidup. Jadi tukar-env dan relaunch adalah satu urutan,
- * bukan dua pekerjaan terpisah.
- */
 const ENV_KEY = `NEXT_PUBLIC_CURVE_FACTORY_${chainKey.toUpperCase().replace(/-/g, "_")}`;
-console.log(`\nNext, as ONE sequence — do not stop halfway:`);
-console.log(`  1. remove the old ticker's registry entry (checkSymbolAvailable blocks a live symbol on the same chain)`);
-console.log(`  2. set ${ENV_KEY}=${address} in .env.local`);
-console.log(`  3. relaunch the market through the new factory`);
-console.log(`  4. rebuild, then verify the market page resolves and the terminal shows fills`);
-if (superseded.length > 0) {
-  console.log(
-    `\nSuperseded factory kept on record: ${superseded[superseded.length - 1].curveFactory}\n` +
-      `Its markets stay tradable forever and keep charging their original fee legs, which do not include a protocol fee.`
-  );
-}
+console.log(`\nNext:`);
+console.log(`  1. Verify the source on Sourcify and on ${net.explorer || "the explorer"} (constructor args are in build/deployments.json).`);
+console.log(`  2. Set ${ENV_KEY}=${address} in .env.local and pass it as a Docker build arg.`);
+console.log(`     Keep NEXT_PUBLIC_CURVE_FACTORY_PREV_* on the 0.11.0 factory: its markets stay live.`);
+console.log(`  3. Rebuild, then run audit_consistency.mjs.`);

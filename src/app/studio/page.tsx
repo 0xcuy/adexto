@@ -2053,7 +2053,7 @@ export default function StudioPage() {
                   <span>
                     <strong>Launching is disabled.</strong> No launch factory is deployed on any chain yet, so a launch
                     could not create a tradable curve. Broadcast it with{" "}
-                    <code className="text-accent">node scripts/deploy-sovereign-curve.mjs --chain 0g --broadcast</code>{" "}
+                    <code className="text-accent">node scripts/deploy-factory.mjs --chain 0g --broadcast</code>{" "}
                     and set <code className="text-accent">NEXT_PUBLIC_CURVE_FACTORY_0G</code>.
                   </span>
                 </div>

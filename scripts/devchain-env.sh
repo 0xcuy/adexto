@@ -3,7 +3,7 @@
 #
 # Pemakaian:
 #   cd devchain && npx hardhat node --port 8545     # terminal 1
-#   node scripts/deploy-sovereign-curve.mjs --chain devchain --broadcast
+#   node scripts/deploy-factory.mjs --chain devchain --broadcast
 #   set -a && . ./.env.local && set +a && source scripts/devchain-env.sh && npx next build && npx next start -p 3100
 #
 # CATATAN PENTING: variabel NEXT_PUBLIC_* di-inline saat `next build`, bukan saat

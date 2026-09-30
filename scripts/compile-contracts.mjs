@@ -72,7 +72,15 @@ const input = {
     evmVersion: EVM_VERSION,
     ...(VIA_IR ? { viaIR: true } : {}),
     outputSelection: {
-      "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "metadata"] },
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.immutableReferences",
+          "metadata",
+        ],
+      },
     },
   },
 };
@@ -112,6 +120,18 @@ for (const [file, contracts] of Object.entries(output.contracts || {})) {
           deployedBytecode: artifact.evm?.deployedBytecode?.object
             ? `0x${artifact.evm.deployedBytecode.object}`
             : "0x",
+          /**
+           * Byte ranges of the runtime code that the constructor fills in (`immutable`
+           * values). A deployed contract can only be compared with this artifact once those
+           * ranges are masked, and the deploy script reads the values back from them.
+           */
+          immutableReferences: artifact.evm?.deployedBytecode?.immutableReferences ?? {},
+          /**
+           * The solc metadata: compiler, settings and the keccak256 of every source file.
+           * It proves which sources an artifact was built from, and it is what Sourcify
+           * verifies against.
+           */
+          metadata: artifact.metadata ?? "",
         },
         null,
         2,
