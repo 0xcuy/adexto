@@ -89,6 +89,16 @@ const PREV_CURVE_FACTORY = {
  * dan membandingkannya dengan nilai di sini, jadi kalau keduanya berpisah auditnya
  * gagal alih-alih halamannya diam-diam salah.
  */
+/**
+ * The x402 gateway's relayer: the address that sends every cross-chain delivery.
+ *
+ * A delivery is an ordinary `buy` on the curve with the payer as `recipient`, so on an explorer
+ * the transaction's sender is this relayer while the tokens land at the payer's own address.
+ * The trade feed uses this to label those fills instead of leaving the two addresses to look
+ * like a contradiction. The same address on every chain.
+ */
+export const X402_RELAYER = "0xDe1f5e5505c01aC6C847146fF76E0e067A49C627";
+
 export const CURVE_FACTORY_GENERATION = {
   contract: "AdextoFactory",
   version: "0.12.0",

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Flame, Activity, ExternalLink, Info } from "lucide-react";
-import { explorerTxUrl } from "@/lib/chains";
+import { explorerAddressUrl, explorerTxUrl } from "@/lib/chains";
+import { X402_RELAYER } from "@/config/contracts";
 import { formatSmallNumber } from "@/lib/pricing";
 import { tradeWallet } from "@/lib/market-stats";
 import { useMarketTelemetry } from "@/lib/use-market-telemetry";
@@ -222,6 +223,15 @@ export default function LiveTradeFeed({
                 // penerimanya, dan relainya disebut di tooltip.
                 const wallet = tradeWallet(t);
                 const relayed = Boolean(t.recipient) && t.type === "BUY" && t.recipient!.toLowerCase() !== t.trader.toLowerCase();
+                // Dikirim relai gateway x402: di explorer pengirim transaksinya relai, sedangkan
+                // tokennya mendarat di pembayar. Tanpa label ini dua alamat itu terbaca
+                // bertentangan saat baris diklik.
+                const viaX402 = relayed && t.trader.toLowerCase() === X402_RELAYER.toLowerCase();
+                const senderNote = relayed
+                  ? viaX402
+                    ? `Paid with USDC on Base through the x402 gateway. The ADEXTO relayer ${t.trader} sent this transaction and the tokens went to ${wallet}, so the explorer shows the relayer as the sender.`
+                    : `Bought by ${t.trader} for ${wallet}. The explorer shows ${t.trader} as the sender.`
+                  : "";
                 const mine = isMine(t);
                 const dev = isDev(t);
                 const burn = t.type === "AUTO_BUYBACK";
@@ -271,16 +281,38 @@ export default function LiveTradeFeed({
                               DEV
                             </span>
                           )}
+                          {relayed && (
+                            <span
+                              className="rounded bg-cream-3 px-1 text-[8px] font-bold text-ink-soft"
+                              title={senderNote}
+                              data-relayed={viaX402 ? "x402" : "via"}
+                            >
+                              {viaX402 ? "x402" : "via"}
+                            </span>
+                          )}
+                          {/* Alamat membuka ALAMAT yang sama di explorer; transaksinya punya
+                              ikonnya sendiri. Dulu alamatnya membuka transaksi, yang untuk beli
+                              lewat relai memperlihatkan pengirim yang berbeda dari alamat ini. */}
+                          <a
+                            href={explorerAddressUrl(t.chainId, wallet)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`${wallet} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
+                              nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
+                            }`}
+                            aria-label={`Open ${wallet} on the explorer`}
+                            className="font-mono text-accent hover:underline"
+                          >
+                            {wallet.slice(0, 6)}…{wallet.slice(-4)}
+                          </a>
                           <a
                             href={explorerTxUrl(t.chainId, t.txHash)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title={`${wallet}${relayed ? ` · bought through ${t.trader}` : ""} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
-                              nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
-                            }`}
-                            className="inline-flex items-center gap-0.5 font-mono text-accent hover:underline"
+                            title={relayed ? `Transaction · ${senderNote}` : "Open this transaction on the explorer"}
+                            aria-label="Open this transaction on the explorer"
+                            className="inline-flex items-center text-ink-faint hover:text-accent"
                           >
-                            {wallet.slice(0, 6)}…{wallet.slice(-4)}
                             <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                           </a>
                         </span>
