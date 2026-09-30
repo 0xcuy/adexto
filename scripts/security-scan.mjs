@@ -20,7 +20,7 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -406,9 +406,23 @@ log("→ echidna");
          * not compile. The binaries are the checksummed releases from binaries.soliditylang.org.
          */
         const svm = path.join(HOME, ".local", "share", "svm");
+        /**
+         * When dependencies are symlinks (a scan from a clean `git worktree` links the main
+         * checkout's node_modules and forge-std instead of reinstalling them), their targets are
+         * mounted at the same absolute path, so the links resolve inside the container too.
+         */
+        const linked = [];
+        for (const rel of ["node_modules", "lib/forge-std"]) {
+          const p = path.join(ROOT, rel);
+          try {
+            const real = realpathSync(p);
+            if (real !== p) linked.push("-v", `${real}:${real}:ro`);
+          } catch { /* not present */ }
+        }
         const out = sh(BIN.docker, [
           "run", "--rm", "-v", `${ROOT}:/src`, "-w", "/src", "-u", `${uid}:${gid}`, "-e", "HOME=/tmp",
           ...(existsSync(svm) ? ["-v", `${svm}:/tmp/.local/share/svm`] : []),
+          ...linked,
           "ghcr.io/crytic/echidna/echidna:latest",
           "sh", "-c", `echidna . --contract ${harness} --config echidna.yaml`,
         ]);
