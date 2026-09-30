@@ -1,7 +1,26 @@
 # ADEXTO Protocol (`adexto.xyz`)
 
-> **Open a market, not just a token.**
-> One transaction opens a bonding-curve market and it starts trading — with a full terminal, an agent that answers for it, and a price any machine can pay from another chain. Gas only, no liquidity deposit, on 0G, Base, Arbitrum or Monad.
+**Market infrastructure for the agent economy.** An agent opens a market bound to its on-chain
+identity, earns from every trade in it, and can be bought by other agents paying USDC from another
+chain. The terms are fixed in bytecode with no admin key, so nobody can change what an agent is
+paid, including us.
+
+| | What happens | Read it on chain |
+| --- | --- | --- |
+| **Open** | An agent calls `deployTrinity` with its ERC-8004 `agentId`, and the factory refuses unless `ownerOf(agentId)` is the caller. Nothing is deposited: the token opens inside a bonding curve against a virtual reserve, with 100% of supply in the curve | `agentIdOf(token)`, `AgentBound` |
+| **Earn** | The launching address is the curve's immutable `creator` and takes a fixed share of every trade, claimable in the chain's native asset | `creatorOwed()`, `claimCreatorFees()` |
+| **Get bought** | Another agent finds the market over MCP, receives an HTTP 402 quote, and pays USDC on Base by signing an EIP-3009 authorization with its own wallet. The token is delivered on the market's chain before the payment settles | `buy_token` at `adexto.xyz/api/mcp` |
+| **Verify** | Fees, treasury and supply are readable before anyone trades, and there is no owner, proxy, pause or withdraw function | `totalFeeBps()`, `protocolTreasury()` |
+
+Launchpads are built for people clicking buttons. An agent needs a market it can open without
+asking anyone, terms it can check without trusting anyone, and buyers who can pay it from wherever
+their money already is. Today an agent opens a market with a direct contract call; an MCP tool for
+opening one is next.
+
+**Live on 0G, Base, Arbitrum One and Monad** from one byte-identical factory. The contracts, tests
+and web app live here; the chain-specific engineering lives in
+[`0xcuy/adexto-arbitrum`](https://github.com/0xcuy/adexto-arbitrum) and
+[`0xcuy/adexto-monad`](https://github.com/0xcuy/adexto-monad).
 
 [![Website](https://img.shields.io/badge/Website-adexto.xyz-7C3AED?style=for-the-badge&logo=google-chrome&logoColor=white)](https://adexto.xyz)
 [![Version](https://img.shields.io/badge/Contracts-v0.12.0-6D28D9?style=for-the-badge&logo=solidity&logoColor=white)](contracts/)
@@ -15,15 +34,15 @@
 
 ## What this is
 
-Most launchpads hand a creator a token and a page. This opens a **working venue** in one transaction, and these arrive with it — none of them a roadmap item, none needing a listing or an application:
+A launchpad hands a creator a token and a page. Here one transaction opens a **working venue**, whether an agent or a person sends it, and these arrive with it — none of them a roadmap item, none needing a listing or an application:
 
 | What arrives | What it means |
 |---|---|
-| **A trading terminal** | Candles from one second up, with 1y and All ranges, RSI, MACD, Bollinger, VWAP, your own and the creator's trades marked on the chart, a curve depth ladder, a trade feed you can filter to your fills, the creator's or large ones, your position with PnL, the holder list, a watchlist and share cards — usable on a market that is minutes old. |
-| **An agent for the market** | Answers questions about its own curve, fee split and depth. It carries its token and curve addresses because it is bound to them, and inference runs on the 0G Compute router. |
-| **A cross-chain price** | A buyer holding only USDC on Base takes a position without bridging and without ever holding the market's gas token. Paid over plain HTTP with an EIP-3009 authorization the token contract verifies itself; settled with real funds. |
 | **Machine buyers** | An MCP server exposes the markets to AI agents — discover, quote, buy, read history — resolved from the same registry the site uses, so a new market answers on the first request. |
+| **A cross-chain price** | A buyer holding only USDC on Base takes a position without bridging and without ever holding the market's gas token. Paid over plain HTTP with an EIP-3009 authorization the token contract verifies itself; settled with real funds. |
 | **Creator earnings in one place** | [`/creator`](https://adexto.xyz/creator) reads every curve an address created, on every chain, and claims the fees per market or per chain in one transaction. |
+| **An agent for the market** | Answers questions about its own curve, fee split and depth. It carries its token and curve addresses because it is bound to them, and inference runs on the 0G Compute router. |
+| **A trading terminal** | For the people who trade beside the agents: candles from one second up, with 1y and All ranges, RSI, MACD, Bollinger, VWAP, your own and the creator's trades marked on the chart, a curve depth ladder, a trade feed you can filter to your fills, the creator's or large ones, your position with PnL, the holder list, a watchlist and share cards — usable on a market that is minutes old. |
 
 Launching is built to be quick to decide on. The studio shows what the launch will cost on the chain you picked before you sign, its default **Express** mode needs only a name, a ticker and an image, and the success screen drafts the announcement for X and Farcaster. Beside the markets, [Agent Compute](https://adexto.xyz/agent-compute) gives a $ADEXTO staker on 0G an API key to an OpenAI-compatible endpoint on the 0G Compute router.
 
