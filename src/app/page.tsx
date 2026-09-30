@@ -40,6 +40,8 @@ import {
 import Mascot, { type MascotPose } from "@/components/Mascot";
 import HeroSparks from "@/components/landing/HeroSparks";
 import LiveMarkets from "@/components/landing/LiveMarkets";
+import TiltStage from "@/components/landing/TiltStage";
+import TerminalShowcase from "@/components/landing/TerminalShowcase";
 import { launchCosts, launchCostRange, formatUsd } from "@/lib/launch-cost";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
 
@@ -192,14 +194,27 @@ export default async function HomePage() {
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <HeroSparks className="absolute inset-0 h-full w-full" />
+        {/* Dua cahaya dengan kecepatan paralaks berbeda: yang besar di kanan turun lebih lambat
+            dari halaman, yang kecil di kiri lebih lambat lagi — dari situ kedalamannya terbaca. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-40 top-10 h-[620px] w-[620px] rounded-full opacity-70 blur-3xl"
-          style={{ background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.28), transparent)" }}
+          className="px-layer pointer-events-none absolute -right-40 top-10 h-[620px] w-[620px] rounded-full opacity-70 blur-3xl"
+          style={{
+            background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.28), transparent)",
+            ["--px-y" as string]: "170px",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="px-layer pointer-events-none absolute -left-56 top-72 h-[460px] w-[460px] rounded-full opacity-50 blur-3xl"
+          style={{
+            background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.2), transparent)",
+            ["--px-y" as string]: "90px",
+          }}
         />
 
         <div className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 pb-14 pt-10 sm:px-6 sm:pt-14 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:px-8 lg:pb-20 lg:pt-20">
-          <div>
+          <div className="px-fade">
             <p className="kicker mb-5">ADEXTO Protocol v{CURVE_FACTORY_GENERATION.version}</p>
 
             {/* Di bawah lg, robotnya BERDAMPINGAN dengan judul.
@@ -254,7 +269,7 @@ export default async function HomePage() {
                 <Link
                   key={href}
                   href={href}
-                  className="group relative flex h-36 flex-col justify-end overflow-hidden rounded-panel border border-line bg-gradient-to-b from-cream-3/40 to-surface p-3 transition-[transform,border-color,box-shadow] duration-300 ease-settle hover:-translate-y-1 hover:border-accent/40 hover:shadow-[var(--glow-accent)] sm:h-44"
+                  className="glass group relative flex h-36 flex-col justify-end overflow-hidden rounded-panel p-3 transition-[transform,border-color,box-shadow] duration-300 ease-settle hover:-translate-y-1 hover:border-accent/40 hover:shadow-[var(--glow-accent)] sm:h-44"
                 >
                   <div
                     aria-hidden="true"
@@ -284,7 +299,7 @@ export default async function HomePage() {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="group flex h-full items-start gap-2.5 rounded-panel border border-line bg-surface/60 px-3 py-2.5 backdrop-blur transition-colors hover:border-accent/40"
+                    className="glass group flex h-full items-start gap-2.5 rounded-panel px-3 py-2.5 transition-colors hover:border-accent/40"
                   >
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                     <span>
@@ -305,20 +320,33 @@ export default async function HomePage() {
               memakan tempat yang sekarang dipakai kemampuan yang belum disebut di mana pun
               di layar pertama. */}
           <div className="hidden h-full min-h-[520px] items-center gap-4 lg:flex">
-            <div className="relative flex h-full flex-1 items-center justify-center">
-              <div aria-hidden="true" className="mascot-orbit absolute h-[400px] w-[400px] rounded-full border border-accent/20" />
-              <div aria-hidden="true" className="mascot-orbit mascot-orbit--slow absolute h-[510px] w-[510px] rounded-full border border-dashed border-line-strong/60" />
-              <div aria-hidden="true" className="absolute bottom-12 h-10 w-56 rounded-[100%] bg-black/40 blur-xl" />
-              <Mascot pose="front" priority className="mascot-float relative h-[420px] w-auto drop-shadow-[0_30px_60px_rgba(76,29,149,0.45)]" />
+            {/* Panggung 3D. Tiga kedalaman — cincin orbit di belakang, bayangan di tengah,
+                robot di depan — dimiringkan bersama oleh TiltStage, jadi lapisan depan
+                bergeser lebih jauh dari yang belakang. Lapisannya pembungkus terpisah dari
+                animasi `mascot-float`/`mascot-orbit`, karena keduanya juga memakai `transform`. */}
+            <div className="px-layer relative flex h-full flex-1 items-center justify-center" style={{ ["--px-y" as string]: "90px" }}>
+              <TiltStage className="h-full min-h-[520px] w-full" max={8}>
+                <div aria-hidden="true" className="depth-back pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="mascot-orbit absolute h-[400px] w-[400px] rounded-full border border-accent/20" />
+                  <div className="mascot-orbit mascot-orbit--slow absolute h-[510px] w-[510px] rounded-full border border-dashed border-line-strong/60" />
+                </div>
+                <div aria-hidden="true" className="depth-mid pointer-events-none absolute inset-x-0 bottom-12 flex justify-center">
+                  <div className="h-10 w-56 rounded-[100%] bg-black/40 blur-xl" />
+                </div>
+                <div className="depth-front relative">
+                  <Mascot pose="front" priority className="mascot-float relative h-[420px] w-auto drop-shadow-[0_30px_60px_rgba(76,29,149,0.45)]" />
+                </div>
+              </TiltStage>
             </div>
 
-            {/* Tumpukan vertikal, tinggi tiap kartu sama dengan kartu pintu di kiri. */}
-            <ul className="flex w-[186px] shrink-0 flex-col gap-3">
+            {/* Tumpukan vertikal, tinggi tiap kartu sama dengan kartu pintu di kiri. Bergerak
+                lebih cepat dari robot saat digulir: lapisan terdekat, jadi paling jauh bergeser. */}
+            <ul className="px-layer flex w-[186px] shrink-0 flex-col gap-3" style={{ ["--px-y" as string]: "-120px" }}>
               {CAPABILITIES.map(({ label, body, hint, pose, icon: Icon, href }) => (
                 <li key={label}>
                   <Link
                     href={href}
-                    className="group relative flex h-44 flex-col justify-end overflow-hidden rounded-panel border border-line bg-gradient-to-b from-cream-3/40 to-surface p-3 transition-[transform,border-color,box-shadow] duration-300 ease-settle hover:-translate-y-1 hover:border-accent/40 hover:shadow-[var(--glow-accent)]"
+                    className="glass group relative flex h-44 flex-col justify-end overflow-hidden rounded-panel p-3 transition-[transform,border-color,box-shadow] duration-300 ease-settle hover:-translate-y-1 hover:border-accent/40 hover:shadow-[var(--glow-accent)]"
                   >
                     <div
                       aria-hidden="true"
@@ -349,7 +377,7 @@ export default async function HomePage() {
       <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:px-8">
         <LiveMarkets />
 
-        <div className="glass-panel relative overflow-hidden rounded-card p-6">
+        <div className="glass relative overflow-hidden rounded-card p-6">
           <Mascot pose="wave" className="absolute -right-2 -top-1 h-32 w-auto opacity-95" />
           <p className="kicker">Launch in three steps</p>
           <h2 className="mt-3 max-w-[14rem] text-[26px] font-medium leading-tight tracking-tight text-ink">
@@ -380,8 +408,16 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ── SHOWCASE TERMINAL 3D ─────────────────────────────────────────────── */}
+      <TerminalShowcase />
+
       {/* ── APA YANG DIBUKA SATU LAUNCH ──────────────────────────────────────── */}
-      <section className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <section className="relative mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <div
+          aria-hidden="true"
+          className="px-view pointer-events-none absolute right-0 top-40 h-[380px] w-[520px] max-w-full rounded-full opacity-50 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.22), transparent)", ["--px-y" as string]: "70px" }}
+        />
         <div className="grid items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="max-w-2xl">
             <p className="kicker mb-3">What your market opens with</p>
@@ -397,9 +433,9 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="reveal-3d-group relative mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {OPENS_WITH.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="adexto-rise adexto-lift card rounded-card p-6">
+            <div key={title} className="reveal-3d adexto-lift glass rounded-card p-6">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
                 <Icon className="h-5 w-5" />
               </span>
@@ -412,7 +448,7 @@ export default async function HomePage() {
         {/* Untuk siapa — sengaja kecil: satu baris chip, bukan seksi tersendiri. */}
         <ul className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {AUDIENCE.map(({ icon: Icon, title, body }) => (
-            <li key={title} className="flex items-start gap-2.5 rounded-panel border border-line px-4 py-3">
+            <li key={title} className="glass flex items-start gap-2.5 rounded-panel px-4 py-3">
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
               <span>
                 <span className="block text-[13px] font-semibold text-ink">{title}</span>
@@ -425,7 +461,7 @@ export default async function HomePage() {
 
       {/* ── APA YANG DITEGAKKAN KONTRAK ──────────────────────────────────────── */}
       <section className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-        <div className="glass-panel relative overflow-hidden rounded-card p-6 sm:p-8">
+        <div className="glass relative overflow-hidden rounded-card p-6 sm:p-8">
           <Mascot pose="sit" className="absolute -bottom-2 right-4 hidden h-32 w-auto opacity-90 lg:block" />
           <p className="kicker mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> What the contract enforces
@@ -529,7 +565,14 @@ export default async function HomePage() {
       {/* ── PENUTUP ──────────────────────────────────────────────────────────── */}
       <section className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-card border border-accent/25 bg-gradient-to-br from-accent/20 via-surface to-surface p-8 sm:p-12">
-          <Mascot pose="jump" className="mascot-float absolute -bottom-3 right-6 hidden h-44 w-auto sm:block" />
+          <div
+            aria-hidden="true"
+            className="px-view pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full opacity-60 blur-3xl"
+            style={{ background: "radial-gradient(closest-side, rgb(var(--accent-fill-rgb) / 0.35), transparent)", ["--px-y" as string]: "40px" }}
+          />
+          <div className="px-view absolute -bottom-3 right-6 hidden sm:block" style={{ ["--px-y" as string]: "-24px" }}>
+            <Mascot pose="jump" className="mascot-float h-44 w-auto" />
+          </div>
           <h2 className="max-w-xl text-3xl font-light tracking-tight text-ink sm:text-5xl">Open your market</h2>
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-ink-soft">
             One transaction and it is trading — with its terminal, its agent, and a price the rest of the internet can pay.

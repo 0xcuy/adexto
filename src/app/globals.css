@@ -878,3 +878,259 @@ select option {
   scrollbar-width: thin;
   scrollbar-color: var(--hairline-strong) transparent;
 }
+
+/* ============================================================================
+   Kaca (glassmorphism)
+   ----------------------------------------------------------------------------
+   Kaca hanya terbaca sebagai kaca di atas sesuatu yang berwarna, jadi `.glass`
+   dipakai di atas cahaya hero dan showcase, bukan di atas latar polos. Token-nya
+   per tema: di tema gelap permukaannya cokelat hangat tembus, di tema terang putih
+   susu, dan garis atasnya adalah pantulan cahaya yang membuat tepinya terlihat.
+   Tanpa `backdrop-filter` (browser lama, atau mode hemat daya), ia jatuh ke permukaan
+   padat biasa — tidak pernah jadi teks di atas latar tembus yang tak terbaca.
+   ========================================================================== */
+:root {
+  --glass-bg: rgba(255, 252, 246, 0.58);
+  --glass-border: rgba(32, 24, 16, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 12px 40px -20px rgba(32, 24, 16, 0.28);
+}
+:root[data-theme="dark"] {
+  --glass-bg: rgba(40, 31, 23, 0.46);
+  --glass-border: rgba(255, 240, 222, 0.1);
+  --glass-highlight: rgba(255, 240, 222, 0.09);
+  --glass-shadow: 0 22px 60px -28px rgba(0, 0, 0, 0.75);
+}
+
+.glass {
+  background: linear-gradient(180deg, var(--glass-highlight), transparent 42%), var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+/* Ponsel: radius blur lebih kecil. Biaya backdrop-filter naik dengan radiusnya, dan di
+   bawah kaca ini ada cahaya yang ikut bergeser saat digulir, jadi latarnya di-blur ulang
+   tiap frame. Di layar kecil 12px sudah terbaca sama. */
+@media (max-width: 767px) {
+  .glass {
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    backdrop-filter: blur(12px) saturate(1.3);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--surface-2);
+  }
+}
+
+/* ============================================================================
+   Paralaks gulir
+   ----------------------------------------------------------------------------
+   CSS murni, mengikuti `.adexto-rise`: `animation-timeline: scroll(root)` mengikat
+   pergeseran ke posisi gulir, jadi tidak ada listener scroll, tidak ada hidrasi, dan
+   semuanya berjalan di compositor (hanya `translate`/`scale`/`opacity`).
+
+   Memakai properti `translate` dan `scale`, BUKAN `transform`, dengan alasan yang sama
+   seperti `.adexto-rise`: `mascot-float` dan hover kartu memakai `transform`, dan
+   properti independen dikomposisi dengannya alih-alih menimpanya.
+
+   Browser tanpa scroll-driven animation melihat halaman diam — tidak ada yang hilang.
+   Kecepatan per lapisan lewat `--px-y` (px pada gulir 100vh); di ponsel dibagi dua
+   supaya tidak ada yang terasa melayang lepas dari jarinya.
+   ========================================================================== */
+@supports (animation-timeline: scroll()) {
+  .px-layer {
+    animation: px-drift linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 100vh;
+  }
+  /* Memudar hanya di desktop: di ponsel hero lebih tinggi dari satu layar, jadi teksnya
+     masih sedang dibaca ketika gulirannya sudah jauh — memudarkannya di sana mengganggu. */
+  @media (min-width: 1024px) {
+    .px-fade {
+      animation: px-fade linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 80vh;
+    }
+  }
+}
+@keyframes px-drift {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 calc(var(--px-y, 0px) * var(--px-k, 1));
+  }
+}
+/* Paralaks untuk lapisan JAUH di bawah hero: `scroll(root)` dengan rentang 0–100vh sudah
+   selesai sebelum gulirannya sampai sana, jadi lapisan itu memakai timeline dirinya sendiri
+   (`view()`) — bergeser dari +y ke −y selama ia melintasi layar. */
+@supports (animation-timeline: view()) {
+  .px-view {
+    animation: px-view linear both;
+    animation-timeline: view();
+    animation-range: cover 0% cover 100%;
+  }
+}
+@keyframes px-view {
+  from {
+    translate: 0 calc(var(--px-y, 0px) * var(--px-k, 1));
+  }
+  to {
+    translate: 0 calc(var(--px-y, 0px) * var(--px-k, 1) * -1);
+  }
+}
+@keyframes px-fade {
+  to {
+    opacity: 0.45;
+    translate: 0 -48px;
+    scale: 0.985;
+  }
+}
+@media (max-width: 767px) {
+  :root {
+    --px-k: 0.5;
+  }
+}
+
+/* ============================================================================
+   Panggung 3D hero
+   ----------------------------------------------------------------------------
+   Lapisan di dalam panggung berada di kedalaman berbeda (`translateZ`), dan
+   `TiltStage` memiringkan panggungnya mengikuti penunjuk lewat --rx/--ry. Karena
+   perspektif datang dari induk, lapisan yang lebih dekat bergeser lebih jauh: itu
+   yang terbaca sebagai 3D, bukan sekadar gambar yang berputar.
+   ========================================================================== */
+.stage-3d {
+  perspective: 1100px;
+}
+.stage-3d__inner {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stage-3d[data-tilting="true"] .stage-3d__inner {
+  transition: transform 90ms linear;
+}
+.depth-back {
+  transform: translateZ(-90px) scale(1.08);
+}
+.depth-mid {
+  transform: translateZ(-20px);
+}
+.depth-front {
+  transform: translateZ(60px);
+}
+
+/* ============================================================================
+   Showcase terminal 3D
+   ----------------------------------------------------------------------------
+   Bingkai terminal datang miring ke belakang lalu berdiri tegak saat masuk layar —
+   `animation-timeline: view()` pada kartunya sendiri. Chip di sekelilingnya
+   melayang dengan kecepatan berbeda (paralaks view), jadi kedalamannya terasa
+   saat digulir, bukan hanya saat dilihat.
+   ========================================================================== */
+.showcase-3d {
+  perspective: 1500px;
+}
+.showcase-3d__device {
+  transform-origin: 50% 100%;
+}
+@supports (animation-timeline: view()) {
+  .showcase-3d__device {
+    animation: showcase-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 48%;
+  }
+}
+/* Chip hanya melayang di desktop, tempat ia diletakkan absolut di sekitar bingkai. Di
+   ponsel ia kisi biasa di bawah bingkai, dan melayangkannya akan menumpuk antar baris. */
+@supports (animation-timeline: view()) {
+  @media (min-width: 1024px) {
+    .showcase-chip {
+      animation: showcase-chip linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+  }
+}
+@keyframes showcase-rise {
+  from {
+    opacity: 0.35;
+    transform: rotateX(26deg) translateY(40px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(0deg) translateY(0) scale(1);
+  }
+}
+@keyframes showcase-chip {
+  from {
+    translate: 0 var(--chip-y, 60px);
+  }
+  to {
+    translate: 0 calc(var(--chip-y, 60px) * -1);
+  }
+}
+@media (max-width: 767px) {
+  @keyframes showcase-rise {
+    from {
+      opacity: 0.4;
+      transform: rotateX(16deg) translateY(24px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Kartu yang muncul dari kedalaman: varian 3D dari `.adexto-rise`. Induknya membawa
+   perspektif (`.reveal-3d-group`), kartunya berputar sedikit di sumbu X saat masuk. */
+.reveal-3d-group {
+  perspective: 1200px;
+}
+@supports (animation-timeline: view()) {
+  .reveal-3d {
+    animation: reveal-3d linear both;
+    animation-timeline: view();
+    /* Selesai saat kartu masih di sepertiga bawah layar: kartu yang sudah terlihat utuh
+       tapi masih miring terbaca seperti teks yang belum dimuat. */
+    animation-range: entry 0% cover 28%;
+  }
+}
+@keyframes reveal-3d {
+  from {
+    opacity: 0;
+    translate: 0 36px;
+    rotate: x 18deg;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    rotate: x 0deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px-layer,
+  .px-view,
+  .px-fade,
+  .showcase-3d__device,
+  .showcase-chip,
+  .reveal-3d {
+    animation: none !important;
+    translate: none !important;
+    rotate: none !important;
+    scale: none !important;
+    opacity: 1 !important;
+  }
+  .showcase-3d__device {
+    transform: none !important;
+  }
+  .stage-3d__inner {
+    transform: none !important;
+    transition: none !important;
+  }
+}
