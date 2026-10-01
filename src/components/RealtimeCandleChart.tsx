@@ -379,7 +379,7 @@ export default function RealtimeCandleChart({
    * bars renders them squeezed against the right edge with an empty pane to the
    * left — which reads as a broken chart. Fitting solves that, but fitting on every
    * 15-second poll would yank the view back and undo any pan or zoom the user just
-   * made, so it happens once per symbol/chain/timeframe.
+   * made, so it happens once per symbol/chain/timeframe/unit.
    */
   const fittedFor = useRef<string>("");
 
@@ -1321,7 +1321,19 @@ export default function RealtimeCandleChart({
             bars: marks.length,
           });
 
-          const fitKey = `${symbol}:${chainId}:${interval}:${range ?? ""}`;
+          /**
+           * `unit` WAJIB ikut di kunci ini.
+           *
+           * Satuan mengubah JUMLAH bar, bukan hanya angkanya: seri USD diisi kurs sampai
+           * sekarang (ratusan bar), seri native hanya bar di sekitar perdagangan (sering tiga).
+           * Tanpa `unit` di sini, berganti USD -> native tidak memasang ulang jendela, jadi
+           * jendela tetap di indeks logis seri USD (mis. 940..1000) sementara bar native ada di
+           * 0..2 — pane kosong. Terukur di produksi 2026-10-01 dengan menghitung kolom kanvas
+           * yang memuat candle: $ADT 606 kolom di USD, 3 sesudah pindah ke 0G, 16 sesudah balik
+           * ke USD. Arah balik ikut rusak karena jendela native (0..16) terbawa ke seri USD.
+           * `showMcap` dan `chartKind` sengaja tidak ikut: keduanya tidak mengubah jumlah bar.
+           */
+          const fitKey = `${symbol}:${chainId}:${interval}:${range ?? ""}:${unit}`;
           if (range && fittedFor.current !== fitKey) {
             /**
              * Rentang memperlihatkan SELURUH isinya — dan itu aman di sini, tidak di tempat lain.
