@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, Globe } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
-import { CHAIN_LIST, chainFromId, type ChainInfo } from "@/lib/chains";
+import { CHAIN_LIST, chainFromId, chainMark, type ChainInfo } from "@/lib/chains";
 
 /**
  * Chain switcher for the navbar.
@@ -138,11 +138,15 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
       >
         {walletOnUnknown ? (
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        ) : current && chainMark(current) ? (
+          <img
+            src={chainMark(current)!}
+            alt=""
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 object-contain rounded-sm"
+          />
         ) : (
-          /* Titik status dibungkus cincin sewarna yang transparan.
-             Artinya tidak berubah — hijau berarti chain ini punya curve factory yang
-             benar-benar tersambung — tapi titik 6px telanjang terbaca seperti debu pada
-             ukuran itu. Cincinnya memberinya bentuk tanpa menambah makna baru. */
+          /* Titik status dibungkus cincin sewarna yang transparan. */
           <span
             aria-hidden="true"
             className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
@@ -211,10 +215,19 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        aria-hidden="true"
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${canTrade ? "bg-ok" : "bg-warn"}`}
-                      />
+                      {chainMark(c) ? (
+                        <img
+                          src={chainMark(c)!}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 object-contain rounded-sm"
+                        />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${canTrade ? "bg-ok" : "bg-warn"}`}
+                        />
+                      )}
                       <span className="min-w-0">
                         <span className={`block truncate text-[12px] font-semibold ${active ? "text-accent" : "text-ink"}`}>
                           {c.name}

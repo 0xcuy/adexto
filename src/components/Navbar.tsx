@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, ArrowDownUp, ShieldCheck, Sparkles } from "lucide-react";
+import { Compass, ArrowDownUp, Sparkles } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -51,8 +51,7 @@ export default function Navbar() {
      * pengunjung demi menonjolkan yang belum mereka cari.
      */
     { href: "/agent-compute", label: "Agent Compute", icon: Sparkles },
-    // "Agent demo" dicabut dari header (2026-09-30): tautannya ada di footer setiap halaman.
-    { href: "/docs", label: "Docs", icon: ShieldCheck },
+    // "Docs" & "Agent demo" dicabut dari header: tautan tersedia di footer.
     /**
      * Entri "Deck" ke /pitch DICABUT bersama rutenya.
      *

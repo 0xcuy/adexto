@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Github, Twitter } from "lucide-react";
+import { BookOpen, Github, Send, Twitter } from "lucide-react";
 import { LAUNCH_SENTENCE } from "@/lib/launch-state";
 
 export default function Footer() {
@@ -181,9 +181,9 @@ export default function Footer() {
             menghentikannya. Itu klaim yang bisa dipertahankan, jadi itu yang
             ditulis. */}
         <p>© 2026 ADEXTO (adexto.xyz). Curves are immutable and have no withdrawal function.</p>
-        {/* Docs, X dan GitHub di satu baris: sejak 2026-09-30 ikon X/GitHub tidak lagi di header,
+        {/* Docs, Telegram, X dan GitHub di satu baris: sejak 2026-09-30 ikon X/GitHub tidak lagi di header,
             jadi baris ini tempat utamanya. */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Link
             href="/docs"
             className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-semibold"
@@ -191,6 +191,15 @@ export default function Footer() {
             <BookOpen className="w-4 h-4" />
             <span>Docs</span>
           </Link>
+          <a
+            href="https://t.me/adexto"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-ink-soft hover:text-accent transition-colors font-semibold"
+          >
+            <Send className="w-4 h-4" />
+            <span>adexto</span>
+          </a>
           <a
             href="https://x.com/adexto_"
             target="_blank"
