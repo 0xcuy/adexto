@@ -1,12 +1,13 @@
 {
-  "generatedAt": "2026-09-30T21:26:24.742Z",
-  "commit": "2b16426ebdac567fd61bd479d348fd3d266e7ba9",
-  "commitTime": "2026-10-01T04:25:05+07:00",
+  "generatedAt": "2026-10-01T23:48:02.467Z",
+  "commit": "f80f6bc7c256cfa5027ad7a4773e3700ce867191",
+  "commitTime": "2026-10-02T06:46:55+07:00",
   "dirty": false,
   "contractHashes": {
     "contracts/AdextoAgentStake.sol": "ae967fcd4dd80d4b",
     "contracts/AdextoCurve.sol": "829d3864057a6567",
     "contracts/AdextoFactory.sol": "d790a8a4878a8aca",
+    "contracts/AdextoStakeHub.sol": "4ed7e60c61113f8a",
     "contracts/AdextoToken.sol": "d6a128d79dd15437",
     "contracts/IIdentityRegistry.sol": "c222489dec4c36ea"
   },
@@ -16,6 +17,10 @@
       "contracts/AdextoCurve.sol",
       "contracts/AdextoToken.sol",
       "contracts/IIdentityRegistry.sol"
+    ],
+    "stakeContracts": [
+      "contracts/AdextoAgentStake.sol",
+      "contracts/AdextoStakeHub.sol"
     ]
   },
   "engines": [
@@ -30,7 +35,7 @@
         "errors": 0,
         "warnings": 0
       },
-      "detail": "33 artifacts compiled, 0 warnings, 0 errors"
+      "detail": "36 artifacts compiled, 0 warnings, 0 errors"
     },
     {
       "id": "forge-fuzz",
@@ -100,9 +105,10 @@
       "status": "triaged",
       "ran": true,
       "counts": {
-        "total": 39,
-        "Medium": 21,
-        "Low": 10,
+        "total": 43,
+        "High": 1,
+        "Medium": 22,
+        "Low": 12,
         "Informational": 4,
         "Optimization": 4
       },
@@ -111,7 +117,12 @@
         "Low": 6,
         "Informational": 4
       },
-      "detail": "39 findings across 102 detectors · 0 High on the launch path"
+      "stakeCounts": {
+        "High": 1,
+        "Medium": 1,
+        "Low": 5
+      },
+      "detail": "43 findings across 102 detectors · 0 High on the launch path"
     },
     {
       "id": "aderyn",
@@ -122,14 +133,18 @@
       "ran": true,
       "counts": {
         "highKinds": 1,
-        "highInstances": 4,
-        "lowKinds": 5,
-        "lowInstances": 21
+        "highInstances": 5,
+        "lowKinds": 7,
+        "lowInstances": 28
       },
       "launchPathCounts": {
         "HighInstances": 4
       },
-      "detail": "1 High kinds / 5 Low kinds · 88 detectors"
+      "stakeCounts": {
+        "HighInstances": 1,
+        "LowInstances": 9
+      },
+      "detail": "1 High kinds / 7 Low kinds · 88 detectors"
     },
     {
       "id": "solhint",
@@ -140,9 +155,9 @@
       "ran": true,
       "counts": {
         "errors": 0,
-        "warnings": 382
+        "warnings": 477
       },
-      "detail": "0 errors, 382 warnings (style & gas rules)"
+      "detail": "0 errors, 477 warnings (style & gas rules)"
     },
     {
       "id": "semgrep",
@@ -153,10 +168,10 @@
       "ran": true,
       "counts": {
         "findings": 0,
-        "filesScanned": 6,
+        "filesScanned": 7,
         "configErrors": 0
       },
-      "detail": "0 findings across 6 files · general p/security-audit ruleset"
+      "detail": "0 findings across 7 files · general p/security-audit ruleset"
     },
     {
       "id": "echidna",
@@ -168,10 +183,10 @@
       "counts": {
         "properties": 6,
         "failed": 0,
-        "totalCalls": 50093,
-        "uniqueInstructions": 7989
+        "totalCalls": 50183,
+        "uniqueInstructions": 7918
       },
-      "detail": "6/6 properties passed · 1 harness · 50,093 calls",
+      "detail": "6/6 properties passed · 1 harness · 50,183 calls",
       "cases": [
         "EchidnaAdextoCurve.echidna_solvent",
         "EchidnaAdextoCurve.echidna_tokensSoldWithinCurve",
