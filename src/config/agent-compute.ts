@@ -263,6 +263,7 @@ export type ComputeStake = {
 
 const SAI_ARBITRUM = marketStakeFor(42161, "SAI");
 const SAI_ROBINHOOD = marketStakeFor(4663, "SAI");
+const SAI_MONAD = marketStakeFor(143, "SAI");
 
 export const COMPUTE_STAKES: readonly ComputeStake[] = [
   {
@@ -303,6 +304,19 @@ export const COMPUTE_STAKES: readonly ComputeStake[] = [
     minStake: SAI_ROBINHOOD?.minStake ?? MARKET_COMPUTE_TIERS[0].stake,
     tiers: MARKET_COMPUTE_TIERS,
     buyHref: "/token/sai?chain=4663",
+  },
+  {
+    id: "sai-monad",
+    chainId: 143,
+    chainName: "Monad",
+    symbol: "SAI",
+    name: "SAi Monad",
+    token: "0xD873B033e2dffbF7E3107CD61E7156cE23B39f20",
+    decimals: 18,
+    contract: SAI_MONAD?.contract ?? null,
+    minStake: SAI_MONAD?.minStake ?? MARKET_COMPUTE_TIERS[0].stake,
+    tiers: MARKET_COMPUTE_TIERS,
+    buyHref: "/token/sai?chain=143",
   },
 ];
 

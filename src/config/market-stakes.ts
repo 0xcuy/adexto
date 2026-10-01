@@ -61,6 +61,22 @@ export const MARKET_STAKES: MarketStake[] = [
     deployBlock: 77315523,
     deployTx: "0x158e9847afbe65d9170ad334ba974c94645057913dea8252100fc41a1f605cc9",
   },
+  /**
+   * $SAI (SAi Monad) on Monad. Deployed 2026-10-01 by the deployer with
+   * scripts/deploy-market-stake.mjs (receipt status 1); immutables read back from the chain:
+   * stakeToken = the token below, minStake = 10,000 SAI, empty at deployment. Sourcify: exact
+   * match, creation and runtime, for this contract and for the market's token and curve.
+   */
+  {
+    chainId: 143,
+    symbol: "SAI",
+    token: "0xD873B033e2dffbF7E3107CD61E7156cE23B39f20",
+    contract: "0xAadb44692dC4c9A1759361ea973B83aa7f36700e",
+    minStake: 10000,
+    decimals: 18,
+    deployBlock: 109684672,
+    deployTx: "0x83d26b2a05153e031b372c146607ae6aa831c9898ca0a0d1c22bac2a5bc33a6b",
+  },
 ];
 
 export function marketStakeFor(chainId: number, symbol: string): MarketStake | null {
