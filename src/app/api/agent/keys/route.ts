@@ -25,12 +25,14 @@ import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   AGENT_COMPUTE_ENDPOINT,
   AGENT_COMPUTE_MODEL,
-  COMPUTE_STAKES,
+  HUB_COMPUTE_USD_PER_MILLION_TOKENS,
   MIN_STAKE_ADEXTO,
   STAKE_TOKEN,
   stakeContractFor,
   tierForStake,
+  type ComputeStake,
 } from "@/config/agent-compute";
+import { allComputeSources, findComputeSource, hubBudget, hubEligible, type HubBudget } from "@/lib/stake-hub-server";
 import {
   issueKey,
   keyFor,
@@ -76,7 +78,7 @@ function verify(body: any, action: string): Verified {
    */
   const named = stakeInMessage(message) ?? "adexto";
   const asked = typeof body?.stake === "string" && body.stake ? String(body.stake) : named;
-  if (!COMPUTE_STAKES.some((s) => s.id === asked)) return { ok: false, error: "Unknown stake." };
+  if (!findComputeSource(asked)) return { ok: false, error: "Unknown stake." };
   if (asked !== named) return { ok: false, error: "The signed message names a different stake." };
 
   const stamp = message.match(/Timestamp:\s*(\d+)/);
@@ -121,6 +123,36 @@ export async function GET(req: Request) {
    */
   void sweep().catch(() => {});
 
+  /**
+   * Every source, with or without an address, so the page can list them before a wallet connects:
+   * the four tiered stakes, then one per live market in a stake hub. A hub market also carries its
+   * compute budget so far, read from its curve and valued now.
+   */
+  const all = allComputeSources();
+  // A market its chain's hub refuses (made by a factory deployed after the hub) cannot be staked
+  // anywhere, so it is not listed as a source. Unknown (hub unreadable) stays listed.
+  const eligible = await Promise.all(all.map((s) => (s.kind === "hub" ? hubEligible(s) : Promise.resolve(true))));
+  const sources = all.filter((_, i) => eligible[i] !== false);
+  const budgets = new Map<string, HubBudget>();
+  await Promise.all(
+    sources.filter((s) => s.kind === "hub").map(async (s) => budgets.set(s.id, await hubBudget(s)))
+  );
+  const budgetView = (s: ComputeStake) => {
+    const b = budgets.get(s.id);
+    return b
+      ? {
+          feesNative: b.feesNative,
+          nativeSymbol: b.nativeSymbol,
+          priceUsd: b.priceUsd,
+          budgetUsd: b.budgetUsd,
+          budgetTokens: b.budgetTokens,
+          shareBps: b.shareBps,
+          usdPerMillionTokens: HUB_COMPUTE_USD_PER_MILLION_TOKENS,
+          error: b.error,
+        }
+      : null;
+  };
+
   const base = {
     configured: poolConfigured(),
     durable: storeIsDurable(),
@@ -128,6 +160,7 @@ export async function GET(req: Request) {
     model: AGENT_COMPUTE_MODEL,
     stakeContract: contract,
     minStake: MIN_STAKE_ADEXTO,
+    sources: sources.map((s) => ({ ...s, budget: budgetView(s) })),
   };
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
@@ -156,6 +189,7 @@ export async function GET(req: Request) {
           disabledReason: record.disabledReason,
           stakeSource: record.stakeSource ?? "adexto",
           lastSweepAt: record.lastSweepAt,
+          accrued: record.accrued ?? null,
         }
       : null;
 
@@ -165,11 +199,12 @@ export async function GET(req: Request) {
     staked: adexto?.staked ?? null,
     stakeError: adexto?.error ?? null,
     tier: adextoTier ? { label: adextoTier.label, stake: adextoTier.stake, allowance: adextoTier.allowance } : null,
-    stakes: COMPUTE_STAKES.map((s) => {
+    stakes: sources.map((s) => {
       const r = readings.find((x) => x.id === s.id);
-      const t = r?.staked == null ? null : tierForStake(r.staked, s.tiers);
+      const t = r?.staked == null || s.kind === "hub" ? null : tierForStake(r.staked, s.tiers);
       return {
         id: s.id,
+        kind: s.kind ?? "tiered",
         chainId: s.chainId,
         symbol: s.symbol,
         name: s.name,
@@ -178,6 +213,7 @@ export async function GET(req: Request) {
         staked: r?.staked ?? null,
         error: r?.error ?? null,
         tier: t ? { label: t.label, stake: t.stake, allowance: t.allowance } : null,
+        budget: budgetView(s),
         key: keyView(keyFor(address, s.id)),
       };
     }),

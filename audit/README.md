@@ -35,13 +35,14 @@ line of code with a trailing comment counts as code.
 | --- | --- | --- | --- |
 | `contracts/AdextoCurve.sol` | bonding curve deployed per launch | 653 | 366 |
 | `contracts/AdextoFactory.sol` | factory: token + curve in one transaction, ticker book, agent check | 388 | 203 |
-| `contracts/AdextoAgentStake.sol` | holds staked $ADEXTO; gates compute quota | 179 | 66 |
+| `contracts/AdextoAgentStake.sol` | holds one token's stake ($ADEXTO on 0G, `$SAI` on three chains); gates compute quota | 179 | 66 |
+| `contracts/AdextoStakeHub.sol` | one per chain: holds the stakes of every other market, keyed by token | 257 | 124 |
 | `contracts/AdextoToken.sol` | fixed-supply ERC-20 per launch, with the launch window | 161 | 61 |
 | `contracts/IIdentityRegistry.sol` | interface for the ERC-8004 ownership check | 45 | 5 |
-| **Total** | | **1,426** | **701** |
+| **Total** | | **1,683** | **825** |
 
-**If you price on raw lines rather than SLOC, say so before quoting.** 573 of the 1,426 lines are
-comments explaining why the code is shaped the way it is, and 152 are blank. That is deliberate and
+**If you price on raw lines rather than SLOC, say so before quoting.** 666 of the 1,683 lines are
+comments explaining why the code is shaped the way it is, and 192 are blank. That is deliberate and
 we are not asking you to review the prose, but it roughly doubles a line-based estimate.
 
 Excluded from the figures above, and from any quote, because they never reach a chain:
@@ -50,8 +51,10 @@ Excluded from the figures above, and from any quote, because they never reach a 
 the ERC-8004 constant address on a local devchain, which is the only way the agent-binding path is
 reachable off mainnet.
 
-`AdextoAgentStake` is in scope because it holds other people's tokens. It is the one contract here
-whose failure mode is a direct loss of principal rather than a mispriced trade.
+`AdextoAgentStake` and `AdextoStakeHub` are in scope because they hold other people's tokens. They
+are the two contracts here whose failure mode is a direct loss of principal rather than a mispriced
+trade, and the hub holds every market's stakes on its chain in one contract, so a flaw in it is
+shared by all of them. Neither is on the launch path: a launch never calls them.
 
 Also in scope, because they can move money: the x402 edge worker in `cloudflare-worker/`, the API
 routes under `src/app/api/`, and the MCP server at `/api/mcp` including `pay_and_buy`.
@@ -79,6 +82,25 @@ its two slots zeroed the code hashes to the artifact's
 `0x0e70cb93fbb10b66109cc71d547329cb48b4c3953791c2c4609519ff92221d62`. Reserved tickers live in
 storage, so Robinhood Chain's longer list (`scripts/reserved-symbols.json`) does not change the code.
 Sourcify reports an exact match, creation and runtime, on all five.
+
+`AdextoStakeHub` `1.0.0`, broadcast on 2026-10-01 from commit
+[`f8328ab`](https://github.com/0xcuy/adexto/commit/f8328ab43375c8a785ccf86fb4dfe39c83c2986f) by
+`scripts/deploy-stake-hub.mjs`. At that commit `contracts/` is the tree above plus
+`AdextoStakeHub.sol`. A token is accepted when one of the hub's factories returns a non-zero
+`curveOf(token)`; the tokens in the last column have their own `AdextoAgentStake` and are refused.
+
+| Chain | Chain ID | Hub | Block | Creation transaction | Factories | Refused |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0G | 16661 | `0x440B89416A3a907a7016F20A29DA18665269A52f` | 45891788 | `0xc063a01575ae753f746cca27a23a12ec76af26d95dc720fd5cef3ee830652550` | v1, `0.11.0` | $ADEXTO |
+| Base | 8453 | `0x2ba1EcffCD624Dc18044531F3999F0445014240D` | 52052214 | `0xd081572c266bd73481b7998dc15c17ba29131596dd0def14af4d49085d936e25` | v1, `0.11.0` | none |
+| Arbitrum One | 42161 | `0xdf8891bA9fd8e3DC2E7D0A0ccae279247cd2ddf3` | 510798163 | `0x447f42419e2e7cb81353fc6ad9e7791946c1151d49f7c55d935ee9d388ea741a` | v1, `0.11.0` | `$SAI` |
+| Monad | 143 | `0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A` | 109727181 | `0x4af6f26be4307364ec6e34fb2a8a9096e0e5abfcb7baaba962f1be2c7d43d66d` | v1, `0.11.0` | `$SAI` |
+| Robinhood Chain | 4663 | `0x05EFA7F066FcbefbE650EDd58583C107831A600B` | 77733726 | `0x5470dcd6025c7b4a4989b37fc7c2cffcd07a9adb16043de971735c1c698647e9` | v1 | `$SAI` |
+
+The hub's runtime is byte-identical on all five chains: 4,278 bytes, keccak
+`0x88247303e4851282bbf22dd4f23e753b08a6862ea40f32d9c0464e92730b081a`. It has no immutables: both
+lists are storage written once by the constructor, with no setter. Sourcify reports an exact match,
+creation and runtime, on all five. The `0.12.0` factories below are deliberately not accepted.
 
 Earlier pre-release versions remain deployed on chain. They are not in this repository and are not
 in scope. The six markets listed on the site were created by the `0.11.0` factories, compiled from
@@ -157,6 +179,12 @@ exactly when the window does, and a fuzzed sequence of buys never leaves a walle
 The buyback cooldown has its own suite too, including `test_buybackCannotBeLoopedInOneTransaction`
 and `test_treasuryCannotBeDrainedInOneBlock`.
 
+So does the stake hub, `test/AdextoStakeHub.t.sol` (25 tests): the constructor's rules, eligibility
+for tokens from either factory, an excluded token and a token from nowhere, the minimum as a share
+of supply, fee-on-transfer, soft-failing and re-entrant tokens refused through a stand-in factory,
+the launch window applied to the hub's balance, and `testFuzz_totalEqualsSumOfPositions`. It has no
+stateful invariant suite.
+
 `test_handlerCanActuallyPerformEveryAction` exists because an invariant suite whose handler silently
 fails every action passes while testing nothing.
 
@@ -207,19 +235,29 @@ there being none.
     sound, because `_update` makes no external call. We want the consequences assessed for a
     deployment bound to a fee-on-transfer or rebasing token, and whether `accounting()` surfacing
     the surplus is sufficient disclosure.
+11. **`AdextoStakeHub` eligibility and per-token accounting.** Eligibility rests on one claim: an
+    accepted factory returns a non-zero `curveOf(token)` only for a token it created itself in
+    `deployTrinity`. We want that checked against both factory versions the hubs accept. Positions
+    are keyed by token while one address holds every token's balance, so we want to know whether
+    any sequence of calls can move or misreport one token's positions through another's. `stake`
+    checks the balance delta, so a fee-on-transfer token is refused; `unstake` and `unstakeAll` do
+    not, which is sound for `AdextoToken`. The minimum is 0.001% of the token's current
+    `totalSupply`, which buyback burns lower, so a position that met it keeps meeting it, and the
+    remainder rule on a partial `unstake` reads the same figure. During a v1 token's launch window
+    the hub is one wallet under the 1% cap, so every staker of that token shares the cap.
 
 ## Reproducing everything here
 
 ```bash
 node scripts/compile-contracts.mjs --via-ir     # solc 0.8.37 -> build/artifacts/
-~/.foundry/bin/forge test                        # fuzz, invariants, launch window, cooldown, stake
+~/.foundry/bin/forge test                        # fuzz, invariants, launch window, cooldown, stakes
 node scripts/security-scan.mjs                   # every engine -> src/config/security-report.json
 node scripts/test-erc8004-binding.mjs            # 24 assertions against a local devchain
 ```
 
 Expected, so a different result is recognisable as a difference rather than assumed to be normal:
-`compile-contracts.mjs` reports 7 sources and writes 33 artefacts, and `forge test` reports
-**55 tests passed, 0 failed** across 5 suites. In the invariant run `buyback` reverts on most calls,
+`compile-contracts.mjs` reports 8 sources and writes 36 artefacts, and `forge test` reports
+**80 tests passed, 0 failed** across 6 suites. In the invariant run `buyback` reverts on most calls,
 because the handler never advances time and every buyback after the first lands inside the
 cooldown. `test_handlerCanActuallyPerformEveryAction` proves the other actions are not failing the
 same way.

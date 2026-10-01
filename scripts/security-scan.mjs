@@ -54,12 +54,13 @@ const LAUNCH_PATH = [
 ];
 
 /**
- * `AdextoAgentStake.sol` is deliberately NOT in the list above.
+ * `AdextoAgentStake.sol` and `AdextoStakeHub.sol` are deliberately NOT in the list above.
  *
- * It holds real tokens on 0G, but a launch never calls it, so counting it would make the
- * launch-path claim measure something other than its name. It IS scanned: Slither and Aderyn
- * run over the whole directory, so its findings are in the totals. If it ever needs a claim of
- * its own, it gets a bucket of its own. Its scope is stated in audit/README.md.
+ * Both hold real tokens (the four dedicated stakes, and one hub per chain for every other
+ * market), but a launch never calls either, so counting them would make the launch-path claim
+ * measure something other than its name. Both ARE scanned: Slither and Aderyn run over the whole
+ * directory, so their findings are in the totals. If they ever need a claim of their own, they
+ * get a bucket of their own. Their scope is stated in audit/README.md.
  */
 const inLaunchPath = (f) => LAUNCH_PATH.some((p) => String(f || "").endsWith(p.replace(/^contracts\//, "contracts/")));
 

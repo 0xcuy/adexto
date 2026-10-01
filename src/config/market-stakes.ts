@@ -14,22 +14,52 @@
  * Addresses are written here once, from the deployment output, instead of read from env: they
  * are public, they never change (the binding is immutable), and a build that cannot find them
  * should fail visibly rather than render a panel with an empty address.
+ *
+ * EVERY OTHER MARKET STAKES IN THE CHAIN'S HUB (2026-10-01)
+ *
+ * Only the four markets below have their own contract. Every other ADEXTO market, including each
+ * new launch, stakes in the chain's AdextoStakeHub (src/config/stake-hubs.ts): `stakeForMarket`
+ * returns the dedicated contract when there is one and the hub otherwise.
  */
+import { hubMinStake, hubRefuses, stakeHubFor } from "@/config/stake-hubs";
+
 export interface MarketStake {
   chainId: number;
   symbol: string;
   /** The market's token. The contract's `stakeToken`, immutable. */
   token: string;
-  /** AdextoAgentStake address. */
+  /** AdextoAgentStake address, or the chain's AdextoStakeHub when `kind` is "hub". */
   contract: string;
   /** Minimum position in WHOLE tokens; the contract stores it in base units. */
   minStake: number;
   decimals: number;
   deployBlock: number;
   deployTx: string;
+  /**
+   * "dedicated": an AdextoAgentStake bound to this one token (the entries below).
+   * "hub": the chain's AdextoStakeHub, shared by every other market; every call names the token.
+   */
+  kind?: "dedicated" | "hub";
 }
 
 export const MARKET_STAKES: MarketStake[] = [
+  /**
+   * $ADEXTO on 0G. The first AdextoAgentStake, deployed by the deployer at block 45225259 for
+   * Agent Compute, before per-market staking existed, so it was not listed here and $ADEXTO had
+   * no stake panel and no `ask_agent`. Listed 2026-10-01, when every other market gained a stake
+   * through its hub. Nothing on chain changed: read back then, stakeToken = the token below,
+   * minStake = 5,000 ADEXTO, and the runtime carries every selector the panel and MCP call.
+   */
+  {
+    chainId: 16661,
+    symbol: "ADEXTO",
+    token: "0xA1358C17004469C7CA5365AbafD294F9b2c11DF7",
+    contract: "0x5b44AEA7AC49C7a6DA8f700D991852A2970b9231",
+    minStake: 5000,
+    decimals: 18,
+    deployBlock: 45225259,
+    deployTx: "0x476a4736f4879b023c0a2ef79e0c2ecd1c4ffdafe85ba2dc816a5b65fe1da31c",
+  },
   /**
    * $SAI (SAi Arbitrum) on Arbitrum One. Deployed 2026-10-01 by the deployer with
    * scripts/deploy-market-stake.mjs; immutables read back from the chain: stakeToken = the
@@ -79,9 +109,37 @@ export const MARKET_STAKES: MarketStake[] = [
   },
 ];
 
+/** The dedicated AdextoAgentStake of a market, or null. Only the four markets listed above. */
 export function marketStakeFor(chainId: number, symbol: string): MarketStake | null {
   const want = symbol.toUpperCase();
   return MARKET_STAKES.find((s) => s.chainId === Number(chainId) && s.symbol === want) ?? null;
+}
+
+/**
+ * The chain's AdextoStakeHub as this market's stake, or null when the chain has no hub or the
+ * hub refuses the token (it has its own stake contract). Eligibility itself is enforced on chain:
+ * the hub reverts for a token no ADEXTO factory made, so a wrong record here cannot open staking
+ * for a token that should not have it.
+ */
+export function hubStakeFor(m: { chainId: number; symbol: string; tokenAddress: string; supply: number }): MarketStake | null {
+  const hub = stakeHubFor(m.chainId);
+  if (!hub || !m.tokenAddress || hubRefuses(m.chainId, m.tokenAddress)) return null;
+  return {
+    chainId: Number(m.chainId),
+    symbol: m.symbol.toUpperCase(),
+    token: m.tokenAddress,
+    contract: hub.address,
+    minStake: hubMinStake(m.supply),
+    decimals: 18,
+    deployBlock: hub.deployBlock,
+    deployTx: hub.deployTx,
+    kind: "hub",
+  };
+}
+
+/** The stake contract of any market: its dedicated AdextoAgentStake if it has one, else the hub. */
+export function stakeForMarket(m: { chainId: number; symbol: string; tokenAddress: string; supply: number }): MarketStake | null {
+  return marketStakeFor(m.chainId, m.symbol) ?? hubStakeFor(m);
 }
 
 /** EIP-191 message an address signs to use `ask_agent`. Built in one place for server and client. */

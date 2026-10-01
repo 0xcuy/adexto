@@ -38,13 +38,15 @@ import {
   AGENT_COMPUTE_MODEL_LABEL,
   CLIENT_USAGE_BUFFER,
   COMPUTE_STAKES,
+  HUB_COMPUTE_SHARE_BPS,
   MEASURED_INPUT_FLOOR,
   approxRequests,
-  computeStake,
+  hubVolumePerRequestUsd,
   nextTier,
   tierForStake,
   type ComputeStake,
 } from "@/config/agent-compute";
+import { STAKE_HUB_ABI } from "@/config/stake-hubs";
 
 /**
  * Agent Compute: centang token yang di-stake, terima kunci API per token, belanjakan jatahnya.
@@ -66,7 +68,29 @@ import {
  * Token tanpa kontrak stake tetap tampil di daftar dan bisa dicentang, dan kartunya mengatakan apa
  * adanya bahwa belum ada tempat untuk stake — bukan menampilkan `0 staked`, karena "kamu belum
  * stake" dan "belum ada kontrak" adalah dua keadaan berbeda.
+ *
+ * SETIAP PASAR LAIN LEWAT HUB (owner 2026-10-01)
+ *
+ * Selain empat sumber bertingkat di `COMPUTE_STAKES`, daftar ini memuat setiap pasar hidup yang
+ * di-stake di AdextoStakeHub chain-nya, dikirim server dari registry (`sources` di
+ * `/api/agent/keys`), jadi pasar yang baru diluncurkan muncul di sini tanpa mengubah kode. Kunci
+ * pasar hub tidak bertingkat: jatahnya terkumpul dari separuh protocol fee trading pasar itu.
  */
+
+/** Anggaran compute sebuah pasar hub, sebagaimana server membacanya dari kurvanya. */
+type HubBudgetView = {
+  feesNative: number;
+  nativeSymbol: string;
+  priceUsd: number | null;
+  budgetUsd: number | null;
+  budgetTokens: number | null;
+  shareBps: number;
+  usdPerMillionTokens: number;
+  error: string | null;
+};
+
+/** Sumber yang ditampilkan halaman: `ComputeStake`, ditambah anggaran untuk pasar hub. */
+type Source = ComputeStake & { budget?: HubBudgetView | null };
 
 /** Chain sebuah token, dari registry aplikasi. */
 const chainOf = (chainId: number): ChainInfo | undefined => CHAIN_LIST.find((c) => c.chainId === chainId);
@@ -88,6 +112,7 @@ type KeyRecord = {
   disabledReason: string | null;
   stakeSource?: string | null;
   lastSweepAt: string | null;
+  accrued?: number | null;
 };
 
 type TierRow = { label: string; stake: number; allowance: number };
@@ -104,6 +129,8 @@ type StakeRow = {
   error: string | null;
   tier: TierRow | null;
   key: KeyRecord | null;
+  kind?: "tiered" | "hub";
+  budget?: HubBudgetView | null;
 };
 
 type KeyStatus = {
@@ -113,6 +140,7 @@ type KeyStatus = {
   model: string;
   address: string | null;
   stakes?: StakeRow[];
+  sources?: Source[];
 };
 
 /** Tombol salin kecil, dipakai di beberapa tempat. */
@@ -140,7 +168,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-/** ABI stake, hanya yang dipakai halaman ini. Sama untuk setiap token: semuanya AdextoAgentStake. */
+/** ABI stake untuk empat sumber bertingkat (AdextoAgentStake). Pasar hub memakai STAKE_HUB_ABI. */
 const STAKE_ABI = [
   "function stake(uint256 amount)",
   "function unstakeAll()",
@@ -157,16 +185,37 @@ export default function AgentComputePanel() {
   const [loading, setLoading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [ping, setPing] = useState<{ ok: boolean; ms: number; status: number } | null>(null);
+  /**
+   * Daftar sumber: empat yang bertingkat sejak render pertama, lalu setiap pasar hub begitu server
+   * menjawab. Daftarnya datang dari server karena pasar hub berasal dari registry, bukan dari kode.
+   */
+  const [sources, setSources] = useState<Source[]>(() => [...COMPUTE_STAKES]);
 
   useEffect(() => {
     const want = new URLSearchParams(window.location.search).get("stake");
-    if (want && COMPUTE_STAKES.some((s) => s.id === want)) setChecked([want]);
+    // Id pasar hub baru dikenal setelah server menjawab, jadi bentuknya yang diperiksa di sini.
+    if (want && /^[a-z0-9-]{3,40}$/.test(want)) setChecked([want]);
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/agent/keys", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: KeyStatus | null) => {
+        if (alive && j?.sources?.length) setSources(j.sources);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const sourceFor = (id: string) => sources.find((s) => s.id === id) ?? null;
 
   const toggle = (id: string) =>
     setChecked((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      return COMPUTE_STAKES.map((s) => s.id).filter((x) => next.includes(x));
+      return sources.map((s) => s.id).filter((x) => next.includes(x));
     });
 
   /**
@@ -184,7 +233,9 @@ export default function AgentComputePanel() {
     try {
       const res = await fetch(`/api/agent/keys?address=${address}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`status ${res.status}`);
-      setStatus((await res.json()) as KeyStatus);
+      const json = (await res.json()) as KeyStatus;
+      setStatus(json);
+      if (json.sources?.length) setSources(json.sources);
     } catch (e) {
       setReadError(`Key status unavailable: ${String((e as Error).message || e).slice(0, 90)}`);
     } finally {
@@ -256,7 +307,7 @@ export default function AgentComputePanel() {
           </h1>
 
           <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/75">
-            Tick the token you stake: $ADEXTO, or $SAI from a market launched on ADEXTO. Each one gets
+            Tick the token you stake: $ADEXTO, $SAI, or any market launched on ADEXTO. Each one gets
             its own API key to call {AGENT_COMPUTE_MODEL_LABEL} from your code. OpenAI-compatible,
             served by 0G Compute.
           </p>
@@ -308,7 +359,7 @@ export default function AgentComputePanel() {
             </div>
 
             <div role="group" aria-label="Tokens to stake" className="mt-3 space-y-2">
-              {COMPUTE_STAKES.map((s) => {
+              {sources.map((s) => {
                 const on = checked.includes(s.id);
                 const row = rowFor(s.id);
                 const open = Boolean(s.contract);
@@ -339,7 +390,7 @@ export default function AgentComputePanel() {
                       {!open
                         ? "stake contract not deployed yet"
                         : !isConnected || !row
-                          ? `min ${fmt(s.minStake)}`
+                          ? `min ${fmt(s.minStake)}${s.kind === "hub" ? " · fee-funded" : ""}`
                           : row.staked === null
                             ? "not readable now"
                             : `${fmt(row.staked)} staked${row.key ? (row.key.active ? " · key active" : " · key off") : ""}`}
@@ -452,15 +503,12 @@ export default function AgentComputePanel() {
 
         {/* ── satu kartu per token yang dicentang ──────────────────────────────── */}
         {isConnected &&
-          checked.map((id) => (
-            <StakeCard
-              key={id}
-              src={computeStake(id)}
-              row={rowFor(id)}
-              configured={Boolean(status?.configured)}
-              refresh={readStatus}
-            />
-          ))}
+          checked.map((id) => {
+            const src = sourceFor(id);
+            return src ? (
+              <StakeCard key={id} src={src} row={rowFor(id)} configured={Boolean(status?.configured)} refresh={readStatus} />
+            ) : null;
+          })}
 
         {/* ── endpoint ─────────────────────────────────────────────────────────── */}
         <section id="endpoint" className="mt-10">
@@ -557,6 +605,14 @@ export default function AgentComputePanel() {
               </tbody>
             </table>
           </div>
+          <div className="mt-3 rounded-2xl border border-line bg-cream-2 p-4 text-[12px] leading-relaxed text-ink-soft">
+            <strong className="text-ink">Every other ADEXTO market has no tiers.</strong> It stakes in its chain&apos;s
+            stake hub, from its first block, with a minimum of 0.001% of its supply. Its keys share compute funded by
+            the market&apos;s own trading: {HUB_COMPUTE_SHARE_BPS / 100}% of the 0.10% protocol fee its trades pay,
+            split by stake, and only fees that arrive after a key exists count toward that key. At today&apos;s model
+            price, about ${hubVolumePerRequestUsd().toFixed(2)} of trading pays for one request. A market nobody trades
+            funds no compute.
+          </div>
         </section>
 
         {/* ── cara kerja ──────────────────────────────────────────────────────── */}
@@ -564,7 +620,7 @@ export default function AgentComputePanel() {
           <h2 className="text-lg font-semibold text-ink">How it works</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { n: "01", icon: <ListChecks className="h-4 w-4" />, t: "Tick a token", d: "$ADEXTO on 0G, or $SAI from its market." },
+              { n: "01", icon: <ListChecks className="h-4 w-4" />, t: "Tick a token", d: "$ADEXTO, $SAI, or any ADEXTO market." },
               { n: "02", icon: <Layers className="h-4 w-4" />, t: "Stake it", d: "At least that token's minimum, on its own chain." },
               { n: "03", icon: <KeyRound className="h-4 w-4" />, t: "Sign for a key", d: "One key per token, bound to your address." },
               { n: "04", icon: <Cpu className="h-4 w-4" />, t: "Call the endpoint", d: "From your own code." },
@@ -668,7 +724,7 @@ function StakeCard({
   configured,
   refresh,
 }: {
-  src: ComputeStake;
+  src: Source;
   row: StakeRow | null;
   configured: boolean;
   refresh: () => Promise<void>;
@@ -676,6 +732,9 @@ function StakeCard({
   const { address, isOnChain, switchToChain } = useWallet();
   const srcChain = chainOf(src.chainId);
   const where = `$${src.symbol} on ${src.chainName}`;
+  /** Pasar hub: satu kontrak untuk semua pasar di chain ini, setiap panggilan menyebut tokennya. */
+  const hub = src.kind === "hub";
+  const budget = row?.budget ?? src.budget ?? null;
 
   const [balance, setBalance] = useState<number | null>(null);
   const [busy, setBusy] = useState<"issue" | "revoke" | "stake" | "unstake" | null>(null);
@@ -741,12 +800,14 @@ function StakeCard({
       const token = new ethers.Contract(src.token, ERC20_ABI, signer);
       const current: bigint = await token.allowance(await signer.getAddress(), stakeAddress);
       if (current < amount) {
-        setStakeStep(`1 of 2 — approving the stake contract to move your $${src.symbol}…`);
+        setStakeStep(`1 of 2 — approving the ${hub ? "stake hub" : "stake contract"} to move your $${src.symbol}…`);
         const ap = await token.approve(stakeAddress, amount);
         await ap.wait();
       }
       setStakeStep(current < amount ? "2 of 2 — staking…" : "Staking…");
-      const tx = await new ethers.Contract(stakeAddress, STAKE_ABI, signer).stake(amount);
+      const tx = hub
+        ? await new ethers.Contract(stakeAddress, STAKE_HUB_ABI, signer).stake(src.token, amount)
+        : await new ethers.Contract(stakeAddress, STAKE_ABI, signer).stake(amount);
       await tx.wait();
       setStakeStep(`Staked. Your ${where} key can be issued now.`);
       await refreshAll();
@@ -772,7 +833,9 @@ function StakeCard({
       const provider = new ethers.BrowserProvider(getActiveEip1193());
       const signer = await provider.getSigner();
       setStakeStep("Unstaking…");
-      const tx = await new ethers.Contract(stakeAddress, STAKE_ABI, signer).unstakeAll();
+      const tx = hub
+        ? await new ethers.Contract(stakeAddress, STAKE_HUB_ABI, signer).unstakeAll(src.token)
+        : await new ethers.Contract(stakeAddress, STAKE_ABI, signer).unstakeAll();
       await tx.wait();
       setStakeStep("Unstaked. This token's key stops working at the next sweep.");
       await refreshAll();
@@ -917,6 +980,31 @@ function StakeCard({
                 </span>
               </div>
             </div>
+          ) : hub ? (
+            <div className="mt-5 rounded-xl bg-cream-2 p-3 text-[12px] leading-relaxed text-ink-soft">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+                <span>Compute funded by trading</span>
+                <span className="text-accent">Fee-funded</span>
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="font-mono text-[22px] font-bold leading-none tracking-tight text-ink">
+                  {budget?.budgetTokens == null ? "…" : fmt(budget.budgetTokens)}
+                </span>
+                <span className="font-mono text-[11px] text-ink-soft">model tokens paid for by this market so far</span>
+              </div>
+              <p className="mt-2">
+                {HUB_COMPUTE_SHARE_BPS / 100}% of the 0.10% protocol fee this market&apos;s trades pay becomes compute for its
+                stakers, shared by stake.
+                {budget && budget.feesNative > 0 && (
+                  <>
+                    {" "}
+                    Its curve has collected {budget.feesNative.toPrecision(3)} {budget.nativeSymbol} of protocol fees.
+                  </>
+                )}{" "}
+                Your share starts with the fees that arrive after you issue this token&apos;s key, so the key opens with
+                nothing and fills as the market trades.
+              </p>
+            </div>
           ) : active && tier ? (
             <div className="mt-5">
               <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-ink-faint">
@@ -1026,6 +1114,7 @@ function StakeCard({
                     if (want < src.minStake && effective + want < src.minStake) {
                       return `Below the ${fmt(src.minStake)} minimum — the contract will reject it.`;
                     }
+                    if (hub) return "Opens this market's agent, and compute funded by its trading.";
                     const t = tierForStake(effective + want, src.tiers);
                     return t
                       ? `Opens ${t.label}: ${fmt(t.allowance)} tokens ≈ ${fmt(approxRequests(t.allowance))} requests.`
@@ -1131,7 +1220,8 @@ function StakeCard({
               <dl className="space-y-1.5 font-mono text-[11px]">
                 {[
                   ["Opened by", `your ${where} stake`],
-                  ["Allowance", `${fmt(record.allowance)} tokens`],
+                  ...(hub ? [["Funded by", `${HUB_COMPUTE_SHARE_BPS / 100}% of this market's protocol fee`]] : []),
+                  [hub ? "Accrued" : "Allowance", `${fmt(record.allowance)} tokens`],
                   ["Remaining", `${fmt(remaining)} tokens · ${leftPct}%`],
                   ["Requests", fmt(record.requests)],
                 ].map(([k, v]) => (
@@ -1160,7 +1250,9 @@ function StakeCard({
                     ? "Key issuance is not configured on this server yet."
                     : !active
                       ? `Stake at least ${fmt(src.minStake)} ${src.symbol} on ${src.chainName} to open this key.`
-                      : `Your ${where} stake opens ${tier?.label ?? "a tier"}. Sign one message to issue the key, bound to your address.`}
+                      : hub
+                        ? `Your ${where} stake opens a key whose allowance grows with this market's trading. Sign one message to issue it, bound to your address.`
+                        : `Your ${where} stake opens ${tier?.label ?? "a tier"}. Sign one message to issue the key, bound to your address.`}
               </p>
               <button
                 type="button"

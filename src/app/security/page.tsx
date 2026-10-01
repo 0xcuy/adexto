@@ -1,6 +1,7 @@
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Terminal, GitCommit, FileSearch } from "lucide-react";
 import report from "@/config/security-report.json";
 import deployments from "@/config/factory-deployments.json";
+import { STAKE_HUB_SOURCE_COMMIT } from "@/config/stake-hubs";
 import NoGraduation from "@/components/security/NoGraduation";
 import VerifyChecklist from "@/components/security/VerifyChecklist";
 
@@ -306,6 +307,14 @@ export default function SecurityPage() {
   const commitShort = report.commit ? String(report.commit).slice(0, 12) : "unknown";
   /** Commit yang contracts/-nya sama dengan yang dipindai DAN yang di-deploy. Lihat factory-deployments.json. */
   const sourceShort = deployments.sourceCommit.slice(0, 12);
+  /**
+   * Commit asal kelima AdextoStakeHub. Di commit ini contracts/ = tree sourceCommit ditambah
+   * AdextoStakeHub.sol, jadi satu checkout membangun ulang factory dan hub sekaligus.
+   * audit_consistency.mjs memeriksa kedua klaim itu terhadap contractHashes laporan.
+   */
+  const hubShort = STAKE_HUB_SOURCE_COMMIT.slice(0, 12);
+  const hashedFiles = Object.keys(report.contractHashes ?? {});
+  const scannedHub = hashedFiles.includes("contracts/AdextoStakeHub.sol");
   const repoBase = "https://github.com/0xcuy/adexto";
 
   return (
@@ -521,7 +530,10 @@ export default function SecurityPage() {
             invariant suites target <code className="text-accent">AdextoCurve</code>,{" "}
             <code className="text-accent">AdextoFactory</code> and <code className="text-accent">AdextoToken</code>,
             including the launch window, plus <code className="text-accent">AdextoAgentStake</code>. The 0.11.0 curves
-            share the curve design but not the launch window or the buyback cooldown, and are not fuzzed from this tree.
+            share the curve design but not the launch window or the buyback cooldown, and are not fuzzed from this tree.{" "}
+            <code className="text-accent">AdextoStakeHub</code>, the stake contract every other market uses,{" "}
+            {scannedHub ? "is scanned with the rest and has" : "is not in this scan yet. It has"} unit tests plus one
+            fuzzed accounting check, but no invariant suite of its own. Neither stake contract is on the launch path.
           </li>
           <li>
             <strong className="text-ink">Semgrep runs a general ruleset.</strong> The registry has no Solidity pack —{" "}
@@ -562,7 +574,9 @@ export default function SecurityPage() {
           The factory bytecode on each chain can be rebuilt from the published source at commit{" "}
           <code className="text-accent">{sourceShort}</code>, and step 5 below compares the two. That is the part that
           makes the rest checkable: if the compiled output matches what is deployed, then the guarantees you read in the
-          source are the guarantees running on chain.
+          source are the guarantees running on chain. The five stake hubs were compiled from{" "}
+          <code className="text-accent">{hubShort}</code>, whose <code className="text-accent">contracts/</code> folder
+          adds only <code className="text-accent">AdextoStakeHub.sol</code>, and each hub is an exact match on Sourcify.
         </p>
 
         <div className="mb-4 rounded-xl border border-line bg-surface p-4">
@@ -571,7 +585,7 @@ export default function SecurityPage() {
           </div>
           <pre className="overflow-x-auto rounded-lg bg-cream-3 p-3 font-mono text-[10.5px] leading-relaxed text-ink">
 {`git clone ${repoBase}.git && cd adexto
-git checkout ${sourceShort}
+git checkout ${scannedHub ? hubShort : sourceShort}
 npm install
 
 # the bytecode that gets deployed
@@ -592,9 +606,19 @@ forge test`}
               <>
                 The scan ran on a working tree with uncommitted changes, as the header says. Its{" "}
                 <code className="text-accent">contracts/</code> folder matches commit{" "}
-                <code className="text-accent">{sourceShort}</code> file for file (the report records a sha256 for each
-                contract file), so that is the commit to check out rather than{" "}
+                <code className="text-accent">{scannedHub ? hubShort : sourceShort}</code> file for file (the report
+                records a sha256 for each contract file), so that is the commit to check out rather than{" "}
                 <code className="text-accent">{commitShort}</code>.
+              </>
+            ) : scannedHub ? (
+              <>
+                The scan ran on a clean checkout of <code className="text-accent">{commitShort}</code>. Its contract
+                files are identical to the deployed sources (the report records a sha256 for each):{" "}
+                {hashedFiles.length - 1} of them to <code className="text-accent">{sourceShort}</code>, the commit the
+                deployed factory was compiled from, and <code className="text-accent">AdextoStakeHub.sol</code> to{" "}
+                <code className="text-accent">{hubShort}</code>, the commit the stake hubs were compiled from.{" "}
+                <code className="text-accent">{hubShort}</code> holds all of them, so checking it out rebuilds the
+                deployed bytecode and the scanned source at once.
               </>
             ) : (
               <>

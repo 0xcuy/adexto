@@ -8,7 +8,8 @@ import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { describeTxError, ensureWalletChain } from "@/lib/dex";
 import { explorerAddressUrl, readProvider, type ChainInfo } from "@/lib/chains";
 import type { MarketStake } from "@/config/market-stakes";
-import { computeStakeForMarket } from "@/config/agent-compute";
+import { computeStakeForMarket, hubComputeStakeId } from "@/config/agent-compute";
+import { STAKE_HUB_ABI } from "@/config/stake-hubs";
 import Link from "next/link";
 
 /**
@@ -19,10 +20,10 @@ import Link from "next/link";
  * melaporkan nol dengan yakin.
  *
  * Yang dikatakan panel ini sengaja sempit: stake membuka agent pasar ini lewat MCP
- * (`ask_agent`) dan, untuk pasar yang terdaftar di `COMPUTE_STAKES`, kunci Agent Compute.
- * Tidak ada lock, dan tidak ada imbalan. Kontraknya memang hanya itu — `AdextoAgentStake`
- * tanpa owner, tanpa cooldown, tanpa reward — jadi kalimat lain akan menjanjikan sesuatu yang
- * tidak ada di kode.
+ * (`ask_agent`) dan kunci Agent Compute: bertingkat untuk pasar di `COMPUTE_STAKES`, dibiayai
+ * trading pasar itu sendiri untuk pasar di hub. Tidak ada lock, dan tidak ada imbalan. Kontraknya
+ * memang hanya itu — `AdextoAgentStake` dan `AdextoStakeHub` sama-sama tanpa owner, tanpa
+ * cooldown, tanpa reward — jadi kalimat lain akan menjanjikan sesuatu yang tidak ada di kode.
  */
 const STAKE_ABI = [
   "function stake(uint256 amount)",
@@ -41,24 +42,39 @@ const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 
 
 export default function MarketStakePanel({ chain, stake, symbol }: { chain: ChainInfo; stake: MarketStake; symbol: string }) {
   const { address, isConnected, connectWallet } = useWallet();
-  /** Stake pasar ini juga membuka Agent Compute kalau pasarnya terdaftar sebagai sumber. */
-  const compute = computeStakeForMarket(stake.chainId, stake.symbol);
+  /**
+   * Hub: satu kontrak untuk semua pasar di chain ini, jadi setiap panggilan menyebut tokennya, dan
+   * stake di hub selalu membuka Agent Compute yang dibiayai trading pasar ini. Kontrak sendiri:
+   * Agent Compute hanya kalau pasarnya terdaftar sebagai sumber bertingkat.
+   */
+  const hub = stake.kind === "hub";
+  const abi = hub ? STAKE_HUB_ABI : STAKE_ABI;
+  const tiered = computeStakeForMarket(stake.chainId, stake.symbol);
+  const computeId = hub ? hubComputeStakeId(stake.chainId, stake.symbol) : tiered?.contract ? tiered.id : null;
   const [totals, setTotals] = useState<{ staked: number; stakers: number } | null>(null);
   const [mine, setMine] = useState<{ staked: number; balance: number } | null>(null);
   const [amount, setAmount] = useState(String(stake.minStake));
   const [busy, setBusy] = useState<"stake" | "unstake" | null>(null);
   const [line, setLine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Hub saja: apakah hub menerima token ini. Selalu benar untuk pasar dari factory yang dikenal
+   * hub, salah untuk pasar dari factory yang lahir sesudahnya. Null sampai terbaca.
+   */
+  const [eligible, setEligible] = useState<boolean | null>(null);
 
   const read = useCallback(async () => {
     try {
       const provider = readProvider(chain);
-      const c = new ethers.Contract(stake.contract, STAKE_ABI, provider);
-      const [total, count] = await Promise.all([c.totalStaked(), c.stakerCount()]);
+      const c = new ethers.Contract(stake.contract, abi, provider);
+      if (hub) setEligible(Boolean(await c.isEligible(stake.token)));
+      const [total, count] = await Promise.all(
+        hub ? [c.totalStaked(stake.token), c.stakerCount(stake.token)] : [c.totalStaked(), c.stakerCount()]
+      );
       setTotals({ staked: Number(ethers.formatUnits(total, stake.decimals)), stakers: Number(count) });
       if (address) {
         const t = new ethers.Contract(stake.token, ERC20_ABI, provider);
-        const [s, b] = await Promise.all([c.stakedOf(address), t.balanceOf(address)]);
+        const [s, b] = await Promise.all([hub ? c.stakedOf(stake.token, address) : c.stakedOf(address), t.balanceOf(address)]);
         setMine({ staked: Number(ethers.formatUnits(s, stake.decimals)), balance: Number(ethers.formatUnits(b, stake.decimals)) });
       } else {
         setMine(null);
@@ -66,7 +82,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
     } catch {
       // Gagal baca tidak menghapus angka terakhir; panel hanya berhenti memperbarui.
     }
-  }, [chain, stake, address]);
+  }, [chain, stake, address, abi, hub]);
 
   useEffect(() => {
     void read();
@@ -89,12 +105,13 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
       const token = new ethers.Contract(stake.token, ERC20_ABI, signer);
       const allowance: bigint = await token.allowance(me, stake.contract);
       if (allowance < want) {
-        setLine(`1 of 2 — approving the stake contract to move ${whole} ${symbol}…`);
+        setLine(`1 of 2 — approving the ${hub ? "stake hub" : "stake contract"} to move ${whole} ${symbol}…`);
         const ap = await token.approve(stake.contract, want);
         await ap.wait();
       }
       setLine(allowance < want ? "2 of 2 — staking…" : "Staking…");
-      const tx = await new ethers.Contract(stake.contract, STAKE_ABI, signer).stake(want);
+      const c = new ethers.Contract(stake.contract, abi, signer);
+      const tx = hub ? await c.stake(stake.token, want) : await c.stake(want);
       await tx.wait();
       setLine(`Staked ${whole} ${symbol}. Unstake works at any time.`);
       await read();
@@ -115,7 +132,8 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
       await ensureWalletChain(ethereum, chain);
       const signer = await new ethers.BrowserProvider(ethereum).getSigner();
       setLine("Unstaking…");
-      const tx = await new ethers.Contract(stake.contract, STAKE_ABI, signer).unstakeAll();
+      const c = new ethers.Contract(stake.contract, abi, signer);
+      const tx = hub ? await c.unstakeAll(stake.token) : await c.unstakeAll();
       await tx.wait();
       setLine("Unstaked. The full position is back in your wallet.");
       await read();
@@ -128,6 +146,20 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
   };
 
   const active = mine !== null && mine.staked >= stake.minStake;
+
+  if (hub && eligible === false) {
+    return (
+      <div id="stake" className="glass-panel scroll-mt-20 space-y-2 rounded-card p-4" data-testid="market-stake-panel">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Layers className="h-3.5 w-3.5 text-accent" aria-hidden="true" /> Stake ${symbol}
+        </span>
+        <p className="text-[11px] text-ink-soft">
+          The {chain.name} stake hub does not accept ${symbol}: the token comes from a factory the hub was not deployed
+          with, so there is nothing to stake it in yet.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div id="stake" className="glass-panel scroll-mt-20 space-y-3 rounded-card p-4" data-testid="market-stake-panel">
@@ -153,13 +185,14 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
           </div>
           <div className="text-ink-faint">
             opens this market&apos;s agent over MCP
-            {compute?.contract && (
+            {computeId && (
               <>
                 {" "}
                 and an{" "}
-                <Link href={`/agent-compute?stake=${compute.id}`} className="font-semibold text-accent hover:underline">
+                <Link href={`/agent-compute?stake=${computeId}`} className="font-semibold text-accent hover:underline">
                   Agent Compute key
                 </Link>
+                {hub && <> funded by this market&apos;s own trading</>}
               </>
             )}
           </div>
@@ -222,7 +255,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
         rel="noopener noreferrer"
         className="flex items-center gap-1 text-[10px] text-ink-faint hover:text-accent"
       >
-        AdextoAgentStake {stake.contract.slice(0, 6)}…{stake.contract.slice(-4)} · no owner, no admin
+        {hub ? "AdextoStakeHub" : "AdextoAgentStake"} {stake.contract.slice(0, 6)}…{stake.contract.slice(-4)} · no owner, no admin
         <ExternalLink className="h-2.5 w-2.5" />
       </a>
     </div>

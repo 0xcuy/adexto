@@ -259,7 +259,73 @@ export type ComputeStake = {
   tiers: readonly ComputeTier[];
   /** Tempat membeli tokennya: terminal pasar itu sendiri. */
   buyHref: string;
+  /**
+   * "hub": pasar yang di-stake di AdextoStakeHub chain-nya (src/config/stake-hubs.ts). Kuncinya
+   * tidak punya tingkatan: jatahnya terkumpul dari protocol fee yang dibayar trade pasar itu,
+   * dibagi pro rata ke stakernya. Tidak ada di empat sumber statis di bawah.
+   */
+  kind?: "hub";
+  /** Kurva pasar, untuk membaca protocol fee-nya. Hanya untuk "hub". */
+  curve?: string;
+  /** Aset native chain-nya, untuk menilai fee dalam USD. Hanya untuk "hub". */
+  nativeSymbol?: string;
 };
+
+/**
+ * ANGGARAN COMPUTE PASAR HUB, DARI TRADING PASAR ITU SENDIRI (owner 2026-10-01)
+ *
+ * Setiap pasar selain empat sumber di bawah bisa di-stake di hub, dan kunci compute-nya dibiayai
+ * oleh trading pasar itu: separuh protocol fee (0,10% dari setiap trade) yang sudah dikumpulkan
+ * kurvanya, dinilai dalam USD pada harga native saat dibaca, lalu diubah menjadi token model.
+ * Tambahannya dibagi ke kunci-kunci pasar itu sebanding stake masing-masing terhadap total stake
+ * di hub, dan hanya fee yang masuk SESUDAH sebuah kunci ada yang dibagi ke kunci itu.
+ *
+ * Konsekuensinya disengaja: pasar tanpa volume tidak menghasilkan compute, jadi meluncurkan token
+ * lalu stake sendiri tidak memberi apa pun. Untuk mendapat compute senilai X, trading pasar itu
+ * harus sudah membayar protocol fee senilai 2X.
+ */
+export const HUB_COMPUTE_SHARE_BPS = 5_000;
+
+/**
+ * Harga yang dipakai untuk mengubah USD menjadi token model, per sejuta token, input + output.
+ *
+ * Dibaca dari `GET https://router-api.0g.ai/v1/models` pada 1 Oktober 2026: `pricing_usd` untuk
+ * `deepseek-v4-flash` adalah 0,000000264 per token prompt dan 0,000000792 per token completion,
+ * yaitu $0,264 dan $0,792 per sejuta. Dicampur 90/10 karena setiap permintaan membawa ~823 token
+ * input yang disuntikkan router (`MEASURED_INPUT_FLOOR`) dan jawaban jauh lebih pendek: $0,3168.
+ * Kalau 0G mengubah harganya, angka ini harus ikut diubah, atau anggaran salah arah.
+ */
+export const HUB_COMPUTE_USD_PER_MILLION_TOKENS = 0.3168;
+
+/** Id sumber hub untuk URL dan catatan kunci: `hub-<chainId>-<ticker kecil>`. */
+export function hubComputeStakeId(chainId: number, symbol: string): string {
+  return `hub-${Number(chainId)}-${symbol.toLowerCase()}`;
+}
+
+/** Kebalikan `hubComputeStakeId`, atau null untuk id yang bukan id hub. */
+export function parseHubComputeStakeId(id: string | null | undefined): { chainId: number; symbol: string } | null {
+  const m = /^hub-(\d+)-([a-z0-9]{1,12})$/.exec(String(id ?? ""));
+  return m ? { chainId: Number(m[1]), symbol: m[2].toUpperCase() } : null;
+}
+
+/** Token model yang dibiayai sejumlah USD, dibulatkan ke bawah. */
+export function hubTokensForUsd(usd: number): number {
+  if (!Number.isFinite(usd) || usd <= 0) return 0;
+  return Math.floor((usd / HUB_COMPUTE_USD_PER_MILLION_TOKENS) * 1_000_000);
+}
+
+/** Protocol fee setiap kurva ADEXTO (`PROTOCOL_FEE_BPS` di factory 0.11.0 dan 1.0.0): 0,10%. */
+export const PROTOCOL_FEE_BPS = 10;
+
+/**
+ * Volume trading (USD) yang membiayai satu permintaan minimum untuk kunci pasar hub: lantai input
+ * terukur (`MEASURED_INPUT_FLOOR`) dikali harga per token, dibagi bagian protocol fee yang menjadi
+ * compute. Dengan angka 1 Oktober 2026: 823 × $0,3168/juta ÷ (0,10% × 50%) ≈ $0,52.
+ */
+export function hubVolumePerRequestUsd(): number {
+  const usdPerRequest = (MEASURED_INPUT_FLOOR * HUB_COMPUTE_USD_PER_MILLION_TOKENS) / 1_000_000;
+  return usdPerRequest / ((PROTOCOL_FEE_BPS / 10_000) * (HUB_COMPUTE_SHARE_BPS / 10_000));
+}
 
 const SAI_ARBITRUM = marketStakeFor(42161, "SAI");
 const SAI_ROBINHOOD = marketStakeFor(4663, "SAI");
@@ -325,10 +391,16 @@ export function computeStake(id: string | null | undefined): ComputeStake {
   return COMPUTE_STAKES.find((s) => s.id === id) ?? COMPUTE_STAKES[0];
 }
 
-/** Sumber compute untuk sebuah pasar, atau null kalau stake pasar itu tidak membuka compute. */
+/**
+ * Sumber compute statis untuk sebuah pasar, atau null kalau pasar itu bukan salah satu dari empat
+ * sumber bertingkat. Pasar hub punya sumbernya sendiri (`hubComputeStakeId`), dibuat dari registry
+ * di server (src/lib/stake-hub-server.ts), bukan dari daftar ini.
+ */
 export function computeStakeForMarket(chainId: number, symbol: string): ComputeStake | null {
   const want = symbol.toUpperCase();
-  return COMPUTE_STAKES.find((s) => s.chainId === Number(chainId) && s.symbol === want && s.id !== "adexto") ?? null;
+  // $ADEXTO dulu dikecualikan karena pasarnya belum punya panel stake. Sejak 2026-10-01 stake-nya
+  // terdaftar di MARKET_STAKES, jadi panel dan MCP-nya menunjuk sumber compute ini seperti $SAI.
+  return COMPUTE_STAKES.find((s) => s.chainId === Number(chainId) && s.symbol === want) ?? null;
 }
 
 /** "5,000 ADEXTO on 0G or 10,000 SAI on Arbitrum One", hanya sumber yang punya kontrak. */

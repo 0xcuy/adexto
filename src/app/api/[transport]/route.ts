@@ -50,8 +50,8 @@ import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { rateLimit, secretEquals } from "@/lib/rate-limit";
-import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, marketStakeFor, type MarketStake } from "@/config/market-stakes";
-import { computeStakeForMarket } from "@/config/agent-compute";
+import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, stakeForMarket, type MarketStake } from "@/config/market-stakes";
+import { computeStakeForMarket, HUB_COMPUTE_SHARE_BPS } from "@/config/agent-compute";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -226,17 +226,31 @@ function agentIdentityOut(
  * Apa yang dibuka stake sebuah pasar. Pasar yang terdaftar sebagai sumber Agent Compute juga
  * membuka kunci compute; sisanya hanya `ask_agent`.
  */
-function stakeUnlocks(chainId: number, symbol: string): string {
+function stakeUnlocks(chainId: number, symbol: string, kind: MarketStake["kind"] = "dedicated"): string {
+  if (kind === "hub") {
+    return (
+      `ask_agent, and an Agent Compute API key at https://adexto.xyz/agent-compute whose allowance is funded by this market's ` +
+      `own trading: ${HUB_COMPUTE_SHARE_BPS / 100}% of the protocol fee its trades pay, shared by stake`
+    );
+  }
   return computeStakeForMarket(chainId, symbol)?.contract
     ? "ask_agent, and an Agent Compute API key at https://adexto.xyz/agent-compute"
     : "ask_agent";
 }
 
-/** Kontrak stake sebuah pasar, untuk `get_market`. Null berarti pasar ini tidak punya stake. */
+/** Kontrak stake sebuah pasar, untuk `get_market`. Pasar tanpa kontrak sendiri memakai hub chain-nya. */
 function stakeSummary(p: ProjectRecord) {
-  const s = marketStakeFor(p.chainId, p.symbol);
+  const s = stakeForMarket(p);
   if (!s) return null;
-  return { contract: s.contract, minStake: s.minStake, token: s.token, unlocks: stakeUnlocks(p.chainId, p.symbol), lock: "none: unstake works at any time" };
+  return {
+    contract: s.contract,
+    kind: s.kind ?? "dedicated",
+    minStake: s.minStake,
+    token: s.token,
+    ...(s.kind === "hub" ? { howToStake: `approve ${s.contract} for the token, then call stake(${s.token}, amount)`, minimumRule: "0.001% of current supply" } : {}),
+    unlocks: stakeUnlocks(p.chainId, p.symbol, s.kind),
+    lock: "none: unstake works at any time",
+  };
 }
 
 /** Provider baca untuk chain sebuah pasar, tanpa batch (relai dan Base menolaknya). */
@@ -245,29 +259,37 @@ function marketProvider(chainId: number): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(chain.rpcUrl, chain.chainId, { staticNetwork: true, batchMaxCount: 1 });
 }
 
-/** Posisi stake satu alamat, dibaca dari kontraknya saat ini juga. */
+/** Posisi stake satu alamat, dibaca dari kontraknya saat ini juga. Hub: setiap panggilan menyebut token. */
 async function readStake(stake: MarketStake, address: string) {
+  const hub = stake.kind === "hub";
   const c = new ethers.Contract(
     stake.contract,
-    [
-      "function stakedOf(address) view returns (uint256)",
-      "function minStake() view returns (uint256)",
-      "function isActive(address) view returns (bool)",
-      "function totalStaked() view returns (uint256)",
-      "function stakerCount() view returns (uint256)",
-    ],
+    hub
+      ? [
+          "function stakedOf(address,address) view returns (uint256)",
+          "function minStakeOf(address) view returns (uint256)",
+          "function isActive(address,address) view returns (bool)",
+          "function totalStaked(address) view returns (uint256)",
+          "function stakerCount(address) view returns (uint256)",
+        ]
+      : [
+          "function stakedOf(address) view returns (uint256)",
+          "function minStake() view returns (uint256)",
+          "function isActive(address) view returns (bool)",
+          "function totalStaked() view returns (uint256)",
+          "function stakerCount() view returns (uint256)",
+        ],
     marketProvider(stake.chainId)
   );
-  const [staked, min, active, total, count] = await Promise.all([
-    c.stakedOf(address),
-    c.minStake(),
-    c.isActive(address),
-    c.totalStaked(),
-    c.stakerCount(),
-  ]);
+  const [staked, min, active, total, count] = await Promise.all(
+    hub
+      ? [c.stakedOf(stake.token, address), c.minStakeOf(stake.token), c.isActive(stake.token, address), c.totalStaked(stake.token), c.stakerCount(stake.token)]
+      : [c.stakedOf(address), c.minStake(), c.isActive(address), c.totalStaked(), c.stakerCount()]
+  );
   const fmt = (v: bigint) => ethers.formatUnits(v, stake.decimals);
   return {
     stakeContract: stake.contract,
+    kind: stake.kind ?? "dedicated",
     address: ethers.getAddress(address),
     staked: fmt(staked),
     minStake: fmt(min),
@@ -317,7 +339,7 @@ async function marketFacts(p: ProjectRecord) {
   ]);
   const bps = (v: unknown) => (v === null ? null : `${(Number(v) / 100).toFixed(2)}%`);
   const chain = resolveChainOrDefault(p.chainId);
-  const stake = marketStakeFor(p.chainId, p.symbol);
+  const stake = stakeForMarket(p);
   return {
     market: `$${p.symbol} (${p.name}) on ${p.chainLabel}`,
     token: p.tokenAddress,
@@ -332,7 +354,9 @@ async function marketFacts(p: ProjectRecord) {
         : `${(Number(ethers.formatEther((reserves as [bigint, bigint])[0])) / Number(ethers.formatUnits((reserves as [bigint, bigint])[1], 18))).toPrecision(4)} ${chain.nativeSymbol} per token`,
     tokensBurnedByBuyback: burned === null ? null : ethers.formatUnits(burned as bigint, 18),
     agentIdentity: await readAgentIdentity(p),
-    stake: stake ? { contract: stake.contract, minStake: stake.minStake, unlocks: stakeUnlocks(p.chainId, p.symbol), lock: "none" } : null,
+    stake: stake
+      ? { contract: stake.contract, kind: stake.kind ?? "dedicated", minStake: stake.minStake, unlocks: stakeUnlocks(p.chainId, p.symbol, stake.kind), lock: "none" }
+      : null,
     readAt: new Date().toISOString(),
   };
 }
@@ -1001,7 +1025,7 @@ const mcp = createMcpHandler(
       {
         title: "Read a wallet's stake in a market",
         description:
-          "Free. Reads the market's stake contract on its own chain: how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market and, where get_market lists it under staking.unlocks, an Agent Compute API key. There is no lock and no reward: unstake works at any time.",
+          "Free. Reads the market's stake contract on its own chain: its own AdextoAgentStake where it has one, otherwise the chain's AdextoStakeHub, which accepts every other market launched through ADEXTO from its first block. Returns how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market and an Agent Compute API key (see get_market staking.unlocks). There is no lock and no reward: unstake works at any time.",
         inputSchema: {
           symbol: SYMBOL,
           chainId: CHAIN_ID,
@@ -1011,9 +1035,9 @@ const mcp = createMcpHandler(
       async ({ symbol, chainId, address }) => {
         const market = pickMarket(registryProjects(), String(symbol), chainId);
         if (!market) return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase() });
-        const stake = marketStakeFor(market.chainId, market.symbol);
+        const stake = stakeForMarket(market);
         if (!stake) {
-          return jsonResult({ staking: false, symbol: market.symbol, chainId: market.chainId, detail: "This market has no stake contract." });
+          return jsonResult({ staking: false, symbol: market.symbol, chainId: market.chainId, detail: "This market's chain has no stake contract for it." });
         }
         if (!ethers.isAddress(address)) return jsonResult({ error: "bad_address", address });
         try {
@@ -1069,8 +1093,8 @@ const mcp = createMcpHandler(
       async ({ symbol, chainId, address, message, signature, question }) => {
         const market = pickMarket(registryProjects(), String(symbol), chainId);
         if (!market) return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase() });
-        const stake = marketStakeFor(market.chainId, market.symbol);
-        if (!stake) return jsonResult({ answered: false, error: "no_stake_contract", detail: "This market has no stake contract, so there is no agent access to open." });
+        const stake = stakeForMarket(market);
+        if (!stake) return jsonResult({ answered: false, error: "no_stake_contract", detail: "This market's chain has no stake contract for it, so there is no agent access to open." });
         if (!ethers.isAddress(address)) return jsonResult({ answered: false, error: "bad_address" });
         const who = ethers.getAddress(address);
 
@@ -1108,7 +1132,10 @@ const mcp = createMcpHandler(
           return jsonResult({
             answered: false,
             error: "stake_required",
-            detail: `Stake at least ${stake.minStake.toLocaleString("en-US")} ${market.symbol} in ${stake.contract} on chain ${market.chainId} to ask this agent. Approve the stake contract, then call stake(amount) from this address. Unstake works at any time.`,
+            detail:
+              stake.kind === "hub"
+                ? `Stake at least ${stake.minStake.toLocaleString("en-US")} ${market.symbol} in the stake hub ${stake.contract} on chain ${market.chainId} to ask this agent. Approve the hub for the token, then call stake(${stake.token}, amount) from this address. Unstake works at any time.`
+                : `Stake at least ${stake.minStake.toLocaleString("en-US")} ${market.symbol} in ${stake.contract} on chain ${market.chainId} to ask this agent. Approve the stake contract, then call stake(amount) from this address. Unstake works at any time.`,
             stake: position,
           });
         }
@@ -1164,8 +1191,9 @@ const mcp = createMcpHandler(
       "Call list_markets to see what exists, quote_buy to price one without paying, then buy_token with a signed " +
       "payment. You never need gas on the destination chain and never need to bridge. Every tool except buy_token " +
       "is free, and buy_token's first response is a 402 challenge, which is expected rather than a failure. " +
-      "A ticker can trade on more than one chain: pass chainId from list_markets to pick one. Markets with a stake " +
-      "contract open their agent to stakers: check_stake, access_message, then ask_agent.",
+      "A ticker can trade on more than one chain: pass chainId from list_markets to pick one. Every market can be " +
+      "staked, in its own stake contract or its chain's stake hub, and a stake opens its agent: check_stake, " +
+      "access_message, then ask_agent.",
     capabilities: { tools: {} },
     serverInfo: { name: "adexto-x402", version: "1.0.0" },
   },
