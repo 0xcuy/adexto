@@ -18,7 +18,7 @@ import {
 import { ChartCandlestick, LineChart } from "lucide-react";
 import { formatSmallNumber } from "@/lib/pricing";
 import { tradeWallet } from "@/lib/market-stats";
-import { toUsdCandles } from "@/lib/usd-series";
+import { flatSinceLaunch, toUsdCandles } from "@/lib/usd-series";
 import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicators";
 import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
 
@@ -560,6 +560,20 @@ export default function RealtimeCandleChart({
    */
   const oscillators = PANES.filter((p) => enabled[p.key] && candleCount >= (WARMUP[p.warmupKey] ?? 1));
   const hasOscillator = oscillators.length > 0;
+
+  /**
+   * Rentang yang lebih panjang daripada umur pasar dinyatakan apa adanya: tidak ada data
+   * sebelum peluncuran. Chart-nya sendiri dimulai di peluncuran (atau di perdagangan pertama),
+   * dan catatan ini menyebut tanggalnya supaya "1Y" tidak terbaca sebagai setahun riwayat.
+   * Tanggal memakai zona waktu pembaca; `range` baru terisi di browser, jadi tidak ada selisih
+   * render server dan klien.
+   */
+  const noDataBefore = (() => {
+    if (range !== "1y" || !launchedAt || !(launchedAt > 0)) return null;
+    const span = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
+    if (Math.floor(Date.now() / 1000) - launchedAt >= span) return null;
+    return new Date(launchedAt * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  })();
 
   // Ikut berganti saat tema diganti, tanpa membuat ulang chart (data dan zoom tetap).
   useEffect(() => {
@@ -1127,6 +1141,16 @@ export default function RealtimeCandleChart({
             candles = candles.filter((c) => c.time >= from);
           }
         }
+        /**
+         * Tidak ada bar sebelum peluncuran, dari sumber mana pun.
+         *
+         * Riwayat tersimpan dikunci per ticker, jadi catatan pasar LAMA dengan ticker yang sama
+         * bisa ikut terbawa. Bar yang mendahului transaksi peluncuran pasti bukan milik pasar ini.
+         */
+        if (launchedAt && launchedAt > 0) {
+          const launchBucket = Math.floor(launchedAt / interval) * interval;
+          candles = candles.filter((c) => c.time >= launchBucket);
+        }
         const totalTrades = Number(data.totalTrades || 0);
 
         /**
@@ -1143,7 +1167,7 @@ export default function RealtimeCandleChart({
             const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
             const fx = fxRes.ok ? await fxRes.json() : null;
             const points: Array<[number, number]> = Array.isArray(fx?.points) ? fx.points : [];
-            const converted = toUsdCandles(candles, points, interval, undefined, 600, fallbackPriceNative);
+            const converted = toUsdCandles(candles, points, interval, undefined, 600, fallbackPriceNative, launchedAt ?? 0);
             if (converted.candles.length === 0) {
               // Tidak ada kurs terekam untuk rentang ini: sumbu tetap native. Tidak ada
               // kalimat di layar — satuan yang tampil sudah menyatakannya.
@@ -1153,6 +1177,17 @@ export default function RealtimeCandleChart({
           } catch {
             // Riwayat kurs tidak terbaca: sumbu tetap native, tanpa kalimat tambahan.
           }
+        }
+
+        /**
+         * Pasar yang belum pernah ditradingkan tetap punya chart sejak ia lahir.
+         *
+         * Kurva memberi harga sejak transaksi peluncuran, jadi yang digambar adalah harga itu,
+         * datar dan bervolume nol, dari peluncuran sampai sekarang. Sumbu USD sudah melakukannya
+         * lewat `toUsdCandles`; ini menutup sumbu native dan kasus kurs tidak terbaca.
+         */
+        if (candles.length === 0 && launchedAt && launchedAt > 0) {
+          candles = flatSinceLaunch(launchedAt, fallbackPriceNative, interval);
         }
 
         setSource(String(data.source || ""));
@@ -1756,8 +1791,8 @@ export default function RealtimeCandleChart({
                 aria-pressed={range === r.label}
                 title={
                   r.label === "All"
-                    ? "Everything since the first trade, with the candle width picked to fit"
-                    : "The last 365 days, with the candle width picked to fit"
+                    ? "The whole history, from the first trade (or from launch before any trade), with the candle width picked to fit"
+                    : "The last 365 days, or since launch for a younger market, with the candle width picked to fit"
                 }
                 className={`px-2 py-0.5 rounded font-bold border transition-colors ${
                   range === r.label
@@ -1869,14 +1904,29 @@ export default function RealtimeCandleChart({
 
       {/* min-h dinaikkan dari 300 ke 460: tinggi chart sekarang dibaca dari kontainer ini,
           jadi kelas inilah yang menentukan seberapa besar terminalnya. */}
-      <div
-        ref={containerRef}
-        className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl"
-        data-testid="price-chart"
-        data-marks-me={markSummary.me}
-        data-marks-dev={markSummary.dev}
-        data-marks-bars={markSummary.bars}
-      />
+      {/* Pembungkus `relative` supaya catatan "No data before …" bisa melayang di atas chart
+          tanpa menjadi anak kontainer yang diisi lightweight-charts. Tinggi tetap dibaca dari
+          kontainer di dalamnya, yang mengisi pembungkus. */}
+      <div className="relative flex w-full flex-1 min-h-[460px] flex-col">
+        <div
+          ref={containerRef}
+          className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl"
+          data-testid="price-chart"
+          data-marks-me={markSummary.me}
+          data-marks-dev={markSummary.dev}
+          data-marks-bars={markSummary.bars}
+        />
+        {noDataBefore !== null && (
+          <div
+            className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%] rounded-md border border-line bg-surface/90 px-2 py-1 text-[11px] leading-snug text-ink-soft"
+            data-testid="chart-no-data"
+            role="note"
+          >
+            <span className="font-semibold text-ink">No data before {noDataBefore}.</span> This market launched on
+            that day, so {range === "1y" ? "1Y" : "this range"} shows its whole history.
+          </div>
+        )}
+      </div>
 
       {/**
        * Kotak osilator: TERPISAH dari chart harga, bukan pane di dalamnya.

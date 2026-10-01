@@ -68,23 +68,39 @@ export function toUsdCandles(
    * bergerak. Versi sebelumnya menuntut minimal satu candle, sehingga pasar seperti itu
    * menampilkan pane kosong dan terbaca seolah tidak ada harganya sama sekali.
    */
-  fallbackNative = 0
+  fallbackNative = 0,
+  /**
+   * Detik epoch transaksi peluncuran. Tidak ada bar yang boleh mendahuluinya.
+   *
+   * Tanpa ini, pasar yang belum pernah ditradingkan dibenihi pada sampel kurs PERTAMA yang
+   * direkam, dan rekaman itu dimulai jauh sebelum sebagian besar pasar lahir (2026-08-30).
+   * Token yang baru diluncurkan hari ini jadi tampil dengan sebulan chart dari masa ketika
+   * token itu belum ada. Nol berarti tidak diketahui, dan perilaku lamanya dipertahankan.
+   */
+  launchedAtSeconds = 0
 ): UsdResult {
   if (fxPoints.length === 0) {
     return { candles: [], droppedBefore: candles.length, fxOnly: 0 };
   }
+  const bucket = (t: number) => Math.floor(t / intervalSeconds) * intervalSeconds;
+  const launchBucket = launchedAtSeconds > 0 ? bucket(launchedAtSeconds) : Number.NEGATIVE_INFINITY;
+  // Bar sebelum peluncuran tidak mungkin milik pasar ini (misalnya catatan pasar lama dengan
+  // ticker yang sama), jadi dibuang sebelum apa pun dihitung.
+  const own = candles.filter((c) => c.time >= launchBucket);
+  // Titik awal yang sah: sampel kurs pertama, atau peluncuran kalau itu lebih kemudian.
+  const seedTime = Math.max(fxPoints[0][0], launchedAtSeconds > 0 ? launchedAtSeconds : 0);
 
-  // Tanpa perdagangan, satu titik semu dibuat dari harga registry pada sampel kurs pertama.
+  // Tanpa perdagangan, satu titik semu dibuat dari harga registry pada titik awal di atas.
   // Ia BUKAN perdagangan: volumenya nol, dan seluruh bar yang lahir darinya juga bernilai nol
   // volume, jadi tidak ada aktivitas yang dinyatakan.
-  const seedless = candles.length === 0;
+  const seedless = own.length === 0;
   if (seedless && !(fallbackNative > 0)) {
     return { candles: [], droppedBefore: 0, fxOnly: 0 };
   }
   const sorted = seedless
     ? [
         {
-          time: fxPoints[0][0],
+          time: seedTime,
           open: fallbackNative,
           high: fallbackNative,
           low: fallbackNative,
@@ -92,8 +108,7 @@ export function toUsdCandles(
           volume: 0,
         },
       ]
-    : [...candles].sort((a, b) => a.time - b.time);
-  const bucket = (t: number) => Math.floor(t / intervalSeconds) * intervalSeconds;
+    : [...own].sort((a, b) => a.time - b.time);
 
   /**
    * Seri dibangun KONTINU, satu bar per bucket, bukan hanya pada bucket yang punya isi.
@@ -141,8 +156,8 @@ export function toUsdCandles(
   if (tradeByBucket.size === 0) {
     const lastKnown = sorted[sorted.length - 1]?.close || fallbackNative;
     if (!(lastKnown > 0)) return { candles: [], droppedBefore: dropped, fxOnly: 0 };
-    tradeByBucket.set(bucket(fxPoints[0][0]), {
-      time: fxPoints[0][0],
+    tradeByBucket.set(bucket(seedTime), {
+      time: seedTime,
       open: lastKnown,
       high: lastKnown,
       low: lastKnown,
@@ -258,4 +273,32 @@ export function toUsdCandles(
   }
 
   return { candles: out, droppedBefore: dropped, fxOnly };
+}
+
+/**
+ * Seri native untuk pasar yang BELUM pernah ditradingkan: harga kurva, datar, sejak peluncuran.
+ *
+ * Kurva memberi harga sejak transaksi peluncuran, jadi pasar tanpa satu pun fill tetap punya
+ * harga yang bisa dibaca. Sebelum ini sumbu native menampilkan pane kosong untuk setiap pasar
+ * baru. Bar-bar ini DATAR dan bervolume NOL: tidak ada perdagangan yang dinyatakan, dan tidak
+ * ada satu bar pun sebelum peluncuran.
+ *
+ * `maxBars` memotong dari ujung terbaru, sama seperti `toUsdCandles`.
+ */
+export function flatSinceLaunch(
+  launchedAtSeconds: number,
+  priceNative: number,
+  intervalSeconds: number,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+  maxBars = 600
+): Candle[] {
+  if (!(launchedAtSeconds > 0) || !(priceNative > 0) || !(intervalSeconds > 0)) return [];
+  const bucket = (t: number) => Math.floor(t / intervalSeconds) * intervalSeconds;
+  const last = bucket(Math.max(nowSeconds, launchedAtSeconds));
+  const first = Math.max(bucket(launchedAtSeconds), last - (maxBars - 1) * intervalSeconds);
+  const out: Candle[] = [];
+  for (let t = first; t <= last; t += intervalSeconds) {
+    out.push({ time: t, open: priceNative, high: priceNative, low: priceNative, close: priceNative, volume: 0 });
+  }
+  return out;
 }
