@@ -52,3 +52,7 @@ build/forge-cache/
 # disajikan ke siapa pun. Pasangan testnet-nya sudah dikecualikan di atas.
 public/adexto_demo.mp4
 public/adexto_demo.webm
+
+# Pipeline video demo v1 (perekam, agent pembeli, assembler, rekaman mentah) DAN kunci
+# dompet demo di demo-v1/wallets.json. Tidak boleh pernah ikut ke VPS.
+/demo-v1/

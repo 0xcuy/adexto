@@ -290,3 +290,7 @@ scripts/render-deck.mjs
 /*[Ss]ecret.*
 *pinata*
 *PINATA*
+
+# Pipeline video demo v1: perekam, agent pembeli, assembler, aset, rekaman mentah, dan
+# demo-v1/wallets.json yang memegang kunci dua dompet demo. Lokal saja.
+/demo-v1/
