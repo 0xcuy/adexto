@@ -7,7 +7,9 @@
  * The contract holds the stake and answers `stakedOf` and `isActive`. It has no owner, no lock
  * and no reward: `unstake` works at any time and pays nothing extra. What a stake opens is
  * access to the market's agent over MCP (`ask_agent`), checked against `isActive` on every
- * call. Nothing here is a yield, and no copy on the site may describe it as one.
+ * call, and, for markets listed in `COMPUTE_STAKES` (src/config/agent-compute.ts), an Agent
+ * Compute API key whose tier is read from this same contract on every sweep. Nothing here is a
+ * yield, and no copy on the site may describe it as one.
  *
  * Addresses are written here once, from the deployment output, instead of read from env: they
  * are public, they never change (the binding is immutable), and a build that cannot find them

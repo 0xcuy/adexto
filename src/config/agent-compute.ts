@@ -24,6 +24,7 @@
  * Konsekuensinya harus dinyatakan, bukan disembunyikan: kuota ini TIDAK dijamin on-chain. Yang
  * dijamin on-chain adalah stake-nya. Halaman `/agent-compute` mengatakan itu apa adanya.
  */
+import { marketStakeFor } from "@/config/market-stakes";
 
 /** Nilai stake minimum untuk mengaktifkan agen, dalam satuan token utuh. */
 export const MIN_STAKE_ADEXTO = 5_000;
@@ -49,14 +50,33 @@ export const BETA_TOKEN_CEILING = 1_000_000;
  *
  * Linear per tingkat, bukan rumus, supaya angka di halaman selalu sama dengan angka di sini.
  */
-export const COMPUTE_TIERS = [
+export type ComputeTier = { readonly stake: number; readonly allowance: number; readonly label: string };
+
+export const COMPUTE_TIERS: readonly ComputeTier[] = [
   { stake: 5_000, allowance: 100_000, label: "Starter" },
   { stake: 25_000, allowance: 300_000, label: "Builder" },
   { stake: 100_000, allowance: 600_000, label: "Operator" },
   { stake: 250_000, allowance: BETA_TOKEN_CEILING, label: "Sovereign" },
-] as const;
+];
 
-export type ComputeTier = (typeof COMPUTE_TIERS)[number];
+/**
+ * Tingkatan untuk stake token pasar ($SAI), keputusan owner 2026-10-01: stake token yang
+ * di-launch lewat ADEXTO ikut membuka compute, bukan hanya $ADEXTO.
+ *
+ * Jatahnya SAMA dengan tangga $ADEXTO; yang berbeda hanya ambangnya, dalam satuan token pasar
+ * itu sendiri, mulai dari `minStake` kontrak stake pasarnya. Jatah yang sama disengaja: halaman
+ * merender satu tangga jatah apa pun token yang dipilih, dan audit_consistency memeriksa bahwa
+ * setiap jatah di config tampil di halaman.
+ *
+ * Ini kebijakan, sama seperti tangga $ADEXTO: tidak ada di kontrak, bisa disetel tanpa menyentuh
+ * kontrak yang memegang token orang.
+ */
+export const MARKET_COMPUTE_TIERS: readonly ComputeTier[] = [
+  { stake: 10_000, allowance: 100_000, label: "Starter" },
+  { stake: 50_000, allowance: 300_000, label: "Builder" },
+  { stake: 250_000, allowance: 600_000, label: "Operator" },
+  { stake: 1_000_000, allowance: BETA_TOKEN_CEILING, label: "Sovereign" },
+];
 
 /**
  * Endpoint yang diberikan ke pemegang stake. OpenAI-compatible.
@@ -146,17 +166,20 @@ export function approxRequests(allowance: number): number {
 }
 
 /** Tingkatan tertinggi yang dicapai sebuah stake, atau null kalau di bawah minimum. */
-export function tierForStake(staked: number): ComputeTier | null {
+export function tierForStake(staked: number, tiers: readonly ComputeTier[] = COMPUTE_TIERS): ComputeTier | null {
   let match: ComputeTier | null = null;
-  for (const t of COMPUTE_TIERS) {
+  for (const t of tiers) {
     if (staked >= t.stake) match = t;
   }
   return match;
 }
 
 /** Tingkatan berikutnya beserta kekurangan stake untuk mencapainya. */
-export function nextTier(staked: number): { tier: ComputeTier; shortfall: number } | null {
-  for (const t of COMPUTE_TIERS) {
+export function nextTier(
+  staked: number,
+  tiers: readonly ComputeTier[] = COMPUTE_TIERS
+): { tier: ComputeTier; shortfall: number } | null {
+  for (const t of tiers) {
     if (staked < t.stake) return { tier: t, shortfall: t.stake - staked };
   }
   return null;
@@ -204,3 +227,98 @@ export const STAKE_TOKEN = {
   curve: "0xc80e0659D2Fc29e62605C9DF6182a85372652B60",
   decimals: 18,
 } as const;
+
+/**
+ * Sumber stake yang membuka compute: $ADEXTO di 0G, dan token pasar yang punya kontrak stake.
+ *
+ * SATU KUNCI PER ALAMAT PER TOKEN (owner 2026-10-01: beda chain, beda centang, beda kunci)
+ *
+ * Halaman `/agent-compute` adalah daftar centang token-token ini. Setiap token punya stake,
+ * tangga tingkatan dan kuncinya sendiri: tingkatan sebuah kunci hanya dibaca dari stake token
+ * kunci itu, dan pesan yang ditandatangani menyebut tokennya (`Stake: <id>`), jadi tanda tangan
+ * untuk token A tidak bisa menerbitkan atau mencabut kunci token B. Kunci $ADEXTO yang sudah ada
+ * sebelum ini tetap berlaku sebagai kunci $ADEXTO.
+ *
+ * `contract: null` adalah keadaan yang sah: token yang pasarnya sudah ada tetapi kontrak stakenya
+ * belum. Halaman menampilkannya apa adanya, bukan sebagai stake nol.
+ */
+export type ComputeStake = {
+  /** Id stabil untuk URL (`?stake=`) dan catatan kunci. */
+  id: string;
+  chainId: number;
+  chainName: string;
+  symbol: string;
+  /** Nama pasar. Ticker saja ambigu: $SAI diperdagangkan di dua chain. */
+  name: string;
+  token: string;
+  decimals: number;
+  /** AdextoAgentStake, atau null kalau belum ada. */
+  contract: string | null;
+  /** Minimum dalam token utuh; untuk token pasar sama dengan `minStake` kontraknya. */
+  minStake: number;
+  tiers: readonly ComputeTier[];
+  /** Tempat membeli tokennya: terminal pasar itu sendiri. */
+  buyHref: string;
+};
+
+const SAI_ARBITRUM = marketStakeFor(42161, "SAI");
+const SAI_ROBINHOOD = marketStakeFor(4663, "SAI");
+
+export const COMPUTE_STAKES: readonly ComputeStake[] = [
+  {
+    id: "adexto",
+    chainId: STAKE_TOKEN.chainId,
+    chainName: "0G",
+    symbol: STAKE_TOKEN.symbol,
+    name: "ADEXTO",
+    token: STAKE_TOKEN.address,
+    decimals: STAKE_TOKEN.decimals,
+    contract: stakeContractFor(STAKE_TOKEN.chainId),
+    minStake: MIN_STAKE_ADEXTO,
+    tiers: COMPUTE_TIERS,
+    buyHref: `/token/adexto?chain=${STAKE_TOKEN.chainId}&tf=60`,
+  },
+  {
+    id: "sai-arbitrum",
+    chainId: 42161,
+    chainName: "Arbitrum One",
+    symbol: "SAI",
+    name: "SAi Arbitrum",
+    token: "0xC4b5eA97bd4e3f8Bc047fFCc74Ca9c2B6b426cb3",
+    decimals: 18,
+    contract: SAI_ARBITRUM?.contract ?? null,
+    minStake: SAI_ARBITRUM?.minStake ?? MARKET_COMPUTE_TIERS[0].stake,
+    tiers: MARKET_COMPUTE_TIERS,
+    buyHref: "/token/sai?chain=42161",
+  },
+  {
+    id: "sai-robinhood",
+    chainId: 4663,
+    chainName: "Robinhood Chain",
+    symbol: "SAI",
+    name: "SAi Robin",
+    token: "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
+    decimals: 18,
+    contract: SAI_ROBINHOOD?.contract ?? null,
+    minStake: SAI_ROBINHOOD?.minStake ?? MARKET_COMPUTE_TIERS[0].stake,
+    tiers: MARKET_COMPUTE_TIERS,
+    buyHref: "/token/sai?chain=4663",
+  },
+];
+
+/** Sumber stake menurut id; id yang tidak dikenal jatuh ke $ADEXTO, bukan ke galat. */
+export function computeStake(id: string | null | undefined): ComputeStake {
+  return COMPUTE_STAKES.find((s) => s.id === id) ?? COMPUTE_STAKES[0];
+}
+
+/** Sumber compute untuk sebuah pasar, atau null kalau stake pasar itu tidak membuka compute. */
+export function computeStakeForMarket(chainId: number, symbol: string): ComputeStake | null {
+  const want = symbol.toUpperCase();
+  return COMPUTE_STAKES.find((s) => s.chainId === Number(chainId) && s.symbol === want && s.id !== "adexto") ?? null;
+}
+
+/** "5,000 ADEXTO on 0G or 10,000 SAI on Arbitrum One", hanya sumber yang punya kontrak. */
+export function minimumsSentence(): string {
+  const live = COMPUTE_STAKES.filter((s) => s.contract);
+  return live.map((s) => `${s.minStake.toLocaleString("en-US")} ${s.symbol} on ${s.chainName}`).join(" or ");
+}

@@ -34,10 +34,10 @@ import { isDurable, readJson, writeJson } from "@/lib/server-store";
 import { CHAIN_LIST } from "@/lib/chains";
 import {
   AGENT_COMPUTE_PROVIDER,
-  MIN_STAKE_ADEXTO,
-  STAKE_TOKEN,
-  stakeContractFor,
+  COMPUTE_STAKES,
+  computeStake,
   tierForStake,
+  type ComputeStake,
 } from "@/config/agent-compute";
 
 const STORE_FILE = "agent-compute-keys.json";
@@ -45,7 +45,7 @@ const KEY_NAME_PREFIX = "adx:";
 
 /** Satu kunci yang diterbitkan, sebagaimana kami menyimpannya. */
 export type PoolKey = {
-  /** Alamat pemilik, huruf kecil. Satu alamat satu kunci. */
+  /** Alamat pemilik, huruf kecil. Satu alamat satu kunci PER TOKEN yang di-stake. */
   address: string;
   /** Id kunci di router, dipakai untuk mengaktifkan dan mematikan. */
   routerKeyId: string;
@@ -63,7 +63,14 @@ export type PoolKey = {
   active: boolean;
   /** Kenapa dimatikan, dalam bahasa yang boleh dilihat pemiliknya. */
   disabledReason: string | null;
+  /** Stake sumber tingkatan pada sapuan terakhir, dalam token utuh sumber itu. */
   stakedAtLastSweep: number | null;
+  /**
+   * Id token yang di-stake untuk kunci ini (`COMPUTE_STAKES`). Tingkatannya hanya dibaca dari
+   * stake token ini. Catatan lama tanpa bidang ini diterbitkan dari $ADEXTO, satu-satunya sumber
+   * waktu itu.
+   */
+  stakeSource?: string;
   lastSweepAt: string | null;
 };
 
@@ -237,30 +244,50 @@ async function routerUsage(): Promise<Map<string, UsageRow>> {
 
 // ─── stake on-chain ────────────────────────────────────────────────────────────
 
-const ZERO_G = CHAIN_LIST.find((c) => c.chainId === STAKE_TOKEN.chainId);
-
 /**
- * Stake sebuah alamat, dalam token utuh, atau null kalau tidak ada kontrak untuk dibaca.
+ * Satu sumber stake sebagaimana dibaca untuk satu alamat.
  *
- * null dan 0 DIBEDAKAN, dan bedanya menentukan: 0 berarti alamatnya tidak stake, null berarti
- * belum ada tempat untuk stake. Yang pertama boleh mematikan kunci, yang kedua tidak boleh
- * menerbitkan apa pun sejak awal.
+ * `staked` null dan 0 DIBEDAKAN, dan bedanya menentukan: 0 berarti alamatnya tidak stake, null
+ * berarti tidak ada angka (belum ada kontrak, atau pembacaannya gagal — lihat `error`). Yang
+ * pertama boleh mematikan kunci; yang kedua tidak boleh, karena RPC yang sedang bermasalah tidak
+ * boleh mencabut compute orang yang stakenya utuh.
  */
-export async function stakedOf(address: string): Promise<number | null> {
-  const contract = stakeContractFor(STAKE_TOKEN.chainId);
-  if (!contract || !ZERO_G) return null;
+export type StakeReading = { id: string; staked: number | null; error: string | null };
 
-  const provider = new ethers.JsonRpcProvider(ZERO_G.rpcUrl, ZERO_G.chainId, {
-    staticNetwork: true,
-  });
-  const stake = new ethers.Contract(
-    contract,
-    ["function stakedOf(address) view returns (uint256)"],
-    provider
-  );
-  const raw: bigint = await stake.stakedOf(address);
-  return Number(ethers.formatUnits(raw, STAKE_TOKEN.decimals));
+/** Batas waktu satu pembacaan, supaya satu RPC yang macet tidak menahan seluruh permintaan. */
+const STAKE_READ_TIMEOUT_MS = 12_000;
+
+async function readOne(source: ComputeStake, address: string): Promise<StakeReading> {
+  if (!source.contract) return { id: source.id, staked: null, error: null };
+  const chain = CHAIN_LIST.find((c) => c.chainId === source.chainId);
+  if (!chain) return { id: source.id, staked: null, error: `No RPC is configured for chain ${source.chainId}.` };
+  try {
+    const provider = new ethers.JsonRpcProvider(chain.rpcUrl, chain.chainId, {
+      staticNetwork: true,
+      batchMaxCount: 1,
+    });
+    const stake = new ethers.Contract(
+      source.contract,
+      ["function stakedOf(address) view returns (uint256)"],
+      provider
+    );
+    const raw = (await Promise.race([
+      stake.stakedOf(address),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("stake read timed out")), STAKE_READ_TIMEOUT_MS)),
+    ])) as bigint;
+    return { id: source.id, staked: Number(ethers.formatUnits(raw, source.decimals)), error: null };
+  } catch (e) {
+    return { id: source.id, staked: null, error: String((e as Error).message || e).slice(0, 160) };
+  }
 }
+
+/** Stake sebuah alamat di setiap sumber compute, dibaca paralel dari chain masing-masing. */
+export async function stakesOf(address: string): Promise<StakeReading[]> {
+  return Promise.all(COMPUTE_STAKES.map((s) => readOne(s, address)));
+}
+
+/** Sumber stake sebuah catatan kunci. Catatan lama tanpa bidang ini diterbitkan dari $ADEXTO. */
+const sourceOf = (k: PoolKey): string => k.stakeSource ?? "adexto";
 
 // ─── penerbitan ────────────────────────────────────────────────────────────────
 
@@ -269,14 +296,20 @@ export type IssueResult =
   | { ok: false; status: number; error: string };
 
 /**
- * Menerbitkan satu kunci untuk satu alamat.
+ * Menerbitkan satu kunci untuk satu alamat dan SATU token yang di-stake.
  *
- * Tanda tangan alamat diperiksa di pemanggil (`/api/agent/keys`); di sini yang diperiksa adalah
- * syarat yang bisa berubah antara tanda tangan dan penerbitan: apakah kontraknya ada, apakah
- * stakenya cukup, dan apakah alamat itu sudah punya kunci.
+ * Owner 2026-10-01: setiap token di daftar centang punya stake dan kuncinya sendiri, jadi kunci
+ * $ADEXTO yang sudah ada tidak perlu dicabut untuk membuka kunci $SAI. Tingkatannya dibaca dari
+ * stake token itu saja, dengan tangga token itu.
+ *
+ * Tanda tangan alamat diperiksa di pemanggil (`/api/agent/keys`), termasuk bahwa pesannya
+ * menyebut token ini; di sini yang diperiksa adalah syarat yang bisa berubah antara tanda tangan
+ * dan penerbitan: apakah kontraknya ada, apakah stakenya cukup, dan apakah kuncinya sudah ada.
  */
-export async function issueKey(address: string): Promise<IssueResult> {
+export async function issueKey(address: string, stakeId: string): Promise<IssueResult> {
   const owner = address.toLowerCase();
+  const source = COMPUTE_STAKES.find((s) => s.id === stakeId);
+  if (!source) return { ok: false, status: 400, error: "Unknown stake." };
 
   if (!poolConfigured()) {
     return {
@@ -294,34 +327,39 @@ export async function issueKey(address: string): Promise<IssueResult> {
     };
   }
 
-  const staked = await stakedOf(owner);
-  if (staked === null) {
+  const where = `$${source.symbol} on ${source.chainName}`;
+  if (!source.contract) {
     return {
       ok: false,
       status: 503,
-      error:
-        "The stake contract is not deployed yet, so there is no stake to read and no tier to assign.",
+      error: `The stake contract for ${where} is not deployed yet, so there is no stake to read and no tier to assign.`,
     };
   }
-  const tier = tierForStake(staked);
+  const reading = await readOne(source, owner);
+  if (reading.staked === null) {
+    return { ok: false, status: 503, error: `The ${where} stake could not be read right now. Try again shortly.` };
+  }
+  const staked = reading.staked;
+  const tier = tierForStake(staked, source.tiers);
   if (!tier) {
     return {
       ok: false,
       status: 403,
-      error: `A stake of at least ${MIN_STAKE_ADEXTO.toLocaleString("en-US")} ADEXTO is required. This address has ${Math.floor(staked).toLocaleString("en-US")}.`,
+      error: `A stake of at least ${source.minStake.toLocaleString("en-US")} ${source.symbol} on ${source.chainName} is required. This address has ${Math.floor(staked).toLocaleString("en-US")}.`,
     };
   }
 
   const store = load();
-  if (store.keys.some((k) => k.address === owner)) {
+  if (store.keys.some((k) => k.address === owner && sourceOf(k) === source.id)) {
     return {
       ok: false,
       status: 409,
-      error: "This address already has a key. Revoke it before issuing another.",
+      error: `This address already has a key for ${where}. Revoke it before issuing another.`,
     };
   }
 
-  const name = `${KEY_NAME_PREFIX}${owner}`;
+  // $ADEXTO memakai nama lama supaya kunci yang sudah ada tetap cocok; token lain diberi akhiran.
+  const name = source.id === "adexto" ? `${KEY_NAME_PREFIX}${owner}` : `${KEY_NAME_PREFIX}${owner}:${source.id}`;
   const created = await createRouterKey(name);
 
   const key: PoolKey = {
@@ -338,6 +376,7 @@ export async function issueKey(address: string): Promise<IssueResult> {
     active: true,
     disabledReason: null,
     stakedAtLastSweep: staked,
+    stakeSource: source.id,
     lastSweepAt: new Date().toISOString(),
   };
 
@@ -352,15 +391,15 @@ export async function issueKey(address: string): Promise<IssueResult> {
   return { ok: true, secret: created.key, key };
 }
 
-/** Mencabut kunci sebuah alamat: dihapus di router, dihapus di catatan kami. */
-export async function revokeKey(address: string): Promise<{ ok: boolean; error?: string }> {
+/** Mencabut kunci satu alamat untuk satu token: dihapus di router, dihapus di catatan kami. */
+export async function revokeKey(address: string, stakeId: string): Promise<{ ok: boolean; error?: string }> {
   const owner = address.toLowerCase();
   const store = load();
-  const found = store.keys.find((k) => k.address === owner);
-  if (!found) return { ok: false, error: "No key is issued to this address." };
+  const found = store.keys.find((k) => k.address === owner && sourceOf(k) === stakeId);
+  if (!found) return { ok: false, error: "No key is issued to this address for that stake." };
 
   await deleteRouterKey(found.routerKeyId);
-  store.keys = store.keys.filter((k) => k.address !== owner);
+  store.keys = store.keys.filter((k) => k !== found);
   save(store);
   return { ok: true };
 }
@@ -432,17 +471,21 @@ export async function sweep(force = false): Promise<SweepResult> {
     key.usedOutput = accumulate(key.usedOutput, reported.output);
     key.requests = accumulate(key.requests, reported.requests);
 
-    let staked: number | null = null;
-    try {
-      staked = await stakedOf(key.address);
-    } catch (e) {
-      result.errors.push(`stake read failed for ${key.address}: ${(e as Error).message}`);
+    // Satu kunci, satu token: hanya stake token kunci ini yang dibaca.
+    const source = computeStake(sourceOf(key));
+    key.stakeSource = source.id;
+    const reading = await readOne(source, key.address);
+    let staked: number | null;
+    if (reading.error || reading.staked === null) {
+      if (reading.error) result.errors.push(`stake read failed for ${key.address} (${source.id}): ${reading.error}`);
       // Stake tidak terbaca BUKAN alasan mematikan kunci: RPC yang sedang bermasalah akan
       // mencabut compute orang yang stakenya utuh. Jatah tetap ditegakkan dari angka terakhir.
       staked = key.stakedAtLastSweep;
+    } else {
+      staked = reading.staked;
     }
 
-    const tier = staked === null ? null : tierForStake(staked);
+    const tier = staked === null ? null : tierForStake(staked, source.tiers);
     key.stakedAtLastSweep = staked;
     key.tierLabel = tier?.label ?? null;
     key.allowance = tier?.allowance ?? 0;
@@ -454,7 +497,7 @@ export async function sweep(force = false): Promise<SweepResult> {
       reason =
         staked === null
           ? "The stake contract could not be read."
-          : `The stake fell below ${MIN_STAKE_ADEXTO.toLocaleString("en-US")} ADEXTO.`;
+          : `The stake fell below ${source.minStake.toLocaleString("en-US")} ${source.symbol} on ${source.chainName}.`;
     } else if (used >= key.allowance) {
       reason = "The tier allowance is spent. Raise the stake to open a larger allowance.";
     }
@@ -480,7 +523,13 @@ export async function sweep(force = false): Promise<SweepResult> {
   return result;
 }
 
-/** Catatan satu alamat, tanpa rahasia apa pun. */
+/** Catatan kunci satu alamat untuk satu token, tanpa rahasia apa pun. */
+export function keyFor(address: string, stakeId: string): PoolKey | null {
+  const owner = address.toLowerCase();
+  return load().keys.find((k) => k.address === owner && sourceOf(k) === stakeId) || null;
+}
+
+/** Kunci $ADEXTO sebuah alamat, untuk bidang lama `key` di API. */
 export function keyForAddress(address: string): PoolKey | null {
-  return load().keys.find((k) => k.address === address.toLowerCase()) || null;
+  return keyFor(address, "adexto");
 }

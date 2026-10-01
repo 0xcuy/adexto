@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Agent Compute — ADEXTO",
   description:
-    "Stake $ADEXTO to activate an autonomous agent and open its compute allowance on the 0G Compute Router.",
+    "Stake $ADEXTO on 0G, or $SAI on Arbitrum One, and get your own API key with a compute allowance on 0G Compute.",
 };
 
 export default function AgentComputePage() {

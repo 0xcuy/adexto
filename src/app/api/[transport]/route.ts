@@ -51,6 +51,7 @@ import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { rateLimit, secretEquals } from "@/lib/rate-limit";
 import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, marketStakeFor, type MarketStake } from "@/config/market-stakes";
+import { computeStakeForMarket } from "@/config/agent-compute";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -221,11 +222,21 @@ function agentIdentityOut(
   };
 }
 
+/**
+ * Apa yang dibuka stake sebuah pasar. Pasar yang terdaftar sebagai sumber Agent Compute juga
+ * membuka kunci compute; sisanya hanya `ask_agent`.
+ */
+function stakeUnlocks(chainId: number, symbol: string): string {
+  return computeStakeForMarket(chainId, symbol)?.contract
+    ? "ask_agent, and an Agent Compute API key at https://adexto.xyz/agent-compute"
+    : "ask_agent";
+}
+
 /** Kontrak stake sebuah pasar, untuk `get_market`. Null berarti pasar ini tidak punya stake. */
 function stakeSummary(p: ProjectRecord) {
   const s = marketStakeFor(p.chainId, p.symbol);
   if (!s) return null;
-  return { contract: s.contract, minStake: s.minStake, token: s.token, unlocks: "ask_agent", lock: "none: unstake works at any time" };
+  return { contract: s.contract, minStake: s.minStake, token: s.token, unlocks: stakeUnlocks(p.chainId, p.symbol), lock: "none: unstake works at any time" };
 }
 
 /** Provider baca untuk chain sebuah pasar, tanpa batch (relai dan Base menolaknya). */
@@ -321,7 +332,7 @@ async function marketFacts(p: ProjectRecord) {
         : `${(Number(ethers.formatEther((reserves as [bigint, bigint])[0])) / Number(ethers.formatUnits((reserves as [bigint, bigint])[1], 18))).toPrecision(4)} ${chain.nativeSymbol} per token`,
     tokensBurnedByBuyback: burned === null ? null : ethers.formatUnits(burned as bigint, 18),
     agentIdentity: await readAgentIdentity(p),
-    stake: stake ? { contract: stake.contract, minStake: stake.minStake, unlocks: "ask_agent", lock: "none" } : null,
+    stake: stake ? { contract: stake.contract, minStake: stake.minStake, unlocks: stakeUnlocks(p.chainId, p.symbol), lock: "none" } : null,
     readAt: new Date().toISOString(),
   };
 }
@@ -990,7 +1001,7 @@ const mcp = createMcpHandler(
       {
         title: "Read a wallet's stake in a market",
         description:
-          "Free. Reads the market's stake contract on its own chain: how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market. There is no lock and no reward: unstake works at any time.",
+          "Free. Reads the market's stake contract on its own chain: how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market and, where get_market lists it under staking.unlocks, an Agent Compute API key. There is no lock and no reward: unstake works at any time.",
         inputSchema: {
           symbol: SYMBOL,
           chainId: CHAIN_ID,

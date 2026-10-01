@@ -8,6 +8,8 @@ import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { describeTxError, ensureWalletChain } from "@/lib/dex";
 import { explorerAddressUrl, readProvider, type ChainInfo } from "@/lib/chains";
 import type { MarketStake } from "@/config/market-stakes";
+import { computeStakeForMarket } from "@/config/agent-compute";
+import Link from "next/link";
 
 /**
  * Stake untuk SATU pasar, di chain pasar itu sendiri.
@@ -17,9 +19,10 @@ import type { MarketStake } from "@/config/market-stakes";
  * melaporkan nol dengan yakin.
  *
  * Yang dikatakan panel ini sengaja sempit: stake membuka agent pasar ini lewat MCP
- * (`ask_agent`), tidak ada lock, dan tidak ada imbalan. Kontraknya memang hanya itu —
- * `AdextoAgentStake` tanpa owner, tanpa cooldown, tanpa reward — jadi kalimat lain akan
- * menjanjikan sesuatu yang tidak ada di kode.
+ * (`ask_agent`) dan, untuk pasar yang terdaftar di `COMPUTE_STAKES`, kunci Agent Compute.
+ * Tidak ada lock, dan tidak ada imbalan. Kontraknya memang hanya itu — `AdextoAgentStake`
+ * tanpa owner, tanpa cooldown, tanpa reward — jadi kalimat lain akan menjanjikan sesuatu yang
+ * tidak ada di kode.
  */
 const STAKE_ABI = [
   "function stake(uint256 amount)",
@@ -38,6 +41,8 @@ const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 
 
 export default function MarketStakePanel({ chain, stake, symbol }: { chain: ChainInfo; stake: MarketStake; symbol: string }) {
   const { address, isConnected, connectWallet } = useWallet();
+  /** Stake pasar ini juga membuka Agent Compute kalau pasarnya terdaftar sebagai sumber. */
+  const compute = computeStakeForMarket(stake.chainId, stake.symbol);
   const [totals, setTotals] = useState<{ staked: number; stakers: number } | null>(null);
   const [mine, setMine] = useState<{ staked: number; balance: number } | null>(null);
   const [amount, setAmount] = useState(String(stake.minStake));
@@ -146,7 +151,18 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
           <div className="mt-0.5 font-semibold text-ink" data-numeric>
             {fmt(stake.minStake)} {symbol}
           </div>
-          <div className="text-ink-faint">opens this market&apos;s agent over MCP</div>
+          <div className="text-ink-faint">
+            opens this market&apos;s agent over MCP
+            {compute?.contract && (
+              <>
+                {" "}
+                and an{" "}
+                <Link href={`/agent-compute?stake=${compute.id}`} className="font-semibold text-accent hover:underline">
+                  Agent Compute key
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

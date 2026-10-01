@@ -1,9 +1,12 @@
 /**
  * Kunci API pool Agent Compute.
  *
- *   GET    ?address=0x…   keadaan sebuah alamat: stake, tingkatan, pemakaian, kunci
- *   POST   {address, message, signature}   menerbitkan satu kunci
- *   DELETE {address, message, signature}   mencabutnya
+ *   GET    ?address=0x…   keadaan sebuah alamat: stake, tingkatan, pemakaian dan kunci per token
+ *   POST   {address, message, signature, stake}   menerbitkan satu kunci untuk satu token
+ *   DELETE {address, message, signature, stake}   mencabutnya
+ *
+ * `stake` adalah id di `COMPUTE_STAKES` dan harus sama dengan baris `Stake:` di pesan yang
+ * ditandatangani. Tanpa keduanya artinya $ADEXTO, seperti sebelum ada kunci per token.
  *
  * KENAPA TANDA TANGAN, BUKAN SESI
  *
@@ -22,6 +25,7 @@ import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   AGENT_COMPUTE_ENDPOINT,
   AGENT_COMPUTE_MODEL,
+  COMPUTE_STAKES,
   MIN_STAKE_ADEXTO,
   STAKE_TOKEN,
   stakeContractFor,
@@ -29,16 +33,19 @@ import {
 } from "@/config/agent-compute";
 import {
   issueKey,
+  keyFor,
   keyForAddress,
   poolConfigured,
   revokeKey,
-  stakedOf,
+  stakesOf,
   storeIsDurable,
   sweep,
+  type PoolKey,
 } from "@/lib/agent-compute-pool";
 import {
   AGENT_KEY_ISSUE_ACTION as ISSUE_ACTION,
   AGENT_KEY_REVOKE_ACTION as REVOKE_ACTION,
+  stakeInMessage,
 } from "@/lib/agent-compute-message";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +53,7 @@ export const dynamic = "force-dynamic";
 /** Umur tanda tangan yang diterima. Cukup lama untuk membaca pesannya, cukup pendek untuk tidak jadi bearer token. */
 const MAX_SIGNATURE_AGE_MS = 10 * 60_000;
 
-type Verified = { ok: true; address: string } | { ok: false; error: string };
+type Verified = { ok: true; address: string; stake: string } | { ok: false; error: string };
 
 function verify(body: any, action: string): Verified {
   const address = String(body?.address || "");
@@ -62,6 +69,16 @@ function verify(body: any, action: string): Verified {
     return { ok: false, error: "The signed message must bind the address." };
   }
 
+  /**
+   * Kunci per token: token yang dimaksud harus disebut DI DALAM pesan yang ditandatangani, bukan
+   * hanya di body, supaya tanda tangan untuk satu token tidak bisa dipakai untuk token lain.
+   * Pesan tanpa baris `Stake:` berasal dari sebelum ada kunci per token dan hanya berarti $ADEXTO.
+   */
+  const named = stakeInMessage(message) ?? "adexto";
+  const asked = typeof body?.stake === "string" && body.stake ? String(body.stake) : named;
+  if (!COMPUTE_STAKES.some((s) => s.id === asked)) return { ok: false, error: "Unknown stake." };
+  if (asked !== named) return { ok: false, error: "The signed message names a different stake." };
+
   const stamp = message.match(/Timestamp:\s*(\d+)/);
   if (!stamp) return { ok: false, error: "The signed message must include a timestamp." };
   const age = Date.now() - Number(stamp[1]);
@@ -74,7 +91,7 @@ function verify(body: any, action: string): Verified {
     if (recovered.toLowerCase() !== address.toLowerCase()) {
       return { ok: false, error: "The signature does not match the address." };
     }
-    return { ok: true, address: recovered.toLowerCase() };
+    return { ok: true, address: recovered.toLowerCase(), stake: named };
   } catch {
     return { ok: false, error: "The signature could not be verified." };
   }
@@ -114,27 +131,19 @@ export async function GET(req: Request) {
   };
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    return NextResponse.json({ ...base, address: null, staked: null, tier: null, key: null });
+    return NextResponse.json({ ...base, address: null, staked: null, tier: null, stakes: [], key: null });
   }
 
-  let staked: number | null = null;
-  let stakeError: string | null = null;
-  try {
-    staked = await stakedOf(address);
-  } catch (e) {
-    stakeError = (e as Error).message.slice(0, 160);
-  }
-
-  const tier = staked === null ? null : tierForStake(staked);
-  const record = keyForAddress(address);
-
-  return NextResponse.json({
-    ...base,
-    address: address.toLowerCase(),
-    staked,
-    stakeError,
-    tier: tier ? { label: tier.label, stake: tier.stake, allowance: tier.allowance } : null,
-    key: record
+  /**
+   * Setiap token di daftar dibaca, dan setiap token punya kuncinya sendiri. `staked`, `tier` dan
+   * `key` di tingkat atas tetap berarti $ADEXTO di 0G, seperti sebelum ada token lain, supaya
+   * pembaca lama API ini tidak tiba-tiba membaca angka token lain di bidang yang sama.
+   */
+  const readings = await stakesOf(address);
+  const adexto = readings.find((r) => r.id === "adexto");
+  const adextoTier = adexto?.staked == null ? null : tierForStake(adexto.staked);
+  const keyView = (record: PoolKey | null) =>
+    record
       ? {
           keyPrefix: record.keyPrefix,
           createdAt: record.createdAt,
@@ -145,9 +154,34 @@ export async function GET(req: Request) {
           requests: record.requests,
           active: record.active,
           disabledReason: record.disabledReason,
+          stakeSource: record.stakeSource ?? "adexto",
           lastSweepAt: record.lastSweepAt,
         }
-      : null,
+      : null;
+
+  return NextResponse.json({
+    ...base,
+    address: address.toLowerCase(),
+    staked: adexto?.staked ?? null,
+    stakeError: adexto?.error ?? null,
+    tier: adextoTier ? { label: adextoTier.label, stake: adextoTier.stake, allowance: adextoTier.allowance } : null,
+    stakes: COMPUTE_STAKES.map((s) => {
+      const r = readings.find((x) => x.id === s.id);
+      const t = r?.staked == null ? null : tierForStake(r.staked, s.tiers);
+      return {
+        id: s.id,
+        chainId: s.chainId,
+        symbol: s.symbol,
+        name: s.name,
+        contract: s.contract,
+        minStake: s.minStake,
+        staked: r?.staked ?? null,
+        error: r?.error ?? null,
+        tier: t ? { label: t.label, stake: t.stake, allowance: t.allowance } : null,
+        key: keyView(keyFor(address, s.id)),
+      };
+    }),
+    key: keyView(keyForAddress(address)),
   });
 }
 
@@ -175,7 +209,7 @@ export async function POST(req: Request) {
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 401 });
 
   try {
-    const result = await issueKey(v.address);
+    const result = await issueKey(v.address, v.stake);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
     /**
@@ -190,6 +224,7 @@ export async function POST(req: Request) {
         model: AGENT_COMPUTE_MODEL,
         tierLabel: result.key.tierLabel,
         allowance: result.key.allowance,
+        stakeSource: result.key.stakeSource ?? null,
         shownOnce: true,
       },
       { status: 201 }
@@ -224,9 +259,9 @@ export async function DELETE(req: Request) {
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 401 });
 
   try {
-    const result = await revokeKey(v.address);
+    const result = await revokeKey(v.address, v.stake);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 404 });
-    return NextResponse.json({ revoked: true });
+    return NextResponse.json({ revoked: true, stake: v.stake });
   } catch (e) {
     return NextResponse.json(
       { error: `Revoke failed: ${(e as Error).message.slice(0, 160)}` },
