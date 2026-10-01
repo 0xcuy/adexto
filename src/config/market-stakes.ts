@@ -27,7 +27,23 @@ export interface MarketStake {
   deployTx: string;
 }
 
-export const MARKET_STAKES: MarketStake[] = [];
+export const MARKET_STAKES: MarketStake[] = [
+  /**
+   * $SAI (SAi Arbitrum) on Arbitrum One. Deployed 2026-10-01 by the deployer with
+   * scripts/deploy-market-stake.mjs; immutables read back from the chain: stakeToken = the
+   * token below, minStake = 10,000 SAI, empty at deployment.
+   */
+  {
+    chainId: 42161,
+    symbol: "SAI",
+    token: "0xC4b5eA97bd4e3f8Bc047fFCc74Ca9c2B6b426cb3",
+    contract: "0x2fc2A49ea2e4357541Dda9488DCeadCD0c43B508",
+    minStake: 10000,
+    decimals: 18,
+    deployBlock: 510578200,
+    deployTx: "0x129e503750a64dde02150bf8c076737845a5fc4869d9722726fd296ec106c865",
+  },
+];
 
 export function marketStakeFor(chainId: number, symbol: string): MarketStake | null {
   const want = symbol.toUpperCase();

@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 7,
+  "listedMarkets": 8,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -151,6 +151,16 @@
       "token": "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
       "curve": "0x1b9d0221e2C7447845326A4a8C6B0f35c329500B",
       "why": "SAi Robin, the first market from the v1 factory and the first on Robinhood Chain. Launched on camera from the Studio in Advanced mode for the SAi Robin launch video, by the demo creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5. Bound at launch to ERC-8004 agent 6525 in the Robinhood Chain Identity Registry, registered from that same wallet seconds earlier (tx 0x88bbb1349254ea9755e13c2b44aec6a413d5eef96a11da8b0eebc0ae158ef73c); launch tx 0xe05bc1fb93ba902ff6a15b36e80aa804609ab4e6c1780a0a6bcec8723286f38e. Its image is a 3D render from /api/generate-logo. One buy of 0.00004 ETH from the creator wallet followed (tx 0xd605421d338cfaaa4574d02e4afa42bf7390ba6dd917eeda4b6f6e680603a2a4). The ticker SAI is also planned on Arbitrum; the x402 gateway resolves a ticker to its oldest market, so this one answers /v1/x402/buy/sai until the gateway takes a chain."
+    },
+    {
+      "symbol": "SAI",
+      "status": "live",
+      "chainId": 42161,
+      "factoryVersion": "1.0.0",
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "token": "0xC4b5eA97bd4e3f8Bc047fFCc74Ca9c2B6b426cb3",
+      "curve": "0x3F5F33e4042f6ee127b4e6bef9ceA7846763Da50",
+      "why": "SAi Arbitrum, the first market from the v1 factory on Arbitrum One and the second $SAI: same creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5 as SAi Robin on Robinhood Chain, so the ticker spans two chains and the gateway and MCP take a chain id to pick one. Launched on camera from the Studio in Advanced mode for the Arbitrum agent-economy film, bound at launch to ERC-8004 agent 1566 on Arbitrum, registered from that wallet seconds earlier (tx 0x342ea82d6ad79a563c8580842c7dfd3899ddc6caaf106188cd12428b2bb3e8d1); launch tx 0x9f04d003da86bb91e04d456dd9e18830f67aef3d5fd3c0c721d93430775a7d23. Its stake contract is AdextoAgentStake 0x2fc2A49ea2e4357541Dda9488DCeadCD0c43B508 (minimum 10,000 SAI, Sourcify exact match), which opens the market agent over MCP ask_agent."
     }
   ]
 }
