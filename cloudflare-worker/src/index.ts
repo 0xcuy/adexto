@@ -83,6 +83,8 @@ export interface Env {
    * bagi jalur yang memindahkan dana.
    */
   ARBITRUM_RPC?: string;
+  /** RPC pengiriman untuk Robinhood Chain (4663). Opsional, lewat relai situs seperti Arbitrum. */
+  ROBINHOOD_RPC?: string;
   /** Asal registry dan harga. Satu asal, supaya tidak ada sumber kebenaran kedua. */
   ADEXTO_ORIGIN: string;
   /**
@@ -498,6 +500,12 @@ export default {
        * relai `/api/rpc/[chain]` di situs kini melayani keduanya dari satu implementasi.
        */
       42161: { url: env.ARBITRUM_RPC, envVar: "ARBITRUM_RPC" },
+      /**
+       * Robinhood Chain, chain Arbitrum Orbit dengan ETH sebagai native. Jalurnya identik
+       * dengan Arbitrum: relai berkunci di situs, kurva v1 yang sama (`buy(minOut, to,
+       * deadline)`), dan persediaan ETH relayer di chain itu sendiri.
+       */
+      4663: { url: env.ROBINHOOD_RPC, envVar: "ROBINHOOD_RPC" },
     };
     const delivery = DELIVERY_RPC[market.chainId];
     if (!delivery?.url) {
@@ -509,7 +517,7 @@ export default {
             `delivery RPC for that chain. ` +
             (delivery
               ? `Set the ${delivery.envVar} worker var to serve it.`
-              : `Only 0G and Monad are wired; add the chain to DELIVERY_RPC to serve it.`) +
+              : `Served chains: ${Object.keys(DELIVERY_RPC).join(", ")}. Add this chain to DELIVERY_RPC to serve it.`) +
             ` No payment was taken.`,
           symbol: market.symbol,
           chainId: market.chainId,
