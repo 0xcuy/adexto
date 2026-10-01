@@ -227,6 +227,16 @@ export interface ProjectRecord {
   curated: boolean;
   /** A SovereignHook AMM exists and can settle trades. */
   poolLive: boolean;
+  /**
+   * ERC-8004 agent the token was bound to at launch, COPIED from the token contract
+   * (`agentBound`, `agentId`, `agentRegistry`) when the launch was confirmed.
+   *
+   * A copy, not the source: the binding is immutable on the token, and anything that must
+   * be certain reads it there (the terminal badge does). Null means unbound, or registered
+   * before this field existed. `agentId` is a decimal string because agent ids are uint256
+   * and agent 0 is a real agent, so 0 never stands for "none".
+   */
+  agentIdentity: { agentId: string; registry: string } | null;
 }
 
 const ZERO_TOKENS: string[] = [];
@@ -272,7 +282,18 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
     verified: partial.verified ?? false,
     curated: partial.curated ?? false,
     poolLive: partial.poolLive ?? false,
+    agentIdentity: normalizeAgentIdentity(partial.agentIdentity),
   };
+}
+
+/** Bentuk yang sah saja: id desimal dan alamat registry 20 byte. Selain itu null. */
+function normalizeAgentIdentity(value: unknown): ProjectRecord["agentIdentity"] {
+  if (!value || typeof value !== "object") return null;
+  const v = value as { agentId?: unknown; registry?: unknown };
+  const agentId = typeof v.agentId === "string" ? v.agentId.trim() : "";
+  const registry = typeof v.registry === "string" ? v.registry.trim() : "";
+  if (!/^\d{1,78}$/.test(agentId) || !/^0x[a-fA-F0-9]{40}$/.test(registry)) return null;
+  return { agentId, registry };
 }
 
 /**
@@ -398,6 +419,8 @@ function loadCustom(): ProjectRecord[] {
     description: normalizeDescription(r.description),
     links: normalizeLinks(r.links),
     agentModel: normalizeAgentModel(r.agentModel),
+    // Baris lama tidak punya kolom ini; dibaca sebagai null, bukan undefined.
+    agentIdentity: normalizeAgentIdentity(r.agentIdentity),
   }));
   globalThis.__ADEXTO_PROJECT_CACHE__ = clean;
   return clean;
@@ -664,6 +687,8 @@ export interface RegisterInput {
   teeRoot?: string | null;
   daStorageTx?: string | null;
   poolLive: boolean;
+  /** Dibaca dari kontrak token oleh pemanggil, tidak pernah dari badan permintaan. */
+  agentIdentity?: { agentId: string; registry: string } | null;
 }
 
 export function registerProject(input: RegisterInput): ProjectRecord {
@@ -736,6 +761,7 @@ export function registerProject(input: RegisterInput): ProjectRecord {
     verified: true,
     curated: false,
     poolLive: input.poolLive,
+    agentIdentity: input.agentIdentity ?? null,
   });
 
   // TANPA `.slice()`. Pemotongan di sinilah yang dulu menggusur entri tertua secara

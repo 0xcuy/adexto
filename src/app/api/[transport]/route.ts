@@ -201,6 +201,55 @@ function registryProjects(): ProjectRecord[] {
   return listProjects();
 }
 
+/**
+ * Identitas agent ERC-8004 dalam bentuk yang ditulis ERC-8004 sendiri:
+ * `agentRegistry = eip155:<chainId>:<registry>`, ditambah `agentId`. Sebuah id hanya unik
+ * bersama chain dan registry-nya, jadi id tanpa keduanya tidak bisa dicari siapa pun.
+ */
+function agentIdentityOut(
+  chainId: number,
+  identity: { agentId: string; registry: string } | null | undefined,
+  source: "token-contract" | "registry-copy" = "registry-copy"
+) {
+  if (!identity) return null;
+  return {
+    standard: "ERC-8004",
+    agentId: identity.agentId,
+    agentRegistry: `eip155:${chainId}:${identity.registry}`,
+    source,
+  };
+}
+
+/**
+ * Dibaca LANGSUNG dari kontrak token, karena `get_market` adalah alat untuk satu pasar dan
+ * tiga `eth_call` di sini murah. `agentBound` dibaca dulu: agent 0 adalah agent sungguhan.
+ * Gagal baca jatuh ke salinan registry, dan `source` menyebut yang mana yang dipakai.
+ */
+async function readAgentIdentity(p: ProjectRecord) {
+  try {
+    const chain = resolveChainOrDefault(p.chainId);
+    const provider = new ethers.JsonRpcProvider(chain.rpcUrl, chain.chainId, { staticNetwork: true, batchMaxCount: 1 });
+    const token = new ethers.Contract(
+      p.tokenAddress,
+      [
+        "function agentBound() view returns (bool)",
+        "function agentId() view returns (uint256)",
+        "function agentRegistry() view returns (address)",
+      ],
+      provider
+    );
+    if (!(await token.agentBound())) return null;
+    const [id, registry] = await Promise.all([token.agentId(), token.agentRegistry()]);
+    return agentIdentityOut(
+      p.chainId,
+      { agentId: (id as bigint).toString(), registry: ethers.getAddress(String(registry)) },
+      "token-contract"
+    );
+  } catch {
+    return agentIdentityOut(p.chainId, p.agentIdentity, "registry-copy");
+  }
+}
+
 const SYMBOL = z
   .string()
   .min(1)
@@ -236,10 +285,13 @@ const mcp = createMcpHandler(
             tradable: p.poolLive && Boolean(p.poolAddress),
             priceNative: p.priceNative,
             historySource: envioServes(p.chainId) ? "indexer" : "rpc-logs",
+            agentIdentity: agentIdentityOut(p.chainId, p.agentIdentity),
           })),
           note:
             "Pay with USDC on Base; the curve on the market's own chain sends the tokens straight to your address. " +
-            "We never hold them.",
+            "We never hold them. agentIdentity is the ERC-8004 agent the token was bound to at launch, copied from " +
+            "the token contract when the launch was confirmed; null means unbound or not recorded. get_market reads " +
+            "it from the token itself.",
         });
       }
     );
@@ -287,6 +339,7 @@ const mcp = createMcpHandler(
            */
           historySource: envioServes(found.chainId) ? "indexer" : "rpc-logs",
           buyResource: `${GATEWAY}/v1/x402/buy/${found.slug}`,
+          agentIdentity: await readAgentIdentity(found),
         });
       }
     );

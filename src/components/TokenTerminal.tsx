@@ -21,6 +21,7 @@ import MyPositionPanel from "@/components/MyPositionPanel";
 import HoldersPanel from "@/components/HoldersPanel";
 import WatchStar from "@/components/WatchStar";
 import MarketOwnerActions from "@/components/MarketOwnerActions";
+import AgentIdentityBadge from "@/components/AgentIdentityBadge";
 import { refreshMarketTelemetry, useMarketTelemetry } from "@/lib/use-market-telemetry";
 import Link from "next/link";
 import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
@@ -395,6 +396,8 @@ export default function TokenTerminal({
                   Pool <ExternalLink className="w-3 h-3" />
                 </a>
               )}
+              {/* Hanya tampil bila token ini terikat ke agent ERC-8004, dibaca dari kontraknya. */}
+              <AgentIdentityBadge chain={chain} tokenAddress={project.tokenAddress} />
               <a
                 href={`https://x402.adexto.xyz/v1/x402/${project.slug}`}
                 target="_blank"

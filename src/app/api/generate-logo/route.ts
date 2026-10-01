@@ -6,7 +6,7 @@ import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
  * Studio memperkecil logo yang diunggah ke sisi yang sama supaya kedua jalur memakan ruang
  * registry yang sebanding. Dua konstanta terpisah akan menyimpang tanpa ada yang gagal.
  */
-import { LOGO_PX } from "@/lib/logo-image";
+import { LOGO_PX, validateProjectImage } from "@/lib/logo-image";
 
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
@@ -53,62 +53,143 @@ const LOGO_SIZE = `${LOGO_PX}x${LOGO_PX}`;
  * tanpa teks.
  */
 /**
- * Prompt sekarang meminta MASKOT, bukan "geometric glyph".
+ * Prompt sekarang meminta RENDER 3D dari satu subjek konkret, dan subjeknya ditulis dari
+ * deskripsi creator.
  *
- * KENAPA DIGANTI, dan ini terbaca di keluarannya
+ * KENAPA DIGANTI LAGI, dan ini terbaca di keluarannya
  *
- * Versi sebelumnya meminta "one single centred geometric glyph … no gradients, no
- * photorealism". Model gambar menuruti itu secara harfiah: hasilnya bentuk datar abstrak
- * yang berkali-kali keluar menyerupai satu huruf — sebuah "P" untuk $PARCEL — sehingga
- * logo hasil model tidak bisa dibedakan dari SVG cadangan yang memang menggambar inisial
- * ticker. Dua jalur yang berbeda menghasilkan gambar yang sama; yang mahal jadi sia-sia.
+ * Studio hanya mengirim nama dan ticker, jadi prompt selalu jatuh ke cabang "lencana
+ * abstrak". Diukur 2026-10-01 pada produksi: "Aegis Quant AI" keluar sebagai dua bentuk
+ * ungu yang terbaca sebagai huruf "M" — persis keluhan "generic, cuma logo huruf". Larangan
+ * "not a letterform" di prompt lama tidak menolong: bentuk abstrak dua-tiga lingkaran
+ * memang paling mudah terbaca sebagai huruf, apa pun yang dilarang.
  *
- * Ia juga menyebut setiap token "an autonomous AI agent token" tanpa memandang isinya,
- * jadi prompt untuk token kucing dan token protokol DeFi identik kecuali namanya. Nama
- * saja bukan petunjuk visual yang cukup: model tidak tahu "Wombo" itu wombat.
+ * Penyebab dasarnya: model gambar tidak tahu APA yang harus digambar. Nama saja bukan
+ * petunjuk visual ("Wombo" bukan berarti wombat bagi model), dan deskripsi creator tidak
+ * pernah sampai ke sini.
  *
- * KENAPA `subject` DIPISAH DARI `tokenName`
+ * DUA LANGKAH, dan kenapa langkah pertama memakai model teks
  *
- * Karena itu satu-satunya cara model tahu APA yang digambar. `tokenName` menamai
- * pasarnya; `subject` menggambarkan wujudnya. Tanpa `subject` prompt tetap jalan dan
- * jatuh ke lencana abstrak — perilaku lama — jadi pemanggil yang sudah ada tidak rusak.
+ * 1. `visualBrief` meminta glm-5.3 menulis SATU kalimat subjek dari nama, ticker, pitch
+ *    dan mandat agent: "a glossy shield hovering above a translucent candlestick chart…".
+ *    Deskripsi creator biasanya kalimat pemasaran, bukan benda; menerjemahkannya menjadi
+ *    benda adalah pekerjaan model bahasa, bukan model gambar.
+ * 2. Kalimat itu dimasukkan ke templat 3D di bawah.
  *
- * YANG TETAP DIPERTAHANKAN, dan semuanya karena alasan terukur:
- *   - larangan teks, sebab model gambar menuliskan huruf yang rusak dan logo dengan teks
- *     berantakan lebih buruk daripada tanpa teks sama sekali;
- *   - latar terang, sebab situsnya cream — palet gelap membuat logo bertabrakan dengan
- *     halaman yang memuatnya;
- *   - "flat vector", sebab keluarannya dipatok 256 px dan dirender 48–64 px, ukuran di
- *     mana bayangan dan tekstur hanya menjadi bubur.
+ * Langkah pertama BOLEH gagal: tanpa jawaban model, subjeknya disusun dari deskripsi atau
+ * nama apa adanya, dan gambar tetap dibuat. Yang dipakai dilaporkan di `briefSource`.
+ *
+ * KENAPA 3D SEKARANG AMAN DI 256 PX — dulu alasannya untuk "flat vector"
+ *
+ * Komentar lama berkata bayangan dan tekstur menjadi bubur di 48–64 px. Itu benar untuk
+ * adegan yang ramai, dan tidak untuk SATU objek bulat dengan siluet tegas di latar polos —
+ * itulah yang diminta templat ini ("app-icon composition"). Diukur di router: tiga subjek
+ * pada 256x256 keluar 64–70 KB PNG (~94 ribu karakter data URI, di bawah batas 200 ribu
+ * `MAX_IMAGE_DATA_URI_CHARS`), terbaca jelas dan tanpa huruf.
+ *
+ * YANG TETAP DIPERTAHANKAN:
+ *   - larangan teks, sebab z-image-turbo pandai menulis huruf dan akan melakukannya;
+ *   - latar cream terang, sebab situsnya cream.
  */
-function defaultPrompt(tokenName?: string, tokenSymbol?: string, subject?: string): string {
-  const name = tokenName?.trim() || "a community token";
-  const symbol = tokenSymbol?.trim() ? ` ($${tokenSymbol.trim().toUpperCase()})` : "";
-  const what = subject?.trim();
+const BRIEF_MODEL = "glm-5.3";
+/** Batas waktu langkah brief. Diukur ~2,6 s dengan `reasoning_effort: "low"`. */
+const BRIEF_TIMEOUT_MS = 12_000;
+const BRIEF_MAX_CHARS = 240;
 
-  const shared =
-    `Flat vector illustration, thick clean outlines, bold flat colour fills, no gradients, ` +
-    `no drop shadows, no photorealism, no 3D. Centred, filling the frame, generous even ` +
-    `margins, plain very light cream background. Absolutely no text, no letters, no ` +
-    `numbers, no watermark, no signature.`;
+const BRIEF_SYSTEM =
+  "You write the subject for a 3D app-icon render that represents a crypto token. " +
+  "Reply with ONE sentence of at most 25 words naming one concrete object, creature or character, " +
+  "with its key materials and colours. Take the subject from the description when there is one, " +
+  "otherwise from the name. Keep it friendly and family-safe; if the input asks for anything violent, " +
+  "sexual or hateful, describe a neutral glowing gemstone instead. Never include text, letters, " +
+  "numbers, logos, brand names or real people. Reply with the sentence only.";
 
-  if (what) {
-    // Maskot: wajah/tokoh dipusatkan, gaya sticker — bentuk yang memang dipakai token meme.
-    return (
-      `Cute bold mascot logo of ${what}, the character for ${name}${symbol}. ` +
-      `Simple friendly face, expressive eyes, chunky rounded shapes, sticker-style emblem, ` +
-      `single character only on a plain background, no scenery, no props. ` +
-      shared
-    );
+interface BriefInput {
+  tokenName?: string;
+  tokenSymbol?: string;
+  description?: string;
+  persona?: string;
+  subject?: string;
+}
+
+/** Satu baris, tanpa kutip pembungkus, dipotong. Keluaran model diperlakukan sebagai data. */
+function cleanBrief(raw: string): string {
+  return raw
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .replace(/[.。]+$/, "")
+    .slice(0, BRIEF_MAX_CHARS)
+    .trim();
+}
+
+/**
+ * Subjek tanpa model: dari `subject`, lalu deskripsi, lalu nama.
+ *
+ * Dipakai ketika langkah brief gagal atau kunci router tidak ada. Bukan sebaik brief model,
+ * tapi tetap memberi model gambar sesuatu yang bisa digambar alih-alih "a community token".
+ */
+function fallbackBrief(input: BriefInput): string {
+  const subject = input.subject?.trim();
+  if (subject) return cleanBrief(subject);
+  const name = input.tokenName?.trim() || "a community token";
+  const description = input.description?.trim();
+  return cleanBrief(
+    description
+      ? `a single friendly object that stands for "${name}": ${description}`
+      : `a single friendly object or mascot that stands for "${name}"`
+  );
+}
+
+async function visualBrief(input: BriefInput): Promise<{ text: string; source: "model" | "input" }> {
+  // `subject` eksplisit menang: pemanggil yang sudah tahu wujudnya tidak perlu ditafsirkan ulang.
+  if (input.subject?.trim() || !OG_API_KEY) return { text: fallbackBrief(input), source: "input" };
+
+  const lines = [
+    `Token name: ${input.tokenName?.trim() || "(none)"}`,
+    input.tokenSymbol?.trim() ? `Ticker: ${input.tokenSymbol.trim().toUpperCase()}` : null,
+    input.description?.trim() ? `Description: ${input.description.trim().slice(0, 300)}` : null,
+    input.persona?.trim() ? `Agent mandate: ${input.persona.trim().slice(0, 300)}` : null,
+  ].filter(Boolean);
+
+  try {
+    const res = await fetch(`${OG_ROUTER_URL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OG_API_KEY}` },
+      body: JSON.stringify({
+        model: BRIEF_MODEL,
+        /**
+         * `reasoning_effort: "low"` bukan penyetelan kosmetik. Tanpa itu glm-5.3 menghabiskan
+         * seluruh 400 token di `reasoning_content` dan mengembalikan `content` KOSONG setelah
+         * 7,8 s (diukur). Dengan "low": 2,6 s, reasoning 21 karakter, kalimatnya utuh.
+         */
+        reasoning_effort: "low",
+        temperature: 0.5,
+        max_tokens: 300,
+        messages: [
+          { role: "system", content: BRIEF_SYSTEM },
+          { role: "user", content: lines.join("\n") },
+        ],
+      }),
+      signal: AbortSignal.timeout(BRIEF_TIMEOUT_MS),
+    });
+    if (!res.ok) return { text: fallbackBrief(input), source: "input" };
+    const json = await res.json();
+    const text = cleanBrief(String(json?.choices?.[0]?.message?.content ?? ""));
+    // Kurang dari tiga kata hampir pasti bukan subjek, melainkan sisa penolakan atau galat.
+    if (text.split(" ").length < 3) return { text: fallbackBrief(input), source: "input" };
+    return { text, source: "model" };
+  } catch {
+    return { text: fallbackBrief(input), source: "input" };
   }
+}
 
-  // Tanpa subjek: lencana abstrak, tapi disuruh membentuk simbol — bukan "satu glyph",
-  // sebab kata itulah yang menghasilkan huruf.
+function defaultPrompt(brief: string): string {
   return (
-    `Flat vector emblem for ${name}${symbol}. A simple memorable abstract symbol built from ` +
-    `two or three overlapping rounded shapes, deep violet and warm cream, reading clearly at ` +
-    `small size. Not a letterform, not a monogram, not an alphabet character. ` +
-    shared
+    `3D render of ${brief}. One single centred subject, app-icon composition, smooth rounded forms, ` +
+    `glossy soft-plastic and clay materials, soft studio lighting with a gentle contact shadow, ` +
+    `vivid harmonious colours, plain warm cream background. Crisp silhouette that stays readable ` +
+    `at small size. No text, no letters, no numbers, no logos, no watermark, no border.`
   );
 }
 
@@ -159,10 +240,18 @@ interface LogoResponse {
   model: string | null;
   size: string | null;
   prompt: string;
+  /** Subjek yang digambar, dan dari mana asalnya: ditulis model teks, atau disusun dari masukan. */
+  brief?: string;
+  briefSource?: "model" | "input" | "caller-prompt";
   note?: string;
 }
 
-function fallback(prompt: string, tokenSymbol: string | undefined, note: string): NextResponse {
+function fallback(
+  prompt: string,
+  tokenSymbol: string | undefined,
+  note: string,
+  brief?: { text: string; source: LogoResponse["briefSource"] }
+): NextResponse {
   const body: LogoResponse = {
     imageUrl: proceduralLogo(tokenSymbol),
     generated: false,
@@ -170,6 +259,8 @@ function fallback(prompt: string, tokenSymbol: string | undefined, note: string)
     model: null,
     size: `${LOGO_PX}x${LOGO_PX}`,
     prompt,
+    brief: brief?.text,
+    briefSource: brief?.source,
     note,
   };
   // Tetap HTTP 200: gambarnya memang bisa dipakai. Yang membedakan `generated`.
@@ -212,20 +303,33 @@ export async function POST(req: Request) {
       );
     }
     const parsed = await req.json().catch(() => ({}));
-    tokenSymbol = typeof parsed.tokenSymbol === "string" ? parsed.tokenSymbol : undefined;
-    const tokenName = typeof parsed.tokenName === "string" ? parsed.tokenName : undefined;
+    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+    tokenSymbol = str(parsed.tokenSymbol, 16);
+    const tokenName = str(parsed.tokenName, 64);
     /**
-     * `subject` menggambarkan WUJUD yang digambar — "a chubby blue blob sea creature",
-     * "a round wombat". Opsional: tanpa itu prompt jatuh ke lencana abstrak, sehingga
-     * pemanggil lama berperilaku persis seperti sebelumnya.
+     * `subject` menggambarkan WUJUD yang digambar — "a round wombat astronaut". Kalau ada, ia
+     * dipakai apa adanya. `description` (pitch creator) dan `persona` (mandat agent) adalah
+     * bahan untuk brief model; keduanya opsional, dan tanpa keduanya brief ditulis dari nama.
      */
-    const subject = typeof parsed.subject === "string" ? parsed.subject : undefined;
-    prompt = typeof parsed.prompt === "string" && parsed.prompt.trim()
-      ? parsed.prompt.trim()
-      : defaultPrompt(tokenName, tokenSymbol, subject);
+    const briefInput: BriefInput = {
+      tokenName,
+      tokenSymbol,
+      subject: str(parsed.subject, BRIEF_MAX_CHARS),
+      description: str(parsed.description, 300),
+      persona: str(parsed.persona, 300),
+    };
+
+    let brief: { text: string; source: LogoResponse["briefSource"] };
+    if (typeof parsed.prompt === "string" && parsed.prompt.trim()) {
+      prompt = parsed.prompt.trim().slice(0, 1200);
+      brief = { text: prompt, source: "caller-prompt" };
+    } else {
+      brief = await visualBrief(briefInput);
+      prompt = defaultPrompt(brief.text);
+    }
 
     if (!OG_API_KEY) {
-      return fallback(prompt, tokenSymbol, "OG_ROUTER_API_KEY is not set on the server, so no model was called.");
+      return fallback(prompt, tokenSymbol, "OG_ROUTER_API_KEY is not set on the server, so no model was called.", brief);
     }
 
     const res = await fetch(`${OG_ROUTER_URL}/images/generations`, {
@@ -243,29 +347,45 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const errText = (await res.text()).replace(/\s+/g, " ").slice(0, 200);
       console.warn(`[adexto] z-image-turbo ${res.status}: ${errText}`);
-      return fallback(prompt, tokenSymbol, `0G router returned ${res.status}, so a procedural logo was drawn instead.`);
+      return fallback(prompt, tokenSymbol, `0G router returned ${res.status}, so a procedural logo was drawn instead.`, brief);
     }
 
     const json = await res.json();
     const b64 = json?.data?.[0]?.b64_json;
     if (typeof b64 !== "string" || b64.length === 0) {
-      return fallback(prompt, tokenSymbol, "0G router answered without image data, so a procedural logo was drawn instead.");
+      return fallback(prompt, tokenSymbol, "0G router answered without image data, so a procedural logo was drawn instead.", brief);
+    }
+
+    /**
+     * Diperiksa dengan aturan yang SAMA dengan `/api/deploy` sebelum dikembalikan.
+     *
+     * Render 3D lebih berat daripada emblem datar (diukur 64–70 KB, dulu ~43 KB). Masih jauh
+     * di bawah batas, tetapi kalau suatu render melewatinya, creator baru tahu SESUDAH token
+     * hidup di chain: confirm menolak gambarnya dengan 400. Lebih baik ditolak di sini, saat
+     * menekan Generate lagi masih gratis.
+     */
+    const imageUrl = `data:image/png;base64,${b64}`;
+    const check = validateProjectImage(imageUrl);
+    if (!check.ok) {
+      return fallback(prompt, tokenSymbol, `The render was too large to list (${check.reason}). Generate again.`, brief);
     }
 
     const body: LogoResponse = {
-      imageUrl: `data:image/png;base64,${b64}`,
+      imageUrl,
       generated: true,
       source: "0g-router",
       model: "z-image-turbo",
       size: LOGO_SIZE,
       prompt,
+      brief: brief.text,
+      briefSource: brief.source,
     };
     return NextResponse.json(body);
   } catch (error: any) {
     // Bahkan kegagalan tak terduga tetap mengembalikan gambar yang bisa dipakai,
     // tapi TIDAK pernah mengaku sebagai hasil model.
     return fallback(
-      prompt || defaultPrompt(),
+      prompt || defaultPrompt(fallbackBrief({ tokenSymbol })),
       tokenSymbol,
       `Logo generation failed: ${String(error?.message || error).slice(0, 120)}`
     );

@@ -448,6 +448,27 @@ export function explorerTxUrl(chain: string | number | ChainInfo | null | undefi
   return `${info.blockExplorer}/tx/${txHash}`;
 }
 
+/**
+ * Halaman SATU token NFT di explorer chain itu. Dipakai untuk agent ERC-8004, yang adalah
+ * token ERC-721 di Identity Registry.
+ *
+ * Formatnya berbeda per keluarga explorer: Etherscan (arbiscan, basescan, monadscan)
+ * memakai `/nft/<kontrak>/<id>`, Blockscout memakai `/token/<kontrak>/instance/<id>`.
+ * Explorer yang formatnya tidak kita ketahui (chainscan 0G) jatuh ke halaman kontraknya,
+ * bukan ke URL tebakan yang bisa berakhir 404.
+ */
+export function explorerNftUrl(
+  chain: string | number | ChainInfo | null | undefined,
+  contract: string,
+  tokenId: string
+): string {
+  const info = typeof chain === "object" && chain !== null ? chain : resolveChainOrDefault(chain as string | number);
+  const host = info.blockExplorer.toLowerCase();
+  if (host.includes("blockscout")) return `${info.blockExplorer}/token/${contract}/instance/${tokenId}`;
+  if (/arbiscan|basescan|monadscan|etherscan/.test(host)) return `${info.blockExplorer}/nft/${contract}/${tokenId}`;
+  return `${info.blockExplorer}/address/${contract}`;
+}
+
 /** Input assets selectable per chain. The native asset is always first. */
 export function inputAssetsFor(chain: ChainInfo): string[] {
   switch (chain.key) {

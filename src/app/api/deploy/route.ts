@@ -924,6 +924,35 @@ async function handleConfirm(body: any) {
     : [chain.chainId];
 
   /**
+   * Pengikatan ERC-8004 DIBACA DARI TOKEN, bukan dari badan permintaan.
+   *
+   * Factory memeriksa `ownerOf(agentId) == msg.sender` lalu menulis hasilnya immutable ke
+   * token. Badan permintaan tidak membawa apa pun soal ini, dan memang tidak boleh: nilai
+   * yang dipilih pemanggil akan membuat registry menyebut agent yang tidak pernah diikat.
+   *
+   * Gagal baca berarti `null` — dicatat "tidak diketahui", tidak pernah ditebak. Kolom ini
+   * salinan; lencana di terminal membaca token itu sendiri.
+   */
+  let agentIdentity: { agentId: string; registry: string } | null = null;
+  try {
+    const tokenAgent = new ethers.Contract(
+      tokenAddress,
+      [
+        "function agentBound() view returns (bool)",
+        "function agentId() view returns (uint256)",
+        "function agentRegistry() view returns (address)",
+      ],
+      provider
+    );
+    if (await tokenAgent.agentBound()) {
+      const [id, registry] = await Promise.all([tokenAgent.agentId(), tokenAgent.agentRegistry()]);
+      agentIdentity = { agentId: (id as bigint).toString(), registry: ethers.getAddress(String(registry)) };
+    }
+  } catch {
+    agentIdentity = null;
+  }
+
+  /**
    * `image` DIVALIDASI, dan sebelumnya tidak.
    *
    * Barisnya dulu `image: body.image || "/logo.svg"` — apa pun yang dikirim langsung masuk
@@ -1014,6 +1043,7 @@ async function handleConfirm(body: any) {
     teeRoot: /^0x[a-fA-F0-9]{64}$/.test(String(body.attestationRoot || "")) ? String(body.attestationRoot) : null,
     daStorageTx: body.daStorageTx || null,
     poolLive,
+    agentIdentity,
     });
   } catch (error) {
     if (error instanceof RegistryLimitError) {
@@ -1056,7 +1086,12 @@ async function handleConfirm(body: any) {
         symbol: record.symbol,
         address: record.tokenAddress,
         supply: record.supply,
-        standard: "ERC-8004 (Agent Identity Bound)",
+        /**
+         * Dulu tertulis tetap "ERC-8004 (Agent Identity Bound)" untuk SETIAP peluncuran,
+         * termasuk yang tidak mengikat agent apa pun. Sekarang dari token itu sendiri.
+         */
+        standard: agentIdentity ? `ERC-20, bound to ERC-8004 agent ${agentIdentity.agentId}` : "ERC-20",
+        agentIdentity,
         explorer: `${chain.blockExplorer}/address/${record.tokenAddress}`,
       },
       sovereignDex: {

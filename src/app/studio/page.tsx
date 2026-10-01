@@ -277,7 +277,7 @@ export default function StudioPage() {
    * gambar yang tidak pernah disentuh model. Sekarang route melaporkan `generated`,
    * dan panelnya menuruti itu.
    */
-  const [logoInfo, setLogoInfo] = useState<{ generated: boolean; note?: string } | null>(null);
+  const [logoInfo, setLogoInfo] = useState<{ generated: boolean; note?: string; brief?: string } | null>(null);
   const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
   /**
    * Dari mana logo yang terpasang berasal.
@@ -921,15 +921,31 @@ export default function StudioPage() {
        * tinggal satu, di route-nya, sehingga tema dan larangan teks tidak bisa
        * berbeda antara dua tempat.
        */
+      /**
+       * Pitch dan mandat agent IKUT dikirim, dan ketiadaannya dulu adalah penyebab logo huruf.
+       *
+       * Dengan nama dan ticker saja, route tidak punya subjek untuk digambar dan jatuh ke
+       * lencana abstrak yang terbaca sebagai satu huruf. Pitch menyebut apa token ini; route
+       * menerjemahkannya menjadi satu benda untuk dirender 3D.
+       */
       const res = await fetch("/api/generate-logo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenName, tokenSymbol: tokenTicker }),
+        body: JSON.stringify({
+          tokenName,
+          tokenSymbol: tokenTicker,
+          description: description.trim() || undefined,
+          persona: agentPersona.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (data.imageUrl) {
         setGeneratedLogo(data.imageUrl);
-        setLogoInfo({ generated: Boolean(data.generated), note: data.note });
+        setLogoInfo({
+          generated: Boolean(data.generated),
+          note: data.note,
+          brief: typeof data.brief === "string" ? data.brief : undefined,
+        });
         setLogoSource("generated");
         setLogoError(null);
       }
@@ -1613,6 +1629,25 @@ export default function StudioPage() {
           </Field>
         </div>
 
+        {/* Pitch di Express juga, karena Generate menggambar DARI kalimat ini. State-nya sama
+            dengan kolom "One-line pitch" di Advanced, jadi isinya tidak hilang saat berpindah
+            mode, dan ia tetap masuk listing seperti sebelumnya. */}
+        <Field label="What is it? (optional)" hint="Shown on the market page. Generate draws the image from it.">
+          <div className="relative">
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value.slice(0, 160))}
+              placeholder="e.g. A courier robot that delivers parcels for other agents"
+              aria-label="One-line pitch"
+              data-testid="express-description"
+              className={`${FIELD_CLASS} pr-14`}
+            />
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint" data-numeric>
+              {description.length}/160
+            </span>
+          </div>
+        </Field>
+
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-2.5">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent/30 bg-cream-2 p-1">
             <img src={generatedLogo ?? "/logo.svg"} alt="Token image preview" className="h-full w-full object-contain" />
@@ -1621,12 +1656,12 @@ export default function StudioPage() {
               jadi kolom empat baris. */}
           <div className="min-w-[9rem] flex-1">
             <div className="text-[11px] font-bold text-ink">Image</div>
-            <span className="text-[10px] text-ink-soft">
+            <span className="text-[10px] text-ink-soft" title={logoInfo?.brief ? `Subject: ${logoInfo.brief}` : undefined}>
               {logoSource === "uploaded"
                 ? `Your image, resized to ${LOGO_PX}×${LOGO_PX}`
                 : logoSource === "generated"
                 ? logoInfo?.generated
-                  ? "Rendered on the 0G router"
+                  ? "3D render on the 0G router"
                   : "Placeholder emblem: the router did not return an image"
                 : logoSource === "preset"
                 ? "ADEXTO robot preset"
@@ -2342,15 +2377,18 @@ export default function StudioPage() {
                             ? "Placeholder emblem"
                             : "0G z-image-turbo"}
                         </div>
-                        <span className="text-[10px] text-ink-soft" title={logoInfo?.note}>
+                        <span
+                          className="text-[10px] text-ink-soft"
+                          title={logoInfo?.brief ? `Subject: ${logoInfo.brief}` : logoInfo?.note}
+                        >
                           {logoSource === "uploaded"
                             ? `Resized to ${LOGO_PX}×${LOGO_PX} · generation is off`
                             : logoSource === "preset"
                             ? "Served as a file on this site, not stored inline"
                             : logoInfo === null
-                            ? "Generate an emblem, or upload one you already have"
+                            ? "Generate a 3D image from the name and pitch, or upload your own"
                             : logoInfo.generated
-                            ? `Rendered on the 0G router · ${LOGO_PX}×${LOGO_PX}`
+                            ? `3D render on the 0G router · ${LOGO_PX}×${LOGO_PX}`
                             : "Drawn locally — the router did not return an image"}
                         </span>
                       </div>
