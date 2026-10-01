@@ -28,7 +28,7 @@ const BLURBS: Record<string, string> = {
   fees: "Four legs, and where the protocol leg sits in each factory generation.",
   chains: "Four mainnets, and why the bytecode hashes match.",
   x402: "Pay with USDC over HTTP, receive on another chain.",
-  mcp: "Seven tools. One spends money, and it says whose key signs.",
+  mcp: "Ten tools. Two spend money and say whose key signs; one opens a market's agent to stakers.",
   "agent-identity": "One ERC-8004 registry, integrated, opt-in.",
   data: "Registry first, indexers additive, and why they differ per chain.",
   security: "What the contracts guarantee, and what has not been done.",

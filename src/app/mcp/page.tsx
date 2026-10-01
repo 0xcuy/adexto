@@ -19,14 +19,14 @@ import { ArrowRight, Coins, Plug, ShieldCheck, Terminal, Wrench } from "lucide-r
  *
  * SEMUA NAMA ALAT DI SINI DIBACA DARI SERVER YANG SAMA
  *
- * Enam baris di tabel adalah enam `registerTool` di `src/app/api/[transport]/route.ts`.
+ * Sepuluh baris di tabel adalah sepuluh `registerTool` di `src/app/api/[transport]/route.ts`.
  * Kalau daftarnya berubah, `tools/list` yang jadi acuan, bukan halaman ini.
  */
 
 export const metadata = {
   title: "MCP server — ADEXTO",
   description:
-    "Model Context Protocol server for ADEXTO's x402 cross-chain buys. Six tools: list markets, quote a buy, read trade history, and pay with USDC on Base to receive tokens on another chain.",
+    "Model Context Protocol server for ADEXTO markets. Ten tools: list markets, quote and buy with USDC on Base to receive tokens on another chain, read trade history, and ask a market's agent with a stake.",
 };
 
 const TOOLS: { name: string; cost: string; what: string }[] = [
@@ -56,9 +56,29 @@ const TOOLS: { name: string; cost: string; what: string }[] = [
     what: "Executes the buy. Without a payment header it returns the 402 challenge; with one it settles and the curve delivers.",
   },
   {
+    name: "pay_and_buy",
+    cost: "Operator's USDC, key required",
+    what: "Buys end to end with the operator's key on this server, not the caller's. Refused without the x-agent-key header, capped at 0.20 USDC.",
+  },
+  {
     name: "trade_history",
     cost: "Free",
     what: "Every swap on a market, newest first, with an explicit statement of whether the answer reaches the launch block.",
+  },
+  {
+    name: "check_stake",
+    cost: "Free",
+    what: "Reads an address's position in a market's stake contract: staked, minimum, active, totals. No lock: unstake works at any time.",
+  },
+  {
+    name: "access_message",
+    cost: "Free",
+    what: "The exact message an address signs to prove it is the one asking. Valid for 10 minutes; signing moves nothing.",
+  },
+  {
+    name: "ask_agent",
+    cost: "Free, needs an active stake",
+    what: "Asks the market's own agent, answered from facts read on-chain for that call. Refused unless the signer's stake is active.",
   },
 ];
 
@@ -96,7 +116,7 @@ export default function McpPage() {
         </div>
         <h2 className="text-2xl font-semibold text-ink tracking-tight">Point a client at it</h2>
         <p className="text-sm text-ink-soft leading-relaxed">
-          Streamable HTTP, no authentication and no API key. Five of the six tools cost nothing, so a client can
+          Streamable HTTP, no authentication and no API key. Eight of the ten tools cost nothing, so a client can
           connect and read every market before any wallet is involved.
         </p>
         <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
@@ -132,7 +152,7 @@ export default function McpPage() {
           <Wrench className="w-4 h-4 text-accent" />
           <span>THE TOOLS</span>
         </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Six tools, one of them paid</h2>
+        <h2 className="text-2xl font-semibold text-ink tracking-tight">Ten tools: two spend money, one needs a stake</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>

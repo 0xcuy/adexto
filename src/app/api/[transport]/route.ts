@@ -50,6 +50,7 @@ import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { rateLimit, secretEquals } from "@/lib/rate-limit";
+import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, marketStakeFor, type MarketStake } from "@/config/market-stakes";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -220,6 +221,111 @@ function agentIdentityOut(
   };
 }
 
+/** Kontrak stake sebuah pasar, untuk `get_market`. Null berarti pasar ini tidak punya stake. */
+function stakeSummary(p: ProjectRecord) {
+  const s = marketStakeFor(p.chainId, p.symbol);
+  if (!s) return null;
+  return { contract: s.contract, minStake: s.minStake, token: s.token, unlocks: "ask_agent", lock: "none: unstake works at any time" };
+}
+
+/** Provider baca untuk chain sebuah pasar, tanpa batch (relai dan Base menolaknya). */
+function marketProvider(chainId: number): ethers.JsonRpcProvider {
+  const chain = resolveChainOrDefault(chainId);
+  return new ethers.JsonRpcProvider(chain.rpcUrl, chain.chainId, { staticNetwork: true, batchMaxCount: 1 });
+}
+
+/** Posisi stake satu alamat, dibaca dari kontraknya saat ini juga. */
+async function readStake(stake: MarketStake, address: string) {
+  const c = new ethers.Contract(
+    stake.contract,
+    [
+      "function stakedOf(address) view returns (uint256)",
+      "function minStake() view returns (uint256)",
+      "function isActive(address) view returns (bool)",
+      "function totalStaked() view returns (uint256)",
+      "function stakerCount() view returns (uint256)",
+    ],
+    marketProvider(stake.chainId)
+  );
+  const [staked, min, active, total, count] = await Promise.all([
+    c.stakedOf(address),
+    c.minStake(),
+    c.isActive(address),
+    c.totalStaked(),
+    c.stakerCount(),
+  ]);
+  const fmt = (v: bigint) => ethers.formatUnits(v, stake.decimals);
+  return {
+    stakeContract: stake.contract,
+    address: ethers.getAddress(address),
+    staked: fmt(staked),
+    minStake: fmt(min),
+    active: Boolean(active),
+    totalStaked: fmt(total),
+    stakers: Number(count),
+    lock: "none: unstake works at any time",
+  };
+}
+
+/**
+ * Fakta yang boleh dipakai agent pasar dalam `ask_agent`, dibaca dari chain untuk jawaban ini.
+ * Setiap pembacaan berdiri sendiri: yang gagal dilaporkan null, bukan ditebak.
+ */
+async function marketFacts(p: ProjectRecord) {
+  const provider = marketProvider(p.chainId);
+  const curve = new ethers.Contract(
+    String(p.poolAddress),
+    [
+      "function depthFeeBps() view returns (uint256)",
+      "function creatorFeeBps() view returns (uint256)",
+      "function treasuryBuybackBps() view returns (uint256)",
+      "function protocolFeeBps() view returns (uint256)",
+      "function creator() view returns (address)",
+      "function swapCount() view returns (uint256)",
+      "function getReserves() view returns (uint256,uint256)",
+      "function totalTokensBurned() view returns (uint256)",
+    ],
+    provider
+  );
+  const read = async <T,>(fn: () => Promise<T>) => {
+    try {
+      return await fn();
+    } catch {
+      return null;
+    }
+  };
+  const [depth, creatorFee, buyback, protocol, creator, swaps, reserves, burned] = await Promise.all([
+    read(() => curve.depthFeeBps()),
+    read(() => curve.creatorFeeBps()),
+    read(() => curve.treasuryBuybackBps()),
+    read(() => curve.protocolFeeBps()),
+    read(() => curve.creator()),
+    read(() => curve.swapCount()),
+    read(() => curve.getReserves()),
+    read(() => curve.totalTokensBurned()),
+  ]);
+  const bps = (v: unknown) => (v === null ? null : `${(Number(v) / 100).toFixed(2)}%`);
+  const chain = resolveChainOrDefault(p.chainId);
+  const stake = marketStakeFor(p.chainId, p.symbol);
+  return {
+    market: `$${p.symbol} (${p.name}) on ${p.chainLabel}`,
+    token: p.tokenAddress,
+    curve: p.poolAddress,
+    venue: "AdextoCurve bonding curve, constant product over a virtual native reserve; 100% of supply was placed in the curve at launch",
+    feePerTradeSplit: { depthKeptInCurve: bps(depth), creator: bps(creatorFee), buybackAndBurn: bps(buyback), protocol: bps(protocol) },
+    creator,
+    swaps: swaps === null ? null : Number(swaps),
+    priceNative:
+      reserves === null
+        ? null
+        : `${(Number(ethers.formatEther((reserves as [bigint, bigint])[0])) / Number(ethers.formatUnits((reserves as [bigint, bigint])[1], 18))).toPrecision(4)} ${chain.nativeSymbol} per token`,
+    tokensBurnedByBuyback: burned === null ? null : ethers.formatUnits(burned as bigint, 18),
+    agentIdentity: await readAgentIdentity(p),
+    stake: stake ? { contract: stake.contract, minStake: stake.minStake, unlocks: "ask_agent", lock: "none" } : null,
+    readAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Dibaca LANGSUNG dari kontrak token, karena `get_market` adalah alat untuk satu pasar dan
  * tiga `eth_call` di sini murah. `agentBound` dibaca dulu: agent 0 adalah agent sungguhan.
@@ -249,6 +355,32 @@ async function readAgentIdentity(p: ProjectRecord) {
     return agentIdentityOut(p.chainId, p.agentIdentity, "registry-copy");
   }
 }
+
+/**
+ * Market dipilih dengan ticker DAN, bila diberikan, chain.
+ *
+ * Satu ticker boleh hidup di beberapa chain milik creator yang sama (`$SAI` di Robinhood Chain
+ * dan di Arbitrum). Tanpa `chainId` yang dipakai tetap deployment TERLAMA — sama dengan
+ * `findProject` dan gateway — supaya pemanggil lama tidak berubah perilakunya.
+ */
+function pickMarket(projects: ProjectRecord[], symbol: string, chainId?: number): ProjectRecord | undefined {
+  const want = String(symbol).toUpperCase();
+  const group = projects
+    .filter((p) => String(p.symbol).toUpperCase() === want)
+    .sort((a, b) => a.deployedAt - b.deployedAt);
+  if (chainId !== undefined && chainId !== null) return group.find((p) => Number(p.chainId) === Number(chainId));
+  return group.find((p) => p.poolLive) ?? group[0];
+}
+
+const CHAIN_ID = z
+  .number()
+  .int()
+  .positive()
+  .optional()
+  .describe(
+    "Chain id of the market, for a ticker that trades on more than one chain (list_markets shows chainId). " +
+      "Without it the oldest market for that ticker is used."
+  );
 
 const SYMBOL = z
   .string()
@@ -302,12 +434,12 @@ const mcp = createMcpHandler(
         title: "One market in detail",
         description:
           "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
-        inputSchema: { symbol: SYMBOL },
+        inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
       },
-      async ({ symbol }) => {
+      async ({ symbol, chainId }) => {
         const projects = registryProjects();
         const want = String(symbol).toUpperCase();
-        const found = projects.find((p) => String(p.symbol).toUpperCase() === want);
+        const found = pickMarket(projects, want, chainId);
         if (!found) {
           return jsonResult({
             error: "unknown_market",
@@ -338,8 +470,9 @@ const mcp = createMcpHandler(
            * dibaca — `trade_history` yang menyatakannya per panggilan lewat `complete`.
            */
           historySource: envioServes(found.chainId) ? "indexer" : "rpc-logs",
-          buyResource: `${GATEWAY}/v1/x402/buy/${found.slug}`,
+          buyResource: `${GATEWAY}/v1/x402/buy/${found.slug}?chain=${found.chainId}`,
           agentIdentity: await readAgentIdentity(found),
+          staking: stakeSummary(found),
         });
       }
     );
@@ -353,14 +486,16 @@ const mcp = createMcpHandler(
           "Reads the gateway's HTTP 402 challenge for a market and returns the quote and payment requirements without spending anything. The challenge carries the exact amount, the asset, the payTo address and the EIP-3009 domain, so an agent can decide before it signs. Free. This is the tool to call before buy_token.",
         inputSchema: {
           symbol: SYMBOL,
+          chainId: CHAIN_ID,
           to: z
             .string()
             .optional()
             .describe("Recipient address for the tokens. Optional for a quote; the curve delivers straight to it on a real buy."),
         },
       },
-      async ({ symbol, to }) => {
+      async ({ symbol, chainId, to }) => {
         const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
+        if (chainId) url.searchParams.set("chain", String(chainId));
         if (to) url.searchParams.set("to", to);
         const r = await passthrough(url.toString());
         /**
@@ -426,6 +561,7 @@ const mcp = createMcpHandler(
           "Executes the buy. Called without xPayment it returns the HTTP 402 challenge, which is the correct first response and not an error. Called with a signed x402 payload in xPayment it settles on Base and the curve on the destination chain sends the tokens straight to `to`. You never need native gas on the destination chain and never need to bridge.",
         inputSchema: {
           symbol: SYMBOL,
+          chainId: CHAIN_ID,
           to: z
             .string()
             .describe("Address that receives the tokens. The curve sends them here directly; we never custody them."),
@@ -437,8 +573,9 @@ const mcp = createMcpHandler(
             ),
         },
       },
-      async ({ symbol, to, xPayment }) => {
+      async ({ symbol, chainId, to, xPayment }) => {
         const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
+        if (chainId) url.searchParams.set("chain", String(chainId));
         url.searchParams.set("to", to);
 
         const r = await passthrough(url.toString(), {
@@ -504,9 +641,9 @@ const mcp = createMcpHandler(
         title: "Execute a buy end to end (operator-signed, capped)",
         description:
           "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, network, recipient or amount does not match the hard-coded limits. Delivery always goes to the signer.",
-        inputSchema: { symbol: SYMBOL },
+        inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
       },
-      async ({ symbol }) => {
+      async ({ symbol, chainId }) => {
         const ctx = requestContext.getStore();
         if (!AGENT_DEMO_KEY) {
           return jsonResult({
@@ -548,15 +685,16 @@ const mcp = createMcpHandler(
         }
 
         const want = String(symbol).toUpperCase();
-        const market = registryProjects().find((p) => String(p.symbol).toUpperCase() === want);
+        const market = pickMarket(registryProjects(), want, chainId);
         if (!market) {
           return jsonResult({ error: "unknown_market", symbol: want, known: registryProjects().map((p) => p.symbol) });
         }
 
         // 1. Tantangan diambil dari GERBANG, bukan dibangun di sini. Yang ditandatangani
-        //    harus berasal dari pihak yang akan memverifikasinya.
+        //    harus berasal dari pihak yang akan memverifikasinya. Chain selalu disebut, supaya
+        //    tagihan dan pengirimannya untuk market yang sama dengan yang dipilih di atas.
         const slug = market.slug;
-        const challenge = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}`);
+        const challenge = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}?chain=${market.chainId}`);
         if (challenge.status !== 402) {
           return jsonResult({
             error: "no_challenge",
@@ -644,7 +782,7 @@ const mcp = createMcpHandler(
 
         // 4. Bayar. Status gerbang diteruskan apa adanya, termasuk 503 out_of_inventory —
         //    agent harus bisa membedakan "tidak ada stok" dari "pembelian gagal".
-        const paid = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}`, {
+        const paid = await passthrough(`${GATEWAY}/v1/x402/buy/${slug}?chain=${market.chainId}`, {
           method: "POST",
           headers: { "content-type": "application/json", "X-PAYMENT": header },
         });
@@ -700,6 +838,7 @@ const mcp = createMcpHandler(
           "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
         inputSchema: {
           symbol: SYMBOL,
+          chainId: CHAIN_ID,
           limit: z
             .number()
             .int()
@@ -709,10 +848,10 @@ const mcp = createMcpHandler(
             .describe("Rows to return, newest first. Default 50, maximum 400."),
         },
       },
-      async ({ symbol, limit }) => {
+      async ({ symbol, chainId, limit }) => {
         const projects = registryProjects();
         const want = String(symbol).toUpperCase();
-        const market = projects.find((p) => String(p.symbol).toUpperCase() === want);
+        const market = pickMarket(projects, want, chainId);
         if (!market) {
           return jsonResult({ error: "unknown_market", symbol: want, known: projects.map((p) => p.symbol) });
         }
@@ -836,13 +975,186 @@ const mcp = createMcpHandler(
         });
       }
     );
+
+    // ── FREE: stake, read from the market's stake contract ──────────────────
+    /**
+     * Stake-to-access, in three tools: read a position, get the message to sign, ask.
+     *
+     * Every answer here is read from the stake contract on the market's own chain at call time,
+     * never from a cache, because `ask_agent` gates on it: a stake that was withdrawn a block ago
+     * must stop opening the agent a block ago. The contract has no lock, so "staked" is a fact of
+     * this moment and nothing more.
+     */
+    server.registerTool(
+      "check_stake",
+      {
+        title: "Read a wallet's stake in a market",
+        description:
+          "Free. Reads the market's stake contract on its own chain: how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market. There is no lock and no reward: unstake works at any time.",
+        inputSchema: {
+          symbol: SYMBOL,
+          chainId: CHAIN_ID,
+          address: z.string().describe("Wallet whose stake to read."),
+        },
+      },
+      async ({ symbol, chainId, address }) => {
+        const market = pickMarket(registryProjects(), String(symbol), chainId);
+        if (!market) return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase() });
+        const stake = marketStakeFor(market.chainId, market.symbol);
+        if (!stake) {
+          return jsonResult({ staking: false, symbol: market.symbol, chainId: market.chainId, detail: "This market has no stake contract." });
+        }
+        if (!ethers.isAddress(address)) return jsonResult({ error: "bad_address", address });
+        try {
+          return jsonResult({ staking: true, symbol: market.symbol, chainId: market.chainId, chain: market.chainLabel, ...(await readStake(stake, address)) });
+        } catch (e) {
+          return jsonResult({ error: "read_failed", detail: String((e as Error).message).slice(0, 160) });
+        }
+      }
+    );
+
+    server.registerTool(
+      "access_message",
+      {
+        title: "The message to sign before ask_agent",
+        description:
+          "Free. Returns the exact EIP-191 message an address signs (personal_sign) to prove it is the address asking. ask_agent accepts it for 10 minutes. Signing it moves nothing and costs nothing.",
+        inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID, address: z.string().describe("Wallet that will sign and ask.") },
+      },
+      async ({ symbol, chainId, address }) => {
+        const market = pickMarket(registryProjects(), String(symbol), chainId);
+        if (!market) return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase() });
+        if (!ethers.isAddress(address)) return jsonResult({ error: "bad_address", address });
+        const message = agentAccessMessage({
+          symbol: market.symbol,
+          chainId: market.chainId,
+          address: ethers.getAddress(address),
+          timestamp: Date.now(),
+        });
+        return jsonResult({
+          message,
+          sign: "personal_sign (EIP-191) with the key of this address",
+          validForSeconds: AGENT_ACCESS_MAX_AGE_MS / 1000,
+          next: "Call ask_agent with this exact message, the signature and your question.",
+        });
+      }
+    );
+
+    server.registerTool(
+      "ask_agent",
+      {
+        title: "Ask the market's agent (stake required)",
+        description:
+          "Asks the market's own agent a question about that market. Open to an address whose stake in the market's stake contract is active (check_stake), proven with a signed access_message. The answer comes from glm-5.3 on the 0G router and is limited to facts read on-chain for this call; the tool returns those facts next to the answer. Refused without an active stake, and nothing is charged either way.",
+        inputSchema: {
+          symbol: SYMBOL,
+          chainId: CHAIN_ID,
+          address: z.string().describe("The asking wallet. Must hold an active stake."),
+          message: z.string().max(400).describe("The exact message from access_message."),
+          signature: z.string().describe("personal_sign signature of message by address."),
+          question: z.string().min(3).max(500).describe("What to ask the agent about this market."),
+        },
+      },
+      async ({ symbol, chainId, address, message, signature, question }) => {
+        const market = pickMarket(registryProjects(), String(symbol), chainId);
+        if (!market) return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase() });
+        const stake = marketStakeFor(market.chainId, market.symbol);
+        if (!stake) return jsonResult({ answered: false, error: "no_stake_contract", detail: "This market has no stake contract, so there is no agent access to open." });
+        if (!ethers.isAddress(address)) return jsonResult({ answered: false, error: "bad_address" });
+        const who = ethers.getAddress(address);
+
+        // 1. The address proves itself. The message is rebuilt here and must match byte for byte.
+        const ts = Number((/Timestamp: (\d{10,16})/.exec(message) || [])[1]);
+        const expected = Number.isFinite(ts)
+          ? agentAccessMessage({ symbol: market.symbol, chainId: market.chainId, address: who, timestamp: ts })
+          : "";
+        let signer = "";
+        try {
+          signer = ethers.verifyMessage(message, signature);
+        } catch {
+          signer = "";
+        }
+        if (message !== expected || signer.toLowerCase() !== who.toLowerCase()) {
+          return jsonResult({ answered: false, error: "bad_signature", detail: "Sign the exact message from access_message with the key of address." });
+        }
+        if (Date.now() - ts > AGENT_ACCESS_MAX_AGE_MS || ts - Date.now() > 60_000) {
+          return jsonResult({ answered: false, error: "expired", detail: "The access message is older than 10 minutes. Get a new one from access_message." });
+        }
+
+        // 2. Rate limited per address, after the signature: an anonymous caller cannot spend
+        //    somebody else's allowance.
+        const gate = rateLimit(`ask_agent:${who.toLowerCase()}`, 6, 10 * 60 * 1000);
+        if (!gate.ok) return jsonResult({ answered: false, error: "rate_limited", retryAfterSeconds: gate.retryAfter });
+
+        // 3. The stake, read now.
+        let position: Awaited<ReturnType<typeof readStake>>;
+        try {
+          position = await readStake(stake, who);
+        } catch (e) {
+          return jsonResult({ answered: false, error: "stake_read_failed", detail: String((e as Error).message).slice(0, 160) });
+        }
+        if (!position.active) {
+          return jsonResult({
+            answered: false,
+            error: "stake_required",
+            detail: `Stake at least ${stake.minStake.toLocaleString("en-US")} ${market.symbol} in ${stake.contract} on chain ${market.chainId} to ask this agent. Approve the stake contract, then call stake(amount) from this address. Unstake works at any time.`,
+            stake: position,
+          });
+        }
+
+        // 4. The facts the agent may use, read on-chain for this call.
+        const facts = await marketFacts(market);
+        const key = process.env.OG_ROUTER_API_KEY || "";
+        if (!key) return jsonResult({ answered: false, error: "not_configured", detail: "OG_ROUTER_API_KEY is not set on this server." });
+        const system =
+          `You are the agent of the market $${market.symbol} ("${market.name}") on ${market.chainLabel}, launched through ADEXTO. ` +
+          `${market.agentPersona ? `Your mandate: ${market.agentPersona} ` : ""}` +
+          `Answer in English, in at most 110 words, using only the facts below. If the question needs anything else, say you do not know. ` +
+          `Never give investment advice and never predict prices.\n\nFacts read on-chain for this answer:\n${JSON.stringify(facts, null, 1)}`;
+        try {
+          const res = await fetch(`${process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1"}/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({
+              model: "glm-5.3",
+              reasoning_effort: "low",
+              temperature: 0.3,
+              max_tokens: 600,
+              messages: [
+                { role: "system", content: system },
+                { role: "user", content: String(question).slice(0, 500) },
+              ],
+            }),
+            signal: AbortSignal.timeout(40_000),
+          });
+          const j = await res.json().catch(() => ({}));
+          const answer = String(j?.choices?.[0]?.message?.content ?? "").trim();
+          if (!res.ok || !answer) {
+            return jsonResult({ answered: false, error: "model_failed", httpStatus: res.status, detail: JSON.stringify(j).slice(0, 200) });
+          }
+          return jsonResult({
+            answered: true,
+            symbol: market.symbol,
+            chainId: market.chainId,
+            answer,
+            answeredBy: "glm-5.3 on the 0G router, as this market's agent",
+            stake: position,
+            facts,
+          });
+        } catch (e) {
+          return jsonResult({ answered: false, error: "model_failed", detail: String((e as Error).message).slice(0, 160) });
+        }
+      }
+    );
   },
   {
     instructions:
       "ADEXTO sells positions in bonding-curve markets across chains, paid for with USDC on Base over x402. " +
       "Call list_markets to see what exists, quote_buy to price one without paying, then buy_token with a signed " +
       "payment. You never need gas on the destination chain and never need to bridge. Every tool except buy_token " +
-      "is free, and buy_token's first response is a 402 challenge, which is expected rather than a failure.",
+      "is free, and buy_token's first response is a 402 challenge, which is expected rather than a failure. " +
+      "A ticker can trade on more than one chain: pass chainId from list_markets to pick one. Markets with a stake " +
+      "contract open their agent to stakers: check_stake, access_message, then ask_agent.",
     capabilities: { tools: {} },
     serverInfo: { name: "adexto-x402", version: "1.0.0" },
   },

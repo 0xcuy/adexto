@@ -22,6 +22,8 @@ import HoldersPanel from "@/components/HoldersPanel";
 import WatchStar from "@/components/WatchStar";
 import MarketOwnerActions from "@/components/MarketOwnerActions";
 import AgentIdentityBadge from "@/components/AgentIdentityBadge";
+import MarketStakePanel from "@/components/MarketStakePanel";
+import { marketStakeFor } from "@/config/market-stakes";
 import { refreshMarketTelemetry, useMarketTelemetry } from "@/lib/use-market-telemetry";
 import Link from "next/link";
 import { explorerAddressUrl, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
@@ -140,6 +142,7 @@ export default function TokenTerminal({
 
 
   const onCorrectChain = isOnChain(project.chainId);
+  const marketStake = marketStakeFor(project.chainId, project.symbol);
   const nativeUsd = assetPriceUsd(chain.nativeSymbol, prices);
   const tokenPriceUsd = swap.spotPriceNative * nativeUsd;
   /** Penghasilan creator dalam USD: 0.0₄1 0G tidak memberi tahu apa pun soal nilainya. */
@@ -810,6 +813,10 @@ export default function TokenTerminal({
               protocolFee` di `buy` dan `sell`, dan `_assertSolvent()` memasukkannya sebagai
               suku, jadi uangnya terbukti dipegang kurva dan tidak ada jalan keluar selain
               `claimProtocolFees`. Yang tidak otomatis hanya pemindahannya keluar. */}
+
+          {/* Stake pasar ini, hanya bila pasarnya punya kontrak stake. Untuk semua pengunjung:
+              total dan minimumnya dibaca dari chain, dan tombolnya meminta dompet. */}
+          {marketStake && <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />}
 
           {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}

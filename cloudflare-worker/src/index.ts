@@ -319,9 +319,19 @@ interface Market {
 }
 
 /** Pasar diselesaikan lewat registry kami, bukan diterima dari pemanggil. */
-async function resolveMarket(origin: string, symbol: string): Promise<Market | { error: string }> {
+/**
+ * `chainId` memilih market ketika satu ticker hidup di lebih dari satu chain.
+ *
+ * Tanpa itu `/api/pool` memakai deployment TERLAMA. Itu tetap perilaku bawaan supaya klien lama
+ * tidak berubah, tetapi begitu `$SAI` ada di Robinhood Chain dan di Arbitrum, pembeli yang
+ * menginginkan Arbitrum tidak punya cara menyebutnya — tagihannya benar, tokennya terkirim di
+ * chain yang salah. `?chain=<id>` menutup itu.
+ */
+async function resolveMarket(origin: string, symbol: string, chainId: number | null): Promise<Market | { error: string }> {
   try {
-    const res = await fetch(`${origin}/api/pool?symbol=${encodeURIComponent(symbol)}`);
+    const res = await fetch(
+      `${origin}/api/pool?symbol=${encodeURIComponent(symbol)}${chainId ? `&chainId=${chainId}` : ""}`
+    );
     if (!res.ok) return { error: `market lookup HTTP ${res.status}` };
     const m: any = await res.json();
     if (!m?.poolAddress) return { error: `no market for ${symbol}` };
@@ -423,15 +433,23 @@ export default {
     }
     const symbol = raw.toUpperCase();
     const recipient = url.searchParams.get("to") || "";
+    // `chain` (atau `chainId`) memilih market bila ticker ada di beberapa chain. Nilai yang bukan
+    // bilangan bulat positif DITOLAK, tidak diabaikan: mengabaikannya akan diam-diam mengirim
+    // token di chain bawaan, padahal pemanggil jelas meminta chain tertentu.
+    const chainRaw = (url.searchParams.get("chain") || url.searchParams.get("chainId") || "").trim();
+    if (chainRaw && !/^\d{1,9}$/.test(chainRaw)) {
+      return json({ error: "bad_chain", detail: `chain must be a numeric chain id, got "${chainRaw.slice(0, 20)}"` }, 400);
+    }
+    const chainPick = chainRaw ? Number(chainRaw) : null;
 
     const origin = env.ADEXTO_ORIGIN || "https://adexto.xyz";
     const priceAtomic = BigInt(env.X402_PRICE_ATOMIC || "20000");
     const spreadBps = BigInt(env.X402_SPREAD_BPS || "300");
     const slippageBps = BigInt(env.X402_SLIPPAGE_BPS || "150");
 
-    const market = await resolveMarket(origin, symbol);
+    const market = await resolveMarket(origin, symbol, chainPick);
     if ("error" in market) {
-      return json({ error: "unknown_market", detail: market.error, symbol }, 404);
+      return json({ error: "unknown_market", detail: market.error, symbol, ...(chainPick ? { chainId: chainPick } : {}) }, 404);
     }
     if (!market.tradable) {
       return json({ error: "market_not_tradable", detail: market.reason, symbol: market.symbol }, 409);
@@ -451,7 +469,9 @@ export default {
      * maupun `workers.dev` — dan tidak bisa menyimpang ketika salah satunya berubah.
      */
     const requirements: PaymentRequirements = buildPaymentRequirements({
-      resource: `${url.origin}/v1/x402/buy/${market.symbol.toLowerCase()}`,
+      // Chain ikut di `resource` bila dipilih, supaya klien yang kembali ke alamat ini membayar
+      // market yang sama dengan yang dikutip.
+      resource: `${url.origin}/v1/x402/buy/${market.symbol.toLowerCase()}${chainPick ? `?chain=${market.chainId}` : ""}`,
       description:
         `Buy $${market.symbol} on ${market.chainName} with USDC on Base. ` +
         `The curve sends the tokens straight to your address; we never hold them.`,
