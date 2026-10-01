@@ -59,10 +59,15 @@ const LAUNCH_PATH = [
  * Both hold real tokens (the four dedicated stakes, and one hub per chain for every other
  * market), but a launch never calls either, so counting them would make the launch-path claim
  * measure something other than its name. Both ARE scanned: Slither and Aderyn run over the whole
- * directory, so their findings are in the totals. If they ever need a claim of their own, they
- * get a bucket of their own. Their scope is stated in audit/README.md.
+ * directory, so their findings are in the totals.
+ *
+ * They have a bucket of their own (`stakeCounts`) since the hub drew a Slither High: /security
+ * states how many findings sit in the contracts that hold stakes, and triages them, from these
+ * counts rather than from a number typed on the page. Their scope is stated in audit/README.md.
  */
+const STAKE_CONTRACTS = ["contracts/AdextoAgentStake.sol", "contracts/AdextoStakeHub.sol"];
 const inLaunchPath = (f) => LAUNCH_PATH.some((p) => String(f || "").endsWith(p.replace(/^contracts\//, "contracts/")));
+const inStakeContracts = (f) => STAKE_CONTRACTS.some((p) => String(f || "").endsWith(p));
 
 function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...opts });
@@ -230,13 +235,14 @@ if (!has(BIN.slither)) {
   } else {
     const j = JSON.parse(readFileSync(jsonPath, "utf8"));
     const dets = j?.results?.detectors ?? [];
-    const sev = {}, sevLaunch = {};
+    const sev = {}, sevLaunch = {}, sevStake = {};
     for (const d of dets) {
       const el = (d.elements ?? []).find((x) => x?.source_mapping?.filename_relative);
       const file = el ? el.source_mapping.filename_relative : "";
       const k = d.impact ?? "Unknown";
       sev[k] = (sev[k] ?? 0) + 1;
       if (inLaunchPath(file)) sevLaunch[k] = (sevLaunch[k] ?? 0) + 1;
+      if (inStakeContracts(file)) sevStake[k] = (sevStake[k] ?? 0) + 1;
     }
     const highLaunch = sevLaunch.High ?? 0;
     add({
@@ -248,6 +254,7 @@ if (!has(BIN.slither)) {
       ran: true,
       counts: { total: dets.length, ...sev },
       launchPathCounts: sevLaunch,
+      stakeCounts: sevStake,
       detail: `${dets.length} findings across 102 detectors · ${highLaunch} High on the launch path`,
     });
   }
@@ -276,6 +283,8 @@ if (!has(BIN.aderyn)) {
     const count = (grp) => (j?.[grp]?.issues ?? []).reduce((n, i) => n + (i.instances?.length ?? 0), 0);
     const kinds = (grp) => (j?.[grp]?.issues ?? []).length;
     const highInstances = (j?.high_issues?.issues ?? []).reduce((n, i) => n + (i.instances ?? []).filter((x) => inLaunchPath(x.contract_path)).length, 0);
+    const inStake = (grp) =>
+      (j?.[grp]?.issues ?? []).reduce((n, i) => n + (i.instances ?? []).filter((x) => inStakeContracts(x.contract_path)).length, 0);
     add({
       id: "aderyn",
       name: "Aderyn",
@@ -285,6 +294,7 @@ if (!has(BIN.aderyn)) {
       ran: true,
       counts: { highKinds: kinds("high_issues"), highInstances: count("high_issues"), lowKinds: kinds("low_issues"), lowInstances: count("low_issues") },
       launchPathCounts: { HighInstances: highInstances },
+      stakeCounts: { HighInstances: inStake("high_issues"), LowInstances: inStake("low_issues") },
       detail: `${kinds("high_issues")} High kinds / ${kinds("low_issues")} Low kinds · ${j?.detectors_used?.length ?? 0} detectors`,
     });
   } catch (e) {
@@ -475,7 +485,7 @@ const report = {
   commitTime,
   dirty,
   contractHashes,
-  scope: { launchPath: LAUNCH_PATH },
+  scope: { launchPath: LAUNCH_PATH, stakeContracts: STAKE_CONTRACTS },
   engines,
 };
 mkdirSync(path.dirname(REPORT), { recursive: true });

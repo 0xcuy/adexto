@@ -125,10 +125,12 @@ address found on an explorer can be placed:
 Do not spend time re-deriving these. The published scan and its triage are at `/security`. Counts
 below are from the scan of this tree (commit recorded in `src/config/security-report.json`).
 
-**Slither**: 39 findings, none High. 17 are on the launch path (7 Medium, 6 Low, 4 Informational),
-19 are in the Echidna harness and 3 in `AdextoAgentStake`.
-**Aderyn** (harness excluded): 1 High kind in 4 instances, all triaged below, and 5 Low kinds in 21
-instances. Solhint: 0 errors. Semgrep (general ruleset): 0 findings.
+**Slither**: 43 findings. 17 are on the launch path (7 Medium, 6 Low, 4 Informational, none High),
+19 are in the Echidna harness, 3 in `AdextoAgentStake` (all Low) and 4 in `AdextoStakeHub` (1 High,
+1 Medium, 2 Low). The launch-path and hub findings are triaged below.
+**Aderyn** (harness excluded): 1 High kind in 5 instances (4 on the launch path, 1 in the hub), all
+triaged below, and 7 Low kinds in 28 instances. Solhint: 0 errors. Semgrep (general ruleset): 0
+findings.
 
 | Finding | Why it is not exploitable |
 | --- | --- |
@@ -141,6 +143,9 @@ instances. Solhint: 0 errors. Semgrep (general ruleset): 0 findings.
 | `reentrancy-events` / `reentrancy-benign` in `_buy`, `sell` and `deployTrinity` | Events are emitted after the external calls to the token, which has no hooks and calls nothing back. The curve functions are `nonReentrant`; `deployTrinity` writes the ticker before the calls, so a re-entrant launch of the same ticker fails |
 | `low-level-calls` in `sell`, `claimCreatorFees` and `claimProtocolFees` | The native payouts. Each checks the returned `success`. The two claim destinations are `immutable` and validated at construction, and are re-checked before the transfer |
 | `missing-inheritance`: `AdextoToken` should inherit `IAdextoBurnable` | Informational. The curve declares that one-function interface locally so it names exactly what it calls |
+| `reentrancy-balance` (Slither High) and Aderyn "state change after external call" in `AdextoStakeHub.stake` | The balance read before `transferFrom` and compared after it is the balance-delta check itself: a position is credited only with what arrived. `stake`, `unstake` and `unstakeAll` all take the same `nonReentrant` guard, which Slither does not model, and the call ahead of the state changes is `balanceOf`, declared `view`, so STATICCALL. The only accepted tokens are ADEXTO market tokens (v1 and `0.11.0`), whose `_update` calls nothing external. Positions are kept per token, so a token lying about its own balance could only misreport positions in itself |
+| `incorrect-equality` in `AdextoStakeHub.stake` | The comparison is `balanceOf(hub) == before + amount`. Exactness is the point: a token that delivers a different amount, such as a fee-on-transfer token, is refused rather than credited. Both reads are inside one guarded call |
+| `calls-loop` in `AdextoStakeHub._madeByAdexto` | At most four factories (`MAX_FACTORIES`), fixed in the constructor, each asked inside `try` so a reverting one counts as no. The factories have no owner and no upgrade path |
 
 ## Properties already proven, and how
 

@@ -42,6 +42,8 @@ type Engine = {
   ran: boolean;
   counts?: Record<string, number>;
   launchPathCounts?: Record<string, number>;
+  /** Temuan di kontrak yang memegang stake (AdextoAgentStake, AdextoStakeHub). Lihat security-scan.mjs. */
+  stakeCounts?: Record<string, number>;
   detail?: string;
   cases?: string[];
 };
@@ -281,6 +283,59 @@ const TRIAGE: Array<{ finding: string; engine: string; where: string; why: strin
   },
 ];
 
+/**
+ * Triage temuan di kontrak stake: AdextoAgentStake (empat stake khusus) dan AdextoStakeHub (satu
+ * per chain untuk setiap pasar lain). Bukan jalur peluncuran, tetapi keduanya memegang token
+ * orang, dan hub menarik satu High dari Slither dan satu dari Aderyn, jadi angka itu tidak boleh
+ * berdiri tanpa penjelasan. Dicocokkan dengan build/security/slither.json dan aderyn.json dari
+ * pemindaian 515d579 (2026-10-02): Slither hub 1 High, 1 Medium, 2 Low; AgentStake 3 Low. Aderyn
+ * hub 1 High dan 6 Low; AgentStake 3 Low.
+ */
+const STAKE_TRIAGE: Array<{ finding: string; engine: string; where: string; why: string }> = [
+  {
+    finding: "reentrancy-balance",
+    engine: "Slither · High",
+    where: "AdextoStakeHub.stake",
+    why:
+      "Slither flags a balance read before an external call and compared after it. That comparison is the check itself: `stake` records the hub's balance of the token, pulls the amount with `transferFrom`, and requires the balance to have grown by exactly that amount, so a position is never credited with more than arrived. Nothing can run in between: every function that changes the hub's state takes the same `nonReentrant` guard, which Slither does not model, and the only tokens `stake` accepts are ADEXTO market tokens, whose transfers call nothing external. A token that lied about its own balance could only affect positions in itself, because positions are kept per token.",
+  },
+  {
+    finding: "Reentrancy: state change after external call",
+    engine: "Aderyn · High (1 instance)",
+    where: "AdextoStakeHub.stake",
+    why:
+      "The external call ahead of the state changes is `balanceOf`, which the hub's interface declares `view`, so it compiles to STATICCALL and can neither change state nor re-enter. It is the reading the balance check above compares against.",
+  },
+  {
+    finding: "incorrect-equality",
+    engine: "Slither · Medium",
+    where: "AdextoStakeHub.stake",
+    why:
+      "The strict comparison is `balanceOf(hub) == before + amount`. Exact equality is the point: a token that delivers a different amount than asked, such as a fee-on-transfer token, is refused rather than credited. Both reads happen inside one guarded call, so a transfer to the hub by anyone else cannot land between them.",
+  },
+  {
+    finding: "calls-loop",
+    engine: "Slither · Low (2 instances)",
+    where: "AdextoStakeHub._madeByAdexto",
+    why:
+      "Eligibility asks each factory fixed in the constructor for `curveOf(token)`: at most four (`MAX_FACTORIES`), each inside `try`, so a factory that reverts counts as no. The factories have no owner and no upgrade path.",
+  },
+  {
+    finding: "reentrancy-events",
+    engine: "Slither · Low (3 instances)",
+    where: "AdextoAgentStake.stake, unstake, unstakeAll",
+    why:
+      "The events are emitted after the token transfer. Each function is guarded, and the bound token, an ADEXTO market token, calls nothing back.",
+  },
+  {
+    finding: "unsafe-erc20-operation · state-variable-could-be-immutable · large-numeric-literal",
+    engine: "Aderyn · Low (9 instances)",
+    where: "AdextoAgentStake (3) · AdextoStakeHub (6)",
+    why:
+      "Every `transfer` and `transferFrom` result is checked with `require`, and the hub also checks the balance delta on the way in; a token that returns nothing fails decoding and reverts. The two lists Aderyn would make immutable are dynamic arrays, which Solidity cannot make immutable; the constructor writes them and nothing else can. `100_000` is the divisor behind the 0.001% minimum, published as `MIN_STAKE_DIVISOR`.",
+  },
+];
+
 function Count({ counts }: { counts?: Record<string, number> }) {
   if (!counts) return <span className="text-ink-faint">—</span>;
   const order = ["High", "Medium", "Low", "Informational", "Optimization"];
@@ -313,6 +368,8 @@ export default function SecurityPage() {
    * audit_consistency.mjs memeriksa kedua klaim itu terhadap contractHashes laporan.
    */
   const hubShort = STAKE_HUB_SOURCE_COMMIT.slice(0, 12);
+  /** Slither High di kontrak stake, dari ember `stakeCounts` laporan, bukan angka di halaman. */
+  const stakeHigh = engines.find((e) => e.id === "slither")?.stakeCounts?.High ?? 0;
   const hashedFiles = Object.keys(report.contractHashes ?? {});
   const scannedHub = hashedFiles.includes("contracts/AdextoStakeHub.sol");
   const repoBase = "https://github.com/0xcuy/adexto";
@@ -366,6 +423,14 @@ export default function SecurityPage() {
             {engines.find((e) => e.id === "slither")?.launchPathCounts?.High ?? 0} High severity
           </strong>{" "}
           on the contracts a launch actually runs. Each one is triaged below.
+          {stakeHigh > 0 && (
+            <>
+              {" "}
+              Outside it, the stake contracts, which hold stakers&apos; tokens, draw{" "}
+              <strong className="text-ink">{stakeHigh} High</strong>; their findings are triaged in a section of their
+              own.
+            </>
+          )}
         </p>
 
         <div className="overflow-hidden rounded-xl border border-line">
@@ -411,6 +476,14 @@ export default function SecurityPage() {
                         <span className="text-[9px] uppercase tracking-wider text-ink-faint">on launch path</span>
                         <div className="text-[10px]">
                           <Count counts={e.launchPathCounts} />
+                        </div>
+                      </div>
+                    )}
+                    {e.stakeCounts && Object.values(e.stakeCounts).some((n) => n > 0) && (
+                      <div className="mt-1 border-l-2 border-warn/30 pl-2">
+                        <span className="text-[9px] uppercase tracking-wider text-ink-faint">in the stake contracts</span>
+                        <div className="text-[10px]">
+                          <Count counts={e.stakeCounts} />
                         </div>
                       </div>
                     )}
@@ -469,6 +542,32 @@ export default function SecurityPage() {
         </p>
         <div className="space-y-2.5">
           {TRIAGE.map((t) => (
+            <div key={`${t.engine}-${t.finding}`} className="rounded-xl border border-line bg-surface p-4">
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <code className="rounded bg-cream-3 px-1.5 py-0.5 font-mono text-[11px] font-bold text-ink">
+                  {t.finding}
+                </code>
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-warn">{t.engine}</span>
+              </div>
+              <div className="mb-1 font-mono text-[10px] text-accent">{t.where}</div>
+              <p className="text-[11px] leading-relaxed text-ink-soft">{t.why}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 3b. Triage kontrak stake ─────────────────────────────────────────
+          Bukan jalur peluncuran, tetapi kontrak ini memegang token orang. */}
+      <section className="mb-12">
+        <h2 className="mb-1 text-xl font-semibold text-ink">Findings in the stake contracts</h2>
+        <p className="mb-5 text-xs leading-relaxed text-ink-soft">
+          A launch never calls <code className="text-accent">AdextoAgentStake</code> or{" "}
+          <code className="text-accent">AdextoStakeHub</code>, so their findings are not in the launch-path counts. They
+          do hold stakers&apos; tokens, and the hub holds every other market&apos;s stakes on its chain in one contract,
+          so each finding is listed here with the same treatment.
+        </p>
+        <div className="space-y-2.5">
+          {STAKE_TRIAGE.map((t) => (
             <div key={`${t.engine}-${t.finding}`} className="rounded-xl border border-line bg-surface p-4">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
                 <code className="rounded bg-cream-3 px-1.5 py-0.5 font-mono text-[11px] font-bold text-ink">
