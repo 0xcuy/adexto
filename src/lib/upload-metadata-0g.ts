@@ -47,12 +47,31 @@ export async function uploadMetadataTo0G(data: unknown, filename = "adexto_metad
       const indexer = new Indexer(OG_STORAGE_INDEXER);
 
       console.log(`📡 Uploading to 0G DA (${OG_STORAGE_INDEXER})...`);
-      const [result, error] = await indexer.upload(
-        file,
-        OG_RPC_URL,
-        signer as any,
-        { skipIfFinalized: true, finalityRequired: false }
+      /**
+       * Dibatasi waktu, dan batasnya di bawah batas proxy.
+       *
+       * Diukur 2026-10-01 di produksi: SDK mencetak "Waiting for storage node to sync" berulang
+       * tanpa batas ketika node storage tertinggal dari chain. `prepare` menunggu bersamanya,
+       * Cloudflare memutus permintaan di 100 detik dengan halaman HTML, dan Studio melaporkan
+       * "Unexpected token '<'" — peluncuran berhenti padahal tidak ada yang salah dengan
+       * pasarnya. Dengan batas ini unggahan yang macet berakhir sebagai `ok: false`, dan
+       * pemanggil memakai commitment keccak atas isi metadatanya, yang memang jalur yang sudah
+       * ada untuk kegagalan unggah dan dilaporkan sebagai `daStorageOk: false`.
+       *
+       * Unggahan SDK tidak bisa dibatalkan dari luar, jadi ia boleh selesai di latar; yang
+       * dihentikan hanya penantian peluncuran.
+       */
+      const UPLOAD_TIMEOUT_MS = Number(process.env.OG_DA_UPLOAD_TIMEOUT_MS || 45_000);
+      const timedOut = new Promise<[null, Error]>((resolve) =>
+        setTimeout(
+          () => resolve([null, new Error(`0G DA upload did not finish within ${UPLOAD_TIMEOUT_MS / 1000} s (storage node behind the chain)`)]),
+          UPLOAD_TIMEOUT_MS
+        )
       );
+      const [result, error] = await Promise.race([
+        indexer.upload(file, OG_RPC_URL, signer as any, { skipIfFinalized: true, finalityRequired: false }) as Promise<[unknown, Error | null]>,
+        timedOut,
+      ]);
 
       if (error) {
         return { ok: false, error: error.message };
