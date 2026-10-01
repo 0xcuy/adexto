@@ -45,6 +45,22 @@ export const MARKET_STAKES: MarketStake[] = [
     deployBlock: 510578200,
     deployTx: "0x129e503750a64dde02150bf8c076737845a5fc4869d9722726fd296ec106c865",
   },
+  /**
+   * $SAI (SAi Robin) on Robinhood Chain. Deployed 2026-10-01 by the deployer with
+   * scripts/deploy-market-stake.mjs (receipt status 1); immutables read back from the chain:
+   * stakeToken = the token below, minStake = 10,000 SAI, empty at deployment. Sourcify: exact
+   * match, creation and runtime.
+   */
+  {
+    chainId: 4663,
+    symbol: "SAI",
+    token: "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
+    contract: "0x01b250a2db25561dB185f4628B93C72048D8bc1B",
+    minStake: 10000,
+    decimals: 18,
+    deployBlock: 77315523,
+    deployTx: "0x158e9847afbe65d9170ad334ba974c94645057913dea8252100fc41a1f605cc9",
+  },
 ];
 
 export function marketStakeFor(chainId: number, symbol: string): MarketStake | null {
