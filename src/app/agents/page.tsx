@@ -227,8 +227,9 @@ async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
         <p className="text-sm text-ink-soft leading-relaxed">
           Owners are read from the ERC-8004 Identity Registry. The same list, filtered to agents our wallets still own,
           is published at <code className="text-accent">/.well-known/agent-registration.json</code> as the domain proof
-          ERC-8004 describes. Each agent&apos;s registration file is stored on chain; the card link shows the file it
-          would point to.
+          ERC-8004 describes. Each agent&apos;s on-chain agentURI points to its registration file on this site, and
+          the card link opens that file. Whoever controls adexto.xyz can update the file; the market a token is bound
+          to cannot change.
         </p>
         <div className="overflow-x-auto rounded-card border border-line">
           <table className="w-full text-left text-xs">
