@@ -7,7 +7,7 @@ import { ERC20_ABI } from "@/lib/dex";
 import { nativePrices } from "@/lib/native-price";
 import { STABLE_PRICES, assetPriceUsd, formatTokenAmount, type AssetPrices } from "@/lib/pricing";
 import { cardNative, cardUsd } from "@/lib/share-card-format";
-import { brandMark, publicOrigin, robotImage, tokenLogoSrc } from "@/lib/share-card-assets";
+import { brandMark, chainMarkImage, publicOrigin, robotImage, tokenLogoSrc } from "@/lib/share-card-assets";
 import { CARD_COLORS, ShareCard, chainChipLabel } from "@/lib/share-card-layout";
 import { readPosition } from "@/lib/position-server";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -158,6 +158,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
         title={`I hold $${project.symbol}`}
         subtitle={project.name}
         chainLabel={chainChipLabel(chain.name)}
+        chainMark={chainMarkImage(chain, 24)}
         stats={[
           {
             label: "value now",

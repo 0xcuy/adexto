@@ -55,6 +55,8 @@ export interface ShareCardProps {
   title: string;
   subtitle: string;
   chainLabel: string;
+  /** Logo chain di depan label chip, dari `chainMarkImage()`; null berarti chip tanpa logo. */
+  chainMark?: CardImage | null;
   /** Angka pertama digambar paling besar. */
   stats: CardStat[];
   note: { text: string; color: string };
@@ -165,16 +167,22 @@ export function ShareCard(p: ShareCardProps) {
               <div
                 style={{
                   display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                   fontSize: "18px",
                   fontWeight: 600,
                   color: C.violet,
                   border: `1px solid rgba(177,147,255,0.55)`,
                   background: "rgba(124,58,237,0.16)",
                   borderRadius: "999px",
-                  padding: "4px 14px",
+                  padding: p.chainMark ? "4px 14px 4px 8px" : "4px 14px",
                 }}
               >
-                {p.chainLabel}
+                {/* Logo apa adanya, tanpa dipotong bulat: sama dengan pemilih chain di situs. */}
+                {p.chainMark ? (
+                  <img src={p.chainMark.src} width={p.chainMark.width} height={p.chainMark.height} style={{ objectFit: "contain" }} />
+                ) : null}
+                <span>{p.chainLabel}</span>
               </div>
             </div>
           </div>

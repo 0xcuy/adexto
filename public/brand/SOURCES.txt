@@ -104,3 +104,11 @@ izinkan, dan entri itu memakai monogram "CG".
 
 Keputusan ini dijaga mesin: audit_consistency.mjs bagian 8 gagal kalau entri
 CoinGecko di StackMarquee.tsx suatu saat diberi `logo:`.
+--------------------------------------------------------------------------------
+SALINAN RASTER UNTUK KARTU BAGIKAN — public/share/chain-*.png
+file      : chain-arbitrum.png, chain-base.png, chain-monad.png, chain-robinhood.png
+sumber    : arbitrum.svg, base.svg, monad.svg, robinhood.svg di direktori ini
+perubahan : tidak ada pada bentuk atau warna. Dirasterkan ke PNG 96x96 berlatar transparan
+            (fit contain) oleh scripts/render-chain-marks.mjs, karena satori (next/og) tidak
+            menggambar SVG. Dipakai di chip chain kartu pasar dan kartu posisi. 0G memakai
+            0g-token.png langsung, sama seperti chainMark() di src/lib/chains.ts.

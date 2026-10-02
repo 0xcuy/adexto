@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, normalize, sep } from "node:path";
+import { chainMark, type ChainInfo } from "@/lib/chains";
 
 /**
  * Aset dan alamat untuk kartu bagikan (`/api/share-card/...`). Hanya untuk route server:
@@ -108,6 +109,25 @@ export function tokenLogoSrc(image: string | null | undefined): string | null {
   if (image === "/logo.svg") return brandMark(256)?.src ?? null;
   if (/^\/[^/?#][^?#]*\.(?:png|jpe?g|webp)$/i.test(image)) return publicFileDataUri(image.slice(1));
   return null;
+}
+
+/**
+ * Logo chain untuk chip chain di kartu, logo yang SAMA dengan pemilih chain di header.
+ *
+ * Sumbernya `chainMark()`, jadi 0G memakai logo token resminya (`0g-token.png`) dan chain lain
+ * logo dari `public/brand/`. Satori tidak menggambar SVG, maka logo SVG dibaca dari salinan
+ * rasternya `public/share/chain-<nama>.png` (`node scripts/render-chain-marks.mjs`). Chain tanpa
+ * mark (devchain) atau berkas yang hilang menjawab null, dan chip tampil hanya dengan teks.
+ */
+export function chainMarkImage(
+  chain: Pick<ChainInfo, "key" | "brandLogo">,
+  size: number
+): { src: string; width: number; height: number } | null {
+  const mark = chainMark(chain);
+  if (!mark) return null;
+  const svg = mark.match(/^\/brand\/([a-z0-9-]+)\.svg$/i);
+  const src = svg ? publicFileDataUri(`share/chain-${svg[1].toLowerCase()}.png`) : publicFileDataUri(mark.replace(/^\//, ""));
+  return src ? { src, width: size, height: size } : null;
 }
 
 /**
