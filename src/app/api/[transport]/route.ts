@@ -52,6 +52,11 @@ import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { rateLimit, secretEquals } from "@/lib/rate-limit";
 import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, stakeForMarket, type MarketStake } from "@/config/market-stakes";
 import { computeStakeForMarket, HUB_COMPUTE_SHARE_BPS } from "@/config/agent-compute";
+import { MARKET_CATEGORIES } from "@/lib/categories";
+import { prepareLaunch, registerLaunch, type IpHeaders } from "@/lib/agent-launch";
+import { prepareClaim, prepareStake } from "@/lib/agent-tx";
+// Versi server SATU sumber dengan entri MCP Registry dan kartu server, supaya ketiganya tidak berpisah.
+import serverMeta from "../../../../server.json";
 
 /**
  * Gateway x402, dari konstanta yang SAMA dengan yang dipakai UI.
@@ -76,7 +81,23 @@ const SITE = "https://adexto.xyz";
  * `AsyncLocalStorage` dan bukan variabel modul: variabel modul akan bocor antar permintaan
  * yang tumpang tindih, dan yang bocor di sini adalah izin membelanjakan.
  */
-const requestContext = new AsyncLocalStorage<{ agentKey: string | null }>();
+const requestContext = new AsyncLocalStorage<{ agentKey: string | null; ipHeaders: IpHeaders }>();
+
+/**
+ * Header identitas jaringan pemanggil, diteruskan apa adanya ke tahap `prepare` Studio yang
+ * dipanggil `prepare_launch` di dalam proses. Tanpa ini semua agen berbagi satu ember batas laju
+ * (milik server sendiri); dengan ini setiap agen dibatasi persis seperti pengunjung Studio dari
+ * IP yang sama. `clientIp` yang menilai mana yang boleh dipercaya, bukan berkas ini.
+ */
+const IP_HEADERS = ["x-peer-ip", "x-real-ip", "cf-connecting-ip", "x-forwarded-for"] as const;
+function ipHeadersOf(request: Request): IpHeaders {
+  const out: IpHeaders = {};
+  for (const name of IP_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) out[name] = value;
+  }
+  return out;
+}
 
 /** Kunci yang harus dibawa pemanggil untuk memakai alat berbayar. Kosong = alat mati. */
 const AGENT_DEMO_KEY = process.env.AGENT_DEMO_KEY ?? "";
@@ -426,6 +447,20 @@ const SYMBOL = z
       "token you did not ask for. Call list_markets first if you do not know it."
   );
 
+/**
+ * Anotasi alat (`ToolAnnotations` MCP). Direktori MCP memeriksanya, dan klien memakainya untuk
+ * memutuskan alat mana yang perlu konfirmasi pengguna. Ditulis seketat kenyataannya: dua alat yang
+ * memindahkan uang ditandai destruktif karena pembayarannya tidak bisa ditarik kembali, dan
+ * `prepare_launch` bukan read-only karena langkah keduanya meng-anchor metadata ke 0G DA.
+ */
+const READ_LOCAL = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+const READ_CHAIN = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } as const;
+const SPENDS_MONEY = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } as const;
+
+const ADDRESS = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, "a 20-byte hex address");
+
 const mcp = createMcpHandler(
   (server) => {
     // ── FREE: discovery ────────────────────────────────────────────────────────
@@ -433,6 +468,7 @@ const mcp = createMcpHandler(
       "list_markets",
       {
         title: "List every tradable ADEXTO market",
+        annotations: { title: "List every tradable ADEXTO market", ...READ_LOCAL },
         description:
           "Every bonding-curve market this gateway can sell, across all chains it serves, with its ticker, chain, curve address and whether it is currently tradable. Free. Start here: the buy tools require a ticker and deliberately have no default.",
         inputSchema: {},
@@ -467,6 +503,7 @@ const mcp = createMcpHandler(
       "get_market",
       {
         title: "One market in detail",
+        annotations: { title: "One market in detail", ...READ_CHAIN },
         description:
           "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
@@ -517,6 +554,7 @@ const mcp = createMcpHandler(
       "quote_buy",
       {
         title: "Quote a cross-chain buy without paying",
+        annotations: { title: "Quote a cross-chain buy without paying", ...READ_CHAIN },
         description:
           "Reads the gateway's HTTP 402 challenge for a market and returns the quote and payment requirements without spending anything. The challenge carries the exact amount, the asset, the payTo address and the EIP-3009 domain, so an agent can decide before it signs. Free. This is the tool to call before buy_token.",
         inputSchema: {
@@ -556,6 +594,7 @@ const mcp = createMcpHandler(
       "how_to_pay",
       {
         title: "How to pay this gateway",
+        annotations: { title: "How to pay this gateway", ...READ_LOCAL },
         description:
           "The exact steps to turn a 402 challenge into a settled cross-chain buy: what to sign, which chain settles, and which header carries the payment. Free. Read this if you have never paid an x402 endpoint before.",
         inputSchema: {},
@@ -592,6 +631,7 @@ const mcp = createMcpHandler(
       "buy_token",
       {
         title: "Buy a market cross-chain with USDC on Base",
+        annotations: { title: "Buy a market cross-chain with USDC on Base", ...SPENDS_MONEY },
         description:
           "Executes the buy. Called without xPayment it returns the HTTP 402 challenge, which is the correct first response and not an error. Called with a signed x402 payload in xPayment it settles on Base and the curve on the destination chain sends the tokens straight to `to`. You never need native gas on the destination chain and never need to bridge.",
         inputSchema: {
@@ -674,6 +714,7 @@ const mcp = createMcpHandler(
       "pay_and_buy",
       {
         title: "Execute a buy end to end (operator-signed, capped)",
+        annotations: { title: "Execute a buy end to end (operator-signed, capped)", ...SPENDS_MONEY },
         description:
           "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, network, recipient or amount does not match the hard-coded limits. Delivery always goes to the signer.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
@@ -869,6 +910,7 @@ const mcp = createMcpHandler(
       "trade_history",
       {
         title: "Every swap on a market, and how complete the answer is",
+        annotations: { title: "Every swap on a market, and how complete the answer is", ...READ_CHAIN },
         description:
           "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
         inputSchema: {
@@ -1024,6 +1066,7 @@ const mcp = createMcpHandler(
       "check_stake",
       {
         title: "Read a wallet's stake in a market",
+        annotations: { title: "Read a wallet's stake in a market", ...READ_CHAIN },
         description:
           "Free. Reads the market's stake contract on its own chain: its own AdextoAgentStake where it has one, otherwise the chain's AdextoStakeHub, which accepts every other market launched through ADEXTO from its first block. Returns how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market and an Agent Compute API key (see get_market staking.unlocks). There is no lock and no reward: unstake works at any time.",
         inputSchema: {
@@ -1052,6 +1095,7 @@ const mcp = createMcpHandler(
       "access_message",
       {
         title: "The message to sign before ask_agent",
+        annotations: { title: "The message to sign before ask_agent", ...READ_LOCAL },
         description:
           "Free. Returns the exact EIP-191 message an address signs (personal_sign) to prove it is the address asking. ask_agent accepts it for 10 minutes. Signing it moves nothing and costs nothing.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID, address: z.string().describe("Wallet that will sign and ask.") },
@@ -1079,6 +1123,13 @@ const mcp = createMcpHandler(
       "ask_agent",
       {
         title: "Ask the market's agent (stake required)",
+        annotations: {
+          title: "Ask the market's agent (stake required)",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         description:
           "Asks the market's own agent a question about that market. Open to an address whose stake in the market's stake contract is active (check_stake), proven with a signed access_message. The answer comes from glm-5.3 on the 0G router and is limited to facts read on-chain for this call; the tool returns those facts next to the answer. Refused without an active stake, and nothing is charged either way.",
         inputSchema: {
@@ -1184,6 +1235,141 @@ const mcp = createMcpHandler(
         }
       }
     );
+
+    // ── LAUNCH, STAKE, CLAIM: unsigned transactions, signed by the caller's own key ─────────────
+    //
+    // Pola Flaunch: server menyusun, agen menandatangani. Tidak ada kunci di sini dan tidak ada
+    // jalur peluncuran kedua — `prepare_launch`/`register_launch` memanggil tahap Studio yang sama
+    // (src/lib/agent-launch.ts), `prepare_stake`/`prepare_claim` meniru panel situs (agent-tx.ts).
+    server.registerTool(
+      "prepare_launch",
+      {
+        title: "Prepare a market launch for your own key to sign",
+        annotations: {
+          title: "Prepare a market launch for your own key to sign",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+        description:
+          "Launch a new ADEXTO market without handing over a key. Call it once without a signature: it checks the " +
+          "ticker, the chain and an optional ERC-8004 agent you own, and returns an attestation message for the " +
+          "deployer to sign (EIP-191). Call it again with the same arguments plus attestationMessage and " +
+          "attestationSignature: it anchors the launch metadata and returns the unsigned deployTrinity transaction " +
+          "(value 0, gas only), simulated from your address, with a gas estimate. Fee preset: 1.00% per trade, 0.70% " +
+          "to the creator. All supply goes into the curve; the creator gets no allocation. After the transaction is " +
+          "mined, call register_launch.",
+        inputSchema: {
+          chainId: z
+            .number()
+            .int()
+            .positive()
+            .describe("Chain to launch on: 143 Monad, 42161 Arbitrum One, 4663 Robinhood Chain, 8453 Base, 16661 0G."),
+          name: z.string().min(1).max(64).describe("Token name, up to 64 bytes."),
+          symbol: z.string().min(2).max(12).describe("Ticker, 2 to 12 letters A-Z or digits. Permanent on chain."),
+          deployer: ADDRESS.describe(
+            "Address that signs the attestation and sends the launch transaction. It becomes the market's creator and receives the creator fee."
+          ),
+          agentId: z
+            .string()
+            .regex(/^\d{1,78}$/)
+            .optional()
+            .describe("ERC-8004 agent id on this chain to bind to the token, owned by the deployer. Omit to launch unbound."),
+          description: z.string().max(280).optional().describe("One-line pitch shown on the market page."),
+          website: z.string().max(200).optional(),
+          x: z.string().max(200).optional().describe("X handle or URL."),
+          github: z.string().max(200).optional(),
+          docs: z.string().max(200).optional(),
+          image: z
+            .string()
+            .max(200_000)
+            .optional()
+            .describe("Logo as a base64 data URI (image/png, image/jpeg or image/webp). Omit for the default logo."),
+          category: z
+            .enum(MARKET_CATEGORIES.map((c) => c.key) as [string, ...string[]])
+            .optional()
+            .describe("Market category shown on the explorer."),
+          attestationMessage: z.string().max(400).optional().describe("Second call only: the message the first call returned."),
+          attestationSignature: z.string().max(200).optional().describe("Second call only: the deployer's EIP-191 signature of it."),
+        },
+      },
+      async (args) => {
+        const ctx = requestContext.getStore();
+        return jsonResult(await prepareLaunch(args, ctx?.ipHeaders ?? {}));
+      }
+    );
+
+    server.registerTool(
+      "register_launch",
+      {
+        title: "List a mined launch on ADEXTO",
+        annotations: {
+          title: "List a mined launch on ADEXTO",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+        description:
+          "After the prepare_launch transaction is mined, lists the new market on adexto.xyz, in list_markets and on " +
+          "the x402 gateway. Reads the TrinityProjectDeployed event from the ADEXTO factory in the receipt; every " +
+          "value it registers comes from that event, not from the caller. Calling it again for the same transaction " +
+          "returns the existing listing.",
+        inputSchema: {
+          chainId: z.number().int().positive().describe("Chain the launch transaction was sent on."),
+          txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).describe("Hash of the mined launch transaction."),
+        },
+      },
+      async ({ chainId, txHash }) => {
+        const ctx = requestContext.getStore();
+        return jsonResult(await registerLaunch({ chainId, txHash }, ctx?.ipHeaders ?? {}));
+      }
+    );
+
+    server.registerTool(
+      "prepare_stake",
+      {
+        title: "Prepare a stake for your own key to sign",
+        annotations: { title: "Prepare a stake for your own key to sign", ...READ_CHAIN },
+        description:
+          "Unsigned transactions that stake a market's token in its stake contract or its chain's stake hub: an " +
+          "approval for the exact amount (only if the allowance is short), then the stake. Checks balance, minimum " +
+          "and hub eligibility first, so a stake that would revert is refused before any gas is spent. No lock: " +
+          "unstake works at any time. A stake opens ask_agent for that market.",
+        inputSchema: {
+          symbol: SYMBOL,
+          chainId: CHAIN_ID,
+          address: ADDRESS.describe("Wallet that holds the tokens and will sign."),
+          amount: z.string().regex(/^\d+(\.\d{1,18})?$/).describe("Whole tokens to stake, for example \"10000\"."),
+        },
+      },
+      async ({ symbol, chainId, address, amount }) => {
+        const projects = registryProjects();
+        const found = pickMarket(projects, symbol, chainId);
+        if (!found) {
+          return jsonResult({ error: "unknown_market", symbol: String(symbol).toUpperCase(), detail: "list_markets returns every market served here." });
+        }
+        return jsonResult(await prepareStake(found, address, amount));
+      }
+    );
+
+    server.registerTool(
+      "prepare_claim",
+      {
+        title: "Prepare a creator fee claim",
+        annotations: { title: "Prepare a creator fee claim", ...READ_CHAIN },
+        description:
+          "Unsigned transactions that collect the creator fee owed to an address across its markets: one " +
+          "claimCreatorFees() call per curve, or one Multicall3 batch per chain when several are owed. The curve " +
+          "always pays its immutable creator, whoever sends the transaction.",
+        inputSchema: {
+          address: ADDRESS.describe("Creator address whose owed fees to collect."),
+          chainId: z.number().int().positive().optional().describe("Only this chain. Omit for every chain."),
+        },
+      },
+      async ({ address, chainId }) => jsonResult(await prepareClaim(address, chainId))
+    );
   },
   {
     instructions:
@@ -1193,15 +1379,17 @@ const mcp = createMcpHandler(
       "is free, and buy_token's first response is a 402 challenge, which is expected rather than a failure. " +
       "A ticker can trade on more than one chain: pass chainId from list_markets to pick one. Every market can be " +
       "staked, in its own stake contract or its chain's stake hub, and a stake opens its agent: check_stake, " +
-      "access_message, then ask_agent.",
+      "access_message, then ask_agent. To launch your own market with your own key: prepare_launch (once for the " +
+      "attestation message, once with its signature), send the unsigned transaction it returns, then register_launch. " +
+      "prepare_stake and prepare_claim also return unsigned transactions; this server never holds your key.",
     capabilities: { tools: {} },
-    serverInfo: { name: "adexto-x402", version: "1.0.0" },
-  },
-  {
-    // Harus cocok dengan letak `[transport]`: berkas ini ada di src/app/api/[transport]/,
-    // jadi klien menyambung ke `<origin>/api/mcp`.
-    basePath: "/api",
-    maxDuration: 60,
+    /**
+     * mcp-handler 2.x: SATU objek opsi (opsi server SDK + `serverInfo`/`verboseLogs`). `basePath`
+     * dan `maxDuration` dari 1.x sudah tidak ada; path-nya dipilah `handler` di bawah. 2.x
+     * melayani spesifikasi 2026-07-28 (tanpa sesi, tanpa `initialize`, `server/discover`) dan
+     * klien 2025 lewat fallback stateless dari handler yang sama.
+     */
+    serverInfo: { name: "adexto-x402", version: serverMeta.version },
     verboseLogs: false,
   }
 );
@@ -1229,8 +1417,24 @@ function parseError(message: string): Response {
   );
 }
 
+/**
+ * Hanya `/api/mcp`. Berkas ini ada di `src/app/api/[transport]/`, jadi Next mengirim ke sini
+ * SETIAP `/api/<x>` yang tidak punya route sendiri. mcp-handler 1.x memilah path-nya sendiri
+ * (`basePath`); 2.x melayani permintaan apa pun yang diberikan kepadanya, jadi pemilahannya
+ * sekarang di sini. Transport HTTP+SSE lama (`/api/sse`, `/api/message`) sudah dicabut dari
+ * spesifikasi dan dari 2.x, dan menjawab 404 seperti path lain yang tidak dikenal.
+ */
+function notMcp(): Response {
+  return new Response(
+    JSON.stringify({ error: "not_found", detail: "The MCP endpoint is /api/mcp (Streamable HTTP)." }),
+    { status: 404, headers: { "content-type": "application/json" } }
+  );
+}
+
 async function handler(request: Request): Promise<Response> {
-  if (request.method !== "POST") return mcp(request);
+  if (!/\/api\/mcp\/?$/.test(new URL(request.url).pathname)) return notMcp();
+  const ctx = { agentKey: request.headers.get("x-agent-key"), ipHeaders: ipHeadersOf(request) };
+  if (request.method !== "POST") return requestContext.run(ctx, () => mcp(request));
 
   const raw = await request.text();
   if (!raw.trim()) {
@@ -1253,7 +1457,7 @@ async function handler(request: Request): Promise<Response> {
    * itu masih terlihat. Hanya `pay_and_buy` yang membacanya; alat lainnya gratis dan tidak
    * peduli siapa pemanggilnya.
    */
-  return requestContext.run({ agentKey: request.headers.get("x-agent-key") }, () => mcp(rebuilt));
+  return requestContext.run(ctx, () => mcp(rebuilt));
 }
 
 export { handler as GET, handler as POST, handler as DELETE };
