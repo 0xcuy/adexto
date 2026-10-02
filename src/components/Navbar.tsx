@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, ArrowDownUp, Sparkles } from "lucide-react";
+import { Compass, ArrowDownUp, Sparkles, Bot } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -51,6 +51,8 @@ export default function Navbar() {
      * pengunjung demi menonjolkan yang belum mereka cari.
      */
     { href: "/agent-compute", label: "Agent Compute", icon: Sparkles },
+    // Plan 1: direktori agen, tepat sesudah Agent Compute (posisi dipatok di .kiro/plans/README.md §3).
+    { href: "/agents", label: "Agents", icon: Bot },
     // "Docs" & "Agent demo" dicabut dari header: tautan tersedia di footer.
     /**
      * Entri "Deck" ke /pitch DICABUT bersama rutenya.

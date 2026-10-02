@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   FileText,
   Plug,
+  Bot,
   Twitter,
   Github,
   ArrowUpRight,
@@ -45,6 +46,8 @@ const MORE_LINKS = [
   { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
   { href: "/docs", label: "Docs", icon: BookOpen },
   { href: "/x402", label: "x402 API", icon: Plug },
+  // Plan 1: direktori agen, tepat sesudah "x402 API" (posisi dipatok di .kiro/plans/README.md §3).
+  { href: "/agents", label: "Agents", icon: Bot },
   { href: "/security", label: "Security", icon: ShieldCheck },
   { href: "/whitepaper", label: "Whitepaper", icon: FileText },
 ];
