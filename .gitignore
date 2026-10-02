@@ -303,3 +303,6 @@ scripts/render-deck.mjs
 # Pipeline video demo v1: perekam, agent pembeli, assembler, aset, rekaman mentah, dan
 # demo-v1/wallets.json yang memegang kunci dua dompet demo. Lokal saja.
 /demo-v1/
+
+# Wrangler's local state and cache (`wrangler dev` / `wrangler deploy` in cloudflare-worker/).
+/cloudflare-worker/.wrangler/

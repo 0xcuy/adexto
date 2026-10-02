@@ -7,6 +7,7 @@ import {
   X402_VERSION,
   type PaymentRequirements,
 } from "./x402";
+import { bazaarExtension, listMarkets, openApiDocument, resourceInfo, wellKnownX402 } from "./discovery";
 
 /**
  * Cloudflare Worker — gerbang x402 untuk ADEXTO: BELI TOKEN LINTAS CHAIN.
@@ -395,6 +396,55 @@ export default {
       }
     }
 
+    /**
+     * Dokumen discovery, dijawab SEBELUM path diurai sebagai ticker.
+     *
+     * Tanpa cabang ini `/openapi.json` dibaca sebagai ticker "OPENAPI.JSON" dan dijawab
+     * `unknown_market` 404 — dan indexer x402 (x402scan, AgentCash) membaca dokumen itulah lebih
+     * dulu. Isinya hanya deskripsi; jalur pembayaran di bawah tidak berubah. Lihat discovery.ts.
+     */
+    const discoveryOrigin = env.ADEXTO_ORIGIN || "https://adexto.xyz";
+    if (request.method === "GET" || request.method === "HEAD") {
+      if (url.pathname === "/openapi.json" || url.pathname === "/.well-known/x402") {
+        let markets: Awaited<ReturnType<typeof listMarkets>> = [];
+        try {
+          markets = await listMarkets(discoveryOrigin);
+        } catch {
+          // Dokumen tetap dijawab tanpa contoh pasar; rute dan harganya tidak bergantung padanya.
+        }
+        const body =
+          url.pathname === "/openapi.json"
+            ? openApiDocument({ gateway: url.origin, priceAtomic: BigInt(env.X402_PRICE_ATOMIC || "20000"), markets })
+            : wellKnownX402(url.origin, markets);
+        return json(body, 200, { "Cache-Control": "public, max-age=300" });
+      }
+      // Bukti domain ERC-8004 untuk endpoint x402 agen kami, dilayani di domain endpoint itu
+      // sendiri, dan ikon untuk indexer. Keduanya salinan dari situs: satu sumber, bukan dua.
+      const mirrored: Record<string, string> = {
+        "/.well-known/agent-registration.json": "/.well-known/agent-registration.json",
+        "/favicon.svg": "/favicon.svg",
+        "/favicon.png": "/brand/adexto-512.png",
+      };
+      if (mirrored[url.pathname]) {
+        try {
+          const upstream = await fetch(`${discoveryOrigin}${mirrored[url.pathname]}`);
+          if (upstream.ok) {
+            return new Response(upstream.body, {
+              status: 200,
+              headers: {
+                "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
+                "Cache-Control": "public, max-age=300",
+                ...CORS,
+              },
+            });
+          }
+        } catch {
+          // jatuh ke 404 di bawah
+        }
+        return json({ error: "not_found", detail: `${url.pathname} is not available right now.` }, 404);
+      }
+    }
+
     const parts = url.pathname.split("/").filter(Boolean);
     /**
      * TIDAK ADA lagi ticker bawaan, dan penghapusannya memperbaiki cacat yang terlihat.
@@ -641,7 +691,22 @@ export default {
         ? "X-402-Authorization is no longer accepted: that voucher was a signed statement of intent that no contract could act on, so it could not move funds."
         : undefined;
       return json(
-        { x402Version: X402_VERSION, error: "X-PAYMENT header is required", legacy, accepts: [requirements], quote },
+        {
+          x402Version: X402_VERSION,
+          error: "X-PAYMENT header is required",
+          legacy,
+          /**
+           * `resource` dan `extensions.bazaar`: metadata discovery x402 v2, murni tambahan. Klien
+           * yang sudah ada membaca `accepts[0]` dan tidak terpengaruh. `amount` adalah nama v2
+           * untuk `maxAmountRequired`, nilainya sama, ditambahkan supaya indexer v2 membacanya.
+           */
+          resource: resourceInfo({ url: requirements.resource, description: requirements.description }),
+          accepts: [{ ...requirements, amount: requirements.maxAmountRequired }],
+          extensions: {
+            bazaar: bazaarExtension({ slug: market.symbol.toLowerCase(), chainId: market.chainId, chainPinned: chainPick !== null }),
+          },
+          quote,
+        },
         402,
         { "WWW-Authenticate": `x402 realm="adexto-buy-${market.symbol.toLowerCase()}"` }
       );

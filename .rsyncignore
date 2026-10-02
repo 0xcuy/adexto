@@ -56,3 +56,6 @@ public/adexto_demo.webm
 # Pipeline video demo v1 (perekam, agent pembeli, assembler, rekaman mentah) DAN kunci
 # dompet demo di demo-v1/wallets.json. Tidak boleh pernah ikut ke VPS.
 /demo-v1/
+
+# Cache lokal Wrangler milik Worker x402. Worker di-deploy lewat wrangler, bukan lewat VPS.
+/cloudflare-worker/.wrangler/
