@@ -16,7 +16,7 @@ import { readSquareLogoFile } from "@/lib/logo-upload";
 import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import LaunchCostCard from "@/components/LaunchCostCard";
-import LaunchAnnouncement from "@/components/LaunchAnnouncement";
+import LaunchKit from "@/components/LaunchKit";
 import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
@@ -3503,13 +3503,14 @@ function DeployReport({
         ))}
       </div>
 
-      {/* Pengumuman: setiap peluncuran langsung punya jalur publikasi, dari akun peluncur
-          sendiri. Satu blok per chain yang berhasil, karena tiap chain adalah pasar sendiri. */}
+      {/* Launch kit: kartu, pengumuman, bukti launch bersih, alert, listing dan stake. Satu blok
+          per chain yang berhasil, karena tiap chain adalah pasar sendiri. Pengumumannya tetap
+          `LaunchAnnouncement`, sekarang di dalam kit. */}
       {successes
         .filter((r) => r.tokenAddress)
         .map((r) => (
-          <LaunchAnnouncement
-            key={`announce-${r.chainId}`}
+          <LaunchKit
+            key={`kit-${r.chainId}`}
             name={name}
             symbol={symbol}
             chainName={r.chainName}
