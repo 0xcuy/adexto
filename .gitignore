@@ -179,6 +179,15 @@ METROPOLIS-RUNBOOK.md
 # monadscan, dan versi yang memang untuk publik sudah ada di README `adexto-monad`. Yang
 # tidak untuk publik adalah pembingkaiannya.
 docs/progress-update-*.md
+# Runbook pembuatan konten (video dan gambar promosi untuk X). Catatan kerja internal:
+# pustaka prompt, copy yang belum terbit, log konten, jebakan pipeline, dan nama variabel
+# env yang dipakai generator. Pipeline-nya (demo-v1/promo-*/) dan keluarannya
+# (demo-v1/out/) sudah lokal lewat aturan /demo-v1/ di bawah; ini pasangannya di sisi
+# dokumen. Konten jadinya terbit lewat X, bukan lewat repo ini.
+#
+# Diperiksa sebelum dipasang: nol private key, nol token, nol nilai API key. Yang ditulis
+# hanya NAMA variabel (OG_ROUTER_API_KEY) dan lokasinya (.env.local).
+CONTENT-RUNBOOK.md
 
 # Toolchain keamanan: dependensi pihak ketiga dan keluaran perkakas, bukan sumber.
 #
