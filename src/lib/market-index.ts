@@ -105,6 +105,15 @@ const CONFIRMATIONS: Record<number, number> = { 16661: 2, 8453: 3, 42161: 10, 14
 const DEFAULT_CONFIRMATIONS = 5;
 
 /**
+ * Kedalaman konfirmasi indeks ini untuk sebuah chain. Diekspor supaya adapter agregator
+ * (`src/app/api/dexscreener/`) memakai kedalaman yang sama, bukan salinan angka yang bisa
+ * menyimpang.
+ */
+export function confirmationsFor(chainId: number): number {
+  return CONFIRMATIONS[chainId] ?? DEFAULT_CONFIRMATIONS;
+}
+
+/**
  * Petak berbarengan per putaran. Base lebih rendah: `mainnet.base.org` menghitung panggilan
  * berdekatan terhadap batas burst-nya dan menjawab "over rate limit".
  */
@@ -289,7 +298,7 @@ async function runUpdate(project: ProjectRecord, slot: CacheSlot): Promise<void>
   slot.index = index;
 
   const head = await withRetry(() => logRpc.getBlockNumber());
-  const safeHead = Math.max(index.launchBlock - 1, head - (CONFIRMATIONS[chain.chainId] ?? DEFAULT_CONFIRMATIONS));
+  const safeHead = Math.max(index.launchBlock - 1, head - confirmationsFor(chain.chainId));
   const span = logSpanFor(chain.chainId);
   const parallel = PARALLEL_BY_CHAIN[chain.chainId] ?? DEFAULT_PARALLEL;
   index.head = head;
@@ -344,7 +353,7 @@ function statusOf(slot: CacheSlot, project: ProjectRecord): IndexStatus {
   if (!index) {
     return { complete: false, progress: 0, scannedTo: launchBlock - 1, head: launchBlock, launchBlock, updating: Boolean(slot.running), error: slot.error };
   }
-  const confirmations = CONFIRMATIONS[index.chainId] ?? DEFAULT_CONFIRMATIONS;
+  const confirmations = confirmationsFor(index.chainId);
   const total = Math.max(1, index.head - index.launchBlock + 1);
   const done = Math.max(0, index.scannedTo - index.launchBlock + 1);
   return {
