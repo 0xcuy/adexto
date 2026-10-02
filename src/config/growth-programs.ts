@@ -10,8 +10,8 @@
  */
 
 export const REFERRAL_TERMS = {
-  /** Keputusan owner #5. */
-  confirmed: false,
+  /** Keputusan owner #5: disetujui 2026-10-03 ("yang ini oke"). */
+  confirmed: true,
   /** Bagian dari leg protokol 0,10% pada volume yang dirujuk, dalam persen. */
   sharePctOfProtocolFee: 25,
   /** Tidak ada payout untuk minggu yang imbalannya di bawah ini. */
@@ -21,7 +21,10 @@ export const REFERRAL_TERMS = {
 } as const;
 
 export const CONTEST_TERMS = {
-  /** Keputusan owner #6. */
+  /**
+   * Keputusan owner #6: DITOLAK 2026-10-03 (tidak ada anggaran hadiah). Klasemen "Launch of the week"
+   * tetap tampil tanpa hadiah; jangan setel ke true tanpa keputusan baru.
+   */
   confirmed: false,
   /** Hadiah mingguan dalam USDC (rentang usulan), dibayar owner dari treasury. */
   prizeUsdMin: 100,
@@ -32,7 +35,10 @@ export const CONTEST_TERMS = {
 } as const;
 
 export const PROMOTED_TERMS = {
-  /** Keputusan owner #7. */
+  /**
+   * Keputusan owner #7: belum disetujui (2026-10-03). Harga tidak tampil publik dan slot tidak
+   * ditawarkan; bagian Promoted di /leaderboard hanya muncul bila owner sendiri menyetujui slot di /admin.
+   */
   confirmed: false,
   priceUsd: 25,
   hours: 24,
