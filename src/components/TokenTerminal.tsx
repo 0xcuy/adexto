@@ -23,6 +23,8 @@ import WatchStar from "@/components/WatchStar";
 import MarketOwnerActions from "@/components/MarketOwnerActions";
 import AgentIdentityBadge from "@/components/AgentIdentityBadge";
 import MarketStakePanel from "@/components/MarketStakePanel";
+import CleanLaunchPanel from "@/components/CleanLaunchPanel";
+import { STAKE_ANCHOR } from "@/lib/launch-kit";
 import { stakeForMarket } from "@/config/market-stakes";
 import { refreshMarketTelemetry, useMarketTelemetry } from "@/lib/use-market-telemetry";
 import Link from "next/link";
@@ -817,7 +819,12 @@ export default function TokenTerminal({
 
           {/* Stake pasar ini, hanya bila pasarnya punya kontrak stake. Untuk semua pengunjung:
               total dan minimumnya dibaca dari chain, dan tombolnya meminta dompet. */}
-          {marketStake && <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />}
+          {/* Pembungkus hanya untuk jangkar `#stake`: launch kit di Studio menautkan ke sini. */}
+          {marketStake && (
+            <div id={STAKE_ANCHOR} className="scroll-mt-24">
+              <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />
+            </div>
+          )}
 
           {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
               agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
@@ -957,6 +964,15 @@ export default function TokenTerminal({
 
           {/* Distribusi pemegang, dari seluruh Transfer sejak mint. */}
           <HoldersPanel symbol={project.symbol} chainId={project.chainId} me={isConnected ? address : null} />
+
+          {/* Bukti launch bersih, dari chain: `src/lib/launch-proof.ts`. */}
+          <CleanLaunchPanel
+            chainId={project.chainId}
+            chainName={chain.name}
+            token={project.tokenAddress}
+            slug={project.slug}
+            symbol={project.symbol}
+          />
 
           {/* Agent chat */}
           <div

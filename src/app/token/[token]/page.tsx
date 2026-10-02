@@ -5,6 +5,7 @@ import { findProject, findProjectGroup } from "@/lib/registry";
 import { logoUrlFor } from "@/lib/logo-image";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { SHARE_CARD_VERSION } from "@/lib/share-card-format";
+import { getLaunchProof } from "@/lib/launch-proof";
 
 /**
  * Server-resolved market page.
@@ -19,12 +20,13 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ chain?: string }>;
+  searchParams: Promise<{ chain?: string; proof?: string }>;
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { token } = await params;
-  const { chain: chainParam } = await searchParams;
+  const { chain: chainParam, proof: proofParam } = await searchParams;
+  const wantsProof = proofParam === "1";
   // Pratinjau mengikuti `?chain=` tautannya. Tanpa ini, tautan pasar Base untuk ticker yang juga
   // ada di chain lain membawa kartu chain yang kebetulan terdaftar pertama.
   const chainId = chainParam && Number.isFinite(Number(chainParam)) ? Number(chainParam) : null;
@@ -37,7 +39,33 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
    * pasar ITU, bukan satu gambar merek yang sama untuk semua pasar. Kartunya dibangun dari
    * registry yang sama dengan halamannya, jadi keduanya tidak bisa menyebut angka berbeda.
    */
-  const card = `/api/share-card/${encodeURIComponent(project.slug)}?chain=${project.chainId}&v=${SHARE_CARD_VERSION}`;
+  const marketCard = `/api/share-card/${encodeURIComponent(project.slug)}?chain=${project.chainId}&v=${SHARE_CARD_VERSION}`;
+  /**
+   * `?proof=1` adalah tautan "Share proof": pratinjaunya kartu bukti launch bersih, bukan kartu harga.
+   * Hanya bila pasarnya tercakup bukti; pasar generasi lain tetap memakai kartu pasar. Pembacaan
+   * chain dibatasi empat detik supaya halaman tidak tertahan: kalau belum terjawab, kartu bukti
+   * tetap dipakai, karena rute gambarnya membaca sendiri (dan pembacaannya sudah berjalan di cache).
+   */
+  if (wantsProof) {
+    const proof = await Promise.race([
+      getLaunchProof(project.chainId, project.tokenAddress).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000)),
+    ]);
+    if (!proof || proof.supported) {
+      const proofCard = `/api/share-card/${encodeURIComponent(project.slug)}/launch-proof?chain=${project.chainId}&v=${SHARE_CARD_VERSION}`;
+      return {
+        title: `$${project.symbol} launch proof · ADEXTO`,
+        description: `Launch facts for $${project.symbol} on ${project.chainLabel}, read from chain: creator balance at launch, launch window, fees, owner.`,
+        openGraph: {
+          title: `$${project.symbol} · launch facts, read from chain`,
+          description: `Creator balance at launch, launch window, fixed fees and owner of $${project.symbol} on ${project.chainLabel}.`,
+          images: [{ url: proofCard, width: 1200, height: 630 }],
+        },
+        twitter: { card: "summary_large_image", images: [proofCard] },
+      };
+    }
+  }
+  const card = marketCard;
   return {
     title: `${project.name} ($${project.symbol}) · ADEXTO Terminal`,
     description: `Trade $${project.symbol} on the ADEXTO Sovereign DEX (${project.chainLabel}).`,
