@@ -19,14 +19,14 @@ import { ArrowRight, Coins, Plug, ShieldCheck, Terminal, Wrench } from "lucide-r
  *
  * SEMUA NAMA ALAT DI SINI DIBACA DARI SERVER YANG SAMA
  *
- * Sepuluh baris di tabel adalah sepuluh `registerTool` di `src/app/api/[transport]/route.ts`.
+ * Empat belas baris di tabel adalah empat belas `registerTool` di `src/app/api/[transport]/route.ts`.
  * Kalau daftarnya berubah, `tools/list` yang jadi acuan, bukan halaman ini.
  */
 
 export const metadata = {
   title: "MCP server — ADEXTO",
   description:
-    "Model Context Protocol server for ADEXTO markets. Ten tools: list markets, quote and buy with USDC on Base to receive tokens on another chain, read trade history, and ask a market's agent with a stake.",
+    "Model Context Protocol server for ADEXTO markets. Fourteen tools: list markets, quote and buy with USDC on Base to receive tokens on another chain, launch, stake and claim with your own key, read trade history, and ask a market's agent with a stake.",
 };
 
 const TOOLS: { name: string; cost: string; what: string }[] = [
@@ -80,6 +80,26 @@ const TOOLS: { name: string; cost: string; what: string }[] = [
     cost: "Free, needs an active stake",
     what: "Asks the market's own agent, answered from facts read on-chain for that call. Refused unless the signer's stake is active.",
   },
+  {
+    name: "prepare_launch",
+    cost: "Free; the launch costs your gas",
+    what: "Two calls: the first returns an attestation for the deployer to sign, the second the unsigned launch transaction, simulated from that address. The agent's own key signs; the server never holds it.",
+  },
+  {
+    name: "register_launch",
+    cost: "Free",
+    what: "Lists a mined launch on adexto.xyz, in list_markets and on the x402 gateway. Every value it records comes from the factory event in the receipt.",
+  },
+  {
+    name: "prepare_stake",
+    cost: "Free; staking costs your gas",
+    what: "Unsigned approve and stake transactions for a market's stake contract or its chain's hub. A stake that would revert is refused first.",
+  },
+  {
+    name: "prepare_claim",
+    cost: "Free; claiming costs your gas",
+    what: "Unsigned claimCreatorFees transactions for every market that owes the creator, batched per chain with Multicall3.",
+  },
 ];
 
 export default function McpPage() {
@@ -98,7 +118,8 @@ export default function McpPage() {
         <p className="text-sm text-ink mt-3 font-medium leading-relaxed">
           An agent can find every ADEXTO market, price one, and buy it — paying{" "}
           <strong className="text-ink">USDC on Base</strong> while the tokens are delivered by a bonding curve on
-          another chain. No bridging, no gas on the destination chain, no account here.
+          another chain. No bridging, no gas on the destination chain, no account here. It can also launch its own
+          market, stake and collect creator fees with transactions the server prepares and the agent signs.
         </p>
         <p className="text-xs text-ink-soft mt-3 leading-relaxed">
           The gateway already spoke HTTP 402, which any program can use. What it could not do was announce
@@ -116,8 +137,10 @@ export default function McpPage() {
         </div>
         <h2 className="text-2xl font-semibold text-ink tracking-tight">Point a client at it</h2>
         <p className="text-sm text-ink-soft leading-relaxed">
-          Streamable HTTP, no authentication and no API key. Eight of the ten tools cost nothing, so a client can
-          connect and read every market before any wallet is involved.
+          Streamable HTTP, no authentication and no API key. It answers the 2026-07-28 MCP revision (stateless,
+          with <code className="text-accent">server/discover</code>) and 2025 clients that open with{" "}
+          <code className="text-accent">initialize</code>. Twelve of the fourteen tools cost nothing to call, so a
+          client can connect and read every market before any wallet is involved.
         </p>
         <div className="p-3 rounded-lg bg-surface border border-line font-mono text-[11px] sm:text-xs text-ink-soft overflow-x-auto">
           <div className="whitespace-pre">https://adexto.xyz/api/mcp</div>
@@ -152,7 +175,7 @@ export default function McpPage() {
           <Wrench className="w-4 h-4 text-accent" />
           <span>THE TOOLS</span>
         </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Ten tools: two spend money, one needs a stake</h2>
+        <h2 className="text-2xl font-semibold text-ink tracking-tight">Fourteen tools: two spend money, four hand you transactions to sign</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -177,7 +200,7 @@ export default function McpPage() {
             `400 symbol_required`, dan itu justru yang mencegah salah ketik menagih
             token yang tidak diminta. */}
         <p className="text-xs text-ink-soft leading-relaxed">
-          Every tool requires a ticker and none supplies a default. A missing ticker is refused rather than
+          Every tool that acts on one market requires a ticker and none supplies a default. A missing ticker is refused rather than
           quoted, so a typo can never bill for a token nobody asked for. Call{" "}
           <code className="text-accent">list_markets</code> first — today it answers with{" "}
           <strong className="text-ink">${sample}</strong> among others.
