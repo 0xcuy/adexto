@@ -27,9 +27,11 @@
  *
  * FOUR TRAPS TAKEN FROM A SIBLING IMPLEMENTATION'S POSTMORTEMS
  *
- *   1. One header name. Its server reads `payment-signature` while its own SDK and README
- *      send `x-payment` — a mismatch still live over there. Here it is `X-PAYMENT`, the name
- *      the spec uses and the only name our gateway reads.
+ *   1. No header mismatch. Its server reads `payment-signature` while its own SDK and README
+ *      send `x-payment`, a mismatch still live over there. Here MCP always sends `X-PAYMENT`,
+ *      and the gateway reads both `X-PAYMENT` and `PAYMENT-SIGNATURE` (the x402 v2 name) with
+ *      either payload envelope, so a correctly signed payment is never ignored for its header
+ *      name. Two different payments in the two headers are refused before verification.
  *   2. No default market. The gateway answers `400 symbol_required` on a missing ticker on
  *      purpose: a default would let a mistyped path bill someone for a token they never asked
  *      for. Every tool here therefore requires `symbol` and none supplies a fallback.
@@ -655,7 +657,7 @@ const mcp = createMcpHandler(
           scheme: "exact, EIP-3009 transferWithAuthorization",
           header: "X-PAYMENT",
           headerNote:
-            "One header name, and only this one. No alias is accepted, because a server that reads a second name is a server where a correctly signed payment can still be ignored.",
+            "buy_token sends xPayment in the X-PAYMENT header. Called directly, the gateway also reads PAYMENT-SIGNATURE, the x402 v2 name, and accepts either payload envelope in either header. A request that carries two different payments in the two headers is refused before anything is verified or charged.",
           steps: [
             "Call quote_buy to get the 402 challenge.",
             "Take accepts[0]: it carries network, asset, maxAmountRequired, payTo, and extra.name / extra.version for the EIP-712 domain.",

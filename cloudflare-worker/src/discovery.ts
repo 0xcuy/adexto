@@ -150,6 +150,7 @@ export function wellKnownX402(gateway: string, markets: ListedMarket[], compute:
     instructions:
       "Each resource buys one market's token with USDC on Base. GET it without a payment for the 402 quote, sign " +
       "the EIP-3009 authorization in accepts[0], then repeat the request with the base64 payload in X-PAYMENT. " +
+      "x402 v2 clients can read the PAYMENT-REQUIRED header and pay in PAYMENT-SIGNATURE instead. " +
       "The curve on the market's own chain sends the tokens to the payer; delivery happens before the charge." +
       (compute ? ` ${compute.instructions}` : ""),
   };
@@ -179,7 +180,9 @@ export function openApiDocument(params: {
         `GET /v1/x402/buy/{symbol} without payment returns 402 with a live quote in "quote" and the payment terms ` +
         `in accepts[0] (exact scheme, USDC on Base, EIP-3009). Sign transferWithAuthorization for exactly ` +
         `maxAmountRequired to payTo, base64-encode {x402Version, scheme, network, payload:{signature, authorization}}, ` +
-        `and repeat the request with it in the X-PAYMENT header. Pass ?chain=<id> when a ticker trades on more ` +
+        `and repeat the request with it in the X-PAYMENT header. x402 v2 clients such as @x402/fetch can use the ` +
+        `PAYMENT-REQUIRED header instead: the same terms with network eip155:8453, paid back in PAYMENT-SIGNATURE. ` +
+        `Pass ?chain=<id> when a ticker trades on more ` +
         `than one chain and ?to=<address> to deliver to another wallet. Market list: ${SERVICE.site}/api/graphql. ` +
         `The same flow is available as MCP tools at ${SERVICE.site}/api/mcp.` +
         (compute ? compute.openApi.guidance : ""),
@@ -193,7 +196,7 @@ export function openApiDocument(params: {
           operationId: "buyMarket",
           summary: `Buy a market's token with ${usd} USDC on Base, delivered on the market's own chain`,
           description:
-            "Unpaid: 402 with the quote and accepts[0]. Paid (X-PAYMENT header): the curve buys the token for the " +
+            "Unpaid: 402 with the quote and accepts[0]. Paid (X-PAYMENT, or PAYMENT-SIGNATURE for x402 v2): the curve buys the token for the " +
             "payer on the market's chain, then the USDC authorization is settled. Refusals that happen before any " +
             "charge: unknown market (404), market not tradable (409), out of inventory (503).",
           security: [],
@@ -225,6 +228,13 @@ export function openApiDocument(params: {
               in: "header",
               required: false,
               description: "Base64 x402 payment payload. Omit it to receive the 402 quote.",
+              schema: { type: "string" },
+            },
+            {
+              name: "PAYMENT-SIGNATURE",
+              in: "header",
+              required: false,
+              description: "The same payment in the x402 v2 envelope, as sent by @x402/fetch. Use one header, not both.",
               schema: { type: "string" },
             },
           ],

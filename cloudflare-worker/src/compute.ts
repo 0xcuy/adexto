@@ -47,6 +47,9 @@
 import {
   buildPaymentRequirements,
   decodePaymentPayload,
+  paymentRequiredHeader,
+  paymentResponseHeader,
+  readPaymentHeader,
   X402_VERSION,
   type PaymentPayload,
   type PaymentRequirements,
@@ -499,6 +502,13 @@ export function computeListing(env: ComputeEnv, gateway: string): ComputeListing
         description: "Base64 x402 payment payload. Omit it to receive the 402 terms.",
         schema: { type: "string" },
       },
+      {
+        name: "PAYMENT-SIGNATURE",
+        in: "header",
+        required: false,
+        description: "The same payment in the x402 v2 envelope, as sent by @x402/fetch. Use one header, not both.",
+        schema: { type: "string" },
+      },
     ],
     requestBody: {
       required: true,
@@ -542,6 +552,18 @@ export function computeListing(env: ComputeEnv, gateway: string): ComputeListing
 
 // ── handler ────────────────────────────────────────────────────────────────
 
+/** Header `PAYMENT-REQUIRED` (x402 v2) untuk setiap 402 compute; `error` membawa alasannya. */
+function v2Challenge(requirements: PaymentRequirements, model: string, error: string): Record<string, string> {
+  return {
+    "PAYMENT-REQUIRED": paymentRequiredHeader({
+      requirements,
+      resource: resourceInfo({ url: requirements.resource, description: requirements.description }),
+      error,
+      extensions: { bazaar: computeBazaarExtension(model) },
+    }),
+  };
+}
+
 function challenge(requirements: PaymentRequirements, model: string, parsed: Extract<ParsedBody, { ok: true }> | null): ComputeReply {
   return {
     status: 402,
@@ -567,7 +589,10 @@ function challenge(requirements: PaymentRequirements, model: string, parsed: Ext
         order: "Verify the payment, run the model, settle, then return the completion. A failed model call is not charged.",
       },
     },
-    headers: { "WWW-Authenticate": 'x402 realm="adexto-compute"' },
+    headers: {
+      "WWW-Authenticate": 'x402 realm="adexto-compute"',
+      ...v2Challenge(requirements, model, "PAYMENT-SIGNATURE header is required"),
+    },
   };
 }
 
@@ -613,7 +638,18 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
       return { status: 400, body: { error: "invalid_json", detail: "The body is not valid JSON.", note: NO_CHARGE } };
     }
   }
-  const paymentHeader = request.headers.get("X-PAYMENT");
+  const paymentRead = readPaymentHeader(request.headers);
+  if ("conflict" in paymentRead) {
+    return {
+      status: 400,
+      body: {
+        error: "conflicting_payment_headers",
+        detail: "X-PAYMENT and PAYMENT-SIGNATURE carry different payments. Send one payment in one header.",
+        note: NO_CHARGE,
+      },
+    };
+  }
+  const paymentHeader = paymentRead.value;
 
   // Tanpa badan: probe discovery. Dijawab dengan syarat pembayaran, bukan galat, supaya indexer
   // yang mengetuk rute tanpa isi membaca skema badan dari `extensions.bazaar`.
@@ -632,7 +668,11 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
 
   const payload = decodePaymentPayload(paymentHeader);
   if (!payload) {
-    return { status: 402, body: { x402Version: X402_VERSION, error: "invalid_payload", detail: "X-PAYMENT must be base64 JSON", accepts: [requirements] } };
+    return {
+      status: 402,
+      body: { x402Version: X402_VERSION, error: "invalid_payload", detail: "X-PAYMENT (or PAYMENT-SIGNATURE) must be base64 JSON", accepts: [requirements] },
+      headers: v2Challenge(requirements, model, "invalid_payload"),
+    };
   }
 
   /**
@@ -653,6 +693,7 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
       return {
         status: 402,
         body: { x402Version: X402_VERSION, error: pre.invalidReason, detail: pre.detail, payer: pre.payer, accepts: [requirements] },
+        headers: v2Challenge(requirements, model, pre.invalidReason ?? "unexpected_verify_error"),
       };
     }
     const payer = String(pre.payer ?? a.from);
@@ -689,6 +730,7 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
           accepts: [requirements],
           note: "The completion is withheld because the payment did not settle. Nothing was charged.",
         },
+        headers: v2Challenge(requirements, model, settled.errorReason ?? "unexpected_settle_error"),
       };
     }
 
@@ -711,6 +753,12 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
       },
       headers: {
         "X-PAYMENT-RESPONSE": b64({
+          success: true,
+          transaction: settled.transaction,
+          network: requirements.network,
+          payer: settled.payer,
+        }),
+        "PAYMENT-RESPONSE": paymentResponseHeader({
           success: true,
           transaction: settled.transaction,
           network: requirements.network,

@@ -2,6 +2,9 @@ import { ethers } from "ethers";
 import {
   buildPaymentRequirements,
   decodePaymentPayload,
+  paymentRequiredHeader,
+  paymentResponseHeader,
+  readPaymentHeader,
   settlePayment,
   verifyPayment,
   X402_VERSION,
@@ -118,8 +121,9 @@ export interface Env extends ComputeEnv {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   // X-Creator-Vault sengaja TIDAK ada lagi: payee bukan urusan pemanggil.
-  "Access-Control-Allow-Headers": "Content-Type, X-PAYMENT",
-  "Access-Control-Expose-Headers": "WWW-Authenticate, X-PAYMENT-RESPONSE",
+  // PAYMENT-SIGNATURE / PAYMENT-REQUIRED / PAYMENT-RESPONSE: nama header x402 v2 (lihat x402.ts).
+  "Access-Control-Allow-Headers": "Content-Type, X-PAYMENT, PAYMENT-SIGNATURE",
+  "Access-Control-Expose-Headers": "WWW-Authenticate, X-PAYMENT-RESPONSE, PAYMENT-REQUIRED, PAYMENT-RESPONSE",
 };
 
 function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
@@ -718,7 +722,26 @@ export default {
       inventory: { inStock, remainingBuys: Number(inventory / (nativeIn > 0n ? nativeIn : 1n)) },
     };
 
-    const paymentHeader = request.headers.get("X-PAYMENT");
+    const resource = resourceInfo({ url: requirements.resource, description: requirements.description });
+    const extensions = {
+      bazaar: bazaarExtension({ slug: market.symbol.toLowerCase(), chainId: market.chainId, chainPinned: chainPick !== null }),
+    };
+    /** Tantangan v2 untuk setiap 402 di bawah; `error` membawa alasan penolakannya (lihat x402.ts). */
+    const v2Challenge = (error: string) => ({
+      "PAYMENT-REQUIRED": paymentRequiredHeader({ requirements, resource, error, extensions }),
+    });
+
+    const paymentRead = readPaymentHeader(request.headers);
+    if ("conflict" in paymentRead) {
+      return json(
+        {
+          error: "conflicting_payment_headers",
+          detail: "X-PAYMENT and PAYMENT-SIGNATURE carry different payments. Send one payment in one header. No payment was taken.",
+        },
+        400
+      );
+    }
+    const paymentHeader = paymentRead.value;
     if (!paymentHeader) {
       // Header lama tidak diterima diam-diam: klien yang masih memakainya harus tahu
       // kenapa voucher itu tidak pernah bisa memindahkan uang.
@@ -735,15 +758,16 @@ export default {
            * yang sudah ada membaca `accepts[0]` dan tidak terpengaruh. `amount` adalah nama v2
            * untuk `maxAmountRequired`, nilainya sama, ditambahkan supaya indexer v2 membacanya.
            */
-          resource: resourceInfo({ url: requirements.resource, description: requirements.description }),
+          resource,
           accepts: [{ ...requirements, amount: requirements.maxAmountRequired }],
-          extensions: {
-            bazaar: bazaarExtension({ slug: market.symbol.toLowerCase(), chainId: market.chainId, chainPinned: chainPick !== null }),
-          },
+          extensions,
           quote,
         },
         402,
-        { "WWW-Authenticate": `x402 realm="adexto-buy-${market.symbol.toLowerCase()}"` }
+        {
+          "WWW-Authenticate": `x402 realm="adexto-buy-${market.symbol.toLowerCase()}"`,
+          ...v2Challenge("PAYMENT-SIGNATURE header is required"),
+        }
       );
     }
 
@@ -763,7 +787,11 @@ export default {
 
     const payload = decodePaymentPayload(paymentHeader);
     if (!payload) {
-      return json({ x402Version: X402_VERSION, error: "invalid_payload", detail: "X-PAYMENT must be base64 JSON", accepts: [requirements] }, 402);
+      return json(
+        { x402Version: X402_VERSION, error: "invalid_payload", detail: "X-PAYMENT (or PAYMENT-SIGNATURE) must be base64 JSON", accepts: [requirements] },
+        402,
+        v2Challenge("invalid_payload")
+      );
     }
 
     const baseProvider = baseProviderVia(env);
@@ -771,7 +799,8 @@ export default {
     if (!pre.isValid) {
       return json(
         { x402Version: X402_VERSION, error: pre.invalidReason, detail: pre.detail, payer: pre.payer, accepts: [requirements] },
-        402
+        402,
+        v2Challenge(pre.invalidReason ?? "unexpected_verify_error")
       );
     }
 
@@ -885,6 +914,13 @@ export default {
 
     return json(body, 200, {
       "X-PAYMENT-RESPONSE": b64({
+        success: settled.success,
+        transaction: settled.transaction,
+        errorReason: settled.errorReason,
+        network: requirements.network,
+        payer: settled.payer,
+      }),
+      "PAYMENT-RESPONSE": paymentResponseHeader({
         success: settled.success,
         transaction: settled.transaction,
         errorReason: settled.errorReason,

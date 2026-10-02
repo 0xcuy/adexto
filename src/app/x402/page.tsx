@@ -353,6 +353,14 @@ export default function X402Page() {
           valid.
         </p>
         <p className="text-xs text-ink-soft leading-relaxed">
+          x402 v2 clients such as <code className="text-accent">@x402/fetch</code> work without changes. Every
+          402 also carries the same terms in a <code className="text-accent">PAYMENT-REQUIRED</code> header, with
+          the network written as <code className="text-accent">eip155:8453</code>, and the payment can come back
+          in <code className="text-accent">PAYMENT-SIGNATURE</code>. The settlement result is then repeated in{" "}
+          <code className="text-accent">PAYMENT-RESPONSE</code>. A request that carries two different payments in
+          the two headers is refused before anything is verified or charged.
+        </p>
+        <p className="text-xs text-ink-soft leading-relaxed">
           The older <code className="text-accent">X-402-Authorization</code> voucher header is no longer accepted.
           It was a signed statement of intent that no contract could act on, so it could never move funds.
         </p>

@@ -228,8 +228,8 @@ export default function McpPage() {
           </li>
           <li>
             Base64-encode the x402 payload and pass it to <code className="text-accent">buy_token</code> as{" "}
-            <code className="text-accent">xPayment</code>. It travels in the{" "}
-            <code className="text-accent">X-PAYMENT</code> header — one name, no alias.
+            <code className="text-accent">xPayment</code>. It travels to the gateway in the{" "}
+            <code className="text-accent">X-PAYMENT</code> header.
           </li>
           <li>
             The curve on the market&apos;s own chain sends the tokens straight to the address you named. Both

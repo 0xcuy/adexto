@@ -141,13 +141,131 @@ export function buildPaymentRequirements(params: {
   };
 }
 
-/** Header `payment-signature` berisi JSON ter-base64. */
+/**
+ * JALUR x402 v2 DI SAMPING BADAN YANG SUDAH ADA
+ *
+ * Badan 402 kita sejak awal hibrida: `x402Version: 2`, tetapi `accepts[0]` berbentuk v1
+ * (`network: "base"`, `maxAmountRequired`) dan tidak ada header `PAYMENT-REQUIRED`. Klien yang
+ * membaca `accepts[0]` dari badan (MCP kita, agent-kit, `scripts/x402-buy.mts`, klien x402 v1)
+ * berjalan. Tetapi SDK resmi v2 (`@x402/fetch`) dan validator x402scan (`@agentcash/discovery`)
+ * hanya membaca badan bila `x402Version === 1`; selain itu mereka menuntut header
+ * `PAYMENT-REQUIRED`. Akibatnya terukur pada 3 Okt: x402scan menolak mendaftarkan gateway ini
+ * ("No valid x402 response found"), dan SDK v2 melempar "Invalid payment required response".
+ *
+ * Perbaikannya murni tambahan: syarat yang SAMA juga dikirim sebagai header `PAYMENT-REQUIRED`
+ * dalam bentuk v2 (network CAIP-2 `eip155:8453`, `amount`), dan pembayaran boleh datang sebagai
+ * `PAYMENT-SIGNATURE` dengan amplop v2 (`accepted`). Badan tidak berubah sebyte pun. Verifikasi
+ * juga tidak berubah: amplop v2 dipetakan ke bentuk internal lalu melewati `verifyPayment` yang
+ * sama, dan yang mengikat tetap tanda tangan EIP-3009 yang dibaca terhadap kontrak USDC di Base.
+ */
+
+/** Nama jaringan v1 → CAIP-2 (x402 v2). Hanya yang dipakai gateway ini. */
+const CAIP2_BY_NAME: Record<string, string> = { base: "eip155:8453", "base-sepolia": "eip155:84532" };
+
+export function caip2Network(network: string): string {
+  return CAIP2_BY_NAME[network] ?? network;
+}
+
+/** Kebalikannya, supaya `verifyPayment` membandingkan nama yang sama dengan `requirements.network`. */
+function legacyNetwork(network: string): string {
+  for (const [name, id] of Object.entries(CAIP2_BY_NAME)) if (id === network) return name;
+  return network;
+}
+
+/** JSON → base64 lewat UTF-8. `btoa(JSON)` saja melempar pada karakter di luar Latin-1 (mis. "…"). */
+export function base64Json(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function fromBase64Utf8(encoded: string): string {
+  const binary = atob(encoded.trim());
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/** Syarat yang sama dalam bentuk x402 v2: network CAIP-2, `amount`, tanpa field resource. */
+export function v2Requirements(r: PaymentRequirements) {
+  return {
+    scheme: r.scheme,
+    network: caip2Network(r.network),
+    amount: r.maxAmountRequired,
+    asset: r.asset,
+    payTo: r.payTo,
+    maxTimeoutSeconds: r.maxTimeoutSeconds,
+    extra: { name: r.extra.name, version: r.extra.version, assetTransferMethod: r.extra.transferMethod },
+  };
+}
+
+/**
+ * Header `PAYMENT-REQUIRED` (x402 v2): tantangan yang sama dengan badan, ter-base64.
+ *
+ * Dipasang di SETIAP 402 dari jalur pembayaran, termasuk penolakan verifikasi: SDK v2 membaca
+ * alasan penolakan dari `error` di header ini, bukan dari badan.
+ */
+export function paymentRequiredHeader(params: {
+  requirements: PaymentRequirements;
+  resource: Record<string, unknown>;
+  error: string;
+  extensions?: Record<string, unknown>;
+}): string {
+  return base64Json({
+    x402Version: 2,
+    error: params.error,
+    resource: params.resource,
+    accepts: [v2Requirements(params.requirements)],
+    ...(params.extensions ? { extensions: params.extensions } : {}),
+  });
+}
+
+/** Header `PAYMENT-RESPONSE` (x402 v2). `X-PAYMENT-RESPONSE` tetap dikirim untuk klien lama. */
+export function paymentResponseHeader(r: { success: boolean; transaction?: string; errorReason?: string; payer?: string; network: string }): string {
+  return base64Json({
+    success: r.success,
+    transaction: r.transaction ?? "",
+    network: caip2Network(r.network),
+    ...(r.payer ? { payer: r.payer } : {}),
+    ...(r.errorReason ? { errorReason: r.errorReason } : {}),
+  });
+}
+
+/**
+ * Header pembayaran dari permintaan: `X-PAYMENT` (v1, nama yang kita dokumentasikan) atau
+ * `PAYMENT-SIGNATURE` (v2, yang dikirim `@x402/fetch`).
+ *
+ * Keduanya sekaligus dengan isi berbeda DITOLAK, bukan dipilih salah satu: memilih diam-diam
+ * berarti satu tanda tangan yang sah diabaikan tanpa pemanggil tahu yang mana. Ditolak sebelum
+ * verifikasi, jadi tidak ada uang yang tersentuh.
+ */
+export function readPaymentHeader(headers: Headers): { value: string | null } | { conflict: true } {
+  const v1 = headers.get("X-PAYMENT");
+  const v2 = headers.get("PAYMENT-SIGNATURE");
+  if (v1 && v2 && v1.trim() !== v2.trim()) return { conflict: true };
+  return { value: v1 || v2 || null };
+}
+
+/**
+ * Header pembayaran berisi JSON ter-base64, dalam salah satu dari dua amplop:
+ *   - v1 / bentuk kita: `{ x402Version, scheme, network: "base", payload }`;
+ *   - v2: `{ x402Version: 2, accepted: { scheme, network: "eip155:8453", … }, payload, resource? }`.
+ * Keduanya dikembalikan dalam bentuk internal yang sama, dengan network dikembalikan ke nama v1,
+ * sehingga `verifyPayment` tidak perlu tahu amplop mana yang datang.
+ */
 export function decodePaymentPayload(header: string): PaymentPayload | null {
   try {
-    const raw = typeof atob === "function" ? atob(header) : Buffer.from(header, "base64").toString("utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(fromBase64Utf8(header));
     if (!parsed?.payload?.authorization || !parsed?.payload?.signature) return null;
-    return parsed as PaymentPayload;
+    const scheme = parsed.scheme ?? parsed.accepted?.scheme;
+    const network = parsed.network ?? parsed.accepted?.network;
+    return {
+      x402Version: Number(parsed.x402Version),
+      scheme,
+      network: typeof network === "string" ? legacyNetwork(network) : network,
+      payload: parsed.payload,
+    };
   } catch {
     return null;
   }

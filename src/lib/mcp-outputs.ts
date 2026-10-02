@@ -146,7 +146,7 @@ export const MCP_OUTPUTS = {
     settlementAsset: s("Asset paid."),
     scheme: s("x402 scheme and transfer method."),
     header: s("Header that carries the payment."),
-    headerNote: s("Why only one header name is accepted."),
+    headerNote: s("Which payment header names the gateway reads."),
     steps: z.array(z.string()).describe("Steps from challenge to settled buy.").optional(),
     youNeverNeed: z.array(z.string()).describe("What a buyer never needs.").optional(),
     orderOfOperations: s("Delivery runs before the charge."),
