@@ -8,7 +8,8 @@ import { plainDecimal } from "@/lib/pricing";
  * bertanya lagi — termasuk kartu yang tautannya `0.0.0.0:3000`. URL baru adalah satu-satunya
  * cara menjangkau mereka. Naikkan angka ini setiap kali tampilan kartu berubah.
  */
-export const SHARE_CARD_VERSION = 2;
+// 3: logo chain di chip chain (2026-10-02).
+export const SHARE_CARD_VERSION = 3;
 
 /**
  * Format angka uang untuk KARTU GAMBAR.
@@ -30,12 +31,27 @@ export function cardUsd(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "—";
   if (value >= 1000) return `$${Math.round(value).toLocaleString("en-US")}`;
   if (value >= 0.01) return `$${value.toFixed(2)}`;
-  return `$${plainDecimal(Number(value.toPrecision(4)))}`;
+  return `$${fourSignificant(value)}`;
 }
 
 /** Aturan yang sama untuk jumlah bersatuan aset native. */
 export function cardNative(value: number, symbol: string): string {
   if (!Number.isFinite(value) || value <= 0) return "—";
-  const text = value >= 0.01 ? value.toFixed(4) : plainDecimal(Number(value.toPrecision(4)));
+  const text = value >= 0.01 ? value.toFixed(4) : fourSignificant(value);
   return `${text} ${symbol}`;
+}
+
+/**
+ * Desimal polos dengan empat digit signifikan untuk 0 < value < 0,01, disusun dari string
+ * `toExponential`, bukan dari angka.
+ *
+ * `plainDecimal(Number(v.toPrecision(4)))` membuka galat biner lewat `toFixed(20)`: PnL 0,002045
+ * tercetak `0.00204499999999999994` di kartu posisi. Digit dari `toExponential(3)` sudah
+ * dibulatkan dan tidak pernah kembali menjadi float, jadi ekor itu tidak bisa muncul.
+ */
+function fourSignificant(value: number): string {
+  if (value >= 0.01) return plainDecimal(Number(value.toPrecision(4)));
+  const [mantissa, exponent] = value.toExponential(3).split("e");
+  const digits = mantissa.replace(".", "").replace(/0+$/, "") || "0";
+  return `0.${"0".repeat(-Number(exponent) - 1)}${digits}`;
 }
