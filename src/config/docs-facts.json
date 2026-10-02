@@ -4,7 +4,7 @@
     "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
     "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
   ],
-  "generatedAt": "2026-09-30T22:56:24.800Z",
+  "generatedAt": "2026-10-02T12:45:46.870Z",
   "site": "https://adexto.xyz",
   "chains": [
     {
@@ -75,6 +75,45 @@
     "antiSnipeMaxWalletBps": 100
   },
   "markets": [
+    {
+      "symbol": "SAI",
+      "name": "SAi Monad",
+      "slug": "sai",
+      "chainId": 143,
+      "chainKey": "Monad",
+      "nativeSymbol": "MON",
+      "token": "0xD873B033e2dffbF7E3107CD61E7156cE23B39f20",
+      "curve": "0x6CA74a83eB8d7e9fbaBd443218d2554028eD35Ea",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 109684452
+    },
+    {
+      "symbol": "SAI",
+      "name": "SAi Arbitrum",
+      "slug": "sai",
+      "chainId": 42161,
+      "chainKey": "Arbitrum",
+      "nativeSymbol": "ETH",
+      "token": "0xC4b5eA97bd4e3f8Bc047fFCc74Ca9c2B6b426cb3",
+      "curve": "0x3F5F33e4042f6ee127b4e6bef9ceA7846763Da50",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 510577974
+    },
+    {
+      "symbol": "SAI",
+      "name": "SAi Robin",
+      "slug": "sai",
+      "chainId": 4663,
+      "chainKey": "Robinhood",
+      "nativeSymbol": "ETH",
+      "token": "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
+      "curve": "0x1b9d0221e2C7447845326A4a8C6B0f35c329500B",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 77064241
+    },
     {
       "symbol": "ZEEBO",
       "name": "Zeebo",
@@ -168,7 +207,8 @@
         "title": "One market in detail",
         "description": "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
         "args": [
-          "symbol"
+          "symbol",
+          "chainId"
         ]
       },
       {
@@ -177,6 +217,7 @@
         "description": "Reads the gateway's HTTP 402 challenge for a market and returns the quote and payment requirements without spending anything. The challenge carries the exact amount, the asset, the payTo address and the EIP-3009 domain, so an agent can decide before it signs. Free. This is the tool to call before buy_token.",
         "args": [
           "symbol",
+          "chainId",
           "to"
         ]
       },
@@ -192,6 +233,7 @@
         "description": "Executes the buy. Called without xPayment it returns the HTTP 402 challenge, which is the correct first response and not an error. Called with a signed x402 payload in xPayment it settles on Base and the curve on the destination chain sends the tokens straight to `to`. You never need native gas on the destination chain and never need to bridge.",
         "args": [
           "symbol",
+          "chainId",
           "to",
           "xPayment"
         ]
@@ -201,7 +243,8 @@
         "title": "Execute a buy end to end (operator-signed, capped)",
         "description": "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, ne",
         "args": [
-          "symbol"
+          "symbol",
+          "chainId"
         ]
       },
       {
@@ -210,7 +253,91 @@
         "description": "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
         "args": [
           "symbol",
+          "chainId",
           "limit"
+        ]
+      },
+      {
+        "name": "check_stake",
+        "title": "Read a wallet's stake in a market",
+        "description": "Free. Reads the market's stake contract on its own chain: its own AdextoAgentStake where it has one, otherwise the chain's AdextoStakeHub, which accepts every other market launched through ADEXTO from its first block. Returns how much an address has staked, the minimum, whether the position is active (at or above the minimum), and the totals. An active stake opens ask_agent for that market and an ",
+        "args": [
+          "symbol",
+          "chainId",
+          "address"
+        ]
+      },
+      {
+        "name": "access_message",
+        "title": "The message to sign before ask_agent",
+        "description": "Free. Returns the exact EIP-191 message an address signs (personal_sign) to prove it is the address asking. ask_agent accepts it for 10 minutes. Signing it moves nothing and costs nothing.",
+        "args": [
+          "symbol",
+          "chainId",
+          "address"
+        ]
+      },
+      {
+        "name": "ask_agent",
+        "title": "Ask the market's agent (stake required)",
+        "description": "Asks the market's own agent a question about that market. Open to an address whose stake in the market's stake contract is active (check_stake), proven with a signed access_message. The answer comes from glm-5.3 on the 0G router and is limited to facts read on-chain for this call; the tool returns those facts next to the answer. Refused without an active stake, and nothing is charged either way.",
+        "args": [
+          "symbol",
+          "chainId",
+          "address",
+          "message",
+          "signature",
+          "question"
+        ]
+      },
+      {
+        "name": "prepare_launch",
+        "title": "Prepare a market launch for your own key to sign",
+        "description": "Launch a new ADEXTO market without handing over a key. Call it once without a signature: it checks the ticker, the chain and an optional ERC-8004 agent you own, and returns an attestation message for the deployer to sign (EIP-191). Call it again with the same arguments plus attestationMessage and attestationSignature: it anchors the launch metadata and returns the unsigned deployTrinity transactio",
+        "args": [
+          "chainId",
+          "name",
+          "symbol",
+          "deployer",
+          "agentId",
+          "description",
+          "website",
+          "x",
+          "github",
+          "docs",
+          "image",
+          "category",
+          "attestationMessage",
+          "attestationSignature"
+        ]
+      },
+      {
+        "name": "register_launch",
+        "title": "List a mined launch on ADEXTO",
+        "description": "After the prepare_launch transaction is mined, lists the new market on adexto.xyz, in list_markets and on the x402 gateway. Reads the TrinityProjectDeployed event from the ADEXTO factory in the receipt; every value it registers comes from that event, not from the caller. Calling it again for the same transaction returns the existing listing.",
+        "args": [
+          "chainId",
+          "txHash"
+        ]
+      },
+      {
+        "name": "prepare_stake",
+        "title": "Prepare a stake for your own key to sign",
+        "description": "Unsigned transactions that stake a market's token in its stake contract or its chain's stake hub: an approval for the exact amount (only if the allowance is short), then the stake. Checks balance, minimum and hub eligibility first, so a stake that would revert is refused before any gas is spent. No lock: unstake works at any time. A stake opens ask_agent for that market.",
+        "args": [
+          "symbol",
+          "chainId",
+          "address",
+          "amount"
+        ]
+      },
+      {
+        "name": "prepare_claim",
+        "title": "Prepare a creator fee claim",
+        "description": "Unsigned transactions that collect the creator fee owed to an address across its markets: one claimCreatorFees() call per curve, or one Multicall3 batch per chain when several are owed. The curve always pays its immutable creator, whoever sends the transaction.",
+        "args": [
+          "address",
+          "chainId"
         ]
       }
     ]
@@ -219,15 +346,15 @@
     "gateway": "https://x402.adexto.xyz",
     "example": {
       "httpStatus": 402,
-      "wwwAuthenticate": "x402 realm=\"adexto-buy-zeebo\"",
+      "wwwAuthenticate": "x402 realm=\"adexto-buy-sai\"",
       "x402Version": 2,
       "accepts": [
         {
           "scheme": "exact",
           "network": "base",
           "maxAmountRequired": "100000",
-          "resource": "https://x402.adexto.xyz/v1/x402/buy/zeebo",
-          "description": "Buy $ZEEBO on 0G Mainnet with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
+          "resource": "https://x402.adexto.xyz/v1/x402/buy/sai?chain=143",
+          "description": "Buy $SAI on Monad Mainnet with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
           "mimeType": "application/json",
           "payTo": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
           "maxTimeoutSeconds": 300,
@@ -236,7 +363,8 @@
             "name": "USD Coin",
             "version": "2",
             "transferMethod": "eip3009"
-          }
+          },
+          "amount": "100000"
         }
       ],
       "quoteShape": [
@@ -255,12 +383,12 @@
   "nativePrices": {
     "USDC": 1,
     "USDT": 1,
-    "ETH": 2687.58,
-    "0G": 0.313879,
-    "A0GI": 0.313879,
-    "MON": 0.0302473,
-    "ARB": 0.204049,
-    "cbBTC": 83690
+    "ETH": 2744.83,
+    "0G": 0.301567,
+    "A0GI": 0.301567,
+    "MON": 0.03420467,
+    "ARB": 0.204809,
+    "cbBTC": 86490
   },
   "analysers": [
     {
@@ -298,9 +426,10 @@
       "tool": "slither",
       "status": "triaged",
       "counts": {
-        "total": 39,
-        "Medium": 21,
-        "Low": 10,
+        "total": 43,
+        "High": 1,
+        "Medium": 22,
+        "Low": 12,
         "Informational": 4,
         "Optimization": 4
       },
@@ -316,9 +445,9 @@
       "status": "triaged",
       "counts": {
         "highKinds": 1,
-        "highInstances": 4,
-        "lowKinds": 5,
-        "lowInstances": 21
+        "highInstances": 5,
+        "lowKinds": 7,
+        "lowInstances": 28
       },
       "launchPathCounts": {
         "HighInstances": 4
@@ -330,7 +459,7 @@
       "status": "clean",
       "counts": {
         "errors": 0,
-        "warnings": 382
+        "warnings": 477
       },
       "launchPathCounts": null
     },
@@ -340,7 +469,7 @@
       "status": "clean",
       "counts": {
         "findings": 0,
-        "filesScanned": 6,
+        "filesScanned": 7,
         "configErrors": 0
       },
       "launchPathCounts": null
@@ -352,12 +481,12 @@
       "counts": {
         "properties": 6,
         "failed": 0,
-        "totalCalls": 50093,
-        "uniqueInstructions": 7989
+        "totalCalls": 50183,
+        "uniqueInstructions": 7918
       },
       "launchPathCounts": null
     }
   ],
-  "analysersScannedAt": "2026-09-30T21:26:24.742Z",
-  "analysersCommit": "2b16426ebdac567fd61bd479d348fd3d266e7ba9"
+  "analysersScannedAt": "2026-10-01T23:48:02.467Z",
+  "analysersCommit": "f80f6bc7c256cfa5027ad7a4773e3700ce867191"
 }
