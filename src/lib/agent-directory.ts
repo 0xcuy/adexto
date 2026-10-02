@@ -12,6 +12,7 @@ import { computeAgentScore, readBinding, recentActivity, SCORE_METHOD, type Acti
 import { OPERATED_AGENTS, agentOwner, isOurAddress, type OperatedAgent } from "@/lib/agent-identities";
 import { resolveChainOrDefault, explorerNftUrl } from "@/lib/chains";
 import { AGENT_REGISTRY_ADDRESS } from "@/lib/dex";
+import { agentCardUrl } from "@/lib/agent-card";
 
 export interface DirectoryAgent extends OperatedAgent {
   owner: string | null;
@@ -52,7 +53,7 @@ export async function agentDirectory(): Promise<AgentDirectory> {
           ownedByAdexto: isOurAddress(owner),
           chain: resolveChainOrDefault(a.chainId).name,
           explorer: explorerNftUrl(a.chainId, AGENT_REGISTRY_ADDRESS, a.agentId),
-          card: `https://adexto.xyz/api/agents/card?chainId=${a.chainId}&agentId=${a.agentId}`,
+          card: agentCardUrl(a.chainId, a.agentId),
         };
       })
     ),
