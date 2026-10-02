@@ -9,6 +9,7 @@ import {
   solveBuyForTokensOut, solveSellForNativeOut, type PoolState, type Quote,
 } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
+import { referrerFor, reportReferredTrade } from "@/lib/referral-client";
 
 /**
  * Shared trading engine for /swap and /token/[slug].
@@ -369,6 +370,8 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         // transaksi bisa dikirim dari wallet yang bukan pilihannya.
         const ethereum = getActiveEip1193();
         if (!ethereum) throw new Error("No wallet available. Connect a wallet first.");
+        // Perujuk dari tautan `?ref=` yang pernah dibuka (P2.5). Null = trade tanpa atribusi.
+        const referral = await referrerFor(walletAddress);
         if (mode === "buy") {
           /**
            * Kalimatnya dulu "Simulating buy on 0G Mainnet…", dan itu salah bukan
@@ -387,8 +390,10 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
             poolAddress: market.poolAddress,
             amountInWei: parsedAmount,
             minTokensOut: minReceived,
+            referrer: referral?.address ?? null,
           });
           setTxHash(result.txHash);
+          if (referral) reportReferredTrade({ txHash: result.txHash, chainId: chain.chainId, code: referral.code });
           setStatusLine(
             `Received ${Number(ethers.formatUnits(result.amountOut, tokenDecimals)).toLocaleString(undefined, {
               maximumFractionDigits: 4,
@@ -404,8 +409,10 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
             amountInTokens: parsedAmount,
             minNativeOut: minReceived,
             onApproval: () => setStatusLine("Approval sent, waiting for confirmation…"),
+            referrer: referral?.address ?? null,
           });
           setTxHash(result.txHash);
+          if (referral) reportReferredTrade({ txHash: result.txHash, chainId: chain.chainId, code: referral.code });
           setStatusLine(`Received ${Number(ethers.formatEther(result.amountOut)).toFixed(6)} ${chain.nativeSymbol}.`);
         }
 

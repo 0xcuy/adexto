@@ -20,6 +20,7 @@
 import { ethers } from "ethers";
 import type { ChainInfo } from "@/lib/chains";
 import { toHexChainId, readProvider } from "@/lib/chains";
+import { referralTag } from "@/lib/referral-tag";
 
 export const SOVEREIGN_HOOK_ABI = [
   "function initialized() view returns (bool)",
@@ -800,6 +801,8 @@ export async function executeBuy(params: {
   minTokensOut: bigint;
   recipient?: string;
   deadlineSeconds?: number;
+  /** Alamat perujuk; bila ada, ditempel sebagai ekor calldata (P2.5). */
+  referrer?: string | null;
 }): Promise<TradeResult> {
   const { ethereum, chain, poolAddress, amountInWei, minTokensOut } = params;
   if (amountInWei <= 0n) throw new Error("Enter an amount greater than zero.");
@@ -844,7 +847,18 @@ export async function executeBuy(params: {
     gasLimit = undefined;
   }
 
-  const tx = await pool.buy(minTokensOut, to, deadline, { value: amountInWei, ...overrides, ...(gasLimit ? { gasLimit } : {}) });
+  // Dengan perujuk, calldata yang SAMA ditambah ekor referral (lihat `src/lib/referral-tag.ts`):
+  // kurva mengabaikannya, dan ekor itu yang membuktikan atribusinya karena ikut ditandatangani.
+  const tagTail = params.referrer ? referralTag(params.referrer).slice(2) : "";
+  const tx = tagTail
+    ? await signer.sendTransaction({
+        to: poolAddress,
+        data: (await pool.buy.populateTransaction(minTokensOut, to, deadline)).data + tagTail,
+        value: amountInWei,
+        ...overrides,
+        ...(gasLimit ? { gasLimit: gasLimit + 2_000n } : {}),
+      })
+    : await pool.buy(minTokensOut, to, deadline, { value: amountInWei, ...overrides, ...(gasLimit ? { gasLimit } : {}) });
   const receipt = await tx.wait();
   if (receipt?.status === 0) throw new Error("Transaction reverted on-chain.");
 
@@ -866,6 +880,8 @@ export async function executeSell(params: {
   recipient?: string;
   deadlineSeconds?: number;
   onApproval?: (txHash: string) => void;
+  /** Alamat perujuk; bila ada, ditempel sebagai ekor calldata (P2.5). */
+  referrer?: string | null;
 }): Promise<TradeResult> {
   const { ethereum, chain, poolAddress, tokenAddress, amountInTokens, minNativeOut } = params;
   if (amountInTokens <= 0n) throw new Error("Enter a token amount greater than zero.");
@@ -916,7 +932,15 @@ export async function executeSell(params: {
     gasLimit = undefined;
   }
 
-  const tx = await pool.sell(amountInTokens, minNativeOut, to, deadline, { ...overrides, ...(gasLimit ? { gasLimit } : {}) });
+  const tagTail = params.referrer ? referralTag(params.referrer).slice(2) : "";
+  const tx = tagTail
+    ? await signer.sendTransaction({
+        to: poolAddress,
+        data: (await pool.sell.populateTransaction(amountInTokens, minNativeOut, to, deadline)).data + tagTail,
+        ...overrides,
+        ...(gasLimit ? { gasLimit: gasLimit + 2_000n } : {}),
+      })
+    : await pool.sell(amountInTokens, minNativeOut, to, deadline, { ...overrides, ...(gasLimit ? { gasLimit } : {}) });
   const receipt = await tx.wait();
   if (receipt?.status === 0) throw new Error("Transaction reverted on-chain.");
 

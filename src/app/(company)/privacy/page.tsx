@@ -58,12 +58,18 @@ export default function PrivacyPage() {
           wallet you closed.
         </li>
         <li>
+          <code className="text-ink">adexto_ref</code> — the referral code from a link you opened
+          (<code className="text-ink">?ref=</code>), kept for 30 days and only written if you opened such a
+          link. When you trade, the referrer&apos;s address is added to the end of the transaction data, so
+          it is public on chain like the rest of the transaction.
+        </li>
+        <li>
           <code className="text-ink">adexto_cookie_consent</code> — your answer to the storage notice.
         </li>
       </UL>
       <P>
-        Choosing <strong>Essential only</strong> in that notice deletes the chain, address, theme and
-        watchlist keys immediately and stops them being written again. Your wallet will simply not
+        Choosing <strong>Essential only</strong> in that notice deletes the chain, address, theme,
+        watchlist and referral keys immediately and stops them being written again. Your wallet will simply not
         reconnect on its own afterwards, and a watchlist lasts only until you close the tab.
       </P>
 
@@ -84,6 +90,13 @@ export default function PrivacyPage() {
           Cloudflare&apos;s <code className="text-ink">cf-connecting-ip</code> header. The counter
           lives in memory in a plain map and is lost whenever the process restarts. It is never
           written to disk and never used for anything but the limit.
+        </li>
+        <li>
+          <strong>Referral records.</strong> When a trade carries a referral, the server stores what the
+          chain already shows about it — transaction hash, chain, market, the trading wallet, the
+          referrer&apos;s address, the amount and the protocol fee — so the referrer&apos;s weekly totals
+          can be computed. A handle you register for your referral link is stored with your address. No IP
+          address or browser data is stored with either.
         </li>
         <li>
           <strong>No request logs are kept</strong> beyond what the container prints to its own

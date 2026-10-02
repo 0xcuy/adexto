@@ -13,9 +13,10 @@ import { Cookie, X } from "lucide-react";
  * di repo ini: TIDAK ADA satu pun cookie yang kami setel, dan tidak ada analitik kami
  * sendiri. Yang benar-benar ada hanya ini:
  *
- *   - empat kunci `localStorage`: `adexto_selected_chain`, `adexto_wallet_address`,
- *     `adexto_theme` (hanya ada bila pengguna pernah mengganti tema), dan `adexto_watchlist`
- *     (hanya ada bila pengguna pernah menandai pasar dengan bintang)
+ *   - lima kunci `localStorage`: `adexto_selected_chain`, `adexto_wallet_address`,
+ *     `adexto_theme` (hanya ada bila pengguna pernah mengganti tema), `adexto_watchlist`
+ *     (hanya ada bila pengguna pernah menandai pasar dengan bintang), dan `adexto_ref` (hanya
+ *     ada bila pengguna membuka tautan referral `?ref=`, 30 hari; lihat ReferralCapture)
  *   - IP di MEMORI untuk pembatas laju, lewat `cf-connecting-ip`, dalam sebuah Map yang
  *     hilang begitu proses restart — tidak pernah ditulis ke disk
  *   - cookie keamanan Cloudflare (`__cf_bm` dan sejenisnya), disetel oleh jaringan di depan
@@ -36,7 +37,7 @@ import { Cookie, X } from "lucide-react";
 
 const KEY = "adexto_cookie_consent";
 /** Kunci yang dikelola pilihan ini. Semuanya preferensi, bukan kebutuhan keamanan. */
-const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address", "adexto_theme", "adexto_watchlist"];
+const PREFERENCE_KEYS = ["adexto_selected_chain", "adexto_wallet_address", "adexto_theme", "adexto_watchlist", "adexto_ref"];
 
 type Choice = "all" | "essential";
 
@@ -107,8 +108,8 @@ export default function CookieConsent() {
               kalimat umum. */}
           <p className="text-[11px] leading-relaxed text-ink-soft">
             We set no cookies of our own and run no advertising or cross-site tracking. Your browser
-            keeps up to three preferences — your selected chain, your wallet address and your theme — and Cloudflare sets
-            its own security cookies in front of this site.{" "}
+            keeps a few preferences — your selected chain, your wallet address, your theme and, if you opened a
+            referral link, its code for 30 days — and Cloudflare sets its own security cookies in front of this site.{" "}
             <Link href="/privacy" className="font-semibold text-accent hover:underline">
               Privacy
             </Link>
