@@ -8,6 +8,7 @@ import {
   type PaymentRequirements,
 } from "./x402";
 import { bazaarExtension, listMarkets, openApiDocument, resourceInfo, wellKnownX402 } from "./discovery";
+import { COMPUTE_PATH, computeEnabled, computeListing, handleCompute, routerCaller, type ComputeDeps, type ComputeEnv } from "./compute";
 
 /**
  * Cloudflare Worker — gerbang x402 untuk ADEXTO: BELI TOKEN LINTAS CHAIN.
@@ -48,7 +49,11 @@ import { bazaarExtension, listMarkets, openApiDocument, resourceInfo, wellKnownX
  * kontrak mana yang kami panggil dengan dana kami — kelas kesalahan yang sama dengan
  * `X-Creator-Vault`, header yang dulu menentukan siapa yang dibayar dan sudah dihapus.
  */
-export interface Env {
+/**
+ * `ComputeEnv` menambahkan var compute berbayar (`X402_COMPUTE_*`, lihat compute.ts). Semuanya
+ * opsional dan bawaannya mati, jadi Worker tanpa var itu berperilaku persis seperti sebelumnya.
+ */
+export interface Env extends ComputeEnv {
   /** Penerima USDC. Var worker, TIDAK PERNAH dari header permintaan. */
   X402_PAYEE: string;
   /** Harga satu pembelian dalam satuan terkecil USDC (6 desimal). */
@@ -169,6 +174,20 @@ function providerVia(env: Env, url: string, chainId: number): ethers.JsonRpcProv
 /** Base khusus, dipakai jalur verifikasi dan settlement pembayaran. */
 function baseProviderVia(env: Env): ethers.JsonRpcProvider {
   return providerVia(env, env.BASE_RPC, 8453);
+}
+
+/**
+ * Dependensi nyata compute berbayar: verifikasi dan settlement yang SAMA dengan pembelian token
+ * (facilitator sendiri di x402.ts, lewat relai Base), dan router Agent Compute.
+ */
+function computeDeps(env: Env): ComputeDeps {
+  const baseProvider = baseProviderVia(env);
+  return {
+    verify: (payload, requirements) => verifyPayment({ payload, requirements, provider: baseProvider }),
+    settle: (payload, requirements) =>
+      settlePayment({ payload, requirements, provider: baseProvider, relayerKey: env.X402_RELAYER_PRIVATE_KEY }),
+    callRouter: routerCaller(env),
+  };
 }
 
 const CURVE_ABI = [
@@ -397,6 +416,20 @@ export default {
     }
 
     /**
+     * Compute berbayar, juga SEBELUM path diurai sebagai ticker: tanpa cabang ini
+     * `/v1/compute/chat/completions` dibaca sebagai ticker "COMPLETIONS". Saklarnya
+     * `X402_COMPUTE_ENABLED`; mati berarti 404 `compute_not_enabled` untuk seluruh `/v1/compute/`.
+     */
+    const path = url.pathname.replace(/\/+$/, "");
+    if (path === "/v1/compute" || path.startsWith("/v1/compute/")) {
+      if (computeEnabled(env) && path !== COMPUTE_PATH) {
+        return json({ error: "not_found", detail: `The compute route is POST ${COMPUTE_PATH}.` }, 404);
+      }
+      const reply = await handleCompute(request, env, computeDeps(env), url.origin);
+      return json(reply.body, reply.status, reply.headers ?? {});
+    }
+
+    /**
      * Dokumen discovery, dijawab SEBELUM path diurai sebagai ticker.
      *
      * Tanpa cabang ini `/openapi.json` dibaca sebagai ticker "OPENAPI.JSON" dan dijawab
@@ -412,10 +445,12 @@ export default {
         } catch {
           // Dokumen tetap dijawab tanpa contoh pasar; rute dan harganya tidak bergantung padanya.
         }
+        // Null kecuali compute hidup, berharga dan punya kunci router: saklar mati = dokumen tidak berubah.
+        const compute = computeListing(env, url.origin);
         const body =
           url.pathname === "/openapi.json"
-            ? openApiDocument({ gateway: url.origin, priceAtomic: BigInt(env.X402_PRICE_ATOMIC || "20000"), markets })
-            : wellKnownX402(url.origin, markets);
+            ? openApiDocument({ gateway: url.origin, priceAtomic: BigInt(env.X402_PRICE_ATOMIC || "20000"), markets, compute })
+            : wellKnownX402(url.origin, markets, compute);
         return json(body, 200, { "Cache-Control": "public, max-age=300" });
       }
       // Bukti domain ERC-8004 untuk endpoint x402 agen kami, dilayani di domain endpoint itu

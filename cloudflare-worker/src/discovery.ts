@@ -129,38 +129,60 @@ export async function listMarkets(origin: string): Promise<ListedMarket[]> {
     .map((p) => ({ slug: String(p.slug), chainId: Number(p.chainId), chainName: p.chainName, tradable: Boolean(p.tradable) }));
 }
 
+/**
+ * Paid compute, when it is switched on, priced and keyed (see compute.ts). `null` leaves both
+ * documents byte-identical to the token-only gateway.
+ */
+export interface ComputeListing {
+  resource: string;
+  instructions: string;
+  openApi: { path: string; item: Record<string, unknown>; guidance: string };
+}
+
 /** `/.well-known/x402`, version 1: one concrete URL per tradable market. */
-export function wellKnownX402(gateway: string, markets: ListedMarket[]) {
+export function wellKnownX402(gateway: string, markets: ListedMarket[], compute: ComputeListing | null = null) {
   return {
     version: 1,
-    resources: markets.filter((m) => m.tradable).map((m) => `${gateway}/v1/x402/buy/${m.slug}?chain=${m.chainId}`),
+    resources: [
+      ...markets.filter((m) => m.tradable).map((m) => `${gateway}/v1/x402/buy/${m.slug}?chain=${m.chainId}`),
+      ...(compute ? [compute.resource] : []),
+    ],
     instructions:
       "Each resource buys one market's token with USDC on Base. GET it without a payment for the 402 quote, sign " +
       "the EIP-3009 authorization in accepts[0], then repeat the request with the base64 payload in X-PAYMENT. " +
-      "The curve on the market's own chain sends the tokens to the payer; delivery happens before the charge.",
+      "The curve on the market's own chain sends the tokens to the payer; delivery happens before the charge." +
+      (compute ? ` ${compute.instructions}` : ""),
   };
 }
 
 /** OpenAPI 3.1 for the gateway. The price is the configured one, read at request time. */
-export function openApiDocument(params: { gateway: string; priceAtomic: bigint; markets: ListedMarket[] }) {
+export function openApiDocument(params: {
+  gateway: string;
+  priceAtomic: bigint;
+  markets: ListedMarket[];
+  compute?: ComputeListing | null;
+}) {
+  const compute = params.compute ?? null;
   const usd = (Number(params.priceAtomic) / 1e6).toFixed(2);
   const examples = params.markets.filter((m) => m.tradable).slice(0, 12);
   return {
     openapi: "3.1.0",
     info: {
       title: "ADEXTO x402 gateway",
-      version: "1.1.0",
+      version: compute ? "1.2.0" : "1.1.0",
       description:
         "Buy any ADEXTO bonding-curve market with USDC on Base and receive the token on the market's own chain " +
         "(0G, Base, Arbitrum One, Monad, Robinhood Chain). No bridge, no gas on the destination chain. Delivery " +
-        "is executed before the charge, so a failed fill costs the gateway, not the buyer.",
+        "is executed before the charge, so a failed fill costs the gateway, not the buyer." +
+        (compute ? " The same gateway sells single chat completions from 0G Compute, charged only after they are produced." : ""),
       "x-guidance":
         `GET /v1/x402/buy/{symbol} without payment returns 402 with a live quote in "quote" and the payment terms ` +
         `in accepts[0] (exact scheme, USDC on Base, EIP-3009). Sign transferWithAuthorization for exactly ` +
         `maxAmountRequired to payTo, base64-encode {x402Version, scheme, network, payload:{signature, authorization}}, ` +
         `and repeat the request with it in the X-PAYMENT header. Pass ?chain=<id> when a ticker trades on more ` +
         `than one chain and ?to=<address> to deliver to another wallet. Market list: ${SERVICE.site}/api/graphql. ` +
-        `The same flow is available as MCP tools at ${SERVICE.site}/api/mcp.`,
+        `The same flow is available as MCP tools at ${SERVICE.site}/api/mcp.` +
+        (compute ? compute.openApi.guidance : ""),
       contact: { name: "ADEXTO", url: `${SERVICE.site}/contact` },
     },
     servers: [{ url: params.gateway }],
@@ -222,6 +244,7 @@ export function openApiDocument(params: { gateway: string; priceAtomic: bigint; 
           },
         },
       },
+      ...(compute ? { [compute.openApi.path]: compute.openApi.item } : {}),
     },
   };
 }

@@ -109,6 +109,21 @@ ADEXTO_ORIGIN = "https://adexto.xyz"
 # Naikkan untuk efisiensi lebih tinggi dengan burn lebih jarang; turunkan ke 1 berarti
 # sekadar balik modal.
 X402_BURN_GAS_MULTIPLE = "3"
+# Compute berbayar per panggilan, `POST /v1/compute/chat/completions` (src/compute.ts).
+#
+# MATI. Selama "false", seluruh `/v1/compute/` menjawab 404 `compute_not_enabled` dan rutenya
+# tidak disebut di /openapi.json maupun /.well-known/x402 (keduanya byte-identik dengan sebelum
+# compute ada). Menyalakannya menunggu "ya" owner untuk tiga hal: harga, kunci router khusus
+# dengan plafon bulanan (secret X402_COMPUTE_ROUTER_KEY), dan ketentuan provider hulu yang
+# membolehkan inferensi dijual ulang. Lihat .kiro/plans/PLAN-1-CHUNKS.md gelombang C.
+X402_COMPUTE_ENABLED = "false"
+# Belum diputuskan; usulannya 5000 = $0,005. Kosong berarti 503 walau saklar hidup, jadi saklar
+# yang tidak sengaja dinyalakan tetap tidak menjual apa pun.
+X402_COMPUTE_PRICE_ATOMIC = ""
+X402_COMPUTE_ROUTER_URL = "https://compute.adexto.xyz/v1"
+X402_COMPUTE_MODEL = "0g/deepseek-v4-flash"
+# Per payer, "jumlah/detik", dihitung per isolate. Rem, bukan pagar: plafon sebenarnya kunci router.
+X402_COMPUTE_PAYER_LIMIT = "20/600"
 
 # Rahasia, disetel lewat `wrangler secret put`, tidak pernah di berkas ini:
 #   RPC_RELAY_SECRET — kunci bersama untuk relai di BASE_RPC; tanpa ini relai 401
@@ -117,3 +132,6 @@ X402_BURN_GAS_MULTIPLE = "3"
 #   dompet itu, bukan lebih: otorisasi USDC ditandatangani pembayar, jadi kunci ini
 #   tidak bisa memindahkan dana siapa pun. Kunci deployer TIDAK PERNAH dipakai di
 #   sini karena ia memegang factory di empat chain, treasury, dan namespace ERC-8004.
+#   X402_COMPUTE_ROUTER_KEY — kunci Adexto Router untuk compute berbayar, BELUM disetel. Harus
+#   kunci tersendiri yang dipin ke provider 0g-compute dengan plafon bulanan, bukan kunci pool
+#   pemegang stake: plafonnya adalah batas kerugian kalau batas per payer di atas ditembus.
