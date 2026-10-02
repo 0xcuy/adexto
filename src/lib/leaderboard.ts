@@ -22,6 +22,7 @@
 import { ethers } from "ethers";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
 import { ensureMarketIndex, indexable, swapsWithTimes } from "@/lib/market-index";
+import { computeHolders } from "@/lib/holders";
 import { chainFromId, readProvider } from "@/lib/chains";
 import { isOurAddress } from "@/lib/agent-identities";
 import { logoUrlFor } from "@/lib/logo-image";
@@ -52,6 +53,10 @@ export interface LeaderboardMarket {
   lastTradeAt: number | null;
   priceNative: number | null;
   priceUsd: number | null;
+  /** Pemegang dengan saldo, di luar kurva dan alamat bakar (`computeHolders`). Null tanpa indeks. */
+  holders: number | null;
+  /** Fee creator sepanjang umur kurva (dibayar + belum diklaim), USD. */
+  creatorEarnedUsd: number | null;
   /** Indeks pasar ini belum mencapai kepala chain; angkanya bisa kurang. */
   partial: boolean;
 }
@@ -218,6 +223,8 @@ async function compute(): Promise<Leaderboard> {
         lastTradeAt: last?.time ?? null,
         priceNative,
         priceUsd: priceNative !== null && nativeUsd > 0 ? priceNative * nativeUsd : null,
+        holders: index ? computeHolders(index, { symbol: p.symbol, creator: creator ?? "", status }).holders : null,
+        creatorEarnedUsd: revenue !== null ? revenue * nativeUsd : null,
         partial: !status.complete,
       };
       // Skor kontes: pembeli bersih dalam jendela 72 jam sejak launch.

@@ -46,11 +46,11 @@ export function proofComposeLinks(body: string, proofUrl: string) {
 }
 
 /**
- * Deep link "tambahkan bot alert ke grup Telegram-mu". Null sampai username bot diset
- * (`NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`, P2.2): tanpa bot, tombolnya akan membuka halaman t.me kosong.
+ * Deep link "tambahkan bot alert ke grup Telegram-mu". Null tanpa username bot (dari
+ * `/api/telegram/info`, P2.2): tanpa bot, tombolnya akan membuka halaman t.me kosong.
  *
  * Parameter `startgroup` hanya boleh [A-Za-z0-9_-] dan maksimal 64 karakter. Bentuknya
- * `<chainId>_<token>` (huruf kecil), 48 karakter; bot membaca market dari situ.
+ * `<chainId>_<token>` (huruf kecil), 48 karakter; `/start` di `src/lib/telegram-bot.ts` membacanya.
  */
 export function telegramAlertLink(botUsername: string | null | undefined, chainId: number, token: string): string | null {
   const bot = (botUsername ?? "").trim().replace(/^@/, "");

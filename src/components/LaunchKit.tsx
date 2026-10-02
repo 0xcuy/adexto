@@ -21,7 +21,7 @@ import { SHARE_CARD_VERSION } from "@/lib/share-card-format";
  * Launch kit di layar sukses Studio, satu per chain yang berhasil.
  *
  * Isinya: kartu bagikan, draf pengumuman (komponen yang sudah ada), bukti launch bersih beserta
- * composer post X yang menautkannya, bot alert Telegram (hanya bila botnya sudah ada), status
+ * composer post X yang menautkannya, bot alert Telegram (hanya bila `/api/telegram/info` menyebut botnya), status
  * listing agregator, dan catatan stake hub. Semua angka datang dari rute yang juga dipakai halaman
  * token; kit ini tidak menghitung apa pun sendiri.
  *
@@ -48,7 +48,15 @@ export default function LaunchKit({
   const base = origin || "https://adexto.xyz";
   const marketPath = `/token/${encodeURIComponent(slug)}?chain=${chainId}`;
   const cardUrl = `/api/share-card/${encodeURIComponent(slug)}?chain=${chainId}&v=${SHARE_CARD_VERSION}`;
-  const telegram = telegramAlertLink(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME, chainId, tokenAddress);
+  // Username bot dari server (`/api/telegram/info`); tanpa bot, tombolnya tidak dirender.
+  const [botName, setBotName] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/telegram/info")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => setBotName(typeof b?.username === "string" ? b.username : null))
+      .catch(() => setBotName(null));
+  }, []);
+  const telegram = telegramAlertLink(botName, chainId, tokenAddress);
   const hub = stakeHubFor(chainId);
   const stakeable = Boolean(hub) && !hubRefuses(chainId, tokenAddress);
 
