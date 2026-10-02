@@ -110,13 +110,26 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
   143: 500_000, // Monad via Alchemy — diukur 2026-09-14; QuickNode hanya menerima 100
   /**
    * Robinhood Chain: blocks are ~0.1 s, so the 2,000-block default would reach back only
-   * about 53 minutes over 16 calls. Measured on 2026-10-01 against
-   * rpc.mainnet.chain.robinhood.com, from this machine and from the VPS, with a curve-style
-   * filter: 1,000,000, 5,000,000 and 8,000,000 blocks accepted, 10,000,000 rejected.
-   * 1,000,000 (about 28 hours per call, 18 days over the budget) keeps a wide margin below
-   * that ceiling, for the same reason Monad's value sits below its own.
+   * about 53 minutes over 16 calls.
+   *
+   * TURUN dari 1.000.000 ke 100.000 (2026-10-02), dan yang menentukan bukan lebar rentang
+   * saja melainkan BENTUK filternya. rpc.mainnet.chain.robinhood.com punya dua batas:
+   *
+   *   satu nilai per posisi (1 alamat, 1 topic)      1.000.000 blok diterima
+   *   lebih dari satu nilai di satu posisi           100.000 blok, di atasnya ditolak:
+   *     "query spans 1000000 blocks ..., but only 100000 are allowed for this request;
+   *      narrow the block range, or send one value per position"
+   *
+   * Setiap kueri aplikasi memakai banyak nilai: `readOnChainSwaps` mengirim tiga topic Swap,
+   * `market-index.ts` dua alamat dan empat topic, adapter DexScreener banyak alamat kurva.
+   * Angka 2026-10-01 (1.000.000 sampai 8.000.000 diterima) cocok dengan filter satu nilai
+   * per posisi — bentuk yang juga dipakai penjaga rentang di `audit_consistency.mjs`, yang
+   * karena itu tetap lolos. Terukur 2026-10-02: filter `readOnChainSwaps` pada 1.000.000 blok
+   * ditolak dengan pesan di atas, dan di produksi indeks $SAI di Robinhood berhenti di 10%
+   * dengan "could not coalesce error". 100.000 masih 2,8 jam per panggilan dan 44 jam dalam
+   * anggaran 16 panggilan.
    */
-  4663: 1_000_000,
+  4663: 100_000,
 };
 const DEFAULT_LOG_SPAN = 2_000;
 
