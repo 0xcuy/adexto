@@ -15,6 +15,7 @@ import {
   FileText,
   Plug,
   Bot,
+  Trophy,
   Twitter,
   Github,
   ArrowUpRight,
@@ -43,6 +44,8 @@ const TABS = [
 ];
 
 const MORE_LINKS = [
+  // Plan 2: paling atas di daftar More (posisi dipatok di .kiro/plans/README.md §3).
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
   { href: "/docs", label: "Docs", icon: BookOpen },
   { href: "/x402", label: "x402 API", icon: Plug },

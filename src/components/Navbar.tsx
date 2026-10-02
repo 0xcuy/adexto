@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, ArrowDownUp, Sparkles, Bot } from "lucide-react";
+import { Compass, ArrowDownUp, Sparkles, Bot, Trophy } from "lucide-react";
 import WalletMenu from "@/components/WalletMenu";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -42,6 +42,8 @@ export default function Navbar() {
   const links = [
     { href: "/explorer", label: "Explorer", icon: Compass },
     { href: "/swap", label: "Swap", icon: ArrowDownUp },
+    // Plan 2: peringkat pasar, tepat sesudah Swap (posisi dipatok di .kiro/plans/README.md §3).
+    { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
     /**
      * Agent Compute di posisi ketiga, sesudah Swap.
      *

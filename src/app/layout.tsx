@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import { WalletProvider } from "@/context/WalletContext";
 import MobileTabBar from "@/components/MobileTabBar";
+import ReferralCapture from "@/components/ReferralCapture";
 import { DEFAULT_THEME, THEME_BOOT_SCRIPT, THEME_COLOR } from "@/lib/theme";
 
 /**
@@ -145,6 +146,8 @@ export default function RootLayout({
                 <main> akan membuatnya ikut terpotong oleh halaman yang punya overflow
                 sendiri. */}
             <CookieConsent />
+            {/* Plan 2 (P2.5): menangkap `?ref=` di semua halaman. Tidak merender apa pun. */}
+            <ReferralCapture />
           </div>
         </WalletProvider>
       </body>
