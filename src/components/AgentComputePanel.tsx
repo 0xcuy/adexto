@@ -610,8 +610,8 @@ export default function AgentComputePanel() {
             stake hub, from its first block, with a minimum of 0.001% of its supply. Its keys share compute funded by
             the market&apos;s own trading: {HUB_COMPUTE_SHARE_BPS / 100}% of the 0.10% protocol fee its trades pay,
             split by stake, and only fees that arrive after a key exists count toward that key. At today&apos;s model
-            price, about ${hubVolumePerRequestUsd().toFixed(2)} of trading pays for one request. A market nobody trades
-            funds no compute.
+            price, about ${hubVolumePerRequestUsd().toFixed(2)} of trading pays for one request, and a key switches on
+            once one request&apos;s worth has accrued. A market nobody trades funds no compute.
           </div>
         </section>
 
@@ -1002,7 +1002,8 @@ function StakeCard({
                   </>
                 )}{" "}
                 Your share starts with the fees that arrive after you issue this token&apos;s key, so the key opens with
-                nothing and fills as the market trades.
+                nothing, fills as the market trades, and switches on once at least one request&apos;s worth (
+                {fmt(MEASURED_INPUT_FLOOR)} tokens) has accrued.
               </p>
             </div>
           ) : active && tier ? (

@@ -35,6 +35,7 @@ import { CHAIN_LIST } from "@/lib/chains";
 import {
   AGENT_COMPUTE_PROVIDER,
   HUB_COMPUTE_SHARE_BPS,
+  MEASURED_INPUT_FLOOR,
   hubTokensForUsd,
   tierForStake,
   type ComputeStake,
@@ -701,12 +702,21 @@ export async function sweep(force = false): Promise<SweepResult> {
         // Tanpa tingkatan: jatahnya adalah yang sudah terkumpul dari protocol fee pasar ini.
         key.tierLabel = "Fee-funded";
         key.allowance = key.accrued ?? 0;
+        /**
+         * Kunci hub baru hidup kalau sisanya cukup untuk SATU permintaan minimum. Penegakan
+         * berjalan per sapuan (cron tiap menit), jadi kunci yang hidup boleh dipakai sampai
+         * sapuan berikutnya. Menghidupkannya untuk sisa beberapa token, setiap kali satu trade
+         * kecil masuk, membuat setiap trade kecil membuka jendela semenit tanpa batas.
+         */
+        const remaining = key.allowance - used;
         if (staked === null || staked < source.minStake) reason = below;
-        else if (used >= key.allowance) {
+        else if (remaining < MEASURED_INPUT_FLOOR) {
           reason =
             key.allowance === 0
               ? "No compute has accrued for this key yet. It accrues as this market trades."
-              : "The compute this market's trading has paid for is used up. More accrues as it trades.";
+              : remaining <= 0
+                ? "The compute this market's trading has paid for is used up. More accrues as it trades."
+                : `Less than one request's worth of compute is left (${Math.floor(remaining).toLocaleString("en-US")} of ${MEASURED_INPUT_FLOOR.toLocaleString("en-US")} tokens). More accrues as this market trades.`;
         }
       } else {
         const tier = staked === null ? null : tierForStake(staked, source.tiers);
