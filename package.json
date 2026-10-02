@@ -25,7 +25,8 @@
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
     "three": "^0.170.0",
-    "zod": "4.6.5"
+    "zod": "^3.25.76",
+    "zod-v4": "npm:zod@4.6.5"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.98.1",

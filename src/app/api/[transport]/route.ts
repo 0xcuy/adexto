@@ -43,7 +43,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createMcpHandler } from "mcp-handler";
 import { ethers } from "ethers";
-import { z } from "zod";
+/**
+ * zod 4 lewat alias `zod-v4` (npm:zod@4.6.5), bukan `zod` root.
+ *
+ * SDK MCP v2 menuntut skema Standard Schema dengan `~standard.jsonSchema` (zod >= 4.2). zod root
+ * TETAP 3.25.76: beberapa paket (abitype 0.7.1 di bawah graph-cli, hardhat, cdp-sdk) memegang
+ * peer opsional zod ^3, dan begitu root naik ke 4, npm 10 di image Docker (node:20) menolak
+ * lockfile yang ditulis npm 11 ("Missing: zod@3.25.76 from lock file") sementara npm 11 menghapus
+ * salinan bersarang yang diminta npm 10. Dengan alias, kedua versi npm sepakat dan hanya berkas ini
+ * yang memakai zod 4.
+ */
+import { z } from "zod-v4";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
