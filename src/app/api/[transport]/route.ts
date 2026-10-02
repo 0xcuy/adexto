@@ -65,6 +65,7 @@ import { computeStakeForMarket, HUB_COMPUTE_SHARE_BPS } from "@/config/agent-com
 import { MARKET_CATEGORIES } from "@/lib/categories";
 import { prepareLaunch, registerLaunch, type IpHeaders } from "@/lib/agent-launch";
 import { prepareClaim, prepareStake } from "@/lib/agent-tx";
+import { MCP_OUTPUTS } from "@/lib/mcp-outputs";
 // Versi server SATU sumber dengan entri MCP Registry dan kartu server, supaya ketiganya tidak berpisah.
 import serverMeta from "../../../../server.json";
 
@@ -190,9 +191,24 @@ const PAY_LIMITS = {
   chainId: 8453,
 } as const;
 
-const jsonResult = (value: unknown) => ({
-  content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-});
+/**
+ * Teks JSON untuk klien lama, plus `structuredContent` untuk klien yang membaca `outputSchema`.
+ *
+ * `structuredContent` adalah round-trip JSON dari teks yang SAMA, bukan objek aslinya: dua
+ * bentuk jawaban tidak boleh bisa berbeda, dan JSON sudah membuang `undefined` serta mengubah
+ * NaN/Infinity menjadi null. Setiap alat punya `outputSchema` (src/lib/mcp-outputs.ts), dan SDK
+ * memvalidasi `structuredContent` terhadapnya sebelum menjawab.
+ */
+const jsonResult = (value: unknown) => {
+  const text = JSON.stringify(value, null, 2);
+  const structured: unknown = JSON.parse(text);
+  return {
+    content: [{ type: "text" as const, text }],
+    ...(structured && typeof structured === "object" && !Array.isArray(structured)
+      ? { structuredContent: structured as Record<string, unknown> }
+      : {}),
+  };
+};
 
 /**
  * Ambil dari endpoint kita sendiri dan SELALU laporkan status aslinya.
@@ -471,6 +487,24 @@ const ADDRESS = z
   .string()
   .regex(/^0x[a-fA-F0-9]{40}$/, "a 20-byte hex address");
 
+/**
+ * `serverInfo` lengkap (`Implementation` MCP 2025-11-25): judul, deskripsi, situs dan ikon,
+ * semuanya dari `server.json` supaya registry dan server tidak bisa berselisih. Direktori seperti
+ * Smithery membaca ikon dari sini; tanpa ini mereka menebak favicon domain.
+ *
+ * Konstanta, bukan literal di opsi: tipe `serverInfo` di mcp-handler hanya menyebut `name` dan
+ * `version`, sementara `McpServer` di bawahnya menerima bidang `Implementation` selengkapnya.
+ * `name` tetap `adexto-x402` karena klien yang sudah ada mengenali server dengan nama itu.
+ */
+const SERVER_INFO = {
+  name: "adexto-x402",
+  title: serverMeta.title,
+  version: serverMeta.version,
+  description: serverMeta.description,
+  websiteUrl: serverMeta.websiteUrl,
+  icons: serverMeta.icons,
+};
+
 const mcp = createMcpHandler(
   (server) => {
     // ── FREE: discovery ────────────────────────────────────────────────────────
@@ -482,6 +516,7 @@ const mcp = createMcpHandler(
         description:
           "Every bonding-curve market this gateway can sell, across all chains it serves, with its ticker, chain, curve address and whether it is currently tradable. Free. Start here: the buy tools require a ticker and deliberately have no default.",
         inputSchema: {},
+        outputSchema: MCP_OUTPUTS.list_markets,
       },
       async () => {
         const projects = registryProjects();
@@ -517,6 +552,7 @@ const mcp = createMcpHandler(
         description:
           "Full detail for a single market: chain, curve address, supply, fee rates, current price in the chain's native asset, and which read path serves its trade history. Free.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
+        outputSchema: MCP_OUTPUTS.get_market,
       },
       async ({ symbol, chainId }) => {
         const projects = registryProjects();
@@ -575,6 +611,7 @@ const mcp = createMcpHandler(
             .optional()
             .describe("Recipient address for the tokens. Optional for a quote; the curve delivers straight to it on a real buy."),
         },
+        outputSchema: MCP_OUTPUTS.quote_buy,
       },
       async ({ symbol, chainId, to }) => {
         const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
@@ -608,6 +645,7 @@ const mcp = createMcpHandler(
         description:
           "The exact steps to turn a 402 challenge into a settled cross-chain buy: what to sign, which chain settles, and which header carries the payment. Free. Read this if you have never paid an x402 endpoint before.",
         inputSchema: {},
+        outputSchema: MCP_OUTPUTS.how_to_pay,
       },
       async () =>
         jsonResult({
@@ -657,6 +695,7 @@ const mcp = createMcpHandler(
               "Base64-encoded x402 payment payload containing the signed EIP-3009 authorization. Omit it to receive the 402 challenge first."
             ),
         },
+        outputSchema: MCP_OUTPUTS.buy_token,
       },
       async ({ symbol, chainId, to, xPayment }) => {
         const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
@@ -728,6 +767,7 @@ const mcp = createMcpHandler(
         description:
           "Buys a market for real, completing the step an LLM cannot do alone: signing the EIP-3009 USDC authorisation. IMPORTANT for honest reporting — the signature is made by the operator's wallet on the server, not by a wallet you control, so describe the result as 'executed the purchase', not 'paid from my own funds'. Refuses unless the caller carries the agent key, and refuses any quote whose asset, network, recipient or amount does not match the hard-coded limits. Delivery always goes to the signer.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID },
+        outputSchema: MCP_OUTPUTS.pay_and_buy,
       },
       async ({ symbol, chainId }) => {
         const ctx = requestContext.getStore();
@@ -934,6 +974,7 @@ const mcp = createMcpHandler(
             .optional()
             .describe("Rows to return, newest first. Default 50, maximum 400."),
         },
+        outputSchema: MCP_OUTPUTS.trade_history,
       },
       async ({ symbol, chainId, limit }) => {
         const projects = registryProjects();
@@ -1084,6 +1125,7 @@ const mcp = createMcpHandler(
           chainId: CHAIN_ID,
           address: z.string().describe("Wallet whose stake to read."),
         },
+        outputSchema: MCP_OUTPUTS.check_stake,
       },
       async ({ symbol, chainId, address }) => {
         const market = pickMarket(registryProjects(), String(symbol), chainId);
@@ -1109,6 +1151,7 @@ const mcp = createMcpHandler(
         description:
           "Free. Returns the exact EIP-191 message an address signs (personal_sign) to prove it is the address asking. ask_agent accepts it for 10 minutes. Signing it moves nothing and costs nothing.",
         inputSchema: { symbol: SYMBOL, chainId: CHAIN_ID, address: z.string().describe("Wallet that will sign and ask.") },
+        outputSchema: MCP_OUTPUTS.access_message,
       },
       async ({ symbol, chainId, address }) => {
         const market = pickMarket(registryProjects(), String(symbol), chainId);
@@ -1150,6 +1193,7 @@ const mcp = createMcpHandler(
           signature: z.string().describe("personal_sign signature of message by address."),
           question: z.string().min(3).max(500).describe("What to ask the agent about this market."),
         },
+        outputSchema: MCP_OUTPUTS.ask_agent,
       },
       async ({ symbol, chainId, address, message, signature, question }) => {
         const market = pickMarket(registryProjects(), String(symbol), chainId);
@@ -1287,10 +1331,14 @@ const mcp = createMcpHandler(
             .optional()
             .describe("ERC-8004 agent id on this chain to bind to the token, owned by the deployer. Omit to launch unbound."),
           description: z.string().max(280).optional().describe("One-line pitch shown on the market page."),
-          website: z.string().max(200).optional(),
+          website: z
+            .string()
+            .max(200)
+            .optional()
+            .describe("Project website URL, shown on the market page. https:// is assumed when no scheme is given."),
           x: z.string().max(200).optional().describe("X handle or URL."),
-          github: z.string().max(200).optional(),
-          docs: z.string().max(200).optional(),
+          github: z.string().max(200).optional().describe("GitHub URL of the project, shown on the market page."),
+          docs: z.string().max(200).optional().describe("Documentation URL, shown on the market page."),
           image: z
             .string()
             .max(200_000)
@@ -1303,6 +1351,7 @@ const mcp = createMcpHandler(
           attestationMessage: z.string().max(400).optional().describe("Second call only: the message the first call returned."),
           attestationSignature: z.string().max(200).optional().describe("Second call only: the deployer's EIP-191 signature of it."),
         },
+        outputSchema: MCP_OUTPUTS.prepare_launch,
       },
       async (args) => {
         const ctx = requestContext.getStore();
@@ -1330,6 +1379,7 @@ const mcp = createMcpHandler(
           chainId: z.number().int().positive().describe("Chain the launch transaction was sent on."),
           txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).describe("Hash of the mined launch transaction."),
         },
+        outputSchema: MCP_OUTPUTS.register_launch,
       },
       async ({ chainId, txHash }) => {
         const ctx = requestContext.getStore();
@@ -1353,6 +1403,7 @@ const mcp = createMcpHandler(
           address: ADDRESS.describe("Wallet that holds the tokens and will sign."),
           amount: z.string().regex(/^\d+(\.\d{1,18})?$/).describe("Whole tokens to stake, for example \"10000\"."),
         },
+        outputSchema: MCP_OUTPUTS.prepare_stake,
       },
       async ({ symbol, chainId, address, amount }) => {
         const projects = registryProjects();
@@ -1377,6 +1428,7 @@ const mcp = createMcpHandler(
           address: ADDRESS.describe("Creator address whose owed fees to collect."),
           chainId: z.number().int().positive().optional().describe("Only this chain. Omit for every chain."),
         },
+        outputSchema: MCP_OUTPUTS.prepare_claim,
       },
       async ({ address, chainId }) => jsonResult(await prepareClaim(address, chainId))
     );
@@ -1399,7 +1451,7 @@ const mcp = createMcpHandler(
      * melayani spesifikasi 2026-07-28 (tanpa sesi, tanpa `initialize`, `server/discover`) dan
      * klien 2025 lewat fallback stateless dari handler yang sama.
      */
-    serverInfo: { name: "adexto-x402", version: serverMeta.version },
+    serverInfo: SERVER_INFO,
     verboseLogs: false,
   }
 );
