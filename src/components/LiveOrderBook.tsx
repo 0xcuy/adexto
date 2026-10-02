@@ -50,7 +50,9 @@ interface Level {
  * pendek tetap memperlihatkan level terdekat ke harga, dan panel tinggi memperlihatkan lebih
  * dalam.
  */
-const STEPS = [0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.03, 0.04, 0.06, 0.08, 0.12, 0.16];
+// Enam belas level: kotak ini mengisi sisa tinggi kolom kiri, dan dengan dua belas level panel yang
+// tinggi menyisakan celah kosong di atas ask. Level terjauh tetap yang pertama terpotong.
+const STEPS = [0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.03, 0.04, 0.06, 0.08, 0.12, 0.16, 0.2, 0.25, 0.3, 0.4];
 
 export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd }: Props) {
   const [pool, setPool] = useState<PoolInfo | null>(null);
@@ -151,6 +153,13 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   const fmtSize = (v: number) =>
     v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(2);
 
+  // Nilai native per level: empat angka penting, bukan empat desimal tetap ("3297.3576" di 0G
+  // selebar dua kolom, "0.0000" di ETH tidak terbaca).
+  const fmtNotional = (v: number) =>
+    v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 1 ? v.toFixed(2) : formatSmallNumber(v);
+  // Tiga kolom tetap: harga kiri, ukuran dan nilai rata kanan, supaya angka sejajar antar baris.
+  const rowGrid = "grid grid-cols-[minmax(0,1fr)_4.5rem_6.5rem] items-center gap-2 tabular-nums";
+
   const maxSize = Math.max(...asks.map((a) => a.sizeToken), ...bids.map((b) => b.sizeToken), 1);
 
   return (
@@ -170,6 +179,11 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
+          <div className={`${rowGrid} mb-1 shrink-0 px-1 text-[9px] uppercase tracking-wide text-ink-faint`}>
+            <span>Price ({nativeSymbol})</span>
+            <span className="text-right">Size ({symbol})</span>
+            <span className="text-right">Total</span>
+          </div>
           {/* Ask dirapatkan ke BAWAH dan bid ke ATAS, masing-masing memotong luapannya: level
               terdekat ke harga selalu terlihat, level terjauh yang hilang lebih dulu. Di ponsel
               tingginya dibatasi, karena di sana tidak ada kolom tetangga yang harus diimbangi. */}
@@ -178,15 +192,15 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             data-depth="asks"
           >
             {asks.map((a, idx) => (
-              <div key={`ask-${idx}`} className="flex shrink-0 justify-between items-center py-0.5 px-1 rounded bg-danger/10 relative overflow-hidden">
+              <div key={`ask-${idx}`} className={`${rowGrid} relative shrink-0 overflow-hidden rounded bg-danger/10 px-1 py-0.5`}>
                 <div
                   className="absolute right-0 top-0 bottom-0 bg-danger/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (a.sizeToken / maxSize) * 100)}%` }}
                 />
-                <span className="text-danger font-semibold relative z-10">{fmtPrice(a.priceNative)}</span>
-                <span className="text-ink-soft relative z-10">{fmtSize(a.sizeToken)}</span>
-                <span className="text-ink-faint text-[10px] relative z-10">
-                  {a.notionalNative.toFixed(4)} {nativeSymbol}
+                <span className="relative z-10 truncate font-semibold text-danger">{fmtPrice(a.priceNative)}</span>
+                <span className="relative z-10 text-right text-ink-soft">{fmtSize(a.sizeToken)}</span>
+                <span className="relative z-10 truncate text-right text-[10px] text-ink-faint">
+                  {fmtNotional(a.notionalNative)} {nativeSymbol}
                 </span>
               </div>
             ))}
@@ -208,15 +222,15 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
             data-depth="bids"
           >
             {bids.map((b, idx) => (
-              <div key={`bid-${idx}`} className="flex shrink-0 justify-between items-center py-0.5 px-1 rounded bg-ok/10 relative overflow-hidden">
+              <div key={`bid-${idx}`} className={`${rowGrid} relative shrink-0 overflow-hidden rounded bg-ok/10 px-1 py-0.5`}>
                 <div
                   className="absolute right-0 top-0 bottom-0 bg-ok/10 pointer-events-none"
                   style={{ width: `${Math.min(100, (b.sizeToken / maxSize) * 100)}%` }}
                 />
-                <span className="text-ok font-semibold relative z-10">{fmtPrice(b.priceNative)}</span>
-                <span className="text-ink-soft relative z-10">{fmtSize(b.sizeToken)}</span>
-                <span className="text-ink-faint text-[10px] relative z-10">
-                  {b.notionalNative.toFixed(4)} {nativeSymbol}
+                <span className="relative z-10 truncate font-semibold text-ok">{fmtPrice(b.priceNative)}</span>
+                <span className="relative z-10 text-right text-ink-soft">{fmtSize(b.sizeToken)}</span>
+                <span className="relative z-10 truncate text-right text-[10px] text-ink-faint">
+                  {fmtNotional(b.notionalNative)} {nativeSymbol}
                 </span>
               </div>
             ))}

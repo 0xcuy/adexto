@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Wallet, RefreshCw } from "lucide-react";
+import { Wallet, RefreshCw, ChevronDown } from "lucide-react";
 import { formatSmallNumber, formatTokenAmount, formatUsd } from "@/lib/pricing";
 import type { PositionReport } from "@/lib/position-server";
 
@@ -38,6 +38,8 @@ export default function MyPositionPanel({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const inflight = useRef(false);
+  /** Tertutup bawaannya: kolom kanan terminal sudah panjang. Saldo ringkas tetap terlihat di kepala panel. */
+  const [open, setOpen] = useState(false);
 
   const load = async () => {
     if (inflight.current) return;
@@ -102,23 +104,38 @@ export default function MyPositionPanel({
       data-realized-native={p?.realizedNative ?? ""}
       data-unrealized-native={p?.unrealizedNative ?? ""}
     >
-      <div className="mb-2 flex items-center justify-between border-b border-line pb-2">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="my-position-body"
+        className={`flex w-full items-center justify-between gap-2 text-left ${open ? "mb-2 border-b border-line pb-2" : ""}`}
+      >
+        <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-ink">
           <Wallet className="h-3.5 w-3.5 text-accent" /> Your position
         </span>
-        {report && !complete && report.index ? (
-          <span className="flex items-center gap-1 text-[10px] text-warn" title="Reading this market's full history from the chain">
-            <RefreshCw className="h-3 w-3 animate-spin" /> history {Math.floor(report.index.progress * 100)}%
-          </span>
-        ) : report ? (
-          <span className="text-[10px] text-ink-faint" title="Every trade since launch has been read from the chain">
-            {p && p.buys + p.sells > 0
-              ? `${p.buys} buy${p.buys === 1 ? "" : "s"} · ${p.sells} sell${p.sells === 1 ? "" : "s"}`
-              : "no trades yet"}
-          </span>
-        ) : null}
-      </div>
+        <span className="flex min-w-0 items-center gap-2">
+          {report && !complete && report.index ? (
+            <span className="flex items-center gap-1 text-[10px] text-warn" title="Reading this market's full history from the chain">
+              <RefreshCw className="h-3 w-3 animate-spin" /> history {Math.floor(report.index.progress * 100)}%
+            </span>
+          ) : p && p.balanceTokens > 0 ? (
+            <span className="truncate text-[11px] font-semibold text-ink" data-numeric>
+              {formatTokenAmount(p.balanceTokens)} ${symbol}
+              {p.valueUsd !== null && <span className="font-normal text-ink-soft"> · {formatUsd(p.valueUsd)}</span>}
+            </span>
+          ) : report ? (
+            <span className="text-[10px] text-ink-faint" title="Every trade since launch has been read from the chain">
+              {p && p.buys + p.sells > 0
+                ? `${p.buys} buy${p.buys === 1 ? "" : "s"} · ${p.sells} sell${p.sells === 1 ? "" : "s"}`
+                : "no trades yet"}
+            </span>
+          ) : null}
+          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+        </span>
+      </button>
 
+      <div id="my-position-body" hidden={!open}>
       {loading && !report ? (
         <p className="py-3 text-center text-[11px] text-ink-faint">Reading your trades…</p>
       ) : error && !report ? (
@@ -216,6 +233,7 @@ export default function MyPositionPanel({
           )}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

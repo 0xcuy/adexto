@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Clock, ExternalLink, Info, Share2, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, ExternalLink, Info, Share2, ShieldCheck, XCircle } from "lucide-react";
 import type { LaunchProofCheck, LaunchProofResult } from "@/lib/launch-proof";
 import { CLEAN_LAUNCH_ANCHOR, launchProofUrlFor, proofComposeLinks, proofPostText } from "@/lib/launch-kit";
 import { explorerTxUrl } from "@/lib/chains";
@@ -11,7 +11,8 @@ import { explorerTxUrl } from "@/lib/chains";
  * adanya, termasuk yang tidak lolos. Tidak ada angka yang dihitung di sini; panel hanya
  * menampilkan jawaban `/api/launch-proof`.
  *
- * `?proof=1` di URL (tautan yang dibagikan dari tombol "Share proof") menggulir ke panel ini.
+ * Tertutup bawaannya; kepalanya tetap menyebut hasilnya ("All checks pass"). `?proof=1` di URL (tautan
+ * yang dibagikan dari tombol "Share proof") membukanya dan menggulir ke sini.
  */
 export default function CleanLaunchPanel({
   chainId,
@@ -30,6 +31,7 @@ export default function CleanLaunchPanel({
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState(process.env.NEXT_PUBLIC_APP_URL || "");
   const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!origin) setOrigin(window.location.origin);
@@ -64,6 +66,7 @@ export default function CleanLaunchPanel({
   useEffect(() => {
     if (!proof) return;
     if (new URLSearchParams(window.location.search).get("proof") === "1") {
+      setOpen(true);
       ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [proof]);
@@ -93,7 +96,16 @@ export default function CleanLaunchPanel({
 
   return (
     <div ref={ref} id={CLEAN_LAUNCH_ANCHOR} className={shell} data-testid="clean-launch-panel">
-      <Header clean={proof.clean} final={proof.final} generation={proof.generation} />
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="clean-launch-body"
+        className="block w-full text-left"
+      >
+        <Header clean={proof.clean} final={proof.final} generation={proof.generation} open={open} />
+      </button>
+      <div id="clean-launch-body" hidden={!open}>
       <ul className="mt-3 space-y-2.5">
         {proof.checks.map((c) => (
           <CheckRow key={c.id} check={c} />
@@ -126,13 +138,14 @@ export default function CleanLaunchPanel({
           Raw JSON
         </a>
       </div>
+      </div>
     </div>
   );
 }
 
-function Header({ clean, final, generation }: { clean?: boolean; final?: boolean; generation?: string }) {
+function Header({ clean, final, generation, open }: { clean?: boolean; final?: boolean; generation?: string; open?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-line pb-2">
+    <div className={`flex items-center justify-between gap-2 ${open === false ? "" : "border-b border-line pb-2"}`}>
       <span className="flex items-center gap-2 text-sm font-semibold text-ink">
         <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> Clean launch
       </span>
@@ -146,6 +159,9 @@ function Header({ clean, final, generation }: { clean?: boolean; final?: boolean
           >
             {clean ? (final ? "All checks pass" : "Passing so far") : "See details"}
           </span>
+        )}
+        {open !== undefined && (
+          <ChevronDown className={`h-4 w-4 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
         )}
       </span>
     </div>
