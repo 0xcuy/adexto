@@ -238,14 +238,14 @@ export function maxBlocksPerRequest(chainId: number): number {
 
 // ─── Keadaan per chain ────────────────────────────────────────────────────────
 
-interface CreatedAt {
+export interface CreatedAt {
   blockNumber: number;
   blockTimestamp: number;
   txnId: string;
 }
 
 /** Fakta immutable satu pasar, dibaca sekali dari chain lalu disimpan. */
-interface StoredMarket {
+export interface StoredMarket {
   pairId: string;
   tokenId: string;
   factory: string;
@@ -272,7 +272,7 @@ interface StoredState {
   markets: Record<string, StoredMarket>;
 }
 
-interface Runtime {
+export interface Runtime {
   cfg: AdapterChain;
   call: ethers.JsonRpcProvider;
   logs: ethers.JsonRpcProvider;
@@ -285,7 +285,7 @@ interface Runtime {
   latest: { block: AdapterBlock; at: number } | null;
   latestInflight: Promise<AdapterBlock> | null;
   blockTimes: Map<number, number>;
-  events: Map<string, { at: number; events: AdapterSwapEvent[] }>;
+  events: Map<string, { at: number; events: unknown[] }>;
   supply: Map<string, { at: number; value: string }>;
   wrapped: AdapterAsset | null;
   active: number;
@@ -375,13 +375,13 @@ export function decimalString(value: bigint, decimals: number): string {
   return ratioString(value, 10n ** BigInt(decimals), decimals);
 }
 
-function normalizeAddress(id: string | null): string {
+export function normalizeAddress(id: string | null): string {
   const raw = String(id ?? "").trim();
   if (!/^0x[a-fA-F0-9]{40}$/.test(raw)) throw new AdapterError(400, "Query parameter `id` must be a 0x-prefixed 20-byte address.");
   return ethers.getAddress(raw.toLowerCase());
 }
 
-function registryRecord(rt: Runtime, curveOrToken: string): ProjectRecord | null {
+export function registryRecord(rt: Runtime, curveOrToken: string): ProjectRecord | null {
   const needle = curveOrToken.toLowerCase();
   return (
     listProjects().find(
@@ -413,11 +413,11 @@ function exclusion(rt: Runtime, m: StoredMarket): string | null {
   return null;
 }
 
-function servedMarkets(rt: Runtime): StoredMarket[] {
+export function servedMarkets(rt: Runtime): StoredMarket[] {
   return Object.values(rt.state.markets).filter((m) => exclusion(rt, m) === null);
 }
 
-async function blockTime(rt: Runtime, blockNumber: number): Promise<number> {
+export async function blockTime(rt: Runtime, blockNumber: number): Promise<number> {
   const hit = rt.blockTimes.get(blockNumber);
   if (hit !== undefined) return hit;
   const block = await rpc(rt, "eth_getBlockByNumber", () => rt.logs.getBlock(blockNumber));
@@ -567,7 +567,7 @@ export function blockRange(url: URL, chainId: number): { fromBlock: number; toBl
   return { fromBlock, toBlock };
 }
 
-function toEvent(m: StoredMarket, log: ethers.Log, blockTimestamp: number): AdapterSwapEvent {
+export function toEvent(m: StoredMarket, log: ethers.Log, blockTimestamp: number): AdapterSwapEvent {
   const parsed = CURVE_IFACE.parseLog({ topics: [...log.topics], data: log.data });
   if (!parsed) throw new AdapterError(500, `Undecodable curve log ${log.transactionHash}:${log.index}.`);
   const nativeAfter = BigInt(parsed.args.nativeReserveAfter);
@@ -625,57 +625,106 @@ function toEvent(m: StoredMarket, log: ethers.Log, blockTimestamp: number): Adap
       };
 }
 
-export async function eventsBetween(rt: Runtime, fromBlock: number, toBlock: number): Promise<AdapterSwapEvent[]> {
+/** Satu log dalam rentang, dengan pasarnya dan timestamp bloknya. */
+export interface RangeEntry {
+  log: ethers.Log;
+  market: StoredMarket;
+  /** `TrinityProjectDeployed` dari factory (hanya bila diminta), selain itu log kurva. */
+  creation: boolean;
+  blockTimestamp: number;
+}
+
+const topicAddress = (topic: string | undefined) =>
+  topic && topic.length === 66 ? ethers.getAddress(`0x${topic.slice(26)}`) : null;
+
+/**
+ * Semua log kurva (`Swap`, `AutoBuybackExecuted`) pasar yang dilayani dalam rentang inklusif,
+ * berurutan (blok, transaksi, log), dan — bila `withCreations` — log `TrinityProjectDeployed`
+ * pasar-pasar itu dari factory-nya. Rentang di atas `/latest-block` ditolak, jadi setiap
+ * jawaban final. Satu galat RPC menggagalkan seluruh jawaban: tidak pernah setengah.
+ */
+export async function rangeEntries(
+  rt: Runtime,
+  fromBlock: number,
+  toBlock: number,
+  withCreations: boolean
+): Promise<RangeEntry[]> {
   const latest = await latestBlock(rt);
   if (toBlock > latest.blockNumber) await discoverThrough(rt, toBlock);
-
-  const key = `${fromBlock}:${toBlock}`;
-  const hit = rt.events.get(key);
-  if (hit && Date.now() - hit.at < EVENTS_TTL_MS) return hit.events;
 
   return gate(rt, async () => {
     const markets = servedMarkets(rt);
     if (markets.length === 0) return [];
     const byCurve = new Map(markets.map((m) => [m.pairId.toLowerCase(), m]));
-    const addresses = markets.map((m) => m.pairId);
+    const curves = markets.map((m) => m.pairId);
+    const factories = withCreations ? [...new Set(markets.map((m) => m.factory))] : [];
     const span = logSpanFor(rt.cfg.chain.chainId);
 
     const logs: ethers.Log[] = [];
     for (let start = fromBlock; start <= toBlock; start += span) {
       const end = Math.min(toBlock, start + span - 1);
-      for (let i = 0; i < addresses.length; i += ADDRESS_CHUNK) {
-        const address = addresses.slice(i, i + ADDRESS_CHUNK);
+      for (let i = 0; i < curves.length; i += ADDRESS_CHUNK) {
+        const address = curves.slice(i, i + ADDRESS_CHUNK);
         const part = await rpc(rt, "eth_getLogs", () =>
           rt.logs.getLogs({ address, topics: [[SWAP_TOPIC, BUYBACK_TOPIC]], fromBlock: start, toBlock: end })
+        );
+        logs.push(...part);
+      }
+      if (factories.length > 0) {
+        const part = await rpc(rt, "eth_getLogs", () =>
+          rt.logs.getLogs({ address: factories, topics: [DEPLOYED_TOPIC], fromBlock: start, toBlock: end })
         );
         logs.push(...part);
       }
     }
 
     const seen = new Set<string>();
-    const ordered = logs
-      .filter((l) => !l.removed && byCurve.has(l.address.toLowerCase()))
-      .filter((l) => {
-        const id = `${l.blockNumber}:${l.index}`;
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      })
-      .sort((a, b) => a.blockNumber - b.blockNumber || a.transactionIndex - b.transactionIndex || a.index - b.index);
+    const entries: Array<Omit<RangeEntry, "blockTimestamp">> = [];
+    for (const log of logs) {
+      if (log.removed) continue;
+      const id = `${log.blockNumber}:${log.index}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (log.topics[0] === DEPLOYED_TOPIC) {
+        const curve = topicAddress(log.topics[2]);
+        const market = curve ? byCurve.get(curve.toLowerCase()) : undefined;
+        // Hanya peluncuran yang memang dilayani, dan hanya dari factory yang melahirkannya.
+        if (market && market.factory.toLowerCase() === log.address.toLowerCase()) entries.push({ log, market, creation: true });
+        continue;
+      }
+      const market = byCurve.get(log.address.toLowerCase());
+      if (market) entries.push({ log, market, creation: false });
+    }
+    entries.sort(
+      (a, b) =>
+        a.log.blockNumber - b.log.blockNumber || a.log.transactionIndex - b.log.transactionIndex || a.log.index - b.log.index
+    );
 
-    const blocks = [...new Set(ordered.map((l) => l.blockNumber))];
+    const blocks = [...new Set(entries.map((e) => e.log.blockNumber))];
     for (let i = 0; i < blocks.length; i += 4) {
       await Promise.all(blocks.slice(i, i + 4).map((n) => blockTime(rt, n)));
     }
-
-    const events = ordered.map((l) => toEvent(byCurve.get(l.address.toLowerCase())!, l, rt.blockTimes.get(l.blockNumber)!));
-    if (rt.events.size >= EVENTS_CACHE_MAX) rt.events.delete(rt.events.keys().next().value!);
-    rt.events.set(key, { at: Date.now(), events });
-    return events;
+    return entries.map((e) => ({ ...e, blockTimestamp: rt.blockTimes.get(e.log.blockNumber)! }));
   });
 }
 
-async function marketFor(rt: Runtime, address: string, by: "pair" | "token"): Promise<StoredMarket | null> {
+/** Cache jawaban per rentang. Rentang yang sudah final tidak berubah, jadi aman diulang. */
+export async function cachedRange<T>(rt: Runtime, key: string, build: () => Promise<T[]>): Promise<T[]> {
+  const hit = rt.events.get(key);
+  if (hit && Date.now() - hit.at < EVENTS_TTL_MS) return hit.events as T[];
+  const events = await build();
+  if (rt.events.size >= EVENTS_CACHE_MAX) rt.events.delete(rt.events.keys().next().value!);
+  rt.events.set(key, { at: Date.now(), events });
+  return events;
+}
+
+export async function eventsBetween(rt: Runtime, fromBlock: number, toBlock: number): Promise<AdapterSwapEvent[]> {
+  return cachedRange(rt, `dexscreener:${fromBlock}:${toBlock}`, async () =>
+    (await rangeEntries(rt, fromBlock, toBlock, false)).map((e) => toEvent(e.market, e.log, e.blockTimestamp))
+  );
+}
+
+export async function marketFor(rt: Runtime, address: string, by: "pair" | "token"): Promise<StoredMarket | null> {
   const find = () =>
     by === "pair"
       ? rt.state.markets[address.toLowerCase()] ?? null
@@ -691,7 +740,7 @@ async function marketFor(rt: Runtime, address: string, by: "pair" | "token"): Pr
 }
 
 /** Blok pertama dengan timestamp >= `t`, lewat pencarian biner. Null kalau belum ada. */
-async function firstBlockAtOrAfter(rt: Runtime, t: number, low: number, high: number): Promise<number | null> {
+export async function firstBlockAtOrAfter(rt: Runtime, t: number, low: number, high: number): Promise<number | null> {
   if ((await blockTime(rt, high)) < t) return null;
   let lo = Math.max(1, low);
   let hi = high;
@@ -723,7 +772,7 @@ async function deployLog(rt: Runtime, m: StoredMarket, fromBlock: number, toBloc
  * Petunjuk pertama blok peluncuran di registry; kalau tidak ada atau tidak cocok, pencarian
  * biner atas `deployedAt` lalu satu `getLogs` sempit.
  */
-async function creation(rt: Runtime, m: StoredMarket): Promise<CreatedAt | null> {
+export async function creation(rt: Runtime, m: StoredMarket): Promise<CreatedAt | null> {
   if (m.created) return m.created;
   let log: ethers.Log | null = null;
   const hint = Number(registryRecord(rt, m.pairId)?.blockNumber ?? 0);
