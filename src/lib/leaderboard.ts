@@ -99,6 +99,7 @@ declare global {
   var __ADEXTO_LEADERBOARD__: { at: number; value: Promise<Leaderboard> } | undefined;
   var __ADEXTO_CURVE_CREATOR__: Map<string, string> | undefined;
   var __ADEXTO_CREATOR_REVENUE__: Map<string, { at: number; native: number }> | undefined;
+  var __ADEXTO_AGENT_BOUND__: Map<string, { at: number; bound: boolean }> | undefined;
 }
 
 const TTL_MS = 60_000;
@@ -142,6 +143,32 @@ async function creatorRevenueNative(p: ProjectRecord): Promise<number | null> {
   return native;
 }
 
+/**
+ * Apakah token terikat ke identitas agen ERC-8004, dibaca dari token (`agentBound()`, immutable).
+ * Field `agentIdentity` registry kosong untuk pasar lama walau tokennya terikat (mis. $SAI #10275 di
+ * Monad), jadi chain yang menentukan. Token tanpa fungsi itu (revert) dianggap tidak terikat.
+ */
+async function readAgentBound(p: ProjectRecord): Promise<boolean> {
+  if (p.agentIdentity) return true;
+  const cache = (globalThis.__ADEXTO_AGENT_BOUND__ ??= new Map());
+  const key = `${p.chainId}:${p.tokenAddress.toLowerCase()}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.bound;
+  const chain = chainFromId(p.chainId);
+  if (!chain) return false;
+  const t = new ethers.Contract(p.tokenAddress, ["function agentBound() view returns (bool)"], readProvider(chain));
+  let bound: boolean | null;
+  try {
+    bound = await withTimeout(t.agentBound() as Promise<boolean>, 8_000);
+  } catch {
+    bound = false;
+  }
+  // null = revert (tidak punya fungsinya) atau timeout; keduanya disimpan sebagai "tidak terikat"
+  // untuk sepuluh menit, lalu dibaca lagi.
+  cache.set(key, { at: Date.now(), bound: Boolean(bound) });
+  return Boolean(bound);
+}
+
 const walletOf = (s: { isBuy: boolean; trader: string; recipient: string }) => (s.isBuy ? s.recipient || s.trader : s.trader).toLowerCase();
 
 async function compute(): Promise<Leaderboard> {
@@ -157,10 +184,11 @@ async function compute(): Promise<Leaderboard> {
   const rows = await Promise.all(
     projects.map(async (p) => {
       const chain = chainFromId(p.chainId);
-      const [{ index, status }, creator, revenue] = await Promise.all([
+      const [{ index, status }, creator, revenue, bound] = await Promise.all([
         ensureMarketIndex(p, { maxAgeMs: 60_000, waitMs: 1_500 }),
         curveCreator(p),
         creatorRevenueNative(p),
+        readAgentBound(p),
       ]);
       const swaps = index ? swapsWithTimes(index) : [];
       const excluded = (w: string) => isOurAddress(w) || (creator !== null && w === creator);
@@ -182,7 +210,7 @@ async function compute(): Promise<Leaderboard> {
         deployedAt: p.deployedAt,
         creator,
         creatorIsTeam: creator !== null && isOurAddress(creator),
-        agentBound: Boolean(p.agentIdentity),
+        agentBound: bound,
         buyers24h: buyers.size,
         trades24h: day.length,
         volume24hNative: volume,
