@@ -55,7 +55,7 @@ export async function agentCard(chainId: number, agentId: string): Promise<Agent
       ? { name: "x402", endpoint: `https://x402.adexto.xyz/v1/x402/buy/${slug}?chain=${agent.chainId}`, version: "v1" }
       : { name: "x402", endpoint: "https://x402.adexto.xyz/openapi.json", version: "v1" },
   ];
-  const name = market ? `${market.symbol} Market Agent` : agent.name;
+  const name = agent.cardFace?.name ?? (market ? `${market.symbol} Market Agent` : agent.name);
   const description = market
     ? `Market agent for $${market.symbol} on ${chain.name}, a bonding-curve market launched through ADEXTO. The ` +
       `token contract records this ERC-8004 agent; the launch factory checked that the launcher owned it. Buy ` +
@@ -71,7 +71,7 @@ export async function agentCard(chainId: number, agentId: string): Promise<Agent
       type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name,
       description,
-      image: `${AGENT_CARD_ORIGIN}/brand/adexto-512.png`,
+      image: `${AGENT_CARD_ORIGIN}${agent.cardFace?.image ?? "/brand/adexto-512.png"}`,
       services,
       // Ejaan kedua, sama seperti `buildRegistrationFile`: sebagian pembaca memakai `endpoints`.
       endpoints: services,

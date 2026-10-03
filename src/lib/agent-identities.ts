@@ -48,6 +48,11 @@ export interface OperatedAgent {
   operator: keyof typeof OUR_ADDRESSES;
   /** Pasar yang tokennya terikat ke agen ini, dibaca dari kontrak token. Null bila tidak ada. */
   market: { symbol: string; token: string } | null;
+  /**
+   * Nama dan gambar di kartunya, bila bukan bawaan ("<SYMBOL> Market Agent" dan mark ADEXTO). Dipakai
+   * Loop Agent: ia mendaftarkan dirinya sendiri dengan nama itu di film MCP, dan logonya logo pasarnya.
+   */
+  cardFace?: { name?: string; image?: string };
 }
 
 export const OPERATED_AGENTS: readonly OperatedAgent[] = [
@@ -82,6 +87,16 @@ export const OPERATED_AGENTS: readonly OperatedAgent[] = [
     name: "SAi Robin Agent",
     operator: "agentA",
     market: { symbol: "SAI", token: "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d" },
+  },
+  // Registered by Agent A itself over MCP on 2026-10-03 (tx 0xdee136e2…e009), then bound to $LOOP at
+  // launch (tx 0x086de87c…a9c4). Keeps the name it registered under; its picture is $LOOP's logo.
+  {
+    chainId: 143,
+    agentId: "10276",
+    name: "Loop Agent",
+    operator: "agentA",
+    market: { symbol: "LOOP", token: "0x6AF1B9A42213e87B7f3b8a7Ac93447aEA7f615B2" },
+    cardFace: { name: "Loop Agent", image: "/api/logo/143-loop-1203f178.png" },
   },
 ];
 
