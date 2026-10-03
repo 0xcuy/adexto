@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 10,
+  "listedMarkets": 11,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -181,6 +181,16 @@
       "token": "0x6AF1B9A42213e87B7f3b8a7Ac93447aEA7f615B2",
       "curve": "0x55B9F98C78cf42186FB3827e0658E0d12C5A9189",
       "why": "Loop, launched over MCP for the MCP film by the creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch transaction itself (prepare_launch, then register_launch). Bound at launch to ERC-8004 agent 10276 on Monad, registered from that wallet a minute earlier (tx 0xdee136e2f138583a033bffadab5efc6676d610cf355e4aae0f58daf473f7e009); launch tx 0x086de87c2d3b1e04afd7a10d4f21b111af4fe9a71e3b80440686ddd92fd7a9c4, block 110082161. Its logo is a 3D render from the site's own logo generator. It stakes in Monad's AdextoStakeHub 0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A."
+    },
+    {
+      "symbol": "LOOP",
+      "status": "live",
+      "chainId": 42161,
+      "factoryVersion": "1.0.0",
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "token": "0x2F4Ca22703B6440d434833315505a2281011B228",
+      "curve": "0x037F55c7BE6E6537A218bD533DE5aCC3aF3C3B0C",
+      "why": "Loop on Arbitrum One, the second market from the v1 factory there, launched over MCP for the Arbitrum MCP film by the same creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch transaction itself (prepare_launch, then register_launch). The same ticker and logo as $LOOP on Monad: a ticker is unique per chain. Bound at launch to ERC-8004 agent 1578 on Arbitrum One, registered from that wallet a minute earlier (tx 0x42c937d2110520eb49f046383616873fede1e8c84c31f171512360b343dd8e46); launch tx 0x0f8e469ca46906b9202714da2a614ed61f2f7af332751f3ee03eaf29e2e1030e, block 511223223, 3,216,639 gas. It stakes in Arbitrum One's AdextoStakeHub 0xdf8891bA9fd8e3DC2E7D0A0ccae279247cd2ddf3."
     }
   ]
 }
