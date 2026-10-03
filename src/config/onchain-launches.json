@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 9,
+  "listedMarkets": 10,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -171,6 +171,16 @@
       "token": "0xD873B033e2dffbF7E3107CD61E7156cE23B39f20",
       "curve": "0x6CA74a83eB8d7e9fbaBd443218d2554028eD35Ea",
       "why": "SAi Monad, the first market from the v1 factory on Monad and the third $SAI, from the same creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5. Launched on camera from the Studio in Advanced mode for the Monad film, bound at launch to ERC-8004 agent 10275 on Monad, registered from that wallet seconds earlier (tx 0xbf724536d6194d39b3f450ac08f2ce9b2b3fe5715f09186202dd9ea9593ae342); launch tx 0x0ad735f29c2f003d1f0d5a533519e591e7d499c6f226306b4fcbef8fef72b64d, 3,364,280 gas at 102 gwei (0.343 MON). Its stake contract is AdextoAgentStake 0xAadb44692dC4c9A1759361ea973B83aa7f36700e (minimum 10,000 SAI); the token, the curve and the stake contract are exact matches on Sourcify."
+    },
+    {
+      "symbol": "LOOP",
+      "status": "live",
+      "chainId": 143,
+      "factoryVersion": "1.0.0",
+      "factory": "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056",
+      "token": "0x6AF1B9A42213e87B7f3b8a7Ac93447aEA7f615B2",
+      "curve": "0x55B9F98C78cf42186FB3827e0658E0d12C5A9189",
+      "why": "Loop, launched over MCP for the MCP film by the creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch transaction itself (prepare_launch, then register_launch). Bound at launch to ERC-8004 agent 10276 on Monad, registered from that wallet a minute earlier (tx 0xdee136e2f138583a033bffadab5efc6676d610cf355e4aae0f58daf473f7e009); launch tx 0x086de87c2d3b1e04afd7a10d4f21b111af4fe9a71e3b80440686ddd92fd7a9c4, block 110082161. Its logo is a 3D render from the site's own logo generator. It stakes in Monad's AdextoStakeHub 0xb89d17F7308Ac007b106EB400eB2A8CB51cf887A."
     }
   ]
 }
