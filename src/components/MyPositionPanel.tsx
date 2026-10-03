@@ -27,19 +27,23 @@ export default function MyPositionPanel({
   chainId,
   wallet,
   refreshKey,
+  collapsible = true,
 }: {
   symbol: string;
   chainId: number;
   wallet: string;
   /** Berubah sekali per perdagangan pengguna yang terkonfirmasi. */
   refreshKey?: string | null;
+  /** False di dalam tab terminal: tab itu sendiri yang membuka panel ini, jadi tidak ada lipatan kedua. */
+  collapsible?: boolean;
 }) {
   const [report, setReport] = useState<PositionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const inflight = useRef(false);
   /** Tertutup bawaannya: kolom kanan terminal sudah panjang. Saldo ringkas tetap terlihat di kepala panel. */
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = !collapsible || openState;
 
   const load = async () => {
     if (inflight.current) return;
@@ -106,9 +110,10 @@ export default function MyPositionPanel({
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => collapsible && setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="my-position-body"
+        disabled={!collapsible}
         className={`flex w-full items-center justify-between gap-2 text-left ${open ? "mb-2 border-b border-line pb-2" : ""}`}
       >
         <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-ink">
@@ -131,7 +136,9 @@ export default function MyPositionPanel({
                 : "no trades yet"}
             </span>
           ) : null}
-          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+          {collapsible && (
+            <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+          )}
         </span>
       </button>
 

@@ -20,18 +20,22 @@ export default function CleanLaunchPanel({
   token,
   slug,
   symbol,
+  collapsible = true,
 }: {
   chainId: number;
   chainName: string;
   token: string;
   slug: string;
   symbol: string;
+  /** False di dalam tab terminal: isinya langsung terbuka. */
+  collapsible?: boolean;
 }) {
   const [proof, setProof] = useState<LaunchProofResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState(process.env.NEXT_PUBLIC_APP_URL || "");
   const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = !collapsible || openState;
 
   useEffect(() => {
     if (!origin) setOrigin(window.location.origin);
@@ -98,12 +102,13 @@ export default function CleanLaunchPanel({
     <div ref={ref} id={CLEAN_LAUNCH_ANCHOR} className={shell} data-testid="clean-launch-panel">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => collapsible && setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="clean-launch-body"
+        disabled={!collapsible}
         className="block w-full text-left"
       >
-        <Header clean={proof.clean} final={proof.final} generation={proof.generation} open={open} />
+        <Header clean={proof.clean} final={proof.final} generation={proof.generation} open={collapsible ? open : undefined} />
       </button>
       <div id="clean-launch-body" hidden={!open}>
       <ul className="mt-3 space-y-2.5">
