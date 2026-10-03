@@ -695,12 +695,12 @@ export default function TokenTerminal({
         </div>
       )}
 
-      {/* Desktop: dua kotak per kolom. Kiri chart + aktivitas (tab), kanan swap + akun (tab). Kotak
-          lain yang dulu bertumpuk di kolom kanan (dompet kedua, posisi, stake, holder, bukti) masuk tab,
-          karena tumpukannya mendorong formulir trading keluar layar dan dompetnya tampil dua kali. */}
+      {/* Desktop: grid DUA BARIS, bukan dua kolom flex independen. Baris pertama memaksa chart dan
+          kartu swap punya tepi atas/bawah yang sama; baris kedua memulai kedua kelompok tab di garis
+          yang sama. Wrapper `contents` mempertahankan urutan ponsel Trade → Market → You. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        <div className="flex flex-col gap-3 lg:col-span-8">
-          <div className={mobileTab === "trade" ? "" : "hidden lg:block"}>
+        <div className="contents">
+          <div className={`${mobileTab === "trade" ? "" : "hidden lg:block"} lg:col-span-8 lg:col-start-1 lg:row-start-1`}>
             {/**
              * `min-h` dan bukan `h`: kotak osilator (RSI/MACD) dirender di dalam komponen
              * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
@@ -744,7 +744,7 @@ export default function TokenTerminal({
 
           </div>
 
-          <div className={`${mobileTab === "market" ? "flex" : "hidden lg:flex"} flex-col gap-2`}>
+          <div className={`${mobileTab === "market" ? "flex" : "hidden lg:flex"} flex-col gap-2 lg:col-span-8 lg:col-start-1 lg:row-start-2`}>
             <SegTabs
               label="Market activity"
               value={activityTab}
@@ -866,9 +866,76 @@ export default function TokenTerminal({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 lg:col-span-4">
-          <div className={mobileTab === "trade" ? "" : "hidden lg:block"}>
-            <div className="glass-panel space-y-3 rounded-card p-5">
+        <div className="contents">
+          <div className={`${mobileTab === "trade" ? "flex" : "hidden lg:flex"} flex-col lg:col-span-4 lg:col-start-9 lg:row-start-1`}>
+
+            <div className="glass-panel flex h-full w-full flex-col gap-3 rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-panel)]">
+              {/* Penghasilan creator terintegrasi di atas swap: satu kartu dan satu tepi lurus,
+                  bukan kotak hijau lain yang membuat kolom kanan tampak bertumpuk.
+                  Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
+                  dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
+                  kalau fee didorong tiap swap, wallet creator berupa kontrak yang revert
+                  akan membekukan seluruh perdagangan token ini. */}
+              {isConnected &&
+                swap.pool?.isCurve &&
+                swap.pool.creator &&
+                address &&
+                swap.pool.creator.toLowerCase() === address.toLowerCase() && (
+                  <div className="-mx-5 -mt-5 space-y-2 border-b border-ok/30 bg-ok/10 px-5 py-3" data-testid="creator-revenue-strip">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
+                        Your creator revenue
+                      </span>
+                      <span className="text-[11px] text-ink-faint">
+                        {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
+                      </span>
+                    </div>
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
+                            orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
+                        <p
+                          className="text-lg font-semibold text-ink" data-numeric
+                          title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
+                        >
+                          {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
+                          {creatorOwedUsd > 0 && (
+                            <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-ink-faint">unclaimed</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={swap.pool.creatorOwed === 0n || claimingFees}
+                        onClick={async () => {
+                          setClaimingFees(true);
+                          setClaimLine(null);
+                          try {
+                            const ethereum = getActiveEip1193();
+                            if (!ethereum) throw new Error("No wallet available.");
+                            const { hash } = await claimCreatorFees({
+                              ethereum,
+                              chain,
+                              curveAddress: project.poolAddress as string,
+                            });
+                            setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
+                            swap.refresh();
+                          } catch (e) {
+                            setClaimLine(describeTxError(e));
+                          } finally {
+                            setClaimingFees(false);
+                          }
+                        }}
+                        className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
+                      >
+                        {claimingFees ? "Claiming…" : "Claim"}
+                      </button>
+                    </div>
+                    {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
+                  </div>
+                )}
+
               <div className="flex items-center justify-between border-b border-line pb-2.5">
                 <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
                 <div className="flex items-center gap-2">
@@ -960,7 +1027,7 @@ export default function TokenTerminal({
                    tombol beli dan tombol jual berbagi separuh warna yang sama — pada
                    satu-satunya kontrol di halaman yang salah tekannya mahal. Sekarang
                    satu warna pekat per arah, teks putih supaya kontrasnya lolos. */
-                className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
+                className={`mt-auto flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
                   swap.mode === "buy" ? "bg-ok text-white" : "bg-danger text-white"
                 }`}
               >
@@ -992,7 +1059,7 @@ export default function TokenTerminal({
 
           </div>
 
-          <div className={`${mobileTab === "you" ? "flex" : "hidden lg:flex"} flex-col gap-2`}>
+          <div className={`${mobileTab === "you" ? "flex" : "hidden lg:flex"} flex-col gap-2 lg:col-span-4 lg:col-start-9 lg:row-start-2`}>
             <SegTabs
               label="Your account"
               value={accountTabShown}
@@ -1005,71 +1072,6 @@ export default function TokenTerminal({
             />
             {accountTabShown === "position" && (
               <>
-              {/* Penghasilan creator.
-                  Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
-                  dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
-                  kalau fee didorong tiap swap, wallet creator berupa kontrak yang revert
-                  akan membekukan seluruh perdagangan token ini. */}
-              {isConnected &&
-                swap.pool?.isCurve &&
-                swap.pool.creator &&
-                address &&
-                swap.pool.creator.toLowerCase() === address.toLowerCase() && (
-                  <div className="rounded-2xl border border-ok/30 bg-ok/10 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
-                        Your creator revenue
-                      </span>
-                      <span className="text-[11px] text-ink-faint">
-                        {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
-                      </span>
-                    </div>
-                    <div className="flex items-end justify-between gap-3">
-                      <div>
-                        {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
-                            orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
-                        <p
-                          className="text-lg font-semibold text-ink" data-numeric
-                          title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
-                        >
-                          {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
-                          {creatorOwedUsd > 0 && (
-                            <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
-                          )}
-                        </p>
-                        <p className="text-[11px] text-ink-faint">unclaimed</p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={swap.pool.creatorOwed === 0n || claimingFees}
-                        onClick={async () => {
-                          setClaimingFees(true);
-                          setClaimLine(null);
-                          try {
-                            const ethereum = getActiveEip1193();
-                            if (!ethereum) throw new Error("No wallet available.");
-                            const { hash } = await claimCreatorFees({
-                              ethereum,
-                              chain,
-                              curveAddress: project.poolAddress as string,
-                            });
-                            setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
-                            swap.refresh();
-                          } catch (e) {
-                            setClaimLine(describeTxError(e));
-                          } finally {
-                            setClaimingFees(false);
-                          }
-                        }}
-                        className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
-                      >
-                        {claimingFees ? "Claiming…" : "Claim"}
-                      </button>
-                    </div>
-                    {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
-                  </div>
-                )}
-
                 {isConnected && address ? (
                   <MyPositionPanel
                     symbol={project.symbol}
