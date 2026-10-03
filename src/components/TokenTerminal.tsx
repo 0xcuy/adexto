@@ -710,10 +710,11 @@ export default function TokenTerminal({
             </div>
           </div>
 
-          <div className="grid flex-1 grid-cols-1 gap-3.5 sm:grid-cols-2" data-testid="terminal-lower-left">
-            {/* Lantai 380px di desktop: cukup untuk lima level per sisi dan delapan fill ketika
-                kolom kanan pendek (tanpa dompet tersambung). */}
-            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:min-h-[380px]">
+          {/* Tinggi TETAP di desktop. Dulu kotak ini `flex-1` dan mengikuti tinggi kolom kanan, jadi ladder
+              ikut memanjang dan memendek setiap panel kanan muncul atau dibuka (terukur 604 px tanpa dompet,
+              864 px dengan dompet). Sekarang ladder menunjukkan level terdekat sebanyak yang muat. */}
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:h-[440px]" data-testid="terminal-lower-left">
+            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-full lg:min-h-0">
               <LiveOrderBook
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -721,7 +722,7 @@ export default function TokenTerminal({
                 nativeUsd={nativeUsd}
               />
             </div>
-            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:min-h-[380px]">
+            <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-full lg:min-h-0">
               <LiveTradeFeed
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -732,114 +733,88 @@ export default function TokenTerminal({
               />
             </div>
           </div>
+
+          {/* Agent chat. Di kolom kiri, di bawah ladder dan feed, dengan tinggi tetap: di kolom kanan ia
+              mendorong panel swap ke bawah lipatan layar. */}
+          <div
+            className="glass-panel flex h-[380px] flex-col justify-between overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)]"
+            data-testid="terminal-chat"
+          >
+            <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-accent" />
+                <span className="text-sm font-semibold text-ink">Chat with ${project.symbol} agent</span>
+              </div>
+              <span className="rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
+                0G TEE
+              </span>
+            </div>
+
+            {/* `basis-0` di desktop: isi percakapan TIDAK boleh ikut menentukan tinggi kolom —
+                kotaknya mengikuti kolom, dan pesannya bergulir di dalamnya. */}
+            <div
+              ref={chatScrollRef}
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto p-1 font-sans text-xs lg:grow lg:basis-0"
+            >
+              {chatMessages.map((m, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2.5 rounded-xl text-xs leading-relaxed ${
+                    m.role === "user"
+                      ? "bg-accent-soft border border-accent/30 text-ink ml-4"
+                      : "bg-surface border border-line text-ink mr-2"
+                  }`}
+                >
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+                    {m.role === "user" ? "You" : `${project.name} (0G TEE)`}
+                  </span>
+                  <FormattedMarkdown text={m.content} />
+                </div>
+              ))}
+              {/* Indikator berpikir yang BERGERAK. Hitungan karakternya datang dari
+                  kanal reasoning model lewat SSE, jadi angkanya naik selama model
+                  bekerja alih-alih spinner yang diam puluhan detik. Cuplikannya pucat
+                  dan miring, dan labelnya menyebut "reasoning" apa adanya. */}
+              {chatLoading && (
+                <div className="flex flex-col gap-1 rounded-xl bg-cream-2 p-2 text-[11px]">
+                  <span className="flex items-center gap-1.5 text-accent">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Reasoning on 0G
+                    {thinking && thinking.chars > 0 ? ` · ${thinking.chars} chars` : "…"}
+                  </span>
+                  {thinking?.preview && (
+                    <span className="text-[10px] italic leading-snug text-ink-faint line-clamp-2">
+                      {thinking.preview}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={sendChat} className="pt-2 border-t border-line flex gap-1.5 shrink-0">
+              <input
+                type="text"
+                placeholder={`Ask ${project.symbol} agent…`}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                disabled={chatLoading}
+                className="flex-1 rounded-xl px-3 py-2 text-xs bg-cream-2 border border-line focus:border-accent/30 focus:outline-none text-ink"
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                className="p-2 rounded-xl bg-accent text-white disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
         </div>
 
-        {/* Right: swap + chat. Kolom flex juga: kalau kolom kiri yang lebih tinggi (tanpa dompet
-            tersambung panel posisi tidak ada), kotak chat yang memanjang, bukan celah. */}
+        {/* Right: swap PALING ATAS, supaya formulir trading terlihat tanpa menggulir (diukur di adexto.xyz
+            1440x900 dengan dompet tersambung: swap dulu mulai di y=878, di bawah lipatan). Sesudahnya posisi,
+            penghasilan creator, stake, dompet, holder dan bukti launch. */}
         <div className="flex flex-col gap-3 lg:col-span-4">
-          {/* Penghasilan creator.
-              Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
-              dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
-              kalau fee didorong tiap swap, wallet creator berupa kontrak yang revert
-              akan membekukan seluruh perdagangan token ini. */}
-          {isConnected &&
-            swap.pool?.isCurve &&
-            swap.pool.creator &&
-            address &&
-            swap.pool.creator.toLowerCase() === address.toLowerCase() && (
-              <div className="rounded-2xl border border-ok/30 bg-ok/10 p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
-                    Your creator revenue
-                  </span>
-                  <span className="text-[11px] text-ink-faint">
-                    {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
-                  </span>
-                </div>
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
-                        orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
-                    <p
-                      className="text-lg font-semibold text-ink" data-numeric
-                      title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
-                    >
-                      {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
-                      {creatorOwedUsd > 0 && (
-                        <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-ink-faint">unclaimed</p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={swap.pool.creatorOwed === 0n || claimingFees}
-                    onClick={async () => {
-                      setClaimingFees(true);
-                      setClaimLine(null);
-                      try {
-                        const ethereum = getActiveEip1193();
-                        if (!ethereum) throw new Error("No wallet available.");
-                        const { hash } = await claimCreatorFees({
-                          ethereum,
-                          chain,
-                          curveAddress: project.poolAddress as string,
-                        });
-                        setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
-                        swap.refresh();
-                      } catch (e) {
-                        setClaimLine(describeTxError(e));
-                      } finally {
-                        setClaimingFees(false);
-                      }
-                    }}
-                    className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
-                  >
-                    {claimingFees ? "Claiming…" : "Claim"}
-                  </button>
-                </div>
-                {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
-              </div>
-            )}
-
-          {/* TIDAK ADA panel fee protokol di sini, dan itu keputusan.
-
-              Panel yang pernah ada di titik ini menampilkan `protocolOwed` beserta tombol
-              untuk mengirimkannya ke treasury. Dua hal salah dengannya. Pertama, itu
-              pekerjaan protokol, bukan pekerjaan trader — menaruhnya di terminal
-              perdagangan meminta orang lain membereskan urusan kami. Kedua, dan lebih
-              buruk, menekannya MERUGI: terukur di kurva $ADEXTO, 0,0000288 0G mengendap
-              melawan 0,0003 0G gas, sepuluh kali lipat. Panelnya menulis "you pay the gas"
-              tanpa menyebut bahwa gasnya jauh lebih besar dari yang dipindahkan.
-
-              Fee-nya tetap terkumpul otomatis di setiap perdagangan — `protocolOwed +=
-              protocolFee` di `buy` dan `sell`, dan `_assertSolvent()` memasukkannya sebagai
-              suku, jadi uangnya terbukti dipegang kurva dan tidak ada jalan keluar selain
-              `claimProtocolFees`. Yang tidak otomatis hanya pemindahannya keluar. */}
-
-          {/* Stake pasar ini, hanya bila pasarnya punya kontrak stake. Untuk semua pengunjung:
-              total dan minimumnya dibaca dari chain, dan tombolnya meminta dompet. */}
-          {/* Pembungkus hanya untuk jangkar `#stake`: launch kit di Studio menautkan ke sini. */}
-          {marketStake && (
-            <div id={STAKE_ANCHOR} className="scroll-mt-24">
-              <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />
-            </div>
-          )}
-
-          {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
-              agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
-          {isConnected && (
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
-              <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
-              <WalletMenu />
-            </div>
-          )}
-
-          {/* Posisi dompet ini di pasar ini, dari perdagangannya sendiri di chain. */}
-          {isConnected && address && (
-            <MyPositionPanel symbol={project.symbol} chainId={project.chainId} wallet={address} refreshKey={swap.txHash} />
-          )}
-
           <div className="glass-panel space-y-3 rounded-card p-5">
             <div className="flex items-center justify-between border-b border-line pb-2.5">
               <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
@@ -962,6 +937,109 @@ export default function TokenTerminal({
             )}
           </div>
 
+          {/* Posisi dompet ini di pasar ini, dari perdagangannya sendiri di chain. */}
+          {isConnected && address && (
+            <MyPositionPanel symbol={project.symbol} chainId={project.chainId} wallet={address} refreshKey={swap.txHash} />
+          )}
+
+          {/* Penghasilan creator.
+              Hanya tampil bagi alamat creator yang terkunci di kurva, karena hanya
+              dia yang bisa menerimanya. Klaim memakai pola tarik, bukan dorong:
+              kalau fee didorong tiap swap, wallet creator berupa kontrak yang revert
+              akan membekukan seluruh perdagangan token ini. */}
+          {isConnected &&
+            swap.pool?.isCurve &&
+            swap.pool.creator &&
+            address &&
+            swap.pool.creator.toLowerCase() === address.toLowerCase() && (
+              <div className="rounded-2xl border border-ok/30 bg-ok/10 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
+                    Your creator revenue
+                  </span>
+                  <span className="text-[11px] text-ink-faint">
+                    {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
+                  </span>
+                </div>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
+                        orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
+                    <p
+                      className="text-lg font-semibold text-ink" data-numeric
+                      title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
+                    >
+                      {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
+                      {creatorOwedUsd > 0 && (
+                        <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
+                      )}
+                    </p>
+                    <p className="text-[11px] text-ink-faint">unclaimed</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={swap.pool.creatorOwed === 0n || claimingFees}
+                    onClick={async () => {
+                      setClaimingFees(true);
+                      setClaimLine(null);
+                      try {
+                        const ethereum = getActiveEip1193();
+                        if (!ethereum) throw new Error("No wallet available.");
+                        const { hash } = await claimCreatorFees({
+                          ethereum,
+                          chain,
+                          curveAddress: project.poolAddress as string,
+                        });
+                        setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
+                        swap.refresh();
+                      } catch (e) {
+                        setClaimLine(describeTxError(e));
+                      } finally {
+                        setClaimingFees(false);
+                      }
+                    }}
+                    className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
+                  >
+                    {claimingFees ? "Claiming…" : "Claim"}
+                  </button>
+                </div>
+                {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
+              </div>
+            )}
+
+          {/* TIDAK ADA panel fee protokol di sini, dan itu keputusan.
+
+              Panel yang pernah ada di titik ini menampilkan `protocolOwed` beserta tombol
+              untuk mengirimkannya ke treasury. Dua hal salah dengannya. Pertama, itu
+              pekerjaan protokol, bukan pekerjaan trader — menaruhnya di terminal
+              perdagangan meminta orang lain membereskan urusan kami. Kedua, dan lebih
+              buruk, menekannya MERUGI: terukur di kurva $ADEXTO, 0,0000288 0G mengendap
+              melawan 0,0003 0G gas, sepuluh kali lipat. Panelnya menulis "you pay the gas"
+              tanpa menyebut bahwa gasnya jauh lebih besar dari yang dipindahkan.
+
+              Fee-nya tetap terkumpul otomatis di setiap perdagangan — `protocolOwed +=
+              protocolFee` di `buy` dan `sell`, dan `_assertSolvent()` memasukkannya sebagai
+              suku, jadi uangnya terbukti dipegang kurva dan tidak ada jalan keluar selain
+              `claimProtocolFees`. Yang tidak otomatis hanya pemindahannya keluar. */}
+
+          {/* Stake pasar ini, hanya bila pasarnya punya kontrak stake. Untuk semua pengunjung:
+              total dan minimumnya dibaca dari chain, dan tombolnya meminta dompet. */}
+          {/* Pembungkus hanya untuk jangkar `#stake`: launch kit di Studio menautkan ke sini. */}
+          {marketStake && (
+            <div id={STAKE_ANCHOR} className="scroll-mt-24">
+              <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />
+            </div>
+          )}
+
+          {/* Sama seperti /swap: strip wallet hanya muncul setelah tersambung,
+              agar tidak ada dua ajakan "Connect wallet" bertumpuk. */}
+          {isConnected && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
+              <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
+              <WalletMenu />
+            </div>
+          )}
+
           {/* Distribusi pemegang, dari seluruh Transfer sejak mint. */}
           <HoldersPanel symbol={project.symbol} chainId={project.chainId} me={isConnected ? address : null} />
 
@@ -974,80 +1052,6 @@ export default function TokenTerminal({
             symbol={project.symbol}
           />
 
-          {/* Agent chat */}
-          <div
-            className="glass-panel flex h-[340px] flex-col justify-between overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-auto lg:min-h-[340px] lg:flex-1"
-            data-testid="terminal-chat"
-          >
-            <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-accent" />
-                <span className="text-sm font-semibold text-ink">Chat with ${project.symbol} agent</span>
-              </div>
-              <span className="rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
-                0G TEE
-              </span>
-            </div>
-
-            {/* `basis-0` di desktop: isi percakapan TIDAK boleh ikut menentukan tinggi kolom —
-                kotaknya mengikuti kolom, dan pesannya bergulir di dalamnya. */}
-            <div
-              ref={chatScrollRef}
-              className="min-h-0 flex-1 space-y-2 overflow-y-auto p-1 font-sans text-xs lg:grow lg:basis-0"
-            >
-              {chatMessages.map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2.5 rounded-xl text-xs leading-relaxed ${
-                    m.role === "user"
-                      ? "bg-accent-soft border border-accent/30 text-ink ml-4"
-                      : "bg-surface border border-line text-ink mr-2"
-                  }`}
-                >
-                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-                    {m.role === "user" ? "You" : `${project.name} (0G TEE)`}
-                  </span>
-                  <FormattedMarkdown text={m.content} />
-                </div>
-              ))}
-              {/* Indikator berpikir yang BERGERAK. Hitungan karakternya datang dari
-                  kanal reasoning model lewat SSE, jadi angkanya naik selama model
-                  bekerja alih-alih spinner yang diam puluhan detik. Cuplikannya pucat
-                  dan miring, dan labelnya menyebut "reasoning" apa adanya. */}
-              {chatLoading && (
-                <div className="flex flex-col gap-1 rounded-xl bg-cream-2 p-2 text-[11px]">
-                  <span className="flex items-center gap-1.5 text-accent">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    Reasoning on 0G
-                    {thinking && thinking.chars > 0 ? ` · ${thinking.chars} chars` : "…"}
-                  </span>
-                  {thinking?.preview && (
-                    <span className="text-[10px] italic leading-snug text-ink-faint line-clamp-2">
-                      {thinking.preview}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={sendChat} className="pt-2 border-t border-line flex gap-1.5 shrink-0">
-              <input
-                type="text"
-                placeholder={`Ask ${project.symbol} agent…`}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                disabled={chatLoading}
-                className="flex-1 rounded-xl px-3 py-2 text-xs bg-cream-2 border border-line focus:border-accent/30 focus:outline-none text-ink"
-              />
-              <button
-                type="submit"
-                disabled={chatLoading || !chatInput.trim()}
-                className="p-2 rounded-xl bg-accent text-white disabled:opacity-50"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
         </div>
       </div>
     </div>
