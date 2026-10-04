@@ -61,7 +61,8 @@ import { listProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
-import { rateLimit, secretEquals } from "@/lib/rate-limit";
+import { clientIp, rateLimit, rateLimitHeaders, secretEquals } from "@/lib/rate-limit";
+import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, readTextBody } from "@/lib/body-limit";
 import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, stakeForMarket, type MarketStake } from "@/config/market-stakes";
 import { computeStakeForMarket, HUB_COMPUTE_SHARE_BPS } from "@/config/agent-compute";
 import { MARKET_CATEGORIES } from "@/lib/categories";
@@ -110,6 +111,28 @@ function ipHeadersOf(request: Request): IpHeaders {
     if (value) out[name] = value;
   }
   return out;
+}
+
+/**
+ * Kunci keranjang pemanggil dari dalam callback alat, yang tidak menerima `Request`.
+ * `clientIp` tetap satu-satunya yang menilai header mana yang boleh dipercaya.
+ */
+function callerIp(): string {
+  const ctx = requestContext.getStore();
+  return clientIp(new Request("http://mcp.internal/", { headers: ctx?.ipHeaders ?? {} }));
+}
+
+/**
+ * Ticker menjadi slug gateway: huruf kecil, hanya `a-z0-9` — aturan yang sama dengan slug
+ * registry (`symbol.toLowerCase().replace(/[^a-z0-9]/g, "")`).
+ *
+ * Sebelumnya ticker disisipkan mentah ke jalur URL gateway. `SYMBOL` hanya `z.string().min(1)`,
+ * jadi `../../x?y=` diselesaikan `new URL()` menjadi jalur mana pun di host gateway, dan isi
+ * jawabannya dikembalikan sebagai `challenge`. Host-nya tidak bisa berubah, tetapi alat
+ * "kuotasi" tidak semestinya menjadi proxy ke jalur gateway yang lain.
+ */
+function gatewaySlug(symbol: unknown): string {
+  return String(symbol).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 /** Kunci yang harus dibawa pemanggil untuk memakai alat berbayar. Kosong = alat mati. */
@@ -616,7 +639,9 @@ const mcp = createMcpHandler(
         outputSchema: MCP_OUTPUTS.quote_buy,
       },
       async ({ symbol, chainId, to }) => {
-        const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
+        const slug = gatewaySlug(symbol);
+        if (!slug) return jsonResult({ error: "bad_symbol", detail: "symbol must contain letters or digits, for example PARCEL." });
+        const url = new URL(`${GATEWAY}/v1/x402/buy/${slug}`);
         if (chainId) url.searchParams.set("chain", String(chainId));
         if (to) url.searchParams.set("to", to);
         const r = await passthrough(url.toString());
@@ -700,7 +725,9 @@ const mcp = createMcpHandler(
         outputSchema: MCP_OUTPUTS.buy_token,
       },
       async ({ symbol, chainId, to, xPayment }) => {
-        const url = new URL(`${GATEWAY}/v1/x402/buy/${String(symbol).toLowerCase()}`);
+        const slug = gatewaySlug(symbol);
+        if (!slug) return jsonResult({ error: "bad_symbol", detail: "symbol must contain letters or digits, for example PARCEL." });
+        const url = new URL(`${GATEWAY}/v1/x402/buy/${slug}`);
         if (chainId) url.searchParams.set("chain", String(chainId));
         url.searchParams.set("to", to);
 
@@ -803,7 +830,9 @@ const mcp = createMcpHandler(
          * jam itu dan mengunci pemakai yang sah — pembatas laju yang berubah menjadi alat
          * denial-of-service terhadap pemiliknya sendiri.
          */
-        const payGate = rateLimit("pay_and_buy", PAY_CALL_LIMIT, PAY_CALL_WINDOW_MS);
+        // `pinned`: kunci global ini tidak boleh ikut tergusur ketika Map keranjang per-IP
+        // penuh. Tanpanya, membanjiri pembatas dengan kunci baru mengosongkan batas ini.
+        const payGate = rateLimit("pay_and_buy", PAY_CALL_LIMIT, PAY_CALL_WINDOW_MS, { pinned: true });
         if (!payGate.ok) {
           return jsonResult({
             error: "rate_limited",
@@ -1205,6 +1234,13 @@ const mcp = createMcpHandler(
         if (!ethers.isAddress(address)) return jsonResult({ answered: false, error: "bad_address" });
         const who = ethers.getAddress(address);
 
+        // 0. Rate limited per caller IP BEFORE anything is verified or read. The per-address
+        //    limit below needs a valid signature, but a fresh key signs for free, so on its own
+        //    it let one caller mint unlimited limiter keys — and pay for 5 stake reads per
+        //    fresh address — by rotating addresses.
+        const ipGate = rateLimit(`ask_agent:ip:${callerIp()}`, 30, 10 * 60 * 1000);
+        if (!ipGate.ok) return jsonResult({ answered: false, error: "rate_limited", retryAfterSeconds: ipGate.retryAfter });
+
         // 1. The address proves itself. The message is rebuilt here and must match byte for byte.
         const ts = Number((/Timestamp: (\d{10,16})/.exec(message) || [])[1]);
         const expected = Number.isFinite(ts)
@@ -1482,6 +1518,38 @@ function parseError(message: string): Response {
 }
 
 /**
+ * Batas per-IP untuk SELURUH endpoint, di atas batas per-alat yang sudah ada.
+ *
+ * KENAPA PERLU, padahal alat berbayar sudah dibatasi sendiri-sendiri
+ *
+ * Alat gratis tidak gratis bagi kami. `get_market` membaca identitas agent (3 eth_call),
+ * `check_stake` dan `ask_agent` untuk alamat segar membaca stake (5 eth_call), `prepare_claim`
+ * menyentuh setiap chain, `quote_buy` memanggil gateway. Tanpa batas endpoint, satu loop
+ * memperbanyak setiap permintaan menjadi puluhan panggilan ke RPC publik — yang kemudian
+ * membatasi IP origin kita, dan pembacaan di SELURUH situs ikut gagal. `ask_agent` juga
+ * mencetak satu kunci pembatas per alamat bertanda tangan, jadi tanpa batas di sini satu IP
+ * bisa membanjiri Map pembatas dengan alamat segar.
+ *
+ * 240 per menit sengaja longgar: klien MCP besar memanggil dari IP egress yang dipakai
+ * bersama banyak pengguna, dan satu sesi agen yang wajar hanya belasan permintaan.
+ */
+const MCP_IP_LIMIT = 240;
+const MCP_IP_WINDOW_MS = 60_000;
+
+/**
+ * Badan JSON-RPC terbesar yang sah adalah `prepare_launch` dengan logo data URI
+ * (`MAX_IMAGE_DATA_URI_CHARS`, 200.000 karakter). Batasnya sama dengan rute yang membawa logo.
+ */
+const MCP_MAX_BODY_BYTES = IMAGE_JSON_BODY_BYTES;
+
+function jsonRpcError(status: number, code: number, message: string, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code, message } }), {
+    status,
+    headers: { "content-type": "application/json", ...headers },
+  });
+}
+
+/**
  * Hanya `/api/mcp`. Berkas ini ada di `src/app/api/[transport]/`, jadi Next mengirim ke sini
  * SETIAP `/api/<x>` yang tidak punya route sendiri. mcp-handler 1.x memilah path-nya sendiri
  * (`basePath`); 2.x melayani permintaan apa pun yang diberikan kepadanya, jadi pemilahannya
@@ -1497,10 +1565,31 @@ function notMcp(): Response {
 
 async function handler(request: Request): Promise<Response> {
   if (!/\/api\/mcp\/?$/.test(new URL(request.url).pathname)) return notMcp();
+
+  const gate = rateLimit(`mcp:${clientIp(request)}`, MCP_IP_LIMIT, MCP_IP_WINDOW_MS);
+  if (!gate.ok) {
+    return jsonRpcError(
+      429,
+      -32000,
+      `Rate limited: at most ${MCP_IP_LIMIT} requests per minute from one address. Retry after ${gate.retryAfter} s.`,
+      rateLimitHeaders(gate)
+    );
+  }
+
   const ctx = { agentKey: request.headers.get("x-agent-key"), ipHeaders: ipHeadersOf(request) };
   if (request.method !== "POST") return requestContext.run(ctx, () => mcp(request));
 
-  const raw = await request.text();
+  // Dibaca dengan batas: `request.text()` menampung badan sebesar apa pun di memori, lalu
+  // badan itu disalin lagi oleh `JSON.parse` dan `new Request(...)` di bawah.
+  let raw: string;
+  try {
+    raw = await readTextBody(request, MCP_MAX_BODY_BYTES);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) {
+      return jsonRpcError(413, -32600, `Request body is larger than ${e.limit} bytes.`);
+    }
+    throw e;
+  }
   if (!raw.trim()) {
     return parseError("Empty request body. Send a JSON-RPC 2.0 request, for example {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}.");
   }
