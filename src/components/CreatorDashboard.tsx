@@ -351,7 +351,9 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
               <EmptyState
                 compact
                 icon={Coins}
-                title="No markets yet"
+                // Bukan "No markets yet": itu varian kalimat keadaan peluncuran global yang ditolak
+                // audit_consistency (harus dari launch-state.ts). Yang dinyatakan di sini hanya alamat ini.
+                title="Nothing launched from this address"
                 body={
                   <>
                     No curve on any chain names this address as its creator.{" "}
