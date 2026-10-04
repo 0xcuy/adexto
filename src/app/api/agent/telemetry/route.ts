@@ -285,10 +285,15 @@ export async function GET(req: Request) {
      * 240 bucket × 1 detik hanya menjangkau 4 menit ke belakang, jadi perdagangan yang
      * berumur lebih dari itu keluar dari jendela dan chart 1 detik mendadak kosong tanpa
      * penjelasan. Lantai 1.800 detik menjaga jangkauan minimal setengah jam berapa pun
-     * ukuran bucketnya. Untuk 60 detik ke atas hasilnya tetap 240, jadi tidak ada
-     * perilaku lama yang berubah.
+     * ukuran bucketnya.
+     *
+     * 600, bukan 240 lagi: sama dengan jumlah bar yang digambar chart (`toUsdCandles`
+     * maxBars). Chart sekarang mengisi waktu sebelum fill pertama di jendelanya dengan harga
+     * yang berlaku saat itu. Itu hanya jujur bila jendela server SAMA PANJANG: dengan 240,
+     * fill yang berumur 4–10 jam (pada 1m) tidak ikut terkirim, dan isian datar akan
+     * menutupinya.
      */
-    const buckets = Math.max(240, Math.ceil(1800 / bucketSeconds));
+    const buckets = Math.max(600, Math.ceil(1800 / bucketSeconds));
     const candles = buildCandles(trades, { bucketSeconds, buckets, fallbackPrice });
 
     /**

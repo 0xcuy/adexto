@@ -77,7 +77,21 @@ export function toUsdCandles(
    * Token yang baru diluncurkan hari ini jadi tampil dengan sebulan chart dari masa ketika
    * token itu belum ada. Nol berarti tidak diketahui, dan perilaku lamanya dipertahankan.
    */
-  launchedAtSeconds = 0
+  launchedAtSeconds = 0,
+  /**
+   * Awal jendela chart (detik epoch). Seri dimulai di sini, BUKAN di fill pertama di dalamnya.
+   *
+   * Tanpa ini, seri dimulai di candle pertama, dan server hanya mengirim candle mulai fill
+   * pertama di jendelanya. Terukur 5 Okt di produksi pada 1m: SAI/42161 yang baru dibeli
+   * pukul 18:28 tampil 26 bar mulai 18:28, PARCEL/143 70 bar, sedangkan LOOP/143 yang sepi
+   * sejak 3 Okt tampil 600 bar kontinu. Pembelian baru membuat chart seolah mulai dari nol.
+   *
+   * Sebelum fill pertama, harga yang berlaku adalah `open` candle pertama. Server membukanya
+   * pada fill terakhir sebelum jendela, atau pada harga pembuka kurva (`buildCandles`).
+   * Bar-bar itu bergerak hanya karena kurs dan bervolume nol, sama seperti bar sesudah fill
+   * terakhir. Nol berarti perilaku lama.
+   */
+  windowStartSeconds = 0
 ): UsdResult {
   if (fxPoints.length === 0) {
     return { candles: [], droppedBefore: candles.length, fxOnly: 0 };
@@ -167,13 +181,22 @@ export function toUsdCandles(
     });
   }
 
-  const firstBucket = Math.min(...tradeByBucket.keys());
+  const firstTradeBucket = Math.min(...tradeByBucket.keys());
+  // Awal jendela, dibatasi peluncuran dan sampel kurs pertama: tidak ada bar sebelum keduanya.
+  const firstTrade = tradeByBucket.get(firstTradeBucket)!;
+  const priceBefore = firstTrade.open > 0 ? firstTrade.open : firstTrade.close;
+  const windowBucket =
+    windowStartSeconds > 0 && !seedless && priceBefore > 0
+      ? Math.max(bucket(windowStartSeconds), launchBucket, bucket(firstFx))
+      : Number.POSITIVE_INFINITY;
+  const firstBucket = Math.min(firstTradeBucket, windowBucket);
   const lastBucket = bucket(nowSeconds);
   const total = Math.floor((lastBucket - firstBucket) / intervalSeconds) + 1;
   const startBucket = total > maxBars ? lastBucket - (maxBars - 1) * intervalSeconds : firstBucket;
 
-  // Harga native yang berlaku saat `startBucket`: penutupan perdagangan terakhir sebelum itu.
-  let nativeClose = sorted[0].close;
+  // Harga native yang berlaku saat `startBucket`: penutupan perdagangan terakhir sebelum itu,
+  // atau, sebelum fill pertama, harga yang ia buka.
+  let nativeClose = startBucket < firstTradeBucket ? priceBefore : sorted[0].close;
   for (const c of sorted) {
     if (c.time <= startBucket) nativeClose = c.close;
     else break;
@@ -186,40 +209,22 @@ export function toUsdCandles(
   let prevUsdClose: number | null = null;
 
   /**
-   * Bucket di dalam LUBANG pengamatan tidak digambar sama sekali.
+   * SETIAP bucket digambar, termasuk di dalam lubang rekaman kurs: waktu selalu maju.
    *
-   * Sebelum ini, lubang diisi carry-forward: nilainya dipegang rata sepanjang lubang, lalu
-   * seluruh perubahan yang terjadi di dalamnya muncul sebagai SATU bar tegak di ujungnya. Itu
-   * artefak yang terlihat — dan lebih buruk, ia berbohong dua kali: menyatakan harga tidak
-   * berubah selama lubang (padahal kursnya bergerak, kita saja tidak merekamnya), lalu
-   * menyatakan seluruh pergerakan itu terjadi dalam satu bucket.
-   *
-   * Tidak menggambar apa pun menyatakan hal yang benar: di sini tidak ada pengamatan. Seri
-   * terputus, dan bar berikutnya dibuka pada nilainya sendiri alih-alih mewarisi nilai basi —
-   * itulah sebabnya `prevUsdClose` direset di dalam lubang.
-   *
-   * Ambangnya relatif terhadap bucket, bukan tetap: pada 1 jam, jeda 20 menit bukan lubang;
-   * pada 1 menit, jeda itu 20 bucket tanpa data. Batas bawah 10 menit menahan jeda perekaman
-   * normal (satu sampel per menit, kadang terlewat) agar tidak dianggap lubang.
+   * Versi sebelumnya melewati bucket di dalam lubang. lightweight-charts menaruh bar per urutan,
+   * bukan per waktu, jadi bucket yang dilewati memampatkan sumbu waktu, dan chart terlihat
+   * berhenti. Owner (5 Okt): "waktu ga terus maju". Di dalam lubang, kurs terakhir yang diketahui
+   * dipakai, jadi barnya datar dan bervolume nol: tidak ada informasi baru. Kurs berikutnya yang
+   * terekam muncul di bucket tempat ia terekam.
    */
-  const gapThreshold = Math.max(4 * intervalSeconds, 600);
-  const nextSampleAfter = (t: number): number | null => {
-    for (let i = 0; i < fxPoints.length; i++) if (fxPoints[i][0] > t) return fxPoints[i][0];
-    return null;
-  };
-  let lastSampleSeen = fxPoints[0][0];
-
   for (let t = startBucket; t <= lastBucket; t += intervalSeconds) {
     // Kurs berjalan maju ke sampel terakhir yang waktunya <= akhir bucket ini.
     const bucketEnd = t + intervalSeconds - 1;
     let high = -Infinity;
     let low = Infinity;
-    let sampledHere = false;
     while (fxIndex < fxPoints.length && fxPoints[fxIndex][0] <= bucketEnd) {
       fxRate = fxPoints[fxIndex][1];
-      lastSampleSeen = fxPoints[fxIndex][0];
       if (fxPoints[fxIndex][0] >= t) {
-        sampledHere = true;
         high = Math.max(high, fxRate);
         low = Math.min(low, fxRate);
       }
@@ -227,17 +232,6 @@ export function toUsdCandles(
     }
 
     const trade = tradeByBucket.get(t);
-
-    // Di dalam lubang pengamatan: tidak ada bar. Perdagangan TETAP digambar — ia pengamatan
-    // tersendiri, dan menyembunyikannya karena kursnya jarang akan membuang data yang nyata.
-    if (!trade && !sampledHere) {
-      const nextAt = nextSampleAfter(bucketEnd);
-      const gap = (nextAt ?? nowSeconds) - lastSampleSeen;
-      if (gap > gapThreshold) {
-        prevUsdClose = null;
-        continue;
-      }
-    }
     if (trade) {
       nativeClose = trade.close;
       const o = trade.open * fxRate;
@@ -273,6 +267,59 @@ export function toUsdCandles(
   }
 
   return { candles: out, droppedBefore: dropped, fxOnly };
+}
+
+/**
+ * Sumbu native (0G, MON, ETH): SATU bar per bucket dari awal jendela sampai SEKARANG, untuk
+ * semua pasar. Waktu selalu maju. Bucket tanpa perdagangan diisi datar pada harga yang berlaku,
+ * bervolume nol: sebelum fill pertama di jendela, di antara fill, dan sesudah fill terakhir.
+ *
+ * Kenapa di klien: server (`buildCandles`) sengaja memangkas ekor sesudah fill terakhir dan
+ * jeda panjang di antara fill (maksimal 4 bar datar). lightweight-charts menaruh bar per
+ * urutan, bukan per waktu, jadi bucket yang hilang memampatkan sumbu waktu. Terlihat 5 Okt pada
+ * $ZEEBO/0G 1m: 8 bar, berhenti di fill terakhir 06:53, lalu tidak ada apa-apa sampai jam
+ * sekarang. Chart terlihat seperti terminal yang jamnya mati.
+ *
+ * Harga di awal jendela: penutupan candle terakhir SEBELUM jendela, atau `open` candle pertama
+ * (server membukanya pada fill terakhir sebelum jendelanya, atau pada harga pembuka kurva).
+ * Candle bertanggal sedikit di depan jam kita tidak pernah dipotong. `maxBars` memotong dari
+ * ujung terbaru, sama dengan `toUsdCandles`.
+ */
+export function continuousNative(
+  candles: Candle[],
+  intervalSeconds: number,
+  windowStartSeconds: number,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+  maxBars = 600
+): Candle[] {
+  if (candles.length === 0 || !(intervalSeconds > 0)) return candles;
+  const bucket = (t: number) => Math.floor(t / intervalSeconds) * intervalSeconds;
+  const sorted = [...candles].sort((a, b) => a.time - b.time);
+  const lastBucket = Math.max(bucket(nowSeconds), bucket(sorted[sorted.length - 1].time));
+  const wanted = windowStartSeconds > 0 ? bucket(windowStartSeconds) : bucket(sorted[0].time);
+  const start = Math.max(wanted, lastBucket - (maxBars - 1) * intervalSeconds);
+
+  let price = sorted[0].open > 0 ? sorted[0].open : sorted[0].close;
+  const byBucket = new Map<number, Candle>();
+  for (const c of sorted) {
+    if (bucket(c.time) < start) price = c.close;
+    else byBucket.set(bucket(c.time), c);
+  }
+  if (!(price > 0)) return candles;
+
+  const out: Candle[] = [];
+  for (let t = start; t <= lastBucket; t += intervalSeconds) {
+    const c = byBucket.get(t);
+    if (!c) {
+      out.push({ time: t, open: price, high: price, low: price, close: price, volume: 0 });
+      continue;
+    }
+    // Bar berisi dibuka di penutupan bar sebelumnya, supaya seri tidak terputus.
+    const open = out.length > 0 ? out[out.length - 1].close : c.open > 0 ? c.open : c.close;
+    out.push({ time: t, open, high: Math.max(c.high, open), low: Math.min(c.low, open), close: c.close, volume: c.volume });
+    price = c.close;
+  }
+  return out;
 }
 
 /**

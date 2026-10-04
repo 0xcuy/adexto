@@ -801,10 +801,20 @@ export function buildCandles(
   if (filledBuckets.length === 0) return [];
 
   const candles: Candle[] = [];
-  // The curve's opening price is a real level, so the first candle may open there.
-  // Anything else would open the first candle on its own close and hide the very
-  // first move.
+  /**
+   * The first candle opens at the level in force when the window begins: the last fill
+   * BEFORE the window, or the curve's opening price when the window holds the market's very
+   * first fill. Opening on its own close would hide the first move.
+   *
+   * It used to open on the curve's opening price even when older fills existed, which drew a
+   * wick from the launch price to today's. The chart also reads this open as "the price before
+   * the first fill in view" when it fills the window back to its start (`toUsdCandles`).
+   */
   let last = opts.fallbackPrice > 0 ? opts.fallbackPrice : 0;
+  for (const { trade, seconds } of ordered) {
+    if (Math.floor(seconds / bucketSeconds) * bucketSeconds >= startBucket) break;
+    last = (trade.priceNativeAfter ?? trade.priceNative) as number;
+  }
 
   /**
    * Ekor bucket kosong DIBATASI, supaya bar datar tidak menenggelamkan datanya.

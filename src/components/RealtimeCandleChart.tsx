@@ -18,7 +18,7 @@ import {
 import { ChartCandlestick, LineChart } from "lucide-react";
 import { formatSmallNumber } from "@/lib/pricing";
 import { tradeWallet } from "@/lib/market-stats";
-import { flatSinceLaunch, toUsdCandles } from "@/lib/usd-series";
+import { continuousNative, flatSinceLaunch, toUsdCandles } from "@/lib/usd-series";
 import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicators";
 import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
 
@@ -1144,10 +1144,12 @@ export default function RealtimeCandleChart({
           }
         }
         // Rentang "1y" memotong apa pun yang lebih tua dari setahun.
+        let rangeFrom = 0;
         if (range) {
           const spanDef = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
           if (Number.isFinite(spanDef)) {
             const from = Math.floor(Date.now() / 1000) - spanDef;
+            rangeFrom = from;
             candles = candles.filter((c) => c.time >= from);
           }
         }
@@ -1170,6 +1172,22 @@ export default function RealtimeCandleChart({
          * belum cukup untuk menutupi seri ini, tampilannya JATUH ke native dan mengatakan
          * kenapa — bukan menggambar dolar dari kurs yang salah zaman.
          */
+        /**
+         * Chart dimulai di awal jendelanya, BUKAN di fill pertama di dalamnya.
+         *
+         * Server hanya mengirim candle mulai fill pertama di jendela 600 bucket-nya. Dulu chart
+         * dimulai di candle itu, jadi pembelian baru membuat chart seolah mulai dari nol: SAI/42161
+         * 26 bar sesudah dibeli pukul 18:28, sementara pasar yang sepi tampil 600 bar kontinu
+         * (terukur 5 Okt). Waktu sebelum fill pertama diisi dengan harga yang berlaku saat itu.
+         * Lihat `windowStartSeconds` di `src/lib/usd-series.ts`.
+         */
+        const CHART_BARS = 600;
+        const windowStart = Math.max(
+          Math.floor(Date.now() / 1000) - (CHART_BARS - 1) * interval,
+          rangeFrom,
+          launchedAt && launchedAt > 0 ? launchedAt : 0
+        );
+        let inUsd = false;
         // Tidak lagi mensyaratkan `candles.length > 0`: syarat itulah yang membuat pasar tanpa
         // fill menampilkan pane kosong, dan itu berlaku untuk SEMUA pasar baru, bukan satu.
         if (unit === "usd") {
@@ -1177,17 +1195,30 @@ export default function RealtimeCandleChart({
             const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
             const fx = fxRes.ok ? await fxRes.json() : null;
             const points: Array<[number, number]> = Array.isArray(fx?.points) ? fx.points : [];
-            const converted = toUsdCandles(candles, points, interval, undefined, 600, fallbackPriceNative, launchedAt ?? 0);
+            const converted = toUsdCandles(
+              candles,
+              points,
+              interval,
+              undefined,
+              CHART_BARS,
+              fallbackPriceNative,
+              launchedAt ?? 0,
+              windowStart
+            );
             if (converted.candles.length === 0) {
               // Tidak ada kurs terekam untuk rentang ini: sumbu tetap native. Tidak ada
               // kalimat di layar — satuan yang tampil sudah menyatakannya.
             } else {
               candles = converted.candles;
+              inUsd = true;
             }
           } catch {
             // Riwayat kurs tidak terbaca: sumbu tetap native, tanpa kalimat tambahan.
           }
         }
+        // Sumbu native (dipilih, atau kurs tidak terbaca): satu bar per bucket sampai sekarang,
+        // datar bila tidak ada perdagangan. Lihat `continuousNative`.
+        if (!inUsd) candles = continuousNative(candles, interval, windowStart, undefined, CHART_BARS);
 
         /**
          * Pasar yang belum pernah ditradingkan tetap punya chart sejak ia lahir.
