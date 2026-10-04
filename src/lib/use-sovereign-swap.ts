@@ -100,7 +100,31 @@ export interface SovereignSwap {
   refresh: () => Promise<void>;
 }
 
-const GAS_HEADROOM = ethers.parseEther("0.002");
+/**
+ * Native yang DISISAKAN untuk gas saat menekan 25/50/75/Max, dihitung dari harga gas chain itu.
+ *
+ * Dulu satu konstanta 0,002 untuk semua chain, dan itu salah ke dua arah (terukur 5 Okt 2026):
+ *   - chain ETH (Robinhood, Arbitrum, Base) gas-nya ~0,02 gwei; satu beli di Robinhood memakan
+ *     271.024 gas = 0,0000056 ETH. Sisa 0,002 ETH lebih besar dari saldo dompet biasa di sana
+ *     (0,0004–0,0017 ETH), jadi setiap tombol porsi menulis 0 dan pasar tidak bisa dibeli;
+ *   - Monad 102 gwei: 400k gas = 0,04 MON, jauh di atas 0,002, jadi Max menyisakan terlalu sedikit.
+ *
+ * Sekarang: harga gas × 600.000 gas × 3 (ruang untuk lonjakan dan biaya data L1), dengan lantai
+ * kecil. Bila harga gas tidak terbaca, dipakai cadangan per aset native.
+ */
+const GAS_UNITS_RESERVED = 600_000n;
+const GAS_PRICE_SAFETY = 3n;
+const GAS_HEADROOM_FLOOR = ethers.parseEther("0.00002");
+const GAS_HEADROOM_FALLBACK: Record<string, bigint> = {
+  ETH: ethers.parseEther("0.0001"),
+  MON: ethers.parseEther("0.2"),
+  "0G": ethers.parseEther("0.01"),
+};
+function gasHeadroomFor(nativeSymbol: string, gasPrice: bigint | null): bigint {
+  if (gasPrice === null || gasPrice <= 0n) return GAS_HEADROOM_FALLBACK[nativeSymbol] ?? ethers.parseEther("0.002");
+  const need = gasPrice * GAS_UNITS_RESERVED * GAS_PRICE_SAFETY;
+  return need > GAS_HEADROOM_FLOOR ? need : GAS_HEADROOM_FLOOR;
+}
 
 export function useSovereignSwap(market: SwapMarket | null, address: string | null): SovereignSwap {
   const chain = useMemo(() => resolveChainOrDefault(market?.chainId ?? null), [market?.chainId]);
@@ -133,6 +157,8 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
 
   const [nativeBalance, setNativeBalance] = useState<bigint>(0n);
   const [tokenBalance, setTokenBalance] = useState<bigint>(0n);
+  /** Harga gas chain pasar ini, untuk sisa gas tombol porsi. Null = belum/tidak terbaca. */
+  const [gasPrice, setGasPrice] = useState<bigint | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [statusLine, setStatusLine] = useState<string | null>(null);
@@ -169,6 +195,11 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     }
     try {
       const provider = readProvider(chain);
+      // Harga gas dibaca bersama saldo; gagal membacanya tidak menggagalkan saldo.
+      provider
+        .send("eth_gasPrice", [])
+        .then((hex: string) => setGasPrice(BigInt(hex)))
+        .catch(() => setGasPrice(null));
       const native = await provider.getBalance(address);
       setNativeBalance(BigInt(native));
       try {
@@ -320,7 +351,8 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
       // dan menuliskan jumlah negatif ke kolom input akan lolos ke parser.
       const pct = BigInt(Math.max(1, Math.min(100, Math.round(percent))));
       if (mode === "buy") {
-        const usable = nativeBalance > GAS_HEADROOM ? nativeBalance - GAS_HEADROOM : 0n;
+        const headroom = gasHeadroomFor(chain.nativeSymbol, gasPrice);
+        const usable = nativeBalance > headroom ? nativeBalance - headroom : 0n;
         // Dihitung dalam bigint, bukan lewat float. Mengalikan saldo wei sebagai
         // Number kehilangan presisi di atas 2^53 dan menghasilkan jumlah yang
         // sedikit berbeda dari yang ditampilkan.
@@ -331,7 +363,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         setAmountInput(part > 0n ? ethers.formatUnits(part, tokenDecimals) : "0");
       }
     },
-    [mode, nativeBalance, tokenBalance, tokenDecimals]
+    [mode, nativeBalance, tokenBalance, tokenDecimals, chain.nativeSymbol, gasPrice]
   );
 
   const setMaxAmount = useCallback(() => setAmountFraction(100), [setAmountFraction]);
