@@ -90,17 +90,17 @@ export default function RewardsClient() {
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
       <div className="space-y-5 lg:col-span-7">
         <section className="glass-panel space-y-3 rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-panel)]">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <h2 className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
             <Link2 className="h-4 w-4 text-accent" aria-hidden /> Your referral link
           </h2>
           {!isConnected || !address ? (
             <div className="space-y-2">
-              <p className="text-xs text-ink-soft">Connect the wallet that should receive referral credit. Your address is your code; a handle is optional.</p>
+              <p className="text-[12px]/snug text-ink-soft">Connect the wallet that should receive referral credit. Your address is your code; a handle is optional.</p>
               {/* Tombol dan kolom di halaman ini 44 px di bawah lg (rem situs 14 px, jadi px); desktop tetap. */}
               <button
                 type="button"
                 onClick={() => connectWallet().catch(() => {})}
-                className="min-h-[44px] rounded-xl bg-accent px-4 text-xs font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
+                className="min-h-[44px] rounded-xl bg-accent px-4 text-[12px]/snug font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
               >
                 Connect wallet
               </button>
@@ -121,18 +121,18 @@ export default function RewardsClient() {
                       setTimeout(() => setCopied(false), 1800);
                     } catch {}
                   }}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-[12px]/snug font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
                   {copied ? "Copied" : "Copy link"}
                 </button>
               </div>
-              <p className="text-[11px] leading-relaxed text-ink-faint">
+              <p className="text-[12px] leading-relaxed text-ink-faint">
                 Add <code className="text-accent">?ref={code}</code> to any ADEXTO link, a market page included. Someone who opens it and then
                 trades from this site carries your address in the transaction itself, so the credit cannot be claimed by anyone else.
               </p>
               <div className="flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-end">
-                <label className="flex-1 text-[11px] text-ink-soft">
+                <label className="flex-1 text-[12px] text-ink-soft">
                   <span className="mb-1 flex items-center gap-1 font-semibold text-ink">
                     <UserRound className="h-3.5 w-3.5" aria-hidden /> Handle {stats?.handles?.[0] ? `(now “${stats.handles[0]}”)` : "(optional)"}
                   </span>
@@ -141,26 +141,26 @@ export default function RewardsClient() {
                     onChange={(e) => setHandleInput(e.target.value)}
                     placeholder="your_handle"
                     maxLength={20}
-                    className="min-h-[44px] w-full rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/40 focus:outline-none lg:min-h-0 lg:py-2 lg:text-xs"
+                    className="min-h-[44px] w-full rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/40 focus:outline-none lg:min-h-0 lg:py-2 lg:text-[12px]/snug"
                   />
                 </label>
                 <button
                   type="button"
                   disabled={busy || !handleInput.trim()}
                   onClick={register}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-xs font-semibold text-ink hover:border-accent/40 disabled:opacity-50 lg:min-h-0 lg:py-2"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-[12px]/snug font-semibold text-ink hover:border-accent/40 disabled:opacity-50 lg:min-h-0 lg:py-2"
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Sign to claim handle
                 </button>
               </div>
-              {line && <p className={`text-[11px] ${line.tone === "ok" ? "text-ok" : "text-danger"}`}>{line.text}</p>}
+              {line && <p className={`text-[12px] ${line.tone === "ok" ? "text-ok" : "text-danger"}`}>{line.text}</p>}
             </>
           )}
         </section>
 
         {isConnected && address && stats?.totals && (
           <section className="glass-panel overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-panel)]">
-            <h2 className="border-b border-line px-5 py-3 text-sm font-semibold text-ink">What you referred</h2>
+            <h2 className="border-b border-line px-5 py-3 text-[13px]/snug font-semibold text-ink">What you referred</h2>
             <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
               {[
                 ["Trades", String(stats.totals.trades)],
@@ -169,8 +169,8 @@ export default function RewardsClient() {
                 ["Protocol fee", usd(stats.totals.protocolFeeUsd)],
               ].map(([k, v]) => (
                 <div key={k} className="bg-surface px-4 py-3">
-                  <span className="block text-[10px] uppercase tracking-[0.08em] text-ink-faint">{k}</span>
-                  <span className="mt-0.5 block font-display text-[17px] text-ink" data-numeric>
+                  <span className="block text-[12px] uppercase tracking-[0.08em] text-ink-faint">{k}</span>
+                  <span className="mt-0.5 block font-display text-[16px] text-ink" data-numeric>
                     {v}
                   </span>
                 </div>
@@ -178,7 +178,7 @@ export default function RewardsClient() {
             </div>
             {/* Ponsel (< 640 px): satu kartu per minggu; tabel enam kolom baru tampil mulai 640 px. */}
             {stats.weeks && stats.weeks.length > 0 && (
-              <ul className="divide-y divide-line text-xs sm:hidden">
+              <ul className="divide-y divide-line text-[12px]/snug sm:hidden">
                 {stats.weeks.map((w) => (
                   <li key={w.week} className="px-4 py-2.5">
                     <div className="flex items-baseline justify-between gap-3">
@@ -187,7 +187,7 @@ export default function RewardsClient() {
                         {usd(w.volumeUsd)}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-ink-soft" data-numeric>
+                    <p className="mt-0.5 text-[12px] text-ink-soft" data-numeric>
                       {w.trades} trade{w.trades === 1 ? "" : "s"} · {w.wallets} wallet{w.wallets === 1 ? "" : "s"} · protocol fee{" "}
                       {usd(w.protocolFeeUsd)}
                       {stats.termsConfirmed && (
@@ -203,9 +203,9 @@ export default function RewardsClient() {
               </ul>
             )}
             {stats.weeks && stats.weeks.length > 0 && (
-              <table className="hidden w-full text-left text-xs sm:table">
+              <table className="hidden w-full text-left text-[12px]/snug sm:table">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">
+                  <tr className="text-[12px] uppercase tracking-[0.08em] text-ink-faint">
                     <th className="px-4 py-2">Week (UTC)</th>
                     <th className="px-4 py-2 text-right">Trades</th>
                     <th className="px-4 py-2 text-right">Wallets</th>
@@ -225,7 +225,7 @@ export default function RewardsClient() {
                       {stats.termsConfirmed && (
                         <td className="px-4 py-2 text-right" data-numeric>
                           {usd(w.rewardUsd ?? 0)}
-                          {!w.meetsMinimum && <span className="ml-1 text-[10px] text-ink-faint">below minimum</span>}
+                          {!w.meetsMinimum && <span className="ml-1 text-[12px] text-ink-faint">below minimum</span>}
                         </td>
                       )}
                     </tr>
@@ -234,7 +234,7 @@ export default function RewardsClient() {
               </table>
             )}
             {stats.recent && stats.recent.length > 0 ? (
-              <ul className="divide-y divide-line border-t border-line text-[11px]">
+              <ul className="divide-y divide-line border-t border-line text-[12px]">
                 {stats.recent.map((r) => (
                   <li key={`${r.chainId}-${r.txHash}`} className="flex items-center justify-between gap-2 px-4 py-2">
                     <span className="text-ink">
@@ -252,7 +252,7 @@ export default function RewardsClient() {
                 ))}
               </ul>
             ) : (
-              <p className="border-t border-line px-4 py-3 text-xs text-ink-soft">No referred trade yet. Share your link to start.</p>
+              <p className="border-t border-line px-4 py-3 text-[12px]/snug text-ink-soft">No referred trade yet. Share your link to start.</p>
             )}
           </section>
         )}
@@ -260,7 +260,7 @@ export default function RewardsClient() {
 
       <aside className="space-y-5 lg:col-span-5">
         <section className="glass-panel space-y-2 rounded-card border border-line bg-surface p-5 text-[12px] leading-relaxed text-ink-soft shadow-[var(--shadow-panel)]">
-          <h2 className="text-sm font-semibold text-ink">How it works</h2>
+          <h2 className="text-[13px]/snug font-semibold text-ink">How it works</h2>
           {REFERRAL_TERMS.confirmed ? (
             <p>
               You earn {REFERRAL_TERMS.sharePctOfProtocolFee}% of the 0.10% protocol fee on the volume you refer, counted weekly (Monday to
@@ -283,7 +283,7 @@ export default function RewardsClient() {
         </section>
         {stats && (
           <section className="glass-panel rounded-card border border-line bg-surface p-5 text-[12px] text-ink-soft shadow-[var(--shadow-panel)]">
-            <h2 className="mb-2 text-sm font-semibold text-ink">Program so far</h2>
+            <h2 className="mb-2 text-[13px]/snug font-semibold text-ink">Program so far</h2>
             <p data-numeric>
               {stats.program.referrers} referrer{stats.program.referrers === 1 ? "" : "s"} · {stats.program.wallets} referred wallet
               {stats.program.wallets === 1 ? "" : "s"} · {stats.program.trades} trade{stats.program.trades === 1 ? "" : "s"} · {usd(stats.program.volumeUsd)} volume

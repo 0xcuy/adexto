@@ -12,7 +12,7 @@ export default function RewardsPage() {
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-10 sm:px-6 lg:px-8">
       <div>
         <p className="kicker mb-2">Referrals</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Bring traders, get credit</h1>
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Bring traders, get credit</h1>
         <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           Share a link with your code. When someone opens it and trades on ADEXTO, the trade carries your address on chain and counts toward
           your weekly total.

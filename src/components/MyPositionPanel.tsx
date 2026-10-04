@@ -92,7 +92,7 @@ export default function MyPositionPanel({
   const pnlPct = p ? (p.unrealizedPctUsd ?? p.unrealizedPct) : null;
 
   const row = "flex items-baseline justify-between gap-3 py-1";
-  const label = "text-[11px] text-ink-soft";
+  const label = "text-[12px] text-ink-soft";
   const value = "text-right text-[12px] font-semibold";
 
   return (
@@ -116,21 +116,21 @@ export default function MyPositionPanel({
         disabled={!collapsible}
         className={`flex w-full items-center justify-between gap-2 text-left ${open ? "mb-2 border-b border-line pb-2" : ""}`}
       >
-        <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-ink">
+        <span className="flex shrink-0 items-center gap-1.5 text-[13px]/snug font-semibold text-ink">
           <Wallet className="h-3.5 w-3.5 text-accent" /> Your position
         </span>
         <span className="flex min-w-0 items-center gap-2">
           {report && !complete && report.index ? (
-            <span className="flex items-center gap-1 text-[10px] text-warn" title="Reading this market's full history from the chain">
+            <span className="flex items-center gap-1 text-[12px] text-warn" title="Reading this market's full history from the chain">
               <RefreshCw className="h-3 w-3 animate-spin" /> history {Math.floor(report.index.progress * 100)}%
             </span>
           ) : p && p.balanceTokens > 0 ? (
-            <span className="truncate text-[11px] font-semibold text-ink" data-numeric>
+            <span className="truncate text-[12px] font-semibold text-ink" data-numeric>
               {formatTokenAmount(p.balanceTokens)} ${symbol}
               {p.valueUsd !== null && <span className="font-normal text-ink-soft"> · {formatUsd(p.valueUsd)}</span>}
             </span>
           ) : report ? (
-            <span className="text-[10px] text-ink-faint" title="Every trade since launch has been read from the chain">
+            <span className="text-[12px] text-ink-faint" title="Every trade since launch has been read from the chain">
               {p && p.buys + p.sells > 0
                 ? `${p.buys} buy${p.buys === 1 ? "" : "s"} · ${p.sells} sell${p.sells === 1 ? "" : "s"}`
                 : "no trades yet"}
@@ -144,11 +144,11 @@ export default function MyPositionPanel({
 
       <div id="my-position-body" hidden={!open}>
       {loading && !report ? (
-        <p className="py-3 text-center text-[11px] text-ink-faint">Reading your trades…</p>
+        <p className="py-3 text-center text-[12px] text-ink-faint">Reading your trades…</p>
       ) : error && !report ? (
-        <p className="py-3 text-center text-[11px] text-warn">{error}</p>
+        <p className="py-3 text-center text-[12px] text-warn">{error}</p>
       ) : p && p.balanceTokens <= 0 && p.buys + p.sells === 0 ? (
-        <p className="py-3 text-center text-[11px] text-ink-soft">You have not traded ${symbol} with this wallet.</p>
+        <p className="py-3 text-center text-[12px] text-ink-soft">You have not traded ${symbol} with this wallet.</p>
       ) : p ? (
         <div className="divide-y divide-line/60" data-numeric>
           <div className={row}>
@@ -221,20 +221,20 @@ export default function MyPositionPanel({
                 </div>
               )}
               {p.untrackedTokens > 0 && (
-                <p className="pt-1.5 text-[10px] leading-relaxed text-ink-faint" data-testid="position-untracked">
+                <p className="pt-1.5 text-[12px] leading-relaxed text-ink-faint" data-testid="position-untracked">
                   {formatTokenAmount(p.untrackedTokens)} ${symbol} came in by transfer, not by a trade here, so they have no entry
                   price and are left out of the PnL.
                 </p>
               )}
               {p.soldWithoutEntryTokens > 0 && (
-                <p className="pt-1.5 text-[10px] leading-relaxed text-ink-faint">
+                <p className="pt-1.5 text-[12px] leading-relaxed text-ink-faint">
                   {formatTokenAmount(p.soldWithoutEntryTokens)} ${symbol} sold had no entry price; their proceeds are left out of
                   the realized PnL.
                 </p>
               )}
             </>
           ) : (
-            <p className="pt-2 text-[10px] leading-relaxed text-ink-faint">
+            <p className="pt-2 text-[12px] leading-relaxed text-ink-faint">
               Entry price and PnL appear once this market's full history has been read from the chain.
             </p>
           )}

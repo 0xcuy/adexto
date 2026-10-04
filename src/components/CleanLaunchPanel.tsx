@@ -81,7 +81,7 @@ export default function CleanLaunchPanel({
     return (
       <div ref={ref} id={CLEAN_LAUNCH_ANCHOR} className={shell} data-testid="clean-launch-panel">
         <Header />
-        <p className="mt-2 text-xs text-ink-faint">{error ? `Could not read the launch from chain yet (${error}).` : "Reading the launch from chain…"}</p>
+        <p className="mt-2 text-[12px]/snug text-ink-faint">{error ? `Could not read the launch from chain yet (${error}).` : "Reading the launch from chain…"}</p>
       </div>
     );
   }
@@ -90,7 +90,7 @@ export default function CleanLaunchPanel({
     return (
       <div ref={ref} id={CLEAN_LAUNCH_ANCHOR} className={shell} data-testid="clean-launch-panel">
         <Header />
-        <p className="mt-2 text-xs leading-relaxed text-ink-soft">No clean-launch proof for this market. {proof.reason}</p>
+        <p className="mt-2 text-[12px]/snug leading-relaxed text-ink-soft">No clean-launch proof for this market. {proof.reason}</p>
       </div>
     );
   }
@@ -118,7 +118,7 @@ export default function CleanLaunchPanel({
       </ul>
       {/* Di bawah lg tiap tautan setinggi 36 px (dulu 18 px dan rapat: ERROR tap<24); jaraknya diambil
           dari gap, jadi tinggi kakinya hampir sama. Desktop tetap seperti dulu. */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 border-t border-line pt-1.5 text-[11px] lg:mt-3 lg:gap-x-4 lg:gap-y-2 lg:pt-3">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 border-t border-line pt-1.5 text-[12px] lg:mt-3 lg:gap-x-4 lg:gap-y-2 lg:pt-3">
         <a
           href={explorerTxUrl(chainId, proof.launch.txHash)}
           target="_blank"
@@ -153,14 +153,14 @@ export default function CleanLaunchPanel({
 function Header({ clean, final, generation, open }: { clean?: boolean; final?: boolean; generation?: string; open?: boolean }) {
   return (
     <div className={`flex items-center justify-between gap-2 ${open === false ? "" : "border-b border-line pb-2"}`}>
-      <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+      <span className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
         <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> Clean launch
       </span>
       <span className="flex items-center gap-1.5">
-        {generation && <span className="text-[10px] text-ink-faint">contracts {generation}</span>}
+        {generation && <span className="text-[12px] text-ink-faint">contracts {generation}</span>}
         {clean !== undefined && (
           <span
-            className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+            className={`rounded-md border px-2 py-0.5 text-[12px] font-semibold ${
               clean ? "border-ok/30 bg-ok/10 text-ok" : "border-warn/30 bg-warn/10 text-warn"
             }`}
           >
@@ -190,8 +190,8 @@ function CheckRow({ check }: { check: LaunchProofCheck }) {
     <li className="flex gap-2.5">
       <span className="mt-0.5 shrink-0">{icon}</span>
       <span className="min-w-0">
-        <span className="block text-xs font-semibold text-ink">{check.label}</span>
-        <span className="block text-[11px] leading-relaxed text-ink-faint">{check.detail}</span>
+        <span className="block text-[12px]/snug font-semibold text-ink">{check.label}</span>
+        <span className="block text-[12px] leading-relaxed text-ink-faint">{check.detail}</span>
       </span>
     </li>
   );

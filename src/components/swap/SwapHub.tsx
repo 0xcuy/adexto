@@ -65,7 +65,7 @@ export default function SwapHub() {
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8">
       <div className="mb-6 flex flex-col items-center text-center">
         <p className="kicker mb-3">{mode === "trade" ? "Sovereign bonding curve" : "Five chains, one wallet"}</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Swap</h1>
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Swap</h1>
         <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-ink-soft">
           {mode === "trade"
             ? "Trade straight against a market's own curve. No shared pool, and nothing is routed anywhere else."
@@ -77,7 +77,7 @@ export default function SwapHub() {
           many chains no longer pushes the page a few screens down. */}
       <div className="mx-auto max-w-md lg:grid lg:max-w-none lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
         <div className="min-w-0">
-          <div role="tablist" aria-label="Swap mode" className="mb-4 flex rounded-xl border border-line bg-cream-2 p-1 text-sm">
+          <div role="tablist" aria-label="Swap mode" className="mb-4 flex rounded-xl border border-line bg-cream-2 p-1 text-[13px]/snug">
             {modes.map((m) => (
               <button
                 key={m.id}

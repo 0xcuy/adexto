@@ -169,7 +169,7 @@ export default function MarketOwnerActions({
   // 36 px di bawah lg (target sentuh), 27 px di desktop: sama dengan chip tautan proyek, karena
   // sejak U2.2 keduanya duduk di satu baris.
   const btn =
-    "inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[11px] font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px]";
+    "inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px]";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -250,17 +250,17 @@ export default function MarketOwnerActions({
           <button type="button" onClick={() => setPicOpen(true)} className={btn}>
             <ImagePlus className="h-3 w-3" /> change picture
           </button>
-          <span className="text-[10px] text-ink-faint">you launched this</span>
+          <span className="text-[12px] text-ink-faint">you launched this</span>
         </>
       )}
 
       {saved && (
-        <span className="inline-flex items-center gap-1 text-[11px] text-ok">
+        <span className="inline-flex items-center gap-1 text-[12px] text-ok">
           <Check className="h-3 w-3" /> saved
         </span>
       )}
       {error && (
-        <span className="inline-flex items-start gap-1 text-[11px] text-danger">
+        <span className="inline-flex items-start gap-1 text-[12px] text-danger">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {error}
         </span>
       )}
@@ -268,15 +268,15 @@ export default function MarketOwnerActions({
       {/* ── sunting keterangan ─────────────────────────────────────────────── */}
       {editOpen && (
         <Dialog title="Edit details" onClose={() => setEditOpen(false)}>
-          <label className="block text-[10px] uppercase tracking-wider text-ink-faint">One-line pitch</label>
+          <label className="block text-[12px] uppercase tracking-wider text-ink-faint">One-line pitch</label>
           <div className="relative">
             <input
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value.slice(0, 160) }))}
               placeholder="What is this market for?"
-              className="mt-1 w-full rounded-lg border border-line bg-cream-2 px-2.5 py-2 pr-14 text-xs text-ink focus:border-accent/40 focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-cream-2 px-2.5 py-2 pr-14 text-[12px]/snug text-ink focus:border-accent/40 focus:outline-none"
             />
-            <span className="pointer-events-none absolute right-2.5 top-1/2 mt-0.5 -translate-y-1/2 text-[10px] text-ink-faint" data-numeric>
+            <span className="pointer-events-none absolute right-2.5 top-1/2 mt-0.5 -translate-y-1/2 text-[12px] text-ink-faint" data-numeric>
               {form.description.length}/160
             </span>
           </div>
@@ -290,17 +290,17 @@ export default function MarketOwnerActions({
             ] as const
           ).map(([key, label, placeholder]) => (
             <div key={key} className="mt-2.5">
-              <label className="block text-[10px] uppercase tracking-wider text-ink-faint">{label}</label>
+              <label className="block text-[12px] uppercase tracking-wider text-ink-faint">{label}</label>
               <input
                 value={form[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                 placeholder={placeholder}
-                className="mt-1 w-full rounded-lg border border-line bg-cream-2 px-2.5 py-2 text-xs text-ink focus:border-accent/40 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-line bg-cream-2 px-2.5 py-2 text-[12px]/snug text-ink focus:border-accent/40 focus:outline-none"
               />
             </div>
           ))}
 
-          <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+          <p className="mt-3 text-[12px] leading-relaxed text-ink-faint">
             Only <code className="text-accent">http</code> and <code className="text-accent">https</code> links are
             stored, and the X field keeps the handle. Your wallet will ask you to sign the exact text of this change —
             it cannot move funds or change fees.
@@ -333,7 +333,7 @@ export default function MarketOwnerActions({
               aria-hidden="true"
               className="h-12 w-12 rounded-xl border border-line object-contain p-1"
             />
-            <p className="text-[11px] leading-relaxed text-ink-soft">
+            <p className="text-[12px] leading-relaxed text-ink-soft">
               Pick an ADEXTO robot below. It is stored as a path on this site, so it costs the registry nothing.
             </p>
           </div>
@@ -403,7 +403,7 @@ export default function MarketOwnerActions({
                 </>
               )}
             </button>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-ink-faint">
+            <p className="mt-1.5 text-[12px] leading-relaxed text-ink-faint">
               PNG, JPEG or WebP · <strong className="text-ink-soft">square</strong> · max{" "}
               <strong className="text-ink-soft">{MAX_UPLOAD_MB} MB</strong>. Resized to {LOGO_PX}×{LOGO_PX} and stored
               with the market.
@@ -473,7 +473,7 @@ function Dialog({
         className="relative w-full max-w-sm rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)]"
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="font-display text-[17px] font-medium text-ink">{title}</h2>
+          <h2 className="font-display text-[16px] font-medium text-ink">{title}</h2>
           <button
             type="button"
             onClick={onClose}

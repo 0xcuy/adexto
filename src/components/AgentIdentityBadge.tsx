@@ -65,7 +65,7 @@ export default function AgentIdentityBadge({ chain, tokenAddress }: { chain: Cha
       // Tinggi dalam px (rem situs 14 px): 32 px di bawah lg supaya bisa diketuk, 22 px di desktop.
       // Ukuran ini sama dengan slot yang dipesan TokenTerminal, jadi lencana yang datang belakangan
       // tidak menggeser apa pun.
-      className="inline-flex h-[32px] items-center gap-1 whitespace-nowrap rounded-lg border border-ok/30 bg-ok/10 px-2.5 text-[11px] font-bold text-ok hover:underline lg:h-[22px] lg:rounded lg:px-2"
+      className="inline-flex h-[32px] items-center gap-1 whitespace-nowrap rounded-lg border border-ok/30 bg-ok/10 px-2.5 text-[12px] font-bold text-ok hover:underline lg:h-[22px] lg:rounded lg:px-2"
     >
       <Fingerprint className="h-3 w-3" aria-hidden="true" /> ERC-8004 agent #{binding.agentId}
     </a>

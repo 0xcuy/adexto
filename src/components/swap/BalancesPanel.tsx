@@ -37,11 +37,11 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
   if (!isConnected) {
     return (
       <section className="glass-panel rounded-card p-5" aria-labelledby="balances-title" data-testid="swap-balances">
-        <h2 id="balances-title" className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <h2 id="balances-title" className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
           <Wallet className="h-4 w-4 text-accent" aria-hidden="true" /> Balances
         </h2>
         <p className="mt-2 text-[12px] text-ink-soft">Connect a wallet to see what it holds on Monad, Arbitrum, Robinhood, Base and 0G in one place.</p>
-        <button type="button" onClick={() => void connectWallet()} className="mt-3 h-[40px] rounded-xl border border-line px-4 text-xs font-semibold text-ink hover:border-line-strong">
+        <button type="button" onClick={() => void connectWallet()} className="mt-3 h-[40px] rounded-xl border border-line px-4 text-[12px]/snug font-semibold text-ink hover:border-line-strong">
           Connect wallet
         </button>
       </section>
@@ -54,13 +54,13 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
     <section className="glass-panel rounded-card p-5" aria-labelledby="balances-title" aria-busy={loading} data-testid="swap-balances">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 id="balances-title" className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <h2 id="balances-title" className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
             <Wallet className="h-4 w-4 text-accent" aria-hidden="true" /> Balances
           </h2>
-          <p className="mt-1 text-2xl font-semibold text-ink" data-numeric>
+          <p className="mt-1 text-[20px] font-semibold leading-[1.4] text-ink" data-numeric>
             {report ? formatUsd(report.totalUsd) : loading ? "…" : "—"}
           </p>
-          <p className="text-[11px] text-ink-faint">
+          <p className="text-[12px] text-ink-faint">
             Across five chains{report?.partial ? ", lower bound: a chain could not be read" : ""}
             {report && !report.pricesLive ? ", some prices are not live" : ""}.
           </p>
@@ -137,7 +137,7 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                                 {a.usd == null ? "—" : formatUsd(a.usd)}
                               </span>
                               {onMove && (
-                                <button type="button" onClick={() => onMove(c.chainId)} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
+                                <button type="button" onClick={() => onMove(c.chainId)} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[12px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                                   Move
                                 </button>
                               )}
@@ -159,7 +159,7 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                           <span className="text-ink-soft" data-numeric title="What selling to the curve would return now, after fees">
                             {p.valueUsd == null ? "—" : formatUsd(p.valueUsd)}
                           </span>
-                          <Link href={`/swap?token=${encodeURIComponent(p.symbol)}&chain=${c.chainId}`} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
+                          <Link href={`/swap?token=${encodeURIComponent(p.symbol)}&chain=${c.chainId}`} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[12px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                             Trade
                           </Link>
                         </span>
@@ -177,7 +177,7 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                           <span className="text-ink-soft" data-numeric>
                             {f.usd == null ? "—" : formatUsd(f.usd)}
                           </span>
-                          <Link href="/creator" className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
+                          <Link href="/creator" className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[12px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                             Claim
                           </Link>
                         </span>
@@ -192,7 +192,7 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
       </div>
       {/* Only once the chains are in: rendered earlier, the note was pushed down by them (a layout shift on desktop). */}
       {report && (
-        <p className="mt-3 text-[11px] text-ink-faint">
+        <p className="mt-3 text-[12px] text-ink-faint">
           Market tokens are valued at what selling them to their curve returns now, held and staked together. Only the assets ADEXTO routes are listed; other tokens in the wallet are not shown.
         </p>
       )}

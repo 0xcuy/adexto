@@ -50,10 +50,10 @@ export default function RecentTransfers({ recent, hold = false }: { recent: Rece
   const shown = showAll ? list : list.slice(0, FIRST);
   return (
     <section className="glass-panel mt-6 rounded-card p-5" aria-labelledby="swap-recent-title" data-testid="swap-recent">
-      <h2 id="swap-recent-title" className="flex items-center gap-2 text-sm font-semibold text-ink">
+      <h2 id="swap-recent-title" className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
         <History className="h-4 w-4 text-accent" aria-hidden="true" /> Recent transfers
       </h2>
-      <p className="mt-1 text-[11px] text-ink-faint">Cross-chain transfers this wallet sent through ADEXTO, from any device.</p>
+      <p className="mt-1 text-[12px] text-ink-faint">Cross-chain transfers this wallet sent through ADEXTO, from any device.</p>
       {historyError && (
         <p className="mt-2 flex items-start gap-1.5 text-[12px] text-warn">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -82,7 +82,7 @@ export default function RecentTransfers({ recent, hold = false }: { recent: Rece
                 {t.sent} <span aria-hidden="true">→</span>
                 <span className="sr-only">to</span> {arrived}
               </p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px]">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px]">
                 {t.sentAt > 0 && (
                   <time dateTime={new Date(t.sentAt).toISOString()} className="text-ink-faint" data-numeric>
                     {WHEN.format(t.sentAt)}
@@ -102,7 +102,7 @@ export default function RecentTransfers({ recent, hold = false }: { recent: Rece
           onClick={() => setShowAll((v) => !v)}
           aria-expanded={showAll}
           aria-controls="swap-recent-list"
-          className="mt-2 flex min-h-[40px] w-full items-center justify-center rounded-xl border border-line text-xs font-semibold text-ink-soft hover:border-line-strong hover:text-ink lg:min-h-[34px]"
+          className="mt-2 flex min-h-[40px] w-full items-center justify-center rounded-xl border border-line text-[12px]/snug font-semibold text-ink-soft hover:border-line-strong hover:text-ink lg:min-h-[34px]"
         >
           {showAll ? "Show fewer" : `Show all ${list.length}`}
         </button>

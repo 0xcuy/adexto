@@ -267,7 +267,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
       ) : (
       <div className="mb-8 flex flex-col items-center text-center">
         <p className="kicker mb-3">Sovereign bonding curve</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Swap</h1>
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Swap</h1>
         <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-ink-soft">
           Trade straight against a market&apos;s own curve. No shared pool, and nothing is routed anywhere else.
         </p>
@@ -287,7 +287,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
             layar hanya membuat bingung. */}
         {isConnected && (
           <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2.5">
-            <span className="text-xs font-medium text-ink-soft">Trading wallet</span>
+            <span className="text-[12px]/snug font-medium text-ink-soft">Trading wallet</span>
             <WalletMenu />
           </div>
         )}
@@ -313,7 +313,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           />
 
           {selected && (
-            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1 text-xs">
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1 text-[12px]/snug">
               <span className="flex items-center gap-2">
                 <span className={selected.tradable ? "font-medium text-ok" : "font-medium text-warn"}>
                   {selected.tradable ? "Pool live" : "No executable pool"}
@@ -342,7 +342,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           )}
 
           {selected && selected.deployedChainCount > 1 && (
-            <p className="mt-1 px-1 text-xs text-ink-faint">
+            <p className="mt-1 px-1 text-[12px]/snug text-ink-faint">
               Also launched on <span data-numeric>{selected.deployedChainCount - 1}</span> more chain
               {selected.deployedChainCount > 2 ? "s" : ""} — each one is a separate market with its own price.
             </p>
@@ -375,7 +375,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
               menampilkan dropdown kosong tanpa sebab. */}
           {!loading && markets.length === 0 && (
             <div className="mb-4 rounded-2xl border border-line bg-surface p-3.5">
-              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
+              <div className="flex items-start gap-2.5 text-[12px]/snug leading-relaxed text-ink-soft">
                 <Lock className="w-3.5 h-3.5 text-ink-faint mt-0.5 shrink-0" />
                 {/* The reason had to change when the fact did. This read "the curve
                     factory has not been broadcast to mainnet", which was true until
@@ -393,7 +393,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           {/* Chain terpilih tidak punya market: jelaskan, jangan biarkan panel kosong tanpa sebab */}
           {!loading && markets.length > 0 && visibleMarkets.length === 0 && chainFilter !== "all" && (
             <div className="mb-4 space-y-2 rounded-2xl border border-accent/30 bg-surface p-3.5">
-              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-soft">
+              <div className="flex items-start gap-2.5 text-[12px]/snug leading-relaxed text-ink-soft">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
                 <span>
                   <strong className="font-semibold text-ink">
@@ -405,7 +405,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
               <button
                 type="button"
                 onClick={() => setChainFilter("all")}
-                className="w-full rounded-xl border border-accent/30 bg-accent-soft py-2 text-xs font-semibold text-accent"
+                className="w-full rounded-xl border border-accent/30 bg-accent-soft py-2 text-[12px]/snug font-semibold text-accent"
               >
                 Show all chains (<span data-numeric>{markets.length}</span> markets)
               </button>
@@ -415,7 +415,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           {/* Chain guard */}
           {isConnected && selected && !onCorrectChain && (
             <div className="mb-4 space-y-2 rounded-2xl border border-warn/30 bg-warn/10 p-3.5">
-              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-ink">
+              <div className="flex items-start gap-2.5 text-[12px]/snug leading-relaxed text-ink">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
                 <span>
                   Wallet is on chain <span className="font-mono">{walletChainId ?? "unknown"}</span>; $
@@ -425,7 +425,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
               <button
                 type="button"
                 onClick={() => switchToChain(chain).catch((e) => swap.setErrorLine(describeTxError(e)))}
-                className="w-full rounded-xl bg-warn py-2 text-xs font-semibold text-white transition-colors hover:bg-warn/90"
+                className="w-full rounded-xl bg-warn py-2 text-[12px]/snug font-semibold text-white transition-colors hover:bg-warn/90"
               >
                 Switch to {chain.name}
               </button>
@@ -434,7 +434,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
 
           {/* Pool unavailable */}
           {selected && swap.poolChecked && !swap.tradable && (
-            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-xs leading-relaxed text-ink">
+            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-[12px]/snug leading-relaxed text-ink">
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
               <span>{swap.poolStatusMessage}</span>
             </div>
@@ -442,7 +442,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
 
           {/* Direction */}
           <div className="mb-2.5 flex items-center justify-between">
-            <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-xs">
+            <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-[12px]/snug">
               {(["buy", "sell"] as const).map((m) => (
                 <button
                   key={m}
@@ -465,7 +465,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
               type="button"
               onClick={() => setShowSlippage((v) => !v)}
               aria-expanded={showSlippage}
-              className="flex h-[36px] items-center gap-1.5 rounded-lg px-2.5 text-xs text-ink-soft transition-colors hover:bg-cream-2 hover:text-ink lg:h-auto lg:px-2 lg:py-1.5"
+              className="flex h-[36px] items-center gap-1.5 rounded-lg px-2.5 text-[12px]/snug text-ink-soft transition-colors hover:bg-cream-2 hover:text-ink lg:h-auto lg:px-2 lg:py-1.5"
               title="Slippage settings"
             >
               <Settings2 className="h-3.5 w-3.5" />
@@ -503,7 +503,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           )}
 
           {swap.errorLine && (
-            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-xs leading-relaxed text-danger">
+            <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-[12px]/snug leading-relaxed text-danger">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
               <span>{swap.errorLine}</span>
             </div>
@@ -511,15 +511,15 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
 
           {swap.txHash && !swap.errorLine && (
             <div className="mb-4 space-y-2 rounded-2xl border border-ok/30 bg-ok/10 p-4 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-ok">
+              <div className="flex items-center justify-center gap-2 text-[13px]/snug font-semibold text-ok">
                 <CheckCircle2 className="h-5 w-5 text-ok" /> Swap settled
               </div>
-              <p className="text-xs text-ink-soft">{swap.statusLine}</p>
+              <p className="text-[12px]/snug text-ink-soft">{swap.statusLine}</p>
               <a
                 href={explorerTxUrl(chain, swap.txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+                className="inline-flex items-center gap-1 text-[12px]/snug font-semibold text-accent hover:underline"
               >
                 {/* Hash transaksi: string mesin, jadi monospace memang tempatnya. */}
                 <span className="font-mono">
@@ -535,7 +535,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
             disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n : isConnecting}
             /* Sama seperti tombol launch di studio: keadaan nonaktif diberi warna
                sendiri alih-alih diredupkan, supaya alasan terkuncinya tetap terbaca. */
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[15px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[16px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
           >
             {swap.busy ? (
               <>
@@ -557,7 +557,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
           </button>
 
           {selected && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4 text-xs">
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4 text-[12px]/snug">
               <span className="flex items-center gap-1.5 text-ink-faint">
                 {selected.verified ? (
                   <>

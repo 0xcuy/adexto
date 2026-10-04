@@ -48,7 +48,7 @@ export default function MarketStatsStrip({
   const total = buys + sells;
 
   const cell = "flex min-w-0 flex-col gap-0.5 rounded-xl border border-line bg-surface px-3 py-2";
-  const label = "text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint";
+  const label = "text-[12px] font-semibold uppercase tracking-[0.12em] text-ink-faint";
 
   return (
     <div
@@ -71,7 +71,7 @@ export default function MarketStatsStrip({
         return (
           <div key={w.key} className={cell} title={title} data-stat={`change-${w.key}`} data-value={shown ?? ""}>
             <span className={label}>{w.key}</span>
-            <span className={`text-sm font-semibold ${loaded ? tone(shown) : "text-ink-faint"}`} data-numeric>
+            <span className={`text-[13px]/snug font-semibold ${loaded ? tone(shown) : "text-ink-faint"}`} data-numeric>
               {loaded ? fmtPct(shown) : "…"}
             </span>
           </div>
@@ -85,7 +85,7 @@ export default function MarketStatsStrip({
         title={stats ? `${formatSmallNumber(stats.volume24h.native)} ${nativeSymbol} traded in the last 24 hours` : undefined}
       >
         <span className={label}>Vol 24h</span>
-        <span className="text-sm font-semibold text-ink" data-numeric>
+        <span className="text-[13px]/snug font-semibold text-ink" data-numeric>
           {!loaded || !stats
             ? "…"
             : `${atLeast}${volumeUsd !== null ? formatUsd(volumeUsd, { compact: true }) : `${formatSmallNumber(stats.volume24h.native)} ${nativeSymbol}`}`}
@@ -99,14 +99,14 @@ export default function MarketStatsStrip({
         title="Distinct wallets that bought or sold in the last 24 hours. For a relayed buy the wallet that received the tokens counts, not the relayer."
       >
         <span className={label}>Traders 24h</span>
-        <span className="text-sm font-semibold text-ink" data-numeric>
+        <span className="text-[13px]/snug font-semibold text-ink" data-numeric>
           {!loaded || !stats ? "…" : `${atLeast}${stats.traders24h}`}
         </span>
       </div>
 
       <div className={`${cell} col-span-2`} data-stat="txns-24h" data-buys={buys} data-sells={sells}>
         <span className={label}>Txns 24h</span>
-        <span className="flex items-baseline gap-2 text-sm font-semibold" data-numeric>
+        <span className="flex items-baseline gap-2 text-[13px]/snug font-semibold" data-numeric>
           {!loaded || !stats ? (
             <span className="text-ink-faint">…</span>
           ) : (

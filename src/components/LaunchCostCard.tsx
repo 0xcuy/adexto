@@ -76,11 +76,11 @@ export default function LaunchCostCard({
 
   return (
     <div className="rounded-xl border border-line bg-surface p-3" data-testid="launch-cost" data-state={state}>
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ink">
+      <div className="mb-2 flex items-center gap-1.5 text-[12px]/snug font-bold text-ink">
         <Fuel className="h-3.5 w-3.5 text-accent" /> What this launch costs
       </div>
 
-      <div className="divide-y divide-line/60 text-[11px]" data-numeric>
+      <div className="divide-y divide-line/60 text-[12px]" data-numeric>
         {rows.length === 0 ? (
           <p className="py-1.5 text-ink-faint">Pick a chain to see its gas cost.</p>
         ) : (
@@ -125,7 +125,7 @@ export default function LaunchCostCard({
         </div>
       </div>
 
-      <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
+      <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">
         {failed
           ? "The gas price could not be read, so no figure is shown. Your wallet shows the exact network fee before you sign."
           : "An estimate: gas prices change every block, and your wallet shows the exact network fee before you sign."}
@@ -135,7 +135,7 @@ export default function LaunchCostCard({
       {/* Di bawah lg summary-nya diberi padding 8 px atas-bawah: dulu kotak ketuknya hanya setinggi teks
           (16 px) dan rapat dengan kalimat di atasnya, ERROR tap<24 di 393 px sejak baseline. `display`-nya
           tidak diubah supaya penanda segitiga bawaan tetap ada. */}
-      <details className="text-[10px] leading-relaxed text-ink-faint lg:mt-1">
+      <details className="text-[12px] leading-relaxed text-ink-faint lg:mt-1">
         <summary className="cursor-pointer py-[8px] font-semibold text-accent lg:py-0">How it is computed</summary>
         <p className="mt-1">
           Gas used by <code className="text-accent">deployTrinity</code>, measured against the factory deployed on each

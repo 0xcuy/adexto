@@ -60,7 +60,7 @@ function MarketCell({ m }: { m: { slug: string; chainId: number; symbol: string;
       <img src={m.image} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-lg border border-line object-cover" />
       <span className="min-w-0">
         <span className="block font-semibold text-ink">${m.symbol}</span>
-        {m.name ? <span className="block truncate text-[11px] text-ink-faint">{m.name}</span> : null}
+        {m.name ? <span className="block truncate text-[12px] text-ink-faint">{m.name}</span> : null}
       </span>
     </Link>
   );
@@ -70,17 +70,17 @@ function Section({ icon, title, note, children, id }: { icon: React.ReactNode; t
   return (
     <section id={id} className="glass-panel scroll-mt-24 overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-panel)]">
       <div className="flex flex-col gap-1 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <h2 className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
           {icon} {title}
         </h2>
-        {note ? <p className="text-[11px] text-ink-faint">{note}</p> : null}
+        {note ? <p className="text-[12px] text-ink-faint">{note}</p> : null}
       </div>
       {children}
     </section>
   );
 }
 
-const th = "px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-faint";
+const th = "px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-faint";
 const td = "px-4 py-2.5 align-middle";
 
 /**
@@ -108,21 +108,21 @@ function PhoneRow({
   valueLabel: string;
 }) {
   return (
-    <li className="flex items-center gap-3 px-4 py-2.5 text-xs">
+    <li className="flex items-center gap-3 px-4 py-2.5 text-[12px]/snug">
       {rank !== undefined ? (
-        <span className="w-4 shrink-0 text-[11px] text-ink-faint" data-numeric>
+        <span className="w-4 shrink-0 text-[12px] text-ink-faint" data-numeric>
           {rank}
         </span>
       ) : null}
       <div className="min-w-0 flex-1">
         {main}
-        {meta ? <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-ink-soft">{meta}</div> : null}
+        {meta ? <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[12px] text-ink-soft">{meta}</div> : null}
       </div>
       <div className="shrink-0 text-right">
         <span className="block text-[14px] font-semibold text-ink" data-numeric>
           {value}
         </span>
-        <span className="block text-[10px] text-ink-faint">{valueLabel}</span>
+        <span className="block text-[12px] text-ink-faint">{valueLabel}</span>
       </div>
     </li>
   );
@@ -147,7 +147,7 @@ export default async function LeaderboardPage() {
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-10 sm:px-6 lg:px-8">
       <div>
         <p className="kicker mb-2">Leaderboard</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Who is actually buying</h1>
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Who is actually buying</h1>
         <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           Markets ranked by unique buyers, not volume: one wallet buying a hundred times still counts once. ADEXTO team
           wallets and each market&apos;s own creator never count as buyers. Read from every swap on chain, across five
@@ -159,7 +159,7 @@ export default async function LeaderboardPage() {
       </div>
 
       {!data ? (
-        <p className="rounded-card border border-line bg-surface p-4 text-sm text-ink-soft">The leaderboard could not be computed right now. Try again in a minute.</p>
+        <p className="rounded-card border border-line bg-surface p-4 text-[13px]/snug text-ink-soft">The leaderboard could not be computed right now. Try again in a minute.</p>
       ) : (
         <>
           {data.promoted.length > 0 && (
@@ -172,7 +172,7 @@ export default async function LeaderboardPage() {
                 {data.promoted.map((m) => (
                   <li key={`${m.chainId}-${m.token}`} className="flex items-center justify-between gap-3 bg-surface px-4 py-3">
                     <MarketCell m={m} />
-                    <span className="flex flex-col items-end gap-1 text-[11px]">
+                    <span className="flex flex-col items-end gap-1 text-[12px]">
                       <span className="rounded-md border border-warn/40 bg-warn/10 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-warn">Promoted</span>
                       <ChainChip chainId={m.chainId} name={m.chainName} />
                     </span>
@@ -209,7 +209,7 @@ export default async function LeaderboardPage() {
                   />
                 ))}
               </PhoneList>
-              <table className="hidden w-full text-left text-xs sm:table">
+              <table className="hidden w-full text-left text-[12px]/snug sm:table">
                 <thead>
                   <tr>
                     <th className={th}>Market</th>
@@ -248,7 +248,7 @@ export default async function LeaderboardPage() {
                           {short(c.address)}
                         </Link>
                         {c.isTeam && (
-                          <span className="rounded border border-line px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">ADEXTO team</span>
+                          <span className="rounded border border-line px-1 py-0.5 text-[12px] font-semibold uppercase tracking-wide text-ink-faint">ADEXTO team</span>
                         )}
                       </span>
                     }
@@ -262,7 +262,7 @@ export default async function LeaderboardPage() {
                   />
                 ))}
               </PhoneList>
-              <table className="hidden w-full text-left text-xs sm:table">
+              <table className="hidden w-full text-left text-[12px]/snug sm:table">
                 <thead>
                   <tr>
                     <th className={th}>Creator</th>
@@ -281,7 +281,7 @@ export default async function LeaderboardPage() {
                           {short(c.address)}
                         </Link>
                         {c.isTeam && (
-                          <span className="ml-2 rounded border border-line px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">ADEXTO team</span>
+                          <span className="ml-2 rounded border border-line px-1 py-0.5 text-[12px] font-semibold uppercase tracking-wide text-ink-faint">ADEXTO team</span>
                         )}
                       </td>
                       <td className={`${td} text-ink-soft`}>
@@ -304,11 +304,11 @@ export default async function LeaderboardPage() {
             note="Tokens bound at launch to an ERC-8004 agent identity."
           >
             {data.agentBound.length === 0 ? (
-              <p className="px-4 py-4 text-xs text-ink-soft">No market is bound to an agent identity yet.</p>
+              <p className="px-4 py-4 text-[12px]/snug text-ink-soft">No market is bound to an agent identity yet.</p>
             ) : (
               /* Satu daftar grid untuk semua lebar (lihat catatan PhoneList): di ponsel kartu dua baris, mulai 640 px
                  empat kolom dengan kepala kolom seperti tabel sebelumnya. Skor tetap dari AgentScoreBadge (UI-1). */
-              <div className="text-xs">
+              <div className="text-[12px]/snug">
                 <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] border-b border-line sm:grid" aria-hidden="true">
                   <span className={th}>Market</span>
                   <span className={th}>Chain</span>
@@ -326,9 +326,9 @@ export default async function LeaderboardPage() {
                       </div>
                       <div className="text-right font-semibold text-ink sm:order-last sm:px-4" data-numeric>
                         {m.buyers24h}
-                        <span className="block text-[10px] font-normal text-ink-faint sm:hidden">buyers 24h</span>
+                        <span className="block text-[12px] font-normal text-ink-faint sm:hidden">buyers 24h</span>
                       </div>
-                      <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:contents">
+                      <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] sm:contents">
                         <span className="sm:px-4">
                           <ChainChip chainId={m.chainId} name={m.chainName} />
                         </span>
@@ -344,7 +344,7 @@ export default async function LeaderboardPage() {
                 </ul>
               </div>
             )}
-            <p className="border-t border-line px-4 py-2 text-[11px] text-ink-faint">
+            <p className="border-t border-line px-4 py-2 text-[12px] text-ink-faint">
               The full agent directory is on{" "}
               <Link href="/agents" className="font-semibold text-accent hover:underline">
                 Agents
@@ -375,7 +375,7 @@ export default async function LeaderboardPage() {
             <ContestTable entries={data.contest.entries} now={now} empty="No eligible launch this week yet." />
             {data.contest.previous.length > 0 && (
               <>
-                <p className="border-t border-line px-4 pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+                <p className="border-t border-line px-4 pt-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
                   Week of {data.contest.previousWeek}
                 </p>
                 <ContestTable entries={data.contest.previous.slice(0, 3)} now={now} empty="" />
@@ -383,14 +383,14 @@ export default async function LeaderboardPage() {
             )}
             {/* Tautan berdiri sendiri (bukan di dalam kalimat), jadi di bawah lg ia butuh area ketuk sendiri: dulu
                 setinggi teks (14 px) dan rapat dengan baris kontes di atasnya, ERROR tap<24 di 320 px. */}
-            <p className="border-t border-line px-4 py-1 text-[11px] text-ink-soft lg:py-2">
+            <p className="border-t border-line px-4 py-1 text-[12px] text-ink-soft lg:py-2">
               <Link href="/studio" className="inline-flex min-h-[40px] items-center font-semibold text-accent hover:underline lg:min-h-0">
                 Launch in the Studio →
               </Link>
             </p>
           </Section>
 
-          <p className="text-[11px] leading-relaxed text-ink-faint">
+          <p className="text-[12px] leading-relaxed text-ink-faint">
             Computed {ago(data.computedAt, now)} from each market&apos;s swap index. A market marked “indexing” has not been scanned up
             to the chain head yet, so its numbers can only rise. USD values use the current native price.
           </p>
@@ -421,7 +421,7 @@ function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }
           value={
             <>
               {m.buyers24h}
-              {m.partial && <span className="ml-1 text-[10px] font-normal text-ink-faint">indexing</span>}
+              {m.partial && <span className="ml-1 text-[12px] font-normal text-ink-faint">indexing</span>}
             </>
           }
           valueLabel="buyers 24h"
@@ -429,7 +429,7 @@ function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }
       ))}
     </PhoneList>
     <div className="hidden overflow-x-auto sm:block">
-      <table className="w-full min-w-[720px] text-left text-xs">
+      <table className="w-full min-w-[720px] text-left text-[12px]/snug">
         <thead>
           <tr>
             <th className={th}>#</th>
@@ -454,7 +454,7 @@ function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }
               </td>
               <td className={`${td} text-right text-[14px] font-semibold text-ink`} data-numeric>
                 {m.buyers24h}
-                {m.partial && <span className="ml-1 text-[10px] font-normal text-ink-faint">indexing</span>}
+                {m.partial && <span className="ml-1 text-[12px] font-normal text-ink-faint">indexing</span>}
               </td>
               <td className={`${td} text-right text-ink-soft`} data-numeric>
                 {m.trades24h}
@@ -472,14 +472,14 @@ function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }
       </table>
     </div>
     {rows.every((m) => m.buyers24h === 0) && (
-      <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">No wallet outside the team and the creators has bought in the last 24 hours.</p>
+      <p className="border-t border-line px-4 py-2 text-[12px] text-ink-soft">No wallet outside the team and the creators has bought in the last 24 hours.</p>
     )}
     </>
   );
 }
 
 function ContestTable({ entries, now, empty }: { entries: ContestEntry[]; now: number; empty: string }) {
-  if (entries.length === 0) return empty ? <p className="px-4 pb-3 text-xs text-ink-soft">{empty}</p> : null;
+  if (entries.length === 0) return empty ? <p className="px-4 pb-3 text-[12px]/snug text-ink-soft">{empty}</p> : null;
   return (
     <>
     <PhoneList>
@@ -500,7 +500,7 @@ function ContestTable({ entries, now, empty }: { entries: ContestEntry[]; now: n
         />
       ))}
     </PhoneList>
-    <table className="hidden w-full text-left text-xs sm:table">
+    <table className="hidden w-full text-left text-[12px]/snug sm:table">
       <thead>
         <tr>
           <th className={th}>#</th>

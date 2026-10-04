@@ -173,18 +173,18 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
               <img src={selected.image} alt="" className="h-full w-full object-cover" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-ink">{selected.name}</span>
-              <span className="block truncate text-xs text-ink-soft">
+              <span className="block truncate text-[13px]/snug font-semibold text-ink">{selected.name}</span>
+              <span className="block truncate text-[12px]/snug text-ink-soft">
                 {selected.symbol} · {selected.chainLabel}
               </span>
             </span>
           </>
         ) : (
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-ink">
+            <span className="block text-[13px]/snug font-semibold text-ink">
               {loading ? "Loading markets…" : markets.length === 0 ? EMPTY_TITLE : "Select a market"}
             </span>
-            <span className="block text-xs text-ink-soft">
+            <span className="block text-[12px]/snug text-ink-soft">
               {/* EMPTY_BODY, bukan LAUNCH_CLAUSE. Klausa itu sekarang menyatakan $ADEXTO
                   HIDUP, dan mencetaknya di bawah judul "Nothing listed here yet" akan
                   membuat satu baris membantah baris di atasnya. Yang dijelaskan di sini
@@ -232,8 +232,8 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                 dan yang aktif ditandai cincin alih-alih harus dibuka dulu. */}
             <div className="px-5">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-faint">Network</span>
-                <span className="text-[11px] text-ink-faint" data-numeric>
+                <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-ink-faint">Network</span>
+                <span className="text-[12px] text-ink-faint" data-numeric>
                   {CHAIN_LIST.length} chains
                 </span>
               </div>
@@ -254,7 +254,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                   onClick={() => onChainFilter("all")}
                   aria-pressed={chainFilter === "all"}
                   // Chip 36 px di bawah lg (dulu 27 px); ukuran lama di desktop.
-                  className={`inline-flex min-h-[36px] items-center rounded-full border px-3 text-xs font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
+                  className={`inline-flex min-h-[36px] items-center rounded-full border px-3 text-[12px]/snug font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
                     chainFilter === "all"
                       ? "border-accent/40 bg-accent-soft text-accent"
                       : "border-line bg-cream-2 text-ink-soft hover:text-ink"
@@ -271,7 +271,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                       onClick={() => onChainFilter(String(c.chainId))}
                       aria-pressed={active}
                       title={c.label}
-                      className={`flex min-h-[36px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
+                      className={`flex min-h-[36px] items-center gap-1.5 rounded-full border px-2.5 text-[12px]/snug font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
                         active
                           ? "border-accent/40 bg-accent-soft text-accent"
                           : "border-line bg-cream-2 text-ink-soft hover:text-ink"
@@ -297,7 +297,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search name or paste address"
-                  className="h-[40px] w-full bg-transparent text-[16px] text-ink placeholder:text-ink-faint focus:outline-none lg:h-auto lg:text-sm"
+                  className="h-[40px] w-full bg-transparent text-[16px] text-ink placeholder:text-ink-faint focus:outline-none lg:h-auto lg:text-[13px]/snug"
                 />
               </div>
             </div>
@@ -305,14 +305,14 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
             <div className="min-h-0 flex-1 overflow-y-auto border-t border-line">
               {visible.length === 0 ? (
                 <div className="px-5 py-8 text-center">
-                  <p className="text-sm font-semibold text-ink">
+                  <p className="text-[13px]/snug font-semibold text-ink">
                     {markets.length === 0
                       ? EMPTY_TITLE
                       : query.trim()
                       ? "Nothing matches that"
                       : "No market on this chain"}
                   </p>
-                  <p className="mx-auto mt-1 max-w-[15rem] text-xs text-ink-soft">
+                  <p className="mx-auto mt-1 max-w-[15rem] text-[12px]/snug text-ink-soft">
                     {markets.length === 0
                       ? EMPTY_BODY
                       : query.trim()
@@ -323,7 +323,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                     <button
                       type="button"
                       onClick={() => onChainFilter("all")}
-                      className="mt-3 rounded-lg border border-accent/30 bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent"
+                      className="mt-3 rounded-lg border border-accent/30 bg-accent-soft px-3 py-1.5 text-[12px]/snug font-semibold text-accent"
                     >
                       Show all chains ({markets.length})
                     </button>
@@ -349,8 +349,8 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                             <img src={m.image} alt="" className="h-full w-full object-cover" />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-ink">{m.name}</span>
-                            <span className="block truncate text-xs text-ink-soft">
+                            <span className="block truncate text-[13px]/snug font-semibold text-ink">{m.name}</span>
+                            <span className="block truncate text-[12px]/snug text-ink-soft">
                               {m.symbol}
                               {" · "}
                               {/* Alamat hex adalah string mesin, jadi di sinilah mono
@@ -359,10 +359,10 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                             </span>
                           </span>
                           <span className="shrink-0 text-right">
-                            <span className="block text-sm font-semibold text-ink" data-numeric>
+                            <span className="block text-[13px]/snug font-semibold text-ink" data-numeric>
                               {m.priceNative > 0 ? formatSmallNumber(m.priceNative) : "—"}
                             </span>
-                            <span className={`block text-[11px] ${m.tradable ? "text-ink-faint" : "text-warn"}`}>
+                            <span className={`block text-[12px] ${m.tradable ? "text-ink-faint" : "text-warn"}`}>
                               {m.tradable ? m.nativeSymbol : "no pool"}
                             </span>
                           </span>

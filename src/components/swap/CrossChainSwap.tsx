@@ -63,7 +63,7 @@ function AssetSelect({
   const assets = swapAssetsFor(chainId);
   return (
     <div className="grid grid-cols-2 gap-2">
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft" htmlFor={`${idPrefix}-chain`}>
+      <label className="flex flex-col gap-1 text-[12px] font-medium text-ink-soft" htmlFor={`${idPrefix}-chain`}>
         {label} chain
         <select
           id={`${idPrefix}-chain`}
@@ -78,7 +78,7 @@ function AssetSelect({
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft" htmlFor={`${idPrefix}-token`}>
+      <label className="flex flex-col gap-1 text-[12px] font-medium text-ink-soft" htmlFor={`${idPrefix}-token`}>
         {label} asset
         <select
           id={`${idPrefix}-token`}
@@ -173,7 +173,7 @@ function SettingsDialog({
 
         <section className="mb-5">
           <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-wider text-ink-faint">Route preference</h3>
-          <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-xs" role="radiogroup" aria-label="Route preference">
+          <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-[12px]/snug" role="radiogroup" aria-label="Route preference">
             {(["CHEAPEST", "FASTEST"] as const).map((o) => (
               <button
                 key={o}
@@ -199,7 +199,7 @@ function SettingsDialog({
                 role="radio"
                 aria-checked={settings.slippage === s}
                 onClick={() => onChange({ ...settings, slippage: s })}
-                className={`h-[34px] flex-1 rounded-lg border text-xs font-semibold ${settings.slippage === s ? "border-accent/40 bg-accent-soft text-accent" : "border-line bg-cream-2 text-ink-soft"}`}
+                className={`h-[34px] flex-1 rounded-lg border text-[12px]/snug font-semibold ${settings.slippage === s ? "border-accent/40 bg-accent-soft text-accent" : "border-line bg-cream-2 text-ink-soft"}`}
                 data-numeric
               >
                 {(s * 100).toFixed(s * 100 < 1 ? 1 : 0)}%
@@ -236,20 +236,20 @@ function SettingsDialog({
           {bridgesError && <p className="text-[12px] text-warn">{bridgesError}</p>}
           {relevant.length > 0 && (
             <>
-              <p className="mt-2 text-[11px] font-semibold text-ink-faint">Serve this pair</p>
+              <p className="mt-2 text-[12px] font-semibold text-ink-faint">Serve this pair</p>
               <ul className="divide-y divide-line">{relevant.map(row)}</ul>
             </>
           )}
           {others.length > 0 && (
             <>
-              <p className="mt-3 text-[11px] font-semibold text-ink-faint">Other chain pairs only</p>
+              <p className="mt-3 text-[12px] font-semibold text-ink-faint">Other chain pairs only</p>
               <ul className="divide-y divide-line">{others.map(row)}</ul>
             </>
           )}
           <button
             type="button"
             onClick={() => onChange(DEFAULT_SWAP_SETTINGS)}
-            className="mt-4 h-[36px] w-full rounded-xl border border-line text-xs font-semibold text-ink-soft hover:text-ink"
+            className="mt-4 h-[36px] w-full rounded-xl border border-line text-[12px]/snug font-semibold text-ink-soft hover:text-ink"
           >
             Reset to defaults
           </button>
@@ -285,22 +285,22 @@ function RouteCard({
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[13px] font-semibold text-ink">{route.tool.name}</span>
-          {route.tags.includes("CHEAPEST") && <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-semibold text-ok">Most received</span>}
-          {route.tags.includes("FASTEST") && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent">Fastest</span>}
+          {route.tags.includes("CHEAPEST") && <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[12px] font-semibold text-ok">Most received</span>}
+          {route.tags.includes("FASTEST") && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent">Fastest</span>}
         </span>
         <span className="shrink-0 text-[12px] text-ink-soft" data-numeric>
           {formatEta(route.etaSeconds)}
         </span>
       </div>
       <div className="mt-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[15px] font-semibold text-ink" data-numeric>
+        <span className="text-[16px] font-semibold text-ink" data-numeric>
           {formatUnitsShort(route.toAmount, toAsset.decimals)} {toAsset.symbol}
         </span>
         <span className="text-[12px] text-ink-soft" data-numeric>
           {formatUsd(route.toAmountUsd)}
         </span>
       </div>
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] text-ink-faint">
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[12px] text-ink-faint">
         <span data-numeric>
           Fees {formatUsd(route.feeUsd)} · gas {formatUsd(route.gasUsd)}
           {route.needsApproval ? " · approval + transfer" : " · one signature"}
@@ -545,7 +545,7 @@ export default function CrossChainSwap({
           type="button"
           onClick={() => setSettingsOpen(true)}
           aria-label="Cross-chain settings"
-          className="flex h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs text-ink-soft hover:bg-cream-2 hover:text-ink"
+          className="flex h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12px]/snug text-ink-soft hover:bg-cream-2 hover:text-ink"
         >
           <Settings2 className="h-4 w-4" aria-hidden="true" />
           <span data-numeric>{(settings.slippage * 100).toFixed(settings.slippage * 100 < 1 ? 1 : 0)}%</span>
@@ -562,10 +562,10 @@ export default function CrossChainSwap({
             onChange={(e) => setAmountInput(e.target.value)}
             placeholder="0"
             aria-label={`Amount of ${fromAsset.symbol} to send from ${fromChain.name}`}
-            className="h-[48px] min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-tight text-ink placeholder:text-ink-faint/60 focus:outline-none"
+            className="h-[48px] min-w-0 flex-1 bg-transparent text-[28px] font-semibold tracking-tight text-ink placeholder:text-ink-faint/60 focus:outline-none"
             data-numeric
           />
-          <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-ink">
+          <span className="flex shrink-0 items-center gap-1.5 text-[13px]/snug font-semibold text-ink">
             {assetLogo(fromAsset) ? (
               <img src={assetLogo(fromAsset)!} alt="" aria-hidden="true" className="h-5 w-5 rounded-full object-contain" />
             ) : null}
@@ -573,7 +573,7 @@ export default function CrossChainSwap({
             <ChainMark chainId={fromChainId} />
           </span>
         </div>
-        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
+        <div className="mt-2 flex items-center justify-between gap-2 text-[12px]/snug text-ink-faint">
           <span data-numeric>{selected ? formatUsd(selected.fromAmountUsd) : ""}</span>
           {isConnected && (
             <span className="flex items-center gap-2">
@@ -582,7 +582,7 @@ export default function CrossChainSwap({
                 <button
                   type="button"
                   onClick={setMax}
-                  className="inline-flex min-h-[32px] min-w-[40px] items-center justify-center rounded-md border border-accent/30 bg-accent-soft px-2 text-[11px] font-semibold text-accent lg:min-h-0 lg:min-w-0 lg:py-0.5"
+                  className="inline-flex min-h-[32px] min-w-[40px] items-center justify-center rounded-md border border-accent/30 bg-accent-soft px-2 text-[12px] font-semibold text-accent lg:min-h-0 lg:min-w-0 lg:py-0.5"
                 >
                   Max
                 </button>
@@ -600,7 +600,7 @@ export default function CrossChainSwap({
 
       <div className="rounded-2xl border border-line bg-surface p-4">
         <AssetSelect label="To" idPrefix="xc-to" chainId={toChainId} token={toAsset.address} onChain={(id) => setChain("to", id)} onToken={setToToken} />
-        <p className="mt-2 text-[11px] text-ink-faint">Delivered to the same wallet that sends it.</p>
+        <p className="mt-2 text-[12px] text-ink-faint">Delivered to the same wallet that sends it.</p>
       </div>
 
       <div className="mt-4" role="radiogroup" aria-label="Routes" aria-busy={routesLoading}>
@@ -630,7 +630,7 @@ export default function CrossChainSwap({
           ))}
         </div>
         {selected && (
-          <p className="mt-2 text-[11px] text-ink-faint" data-numeric>
+          <p className="mt-2 text-[12px] text-ink-faint" data-numeric>
             At least {formatUnitsShort(selected.toAmountMin, toAsset.decimals)} {toAsset.symbol} arrives, or the bridge refunds you.
           </p>
         )}
@@ -661,13 +661,13 @@ export default function CrossChainSwap({
         data-testid="xc-cta"
         onClick={() => void execute()}
         disabled={busy || ctaDisabled}
-        className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[15px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
+        className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[16px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         {busy ? "Working…" : cta}
       </button>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
+      <p className="mt-3 text-[12px] leading-relaxed text-ink-faint">
         Routes are found by LI.FI and carried by the bridge named on each route. You sign in your own wallet, and ADEXTO never holds the funds.
       </p>
 

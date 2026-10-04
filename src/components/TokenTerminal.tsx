@@ -370,25 +370,25 @@ export default function TokenTerminal({
 
           <div className="contents lg:block lg:min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-              <h1 className="min-w-0 break-words font-display text-[22px] font-medium leading-tight tracking-tight text-ink sm:text-3xl">
+              <h1 className="min-w-0 break-words font-display text-[20px] font-medium leading-tight tracking-tight text-ink sm:text-[28px]">
                 {project.name}
               </h1>
-              <span className="whitespace-nowrap rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
+              <span className="whitespace-nowrap rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-[12px]/snug font-semibold text-accent">
                 ${project.symbol}
               </span>
               <WatchStar chainId={project.chainId} symbol={project.symbol} size="lg" />
               {project.verified ? (
                 /* Di bawah 640 px hanya ikonnya, teksnya tetap dibaca pembaca layar (sama seperti baris
-                   explorer): kolom judul di 320 px hanya 208 px dan slot lencana agent butuh 172 px. */
+                   explorer): kolom judul di 320 px hanya 208 px dan slot lencana agent butuh 188 px. */
                 <span
-                  className="inline-flex h-[24px] items-center gap-1 whitespace-nowrap rounded-md border border-ok/30 bg-ok/10 px-1.5 text-[11px] font-semibold text-ok sm:px-2"
+                  className="inline-flex h-[24px] items-center gap-1 whitespace-nowrap rounded-md border border-ok/30 bg-ok/10 px-1.5 text-[12px] font-semibold text-ok sm:px-2"
                   title="Contract verified on-chain"
                 >
                   <ShieldCheck className="w-3 h-3" aria-hidden="true" />
                   <span className="max-sm:sr-only">Contract verified on-chain</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-md border border-warn/30 bg-warn/10 px-2 py-0.5 text-[11px] font-semibold text-warn">
+                <span className="inline-flex items-center gap-1 rounded-md border border-warn/30 bg-warn/10 px-2 py-0.5 text-[12px] font-semibold text-warn">
                   <AlertTriangle className="w-3 h-3" /> Showcase entry — not factory-minted
                 </span>
               )}
@@ -397,10 +397,12 @@ export default function TokenTerminal({
                   dan seluruh isi di bawahnya turun 25–30 px: CLS 0,31 di 768 px dan 0,15 di 1280 px.
                   Sekarang ukurannya dipesan sejak lukisan pertama di ujung baris judul, sehingga lencana
                   mengisi tempat yang sudah ada. Untuk token tanpa agent, slot ini hanya ruang kosong di
-                  ujung baris. Entri showcase (bukan dari factory) tidak pernah terikat, jadi tanpa slot. */}
+                  ujung baris. Entri showcase (bukan dari factory) tidak pernah terikat, jadi tanpa slot.
+                  Lebar 188 px sejak huruf lencana 12 px (U2.5): "ERC-8004 agent #10275" terukur 177,5 px di ponsel
+                  dan 174 px di desktop, jadi slot 172 px lama melebar saat lencana tiba. 188 px muat id 6 digit. */}
               <span
                 className={
-                  project.verified ? "inline-flex min-h-[32px] min-w-[172px] items-center lg:min-h-[22px]" : "contents"
+                  project.verified ? "inline-flex min-h-[32px] min-w-[188px] items-center lg:min-h-[22px]" : "contents"
                 }
               >
                 <AgentIdentityBadge chain={chain} tokenAddress={project.tokenAddress} />
@@ -410,7 +412,7 @@ export default function TokenTerminal({
             {/* Baris meta. Di bawah lg satu baris yang bisa digeser, tidak membungkus, dengan target
                 32 px; di lg ke atas membungkus seperti dulu. Nama chain lewat ChainChip (logo + nama pendek),
                 bukan label panjang "Arbitrum One (42161)" yang dulu memakan satu baris sendiri di ponsel. */}
-            <div className="col-span-2 -mx-4 flex min-w-0 items-center gap-1.5 overflow-x-auto px-4 text-xs text-ink-soft [scrollbar-width:none] max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] sm:-mx-5 sm:px-5 lg:mx-0 lg:mt-1 lg:flex-wrap lg:gap-x-3 lg:gap-y-1 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
+            <div className="col-span-2 -mx-4 flex min-w-0 items-center gap-1.5 overflow-x-auto px-4 text-[12px]/snug text-ink-soft [scrollbar-width:none] max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] sm:-mx-5 sm:px-5 lg:mx-0 lg:mt-1 lg:flex-wrap lg:gap-x-3 lg:gap-y-1 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
               <ChainChip chain={chain} className="max-lg:h-[32px] max-lg:px-2.5" />
               {deployments.length > 1 && (
                 <span className="inline-flex h-[32px] shrink-0 items-center whitespace-nowrap rounded-lg border border-accent/30 bg-accent-soft px-2.5 font-bold text-accent lg:h-auto lg:rounded lg:px-2 lg:py-0.5">
@@ -485,7 +487,7 @@ export default function TokenTerminal({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
-                    className="inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px] lg:px-2.5"
+                    className="inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px] lg:px-2.5"
                   >
                     {Icon ? <Icon className="h-3 w-3" /> : null}
                     {label}
@@ -592,14 +594,14 @@ export default function TokenTerminal({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-cream-3/[0.03] px-3 py-2">
             <div className="flex items-center gap-2">
               <Network className="h-3.5 w-3.5 shrink-0 text-accent" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
                 ${project.symbol} markets
               </span>
-              <span className="rounded-md border border-accent/30 bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
+              <span className="rounded-md border border-accent/30 bg-accent-soft px-1.5 py-0.5 text-[12px] font-semibold text-accent">
                 {deployments.length} {deployments.length === 1 ? "chain" : "chains"}
               </span>
             </div>
-            <span className="text-[11px] text-ink-faint">
+            <span className="text-[12px] text-ink-faint">
               Independent pool and price per chain · no bridging
             </span>
           </div>
@@ -630,20 +632,22 @@ export default function TokenTerminal({
                     d.isCurrent ? "bg-accent-soft ring-1 ring-inset ring-accent/40" : "hover:bg-cream-3"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  {/* Membungkus utuh: di sel 123 px (320 px, dua kolom) "Robinhood" + "POOL LIVE" berhuruf 12 px
+                      tidak muat satu baris, jadi status turun ke bawah nama chain alih-alih pecah dua baris. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
                     <span
-                      className={`text-xs font-semibold ${d.isCurrent ? "text-accent" : "text-ink"}`}
+                      className={`text-[12px]/snug font-semibold ${d.isCurrent ? "text-accent" : "text-ink"}`}
                     >
                       {c.key}
                     </span>
                     {d.isCurrent ? (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                      <span className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold uppercase tracking-wider text-accent">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> viewing
                       </span>
                     ) : d.tradable ? (
-                      <span className="text-[10px] uppercase tracking-wider text-ok">pool live</span>
+                      <span className="whitespace-nowrap text-[12px] uppercase tracking-wider text-ok">pool live</span>
                     ) : (
-                      <span className="text-[10px] uppercase tracking-wider text-warn">no pool</span>
+                      <span className="whitespace-nowrap text-[12px] uppercase tracking-wider text-warn">no pool</span>
                     )}
                   </div>
                   {/* USD di depan, native di tooltip — karena inilah panel tempat orang
@@ -662,7 +666,7 @@ export default function TokenTerminal({
                     const usd = d.priceNative * chainNativeUsd;
                     return (
                       <p
-                        className="mt-0.5 truncate text-[11px] text-ink-soft"
+                        className="mt-0.5 truncate text-[12px] text-ink-soft"
                         data-numeric
                         title={
                           d.priceNative > 0
@@ -690,7 +694,7 @@ export default function TokenTerminal({
       {/* Chain guard */}
       {isConnected && !onCorrectChain && (
         <div className="p-3 rounded-2xl bg-warn/10 border border-warn/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-2.5 text-xs leading-relaxed text-warn">
+          <div className="flex items-start gap-2.5 text-[12px]/snug leading-relaxed text-warn">
             <AlertTriangle className="w-4 h-4 text-warn mt-0.5 shrink-0" />
             <span>
               Your wallet is on chain <strong>{walletChainId ?? "unknown"}</strong> but this market settles on{" "}
@@ -704,7 +708,7 @@ export default function TokenTerminal({
           <button
             type="button"
             onClick={() => switchToChain(chain).catch((e) => swap.setErrorLine(describeTxError(e)))}
-            className="inline-flex h-[40px] shrink-0 items-center rounded-lg bg-warn px-3.5 text-xs font-semibold text-white transition-colors hover:bg-warn/90 lg:h-auto lg:px-3 lg:py-1.5"
+            className="inline-flex h-[40px] shrink-0 items-center rounded-lg bg-warn px-3.5 text-[12px]/snug font-semibold text-white transition-colors hover:bg-warn/90 lg:h-auto lg:px-3 lg:py-1.5"
           >
             Switch to {chain.name}
           </button>
@@ -713,7 +717,7 @@ export default function TokenTerminal({
 
       {/* Pool not tradable */}
       {swap.poolChecked && !swap.tradable && (
-        <div className="flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-xs leading-relaxed text-warn">
+        <div className="flex items-start gap-2.5 rounded-2xl border border-warn/30 bg-cream-3 p-3.5 text-[12px]/snug leading-relaxed text-warn">
           <Lock className="w-4 h-4 text-warn mt-0.5 shrink-0" />
           <span>{swap.poolStatusMessage}</span>
         </div>
@@ -751,7 +755,7 @@ export default function TokenTerminal({
                 me={isConnected ? address : null}
                 creator={project.creator}
               />
-              <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-surface p-2.5 text-[11px] text-ink-soft">
+              <div className="mt-2 flex shrink-0 items-center justify-between rounded-xl border border-line bg-surface p-2.5 text-[12px] text-ink-soft">
                 <span className="flex items-center gap-1.5 text-ink">
                   <Cpu className="w-3.5 h-3.5 text-accent" /> {marketChatModel(project.agentModel).label}
                 </span>
@@ -785,7 +789,9 @@ export default function TokenTerminal({
               {/* Tinggi TETAP di desktop. Dulu kotak ini `flex-1` dan mengikuti tinggi kolom kanan, jadi ladder
                   ikut memanjang dan memendek setiap panel kanan muncul atau dibuka (terukur 604 px tanpa dompet,
                   864 px dengan dompet). Sekarang ladder menunjukkan level terdekat sebanyak yang muat. */}
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:h-[440px]" data-testid="terminal-lower-left">
+              {/* Dua kolom mulai md, bukan sm (U2.5): di 640–767 px tiap kolom hanya ±259 px, terlalu sempit untuk
+                  lima kolom feed berhuruf 12 px. Di sana order book dan feed bertumpuk selebar kartu. */}
+              <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:h-[440px]" data-testid="terminal-lower-left">
                 <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-full lg:min-h-0">
                   <LiveOrderBook
                     symbol={project.symbol}
@@ -794,7 +800,8 @@ export default function TokenTerminal({
                     nativeUsd={nativeUsd}
                   />
                 </div>
-                <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] lg:h-full lg:min-h-0">
+                {/* `max-sm:px-3`: 7 px lebih untuk tabel feed di ponsel (huruf 12 px, U2.5). */}
+                <div className="glass-panel flex min-h-[260px] flex-col overflow-hidden rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-panel)] max-sm:px-3 lg:h-full lg:min-h-0">
                   <LiveTradeFeed
                     symbol={project.symbol}
                     chainId={project.chainId}
@@ -820,9 +827,9 @@ export default function TokenTerminal({
                   <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
                     <div className="flex items-center gap-2">
                       <Bot className="w-4 h-4 text-accent" />
-                      <span className="text-sm font-semibold text-ink">Chat with ${project.symbol} agent</span>
+                      <span className="text-[13px]/snug font-semibold text-ink">Chat with ${project.symbol} agent</span>
                     </div>
-                    <span className="rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
+                    <span className="rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[12px] font-semibold text-ok">
                       0G TEE
                     </span>
                   </div>
@@ -831,18 +838,18 @@ export default function TokenTerminal({
                       kotaknya mengikuti kolom, dan pesannya bergulir di dalamnya. */}
                   <div
                     ref={chatScrollRef}
-                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-1 font-sans text-xs lg:grow lg:basis-0"
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-1 font-sans text-[12px]/snug lg:grow lg:basis-0"
                   >
                     {chatMessages.map((m, idx) => (
                       <div
                         key={idx}
-                        className={`p-2.5 rounded-xl text-xs leading-relaxed ${
+                        className={`p-2.5 rounded-xl text-[12px]/snug leading-relaxed ${
                           m.role === "user"
                             ? "bg-accent-soft border border-accent/30 text-ink ml-4"
                             : "bg-surface border border-line text-ink mr-2"
                         }`}
                       >
-                        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+                        <span className="mb-1 block text-[12px] font-semibold uppercase tracking-wider text-ink-faint">
                           {m.role === "user" ? "You" : `${project.name} (0G TEE)`}
                         </span>
                         <FormattedMarkdown text={m.content} />
@@ -853,14 +860,14 @@ export default function TokenTerminal({
                         bekerja alih-alih spinner yang diam puluhan detik. Cuplikannya pucat
                         dan miring, dan labelnya menyebut "reasoning" apa adanya. */}
                     {chatLoading && (
-                      <div className="flex flex-col gap-1 rounded-xl bg-cream-2 p-2 text-[11px]">
+                      <div className="flex flex-col gap-1 rounded-xl bg-cream-2 p-2 text-[12px]">
                         <span className="flex items-center gap-1.5 text-accent">
                           <RefreshCw className="w-3 h-3 animate-spin" />
                           Reasoning on 0G
                           {thinking && thinking.chars > 0 ? ` · ${thinking.chars} chars` : "…"}
                         </span>
                         {thinking?.preview && (
-                          <span className="text-[10px] italic leading-snug text-ink-faint line-clamp-2">
+                          <span className="text-[12px] italic leading-snug text-ink-faint line-clamp-2">
                             {thinking.preview}
                           </span>
                         )}
@@ -878,7 +885,7 @@ export default function TokenTerminal({
                       aria-label={`Ask the $${project.symbol} agent`}
                       /* 16 px di bawah lg: Safari iOS memperbesar halaman saat kolom berhuruf < 16 px
                          disentuh. Tinggi 44 px di sana, ukuran lama di desktop. */
-                      className="h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/30 focus:outline-none lg:h-auto lg:py-2 lg:text-xs"
+                      className="h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/30 focus:outline-none lg:h-auto lg:py-2 lg:text-[12px]/snug"
                     />
                     <button
                       type="submit"
@@ -912,10 +919,10 @@ export default function TokenTerminal({
                 swap.pool.creator.toLowerCase() === address.toLowerCase() && (
                   <div className="-mx-5 -mt-5 space-y-2 border-b border-ok/30 bg-ok/10 px-5 py-3" data-testid="creator-revenue-strip">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-ok/90">
+                      <span className="text-[12px] font-semibold uppercase tracking-wider text-ok/90">
                         Your creator revenue
                       </span>
-                      <span className="text-[11px] text-ink-faint">
+                      <span className="text-[12px] text-ink-faint">
                         {(Number(swap.pool.creatorFeeBps) / 100).toFixed(2)}% of every swap
                       </span>
                     </div>
@@ -924,15 +931,15 @@ export default function TokenTerminal({
                         {/* Tooltip berisi angka mentah: penghasilan adalah angka yang
                             orang ingin baca tepat, bukan ditebak dari notasi ringkas. */}
                         <p
-                          className="text-lg font-semibold text-ink" data-numeric
+                          className="text-[16px] font-semibold text-ink" data-numeric
                           title={`${plainDecimal(Number(ethers.formatEther(swap.pool.creatorOwed)))} ${chain.nativeSymbol}`}
                         >
                           {formatSmallNumber(Number(ethers.formatEther(swap.pool.creatorOwed)))} {chain.nativeSymbol}
                           {creatorOwedUsd > 0 && (
-                            <span className="text-ink-soft text-xs font-normal"> · {formatUsd(creatorOwedUsd)}</span>
+                            <span className="text-ink-soft text-[12px]/snug font-normal"> · {formatUsd(creatorOwedUsd)}</span>
                           )}
                         </p>
-                        <p className="text-[11px] text-ink-faint">unclaimed</p>
+                        <p className="text-[12px] text-ink-faint">unclaimed</p>
                       </div>
                       <button
                         type="button"
@@ -956,17 +963,17 @@ export default function TokenTerminal({
                             setClaimingFees(false);
                           }
                         }}
-                        className="inline-flex h-[40px] items-center rounded-xl bg-ok px-4 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40 lg:h-[34px]"
+                        className="inline-flex h-[40px] items-center rounded-xl bg-ok px-4 text-[12px]/snug font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40 lg:h-[34px]"
                       >
                         {claimingFees ? "Claiming…" : "Claim"}
                       </button>
                     </div>
-                    {claimLine && <p className="text-[11px] text-ok">{claimLine}</p>}
+                    {claimLine && <p className="text-[12px] text-ok">{claimLine}</p>}
                   </div>
                 )}
 
               <div className="flex items-center justify-between border-b border-line pb-2.5">
-                <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
+                <span className="text-[13px]/snug font-semibold text-ink">Sovereign Curve Swap</span>
                 <div className="flex items-center gap-2">
                   {/* Area sentuh 36 px di ponsel (ikonnya tetap 14 px), 28 px di desktop. */}
                   <button
@@ -979,7 +986,7 @@ export default function TokenTerminal({
                   >
                     <Settings2 className="w-3.5 h-3.5" />
                   </button>
-                  <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-xs">
+                  <div className="flex rounded-xl border border-line bg-cream-2 p-1 text-[12px]/snug">
                     {(["buy", "sell"] as const).map((m) => (
                       <button
                         key={m}
@@ -1025,14 +1032,14 @@ export default function TokenTerminal({
               />
 
               {swap.errorLine && (
-                <div className="flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-xs leading-relaxed text-danger">
+                <div className="flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/10 p-3.5 text-[12px]/snug leading-relaxed text-danger">
                   <AlertTriangle className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
                   <span>{swap.errorLine}</span>
                 </div>
               )}
 
               {swap.txHash && !swap.errorLine && (
-                <div className="flex items-start gap-2.5 rounded-2xl border border-ok/30 bg-ok/10 p-3.5 text-xs leading-relaxed text-ok">
+                <div className="flex items-start gap-2.5 rounded-2xl border border-ok/30 bg-ok/10 p-3.5 text-[12px]/snug leading-relaxed text-ok">
                   <CheckCircle2 className="w-3.5 h-3.5 text-ok mt-0.5 shrink-0" />
                   <div className="space-y-1">
                     <div>{swap.statusLine}</div>
@@ -1059,7 +1066,7 @@ export default function TokenTerminal({
                    tombol beli dan tombol jual berbagi separuh warna yang sama — pada
                    satu-satunya kontrol di halaman yang salah tekannya mahal. Sekarang
                    satu warna pekat per arah, teks putih supaya kontrasnya lolos. */
-                className={`mt-auto flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
+                className={`mt-auto flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[16px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft ${
                   swap.mode === "buy" ? "bg-ok text-white" : "bg-danger text-white"
                 }`}
               >
@@ -1081,7 +1088,7 @@ export default function TokenTerminal({
               </button>
 
               {swap.mode === "sell" && swap.tradable && (
-                <p className="text-[11px] leading-relaxed text-ink-faint">
+                <p className="text-[12px] leading-relaxed text-ink-faint">
                   Selling moves ERC-20 tokens via <code className="text-accent">approve</code> +{" "}
                   <code className="text-accent">transferFrom</code>. No native {chain.nativeSymbol} leaves your wallet
                   beyond gas.
@@ -1114,7 +1121,7 @@ export default function TokenTerminal({
                     collapsible={false}
                   />
                 ) : (
-                  <div className="glass-panel rounded-card border border-line p-4 text-center text-xs text-ink-soft">
+                  <div className="glass-panel rounded-card border border-line p-4 text-center text-[12px]/snug text-ink-soft">
                     Connect a wallet to see your balance, entry price and PnL in ${project.symbol}.
                   </div>
                 )}
@@ -1141,7 +1148,7 @@ export default function TokenTerminal({
                   <MarketStakePanel chain={chain} stake={marketStake} symbol={project.symbol} />
                 </div>
               ) : (
-                <div className="glass-panel rounded-card border border-line p-4 text-center text-xs text-ink-soft">
+                <div className="glass-panel rounded-card border border-line p-4 text-center text-[12px]/snug text-ink-soft">
                   This market has no stake contract.
                 </div>
               ))}
@@ -1197,7 +1204,7 @@ function SegTabs<T extends string>({
           // `button:text-is("Market")` / `button:text-is("Stake")`, dan Playwright mencocokkan elemen
           // TERKECIL yang memuat teks itu, jadi span di dalamnya membuat tombolnya tidak cocok lagi.
           // Tombol berdisplay block tetap memusatkan isinya secara vertikal.
-          className={`block h-[44px] min-w-0 truncate rounded-xl text-center text-[13px] font-semibold transition-colors lg:h-[34px] lg:flex-1 lg:px-3 lg:text-xs ${
+          className={`block h-[44px] min-w-0 truncate rounded-xl text-center text-[13px] font-semibold transition-colors lg:h-[34px] lg:flex-1 lg:px-3 lg:text-[12px]/snug ${
             fit === "content" ? "flex-auto px-2.5" : "flex-1 px-3"
           } ${value === v ? "bg-accent-soft text-accent" : "text-ink-soft hover:text-ink"}`}
         >
@@ -1239,8 +1246,10 @@ function Stat({
   const color = tone === "accent" ? "text-accent" : "text-ink";
   return (
     <div className="rounded-panel border border-line bg-surface px-3 py-2.5 text-left" title={title}>
-      <span className="block text-[10px] uppercase tracking-[0.08em] text-ink-faint">{label}</span>
-      <span className={`mt-0.5 block font-display text-[17px] font-medium tracking-tight ${color}`} data-numeric>
+      {/* Label seperti `ui/Stat` (12 px, huruf biasa). Huruf kapital berjarak dari masa 10 px membuat "SUPPLY (PARCEL) ·
+          MONAD" tiga baris di kartu 113–121 px begitu ukurannya 12 px (ERROR shortwrap, m320 dan d1024). */}
+      <span className="block text-[12px] leading-snug text-ink-faint">{label}</span>
+      <span className={`mt-0.5 block font-display text-[16px] font-medium tracking-tight ${color}`} data-numeric>
         {value}
       </span>
     </div>

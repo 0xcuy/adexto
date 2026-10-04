@@ -57,7 +57,7 @@ export function AssetPill({ symbol, logo }: { symbol: string; logo: string | nul
       ) : (
         <span aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full border border-line bg-cream-3" />
       )}
-      <span className="whitespace-nowrap text-sm font-semibold text-ink">{symbol}</span>
+      <span className="whitespace-nowrap text-[13px]/snug font-semibold text-ink">{symbol}</span>
     </span>
   );
 }
@@ -65,7 +65,7 @@ export function AssetPill({ symbol, logo }: { symbol: string; logo: string | nul
 export function SlippageRow({ value, onChange }: { value: number; onChange: (bps: number) => void }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-line bg-cream-2 p-3">
-      <span className="text-xs font-medium text-ink-soft">Max slippage</span>
+      <span className="text-[12px]/snug font-medium text-ink-soft">Max slippage</span>
       <div className="flex gap-1">
         {SLIPPAGE_OPTIONS.map((bps) => (
           <button
@@ -74,7 +74,7 @@ export function SlippageRow({ value, onChange }: { value: number; onChange: (bps
             onClick={() => onChange(bps)}
             aria-pressed={value === bps}
             // 36 px di bawah lg (rem situs 14 px, jadi px), ukuran lama di desktop.
-            className={`inline-flex h-[36px] min-w-[44px] items-center justify-center rounded-lg border px-2.5 text-xs font-semibold transition-colors lg:h-auto lg:min-w-0 lg:py-1 ${
+            className={`inline-flex h-[36px] min-w-[44px] items-center justify-center rounded-lg border px-2.5 text-[12px]/snug font-semibold transition-colors lg:h-auto lg:min-w-0 lg:py-1 ${
               value === bps
                 ? "border-accent/30 bg-accent-soft text-accent"
                 : "border-transparent bg-cream-3 text-ink-soft hover:text-ink"
@@ -110,7 +110,7 @@ interface AmountsProps {
  * dan dibaca ulang di panel ini — hanya mendapat setengah kartu, sementara badge
  * tiga huruf mendapat sisanya.
  *
- * Sekarang satu angka dominan (text-4xl) dan segala hal lain menurun tajam di
+ * Sekarang satu angka dominan (28 px, ukuran display skala teks) dan segala hal lain menurun tajam di
  * bawahnya. Nilai USD dan saldo pindah ke baris ketiga, kiri dan kanan, sehingga
  * baris pertama bebas untuk tombol porsi. Angkanya BUKAN monospace: `data-numeric`
  * sudah memberi tabular-nums lewat globals.css, jadi digitnya tetap tidak bergeser
@@ -128,7 +128,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
     <>
       <div className="mb-1.5 rounded-2xl border border-line bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-ink-soft">You pay</span>
+          <span className="text-[12px]/snug font-medium text-ink-soft">You pay</span>
           {/* Tombol porsi hanya muncul saat tersambung: tanpa saldo, "50%" tidak
               punya rujukan dan menekannya hanya menulis nol. */}
           {isConnected && (
@@ -138,7 +138,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
                   key={pct}
                   type="button"
                   onClick={() => swap.setAmountFraction(pct)}
-                  className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-line bg-cream-2 px-2 text-[11px] font-semibold text-ink-soft transition-colors hover:text-ink lg:h-auto lg:min-w-0 lg:py-1"
+                  className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-line bg-cream-2 px-2 text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink lg:h-auto lg:min-w-0 lg:py-1"
                   data-numeric
                 >
                   {pct}%
@@ -147,7 +147,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
               <button
                 type="button"
                 onClick={swap.setMaxAmount}
-                className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-accent/30 bg-accent-soft px-2 text-[11px] font-semibold text-accent lg:h-auto lg:min-w-0 lg:py-1"
+                className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-accent/30 bg-accent-soft px-2 text-[12px] font-semibold text-accent lg:h-auto lg:min-w-0 lg:py-1"
               >
                 Max
               </button>
@@ -162,7 +162,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
             step="any"
             value={swap.amountInput}
             onChange={(e) => swap.setAmountInput(e.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-4xl font-semibold tracking-tight text-ink placeholder:text-ink-faint/60 focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[28px] font-semibold leading-[1.25] tracking-tight text-ink placeholder:text-ink-faint/60 focus:outline-none"
             placeholder="0"
             aria-label={`Amount of ${paySymbol} to pay`}
             data-numeric
@@ -170,7 +170,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
           <AssetPill symbol={paySymbol} logo={payLogo} />
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
+        <div className="mt-2 flex items-center justify-between gap-2 text-[12px]/snug text-ink-faint">
           <span data-numeric>{formatUsd(inputUsd)}</span>
           <span data-numeric>
             {swap.mode === "buy"
@@ -203,8 +203,8 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
           transaksinya tetap satu jalur. */}
       <div className="mt-1.5 rounded-2xl border border-line bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-ink-soft">You receive</span>
-          <span className="text-[11px] text-ink-faint">
+          <span className="text-[12px]/snug font-medium text-ink-soft">You receive</span>
+          <span className="text-[12px] text-ink-faint">
             {swap.lastEdited === "out" ? "exact — pay side is solved" : "estimated"}
           </span>
         </div>
@@ -233,7 +233,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
               const parts = cleaned.split(".");
               swap.setOutputInput(parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned);
             }}
-            className="min-w-0 flex-1 bg-transparent text-4xl font-semibold tracking-tight text-accent placeholder:text-ink-faint/60 focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[28px] font-semibold leading-[1.25] tracking-tight text-accent placeholder:text-ink-faint/60 focus:outline-none"
             placeholder="0"
             aria-label={`Amount of ${getSymbol} to receive`}
             data-numeric
@@ -242,13 +242,13 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </div>
 
         {swap.outputUnreachable && (
-          <p className="mt-2 text-xs text-warn">
+          <p className="mt-2 text-[12px]/snug text-warn">
             The curve cannot deliver that much in one trade. Ask for less.
           </p>
         )}
 
         <div
-          className="mt-2 text-xs text-ink-faint"
+          className="mt-2 text-[12px]/snug text-ink-faint"
           title={
             swap.spotPriceNative > 0
               ? `${plainDecimal(swap.spotPriceNative)} ${chain.nativeSymbol} per token`
@@ -261,7 +261,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </div>
 
         {swap.quote && swap.quote.amountOut > 0n && (
-          <div className="mt-3 space-y-1.5 border-t border-line pt-3 text-xs">
+          <div className="mt-3 space-y-1.5 border-t border-line pt-3 text-[12px]/snug">
             <div className="flex items-start justify-between gap-3">
               <span className="text-ink-faint">
                 Minimum received{" "}
@@ -353,7 +353,7 @@ export function FeeLines({
   return (
     /* Padding vertikal pindah dari <details> ke <summary>: yang diketuk adalah summary, dan dulu kotaknya
        hanya setinggi teks (14 px) walau kartunya 31 px. Di bawah lg minimal 40 px; desktop tetap sama. */
-    <details className="group rounded-2xl border border-line bg-cream-2 px-3.5 text-xs [&_summary::-webkit-details-marker]:hidden">
+    <details className="group rounded-2xl border border-line bg-cream-2 px-3.5 text-[12px]/snug [&_summary::-webkit-details-marker]:hidden">
       <summary className="flex min-h-[40px] cursor-pointer list-none items-center justify-between gap-3 py-2.5 lg:min-h-0">
         <span className="flex items-center gap-1.5 text-ink-soft">
           Fee <span className="font-semibold text-ink" data-numeric>{pct(totalBps)}</span>
@@ -376,7 +376,7 @@ export function FeeLines({
           <div key={label} className={`flex items-baseline justify-between gap-3 ${tone}`}>
             <span>
               {label} <span data-numeric>({pct(bps)})</span>{" "}
-              <span className="text-[10px] text-ink-faint">{note}</span>
+              <span className="text-[12px] text-ink-faint">{note}</span>
             </span>
             <span className="shrink-0 font-medium" data-numeric>
               {formatUsd(usd)}

@@ -62,7 +62,8 @@ function chartThemeOptions(theme: Theme) {
     layout: {
       background: { type: ColorType.Solid, color: c.background },
       textColor: c.text,
-      fontSize: 11,
+      // 12 px: ukuran terkecil skala teks situs (U2.5), juga bawaan lightweight-charts. Dulu 11.
+      fontSize: 12,
       fontFamily: "monospace",
       panes: { separatorColor: c.separator, separatorHoverColor: c.separatorHover },
     },
@@ -1597,12 +1598,12 @@ export default function RealtimeCandleChart({
             baris yang membungkus, dan begitu persen perubahannya bertambah digit (+0.00% → +0.0048%)
             harga USD pindah baris dan chart turun 32 px (CLS 0,019 di 360 px). Mulai 640 px seperti dulu. */}
         <div className="flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink sm:text-lg">
+          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink sm:text-[16px]">
             <span>
               ${symbol}/{nativeSymbol}
             </span>
             <span
-              className={`text-xs font-bold px-2 py-0.5 rounded border ${
+              className={`text-[12px]/snug font-bold px-2 py-0.5 rounded border ${
                 changeIsUp
                   ? "text-ok bg-ok/10 border-ok/30"
                   : "text-danger bg-danger/10 border-danger/30"
@@ -1613,14 +1614,14 @@ export default function RealtimeCandleChart({
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:contents">
-          <span className="text-xs font-semibold text-accent sm:text-sm" data-numeric>
+          <span className="text-[12px]/snug font-semibold text-accent sm:text-[13px]/snug" data-numeric>
             {priceNative > 0 ? formatSmallNumber(priceNative) : "—"} {nativeSymbol}
           </span>
           {/* Angka USD dan kurs datang sesudah lukisan pertama. Tempatnya dipesan (placeholder tak terlihat
               selebar angkanya) supaya baris judul ini tidak tiba-tiba membungkus di ponsel dan mendorong
               toolbar serta chart ke bawah (terukur 360 px: 25 px, CLS 0,019). */}
           <span
-            className={`text-[11px] text-ink-soft ${priceUsd > 0 ? "" : "invisible"}`}
+            className={`text-[12px] text-ink-soft ${priceUsd > 0 ? "" : "invisible"}`}
             aria-hidden={priceUsd > 0 ? undefined : true}
             data-numeric
           >
@@ -1633,14 +1634,14 @@ export default function RealtimeCandleChart({
               headernya. Angkanya disegarkan tiap 15 detik oleh halaman ini. */}
           {nativeUsd > 0 ? (
             <span
-              className="rounded border border-line px-1.5 py-0.5 text-[10px] text-ink-faint"
+              className="rounded border border-line px-1.5 py-0.5 text-[12px] text-ink-faint"
               title={`USD figures on this chart use 1 ${nativeSymbol} = $${nativeUsd}, refreshed every 15 seconds. The candles themselves are priced in ${nativeSymbol}.`}
               data-numeric
             >
               {nativeSymbol} ${nativeUsd < 1 ? nativeUsd.toFixed(4) : nativeUsd.toFixed(2)}
             </span>
           ) : (
-            <span className="invisible rounded border border-line px-1.5 py-0.5 text-[10px]" aria-hidden="true" data-numeric>
+            <span className="invisible rounded border border-line px-1.5 py-0.5 text-[12px]" aria-hidden="true" data-numeric>
               {nativeSymbol} $0000.00
             </span>
           )}
@@ -1656,7 +1657,7 @@ export default function RealtimeCandleChart({
             kelompok sakelar dan Marks: itu kontrol yang paling sering dipakai, dan di 390 px ia dulu berada di
             luar layar, di balik USD/ETH, bentuk dan Price/MCAP (dicek dengan tangkapan layar 390 px). Urutan DOM
             tidak berubah; sakelar-sakelar ini berdiri sendiri, jadi urutan fokus tidak mengubah artinya. */}
-        <div className="flex w-full min-w-0 items-center gap-1 text-[11px] sm:w-auto sm:flex-wrap">
+        <div className="flex w-full min-w-0 items-center gap-1 text-[12px] sm:w-auto sm:flex-wrap">
           <div className="-ml-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 pl-1 pr-6 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] sm:contents [&::-webkit-scrollbar]:hidden">
           {/* Satuan sumbu: dolar, atau aset native chain. */}
           <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1 max-sm:ml-1">
@@ -1888,7 +1889,7 @@ export default function RealtimeCandleChart({
             </button>
             {showIndicatorMenu && (
               <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-xl border border-line bg-surface p-2 shadow-2xl space-y-0.5">
-                <p className="px-1 pb-1 text-[9px] uppercase tracking-wider text-ink-faint">On price</p>
+                <p className="px-1 pb-1 text-[12px] uppercase tracking-wider text-ink-faint">On price</p>
                 {OVERLAYS.map((o) => (
                   <label
                     key={o.key}
@@ -1901,13 +1902,13 @@ export default function RealtimeCandleChart({
                       className="accent-accent"
                     />
                     <span className="h-0.5 w-3 rounded" style={{ backgroundColor: o.color }} />
-                    <span className="text-[11px] text-ink">{o.label}</span>
+                    <span className="text-[12px] text-ink">{o.label}</span>
                     {candleCount < (WARMUP[o.warmupKey] ?? 1) && (
-                      <span className="ml-auto text-[9px] text-warn">needs {WARMUP[o.warmupKey]}</span>
+                      <span className="ml-auto text-[12px] text-warn">needs {WARMUP[o.warmupKey]}</span>
                     )}
                   </label>
                 ))}
-                <p className="px-1 pt-1.5 pb-1 text-[9px] uppercase tracking-wider text-ink-faint">
+                <p className="px-1 pt-1.5 pb-1 text-[12px] uppercase tracking-wider text-ink-faint">
                   Separate pane
                 </p>
                 {PANES.map((p) => (
@@ -1921,9 +1922,9 @@ export default function RealtimeCandleChart({
                       onChange={() => toggle(p.key)}
                       className="accent-accent"
                     />
-                    <span className="text-[11px] text-ink">{p.label}</span>
+                    <span className="text-[12px] text-ink">{p.label}</span>
                     {candleCount < (WARMUP[p.warmupKey] ?? 1) && (
-                      <span className="ml-auto text-[9px] text-warn">needs {WARMUP[p.warmupKey]}</span>
+                      <span className="ml-auto text-[12px] text-warn">needs {WARMUP[p.warmupKey]}</span>
                     )}
                   </label>
                 ))}
@@ -1936,7 +1937,7 @@ export default function RealtimeCandleChart({
       {/* OHLC legend under the crosshair.
           Barisnya selalu dirender dengan tinggi satu baris yang dipesan. Dulu ia baru muncul saat candle
           pertama datang (±2,5 s), dan chart di bawahnya turun 21 px pada saat itu. */}
-      <div className="flex min-h-[22px] shrink-0 flex-wrap items-center gap-2.5 pb-1 text-[11px] text-ink-soft" data-numeric>
+      <div className="flex min-h-[22px] shrink-0 flex-wrap items-center gap-2.5 pb-1 text-[12px] text-ink-soft" data-numeric>
         {legend && (
           <>
             {(["open", "high", "low", "close"] as const).map((k) => (
@@ -1963,13 +1964,13 @@ export default function RealtimeCandleChart({
           kontainer di dalamnya, yang mengisi pembungkus. */}
       <div className="relative flex w-full flex-1 min-h-[340px] flex-col sm:min-h-[460px]">
         {/* Logo atribusi TradingView (`a#tv-attr-logo`, dari pustaka: 35×19 px, bottom 10 px) diberi
-            padding 3 px atas-bawah dan digeser 3 px, jadi gambarnya tetap di tempat dan ukuran yang
-            sama tetapi area ketuknya 35×25. Di bawah 24 px ia target kecil, dan saat halaman digulir di
-            bawah tab Trade/Market/You yang menempel, audit menilainya rapat (ERROR tap<24 di 320 px).
-            Atribusinya sendiri tidak diubah atau disembunyikan. */}
+            padding 6,5 px atas-bawah dan digeser 6,5 px, jadi gambarnya tetap di tempat dan ukuran yang
+            sama tetapi area ketuknya 35×32. Dulu 35×25: di bawah 24 px ia target kecil dan rapat dengan tab
+            Trade/Market/You yang menempel (ERROR tap<24 di 320 px), dan di bawah 32 px tetap WARN di semua
+            lebar (20 WARN produksi sebelum U2.5). Atribusinya sendiri tidak diubah atau disembunyikan. */}
         <div
           ref={containerRef}
-          className="w-full flex-1 min-h-[340px] overflow-hidden rounded-xl sm:min-h-[460px] [&_#tv-attr-logo]:bottom-[7px] [&_#tv-attr-logo]:h-[25px] [&_#tv-attr-logo]:py-[3px]"
+          className="w-full flex-1 min-h-[340px] overflow-hidden rounded-xl sm:min-h-[460px] [&_#tv-attr-logo]:bottom-[3.5px] [&_#tv-attr-logo]:h-[32px] [&_#tv-attr-logo]:py-[6.5px]"
           data-testid="price-chart"
           data-marks-me={markSummary.me}
           data-marks-dev={markSummary.dev}
@@ -1977,7 +1978,7 @@ export default function RealtimeCandleChart({
         />
         {noDataBefore !== null && (
           <div
-            className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%] rounded-md border border-line bg-surface/90 px-2 py-1 text-[11px] leading-snug text-ink-soft"
+            className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%] rounded-md border border-line bg-surface/90 px-2 py-1 text-[12px] leading-snug text-ink-soft"
             data-testid="chart-no-data"
             role="note"
           >
@@ -2000,7 +2001,7 @@ export default function RealtimeCandleChart({
        */}
       {hasOscillator && (
         <div className="mt-2 shrink-0 rounded-xl border border-line bg-surface py-2">
-          <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
+          <div className="flex items-center justify-between px-2 pb-1.5 text-[12px] uppercase tracking-wider text-ink-faint">
             <span>{oscillators.map((o) => o.label).join(" · ")}</span>
             {/* Teks TERENDER wajib bahasa Inggris. Versi pertama baris ini berbunyi
                 "skala sendiri, bukan harga" — dan `bukan` memang sudah ada di ID_WORDS
@@ -2012,7 +2013,7 @@ export default function RealtimeCandleChart({
         </div>
       )}
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-1.5 text-[11px] text-ink-faint">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-1.5 text-[12px] text-ink-faint">
         <span>
           {/* log / auto di kanan bawah, posisi yang sama dengan terminal rujukan. */}
           <span className="mr-2 inline-flex items-center gap-1 align-middle">

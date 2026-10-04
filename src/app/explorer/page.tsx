@@ -93,7 +93,7 @@ const ROW_GRID =
  */
 const LIST_CARD = "glass-panel overflow-hidden rounded-card max-sm:-mx-4 max-sm:!rounded-none max-sm:!border-x-0";
 const TABLE_HEAD =
-  "grid-cols-[minmax(0,2.4fr)_1fr_1.1fr_1.1fr_0.9fr_auto] gap-3 border-b border-line px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint";
+  "grid-cols-[minmax(0,2.4fr)_1fr_1.1fr_1.1fr_0.9fr_auto] gap-3 border-b border-line px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-faint";
 
 export default function ExplorerPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -270,7 +270,7 @@ export default function ExplorerPage() {
         <p className="kicker mb-2">Market index</p>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Markets</h1>
+            <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Markets</h1>
             {/* Di ponsel kalimat pendek yang selalu satu baris: kalimat panjang membungkus di 320 px, dan
                 pergantian dari "Reading the registry…" dulu mendorong pencarian, filter dan daftar turun
                 (CLS 0,215 di m320 produksi). */}
@@ -464,17 +464,17 @@ export default function ExplorerPage() {
            yang salah padahal belum ada peluncuran sama sekali. */
         <div className="mx-auto max-w-md py-20 text-center">
           <Lock className="mx-auto mb-3 h-5 w-5 text-ink-faint" />
-          <p className="text-sm font-semibold text-ink">{EMPTY_TITLE}</p>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">{EMPTY_BODY}</p>
+          <p className="text-[13px]/snug font-semibold text-ink">{EMPTY_TITLE}</p>
+          <p className="mt-1.5 text-[12px]/snug leading-relaxed text-ink-soft">{EMPTY_BODY}</p>
           <Link
             href="/docs"
-            className="mt-4 inline-block text-xs font-semibold text-accent underline-offset-4 hover:underline"
+            className="mt-4 inline-block text-[12px]/snug font-semibold text-accent underline-offset-4 hover:underline"
           >
             See which contracts are deployed
           </Link>
         </div>
       ) : sorted.length === 0 ? (
-        <div className="py-20 text-center text-sm text-ink-soft">
+        <div className="py-20 text-center text-[13px]/snug text-ink-soft">
           {watchOnly && watchlist.keys.length === 0
             ? "Your watchlist is empty. Star a market to keep it here."
             : "No markets match this filter."}
@@ -517,13 +517,19 @@ export default function ExplorerPage() {
                         className="h-[40px] w-[40px] shrink-0 rounded-xl border border-line object-cover"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-                          <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{p.name}</span>
+                        {/* Di bawah 380 px nama dan ticker mengalir sebagai teks biasa dan boleh membungkus, jadi nama
+                            tidak pernah terpotong. Kolomnya hanya ±118 px di 320 px: "ADEXTO Protocol" dulu terbaca
+                            "ADEXTO P…", "Parcel Market" "Parcel…" (WARN U2.5). Spasi `{" "}` adalah titik bungkus di
+                            antara keduanya; di dalam flex (≥ 380 px) spasi itu tidak dirender. */}
+                        <span className="flex min-w-0 items-baseline gap-1.5 max-[379px]:block max-[379px]:break-words">
+                          <span className="min-w-0 truncate text-[14px] font-semibold text-ink max-[379px]:whitespace-normal">
+                            {p.name}
+                          </span>{" "}
                           {/* `$SYMBOL` dipertahankan apa adanya: beberapa harness mencarinya
                               sebagai teks untuk membuktikan pasar barunya terdaftar. */}
-                          <span className="shrink-0 text-[12px] text-ink-faint">${p.symbol}</span>
+                          <span className="shrink-0 whitespace-nowrap text-[12px] text-ink-faint">${p.symbol}</span>
                         </span>
-                        <span className="mt-1 flex min-w-0 items-center gap-x-2 whitespace-nowrap text-[11px] leading-none text-ink-faint">
+                        <span className="mt-1 flex min-w-0 items-center gap-x-2 whitespace-nowrap text-[12px] leading-none text-ink-faint">
                           {/* Ponsel: chain pendek di bawah nama. Desktop punya kolom Chain sendiri. */}
                           <ChainChip chain={p.chainId} size="sm" variant="plain" className="lg:hidden" />
                           {p.deployedChainCount > 1 && (
@@ -571,7 +577,7 @@ export default function ExplorerPage() {
                       <span className="block text-[13px] font-medium text-ink">
                         {p.priceUsd > 0 ? formatUsd(p.priceUsd) : "—"}
                       </span>
-                      <span className="block text-[10px] text-ink-faint">
+                      <span className="block text-[12px] text-ink-faint">
                         {p.priceNative > 0 ? `${formatSmallNumber(p.priceNative)} ${chain.nativeSymbol}` : "no price"}
                       </span>
                     </span>
@@ -589,7 +595,7 @@ export default function ExplorerPage() {
                       <span className="block whitespace-nowrap text-[13px] font-semibold text-ink">
                         {p.priceUsd > 0 ? formatUsd(p.priceUsd) : "—"}
                       </span>
-                      <span className="mt-1 block whitespace-nowrap text-[11px] leading-none text-ink-faint">
+                      <span className="mt-1 block whitespace-nowrap text-[12px] leading-none text-ink-faint">
                         {p.mcapUsd > 0 ? `MC ${formatUsd(p.mcapUsd, { compact: true })}` : "no price"}
                       </span>
                     </span>
@@ -600,7 +606,7 @@ export default function ExplorerPage() {
                       <WatchStar chainId={p.chainId} symbol={p.symbol} size="lg" />
                       <Link
                         href={`/token/${p.slug}?chain=${p.chainId}`}
-                        className="hidden rounded-full border border-line px-3 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent lg:inline-flex"
+                        className="hidden rounded-full border border-line px-3 py-1 text-[12px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent lg:inline-flex"
                       >
                         Terminal
                       </Link>
@@ -610,13 +616,13 @@ export default function ExplorerPage() {
                       {p.tradable ? (
                         <Link
                           href={`/swap?token=${p.symbol}&chain=${p.chainId}`}
-                          className="hidden rounded-full border border-accent/40 bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent hover:text-white lg:inline-flex"
+                          className="hidden rounded-full border border-accent/40 bg-accent-soft px-3 py-1 text-[12px] font-semibold text-accent transition-colors hover:bg-accent hover:text-white lg:inline-flex"
                         >
                           Swap
                         </Link>
                       ) : (
                         <span
-                          className="hidden cursor-not-allowed rounded-full border border-line px-3 py-1 text-[11px] text-ink-faint lg:inline-flex"
+                          className="hidden cursor-not-allowed rounded-full border border-line px-3 py-1 text-[12px] text-ink-faint lg:inline-flex"
                           title="No executable curve for this market yet"
                         >
                           Swap
@@ -634,7 +640,7 @@ export default function ExplorerPage() {
       {/* Tautan mesin dipindahkan ke bawah daftar, satu baris, bukan satu blok per pasar.
           Yang membaca ini agen dan pengembang, bukan orang yang sedang memilih pasar. */}
       {!loading && sorted.length > 0 && (
-        <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
+        <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-faint">
           <CloudLightning className="h-3 w-3 text-accent" />
           <span>Every market is payable from another chain over HTTP:</span>
           {/* `min-h-[32px]`: target sentuh yang cukup di ponsel tanpa mengubah tampilan baris teks ini. */}
@@ -668,8 +674,8 @@ function Metric({
     tone === "accent" ? "text-accent" : tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "text-ink";
   return (
     <div>
-      <span className="text-[10px] text-ink-soft block font-semibold">{label}</span>
-      <span className={`text-xs font-bold truncate block ${color}`}>{value}</span>
+      <span className="text-[12px] text-ink-soft block font-semibold">{label}</span>
+      <span className={`text-[12px]/snug font-bold truncate block ${color}`}>{value}</span>
     </div>
   );
 }

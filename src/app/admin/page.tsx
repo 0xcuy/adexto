@@ -104,36 +104,36 @@ export default function AdminPage() {
 
   // Kolom 44 px dan huruf 16 px di bawah lg (iOS tidak memperbesar halaman saat kolom disentuh); desktop tetap.
   const input =
-    "min-h-[44px] w-full rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/40 focus:outline-none lg:min-h-0 lg:py-2 lg:text-xs";
+    "min-h-[44px] w-full rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/40 focus:outline-none lg:min-h-0 lg:py-2 lg:text-[12px]/snug";
   const now = Math.floor(Date.now() / 1000);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-10 sm:px-6 lg:px-8">
       <div>
         <p className="kicker mb-2">Admin</p>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink">Growth programs</h1>
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink">Growth programs</h1>
         <p className="mt-2 text-[13px] text-ink-soft">Every action is signed by the connected wallet and checked against the admin list on the server.</p>
       </div>
       {!isConnected || !address ? (
         <button
           type="button"
           onClick={() => connectWallet().catch(() => {})}
-          className="min-h-[44px] rounded-xl bg-accent px-4 text-xs font-semibold text-white lg:min-h-0 lg:py-2"
+          className="min-h-[44px] rounded-xl bg-accent px-4 text-[12px]/snug font-semibold text-white lg:min-h-0 lg:py-2"
         >
           Connect an admin wallet
         </button>
       ) : (
-        <p className="text-[11px] text-ink-faint">
+        <p className="text-[12px] text-ink-faint">
           Signing as <span className="font-mono text-ink">{address}</span>
         </p>
       )}
-      {line && <p className={`text-xs ${line.tone === "ok" ? "text-ok" : "text-danger"}`}>{line.text}</p>}
+      {line && <p className={`text-[12px]/snug ${line.tone === "ok" ? "text-ok" : "text-danger"}`}>{line.text}</p>}
 
       <section className="glass-panel space-y-3 rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-panel)]">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <h2 className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
           <Megaphone className="h-4 w-4 text-warn" aria-hidden /> Promoted slots ({PROMOTED_TERMS.slots} at a time)
         </h2>
-        <p className="text-[11px] text-ink-soft">Check the payment to the treasury yourself first; the server records your note but does not verify it.</p>
+        <p className="text-[12px] text-ink-soft">Check the payment to the treasury yourself first; the server records your note but does not verify it.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
           <select value={form.chainId} onChange={(e) => setForm({ ...form, chainId: e.target.value })} className={input} aria-label="Chain">
             {chains.map((c) => (
@@ -150,13 +150,13 @@ export default function AdminPage() {
             type="button"
             disabled={!address || busy !== null}
             onClick={approve}
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-semibold text-white disabled:opacity-50 lg:min-h-0 lg:py-2"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-[12px]/snug font-semibold text-white disabled:opacity-50 lg:min-h-0 lg:py-2"
           >
             {busy === "approve" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Sign &amp; approve
           </button>
         </div>
         {/* Ponsel (< 640 px): satu kartu per slot; tabel lima kolom baru tampil mulai 640 px. */}
-        <ul className="divide-y divide-line text-xs sm:hidden">
+        <ul className="divide-y divide-line text-[12px]/snug sm:hidden">
           {slots.map((s) => {
             const state = s.removedAt ? "removed" : now < s.startsAt ? "upcoming" : now < s.endsAt ? "live" : "ended";
             return (
@@ -165,10 +165,10 @@ export default function AdminPage() {
                   <p className="text-ink">
                     ${s.symbol} <span className="text-ink-faint">({s.chainId})</span> · <span className="text-ink-soft">{state}</span>
                   </p>
-                  <p className="mt-0.5 text-[11px] text-ink-soft">
+                  <p className="mt-0.5 text-[12px] text-ink-soft">
                     {fmt(s.startsAt)} → {fmt(s.endsAt)}
                   </p>
-                  <p className="mt-0.5 truncate font-mono text-[11px] text-ink-faint">{s.paymentRef}</p>
+                  <p className="mt-0.5 truncate font-mono text-[12px] text-ink-faint">{s.paymentRef}</p>
                 </div>
                 {!s.removedAt && state !== "ended" && (
                   <button
@@ -187,9 +187,9 @@ export default function AdminPage() {
           })}
           {slots.length === 0 && <li className="py-3 text-ink-faint">No slots yet.</li>}
         </ul>
-        <table className="hidden w-full text-left text-xs sm:table">
+        <table className="hidden w-full text-left text-[12px]/snug sm:table">
           <thead>
-            <tr className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">
+            <tr className="text-[12px] uppercase tracking-[0.08em] text-ink-faint">
               <th className="py-2">Market</th>
               <th className="py-2">Window</th>
               <th className="py-2">Payment</th>
@@ -239,12 +239,12 @@ export default function AdminPage() {
       </section>
 
       <section className="glass-panel space-y-3 rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-panel)]">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <h2 className="flex items-center gap-2 text-[13px]/snug font-semibold text-ink">
           <Download className="h-4 w-4 text-accent" aria-hidden /> Referral payouts (CSV)
         </h2>
-        <p className="text-[11px] text-ink-soft">One row per referrer for the week (Monday 00:00 UTC). The reward column uses the terms in src/config/growth-programs.ts.</p>
+        <p className="text-[12px] text-ink-soft">One row per referrer for the week (Monday 00:00 UTC). The reward column uses the terms in src/config/growth-programs.ts.</p>
         {weeks.length === 0 ? (
-          <p className="text-xs text-ink-faint">No referred trade recorded yet.</p>
+          <p className="text-[12px]/snug text-ink-faint">No referred trade recorded yet.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {weeks.map((w) => (
@@ -253,7 +253,7 @@ export default function AdminPage() {
                 type="button"
                 disabled={!address || busy !== null}
                 onClick={() => exportWeek(w)}
-                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink hover:border-accent/40 disabled:opacity-50 lg:min-h-0 lg:py-1.5"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-[12px]/snug font-semibold text-ink hover:border-accent/40 disabled:opacity-50 lg:min-h-0 lg:py-1.5"
               >
                 {busy === `export-${w}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Download className="h-3.5 w-3.5" aria-hidden />} {w}
               </button>

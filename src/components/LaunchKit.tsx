@@ -67,10 +67,10 @@ export default function LaunchKit({
       data-testid="launch-kit"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold text-ink">
+        <span className="text-[12px]/snug font-bold text-ink">
           Launch kit · ${symbol} on {chainName}
         </span>
-        <a href={marketUrlFor(base, slug, chainId)} className="text-[11px] font-semibold text-accent hover:underline">
+        <a href={marketUrlFor(base, slug, chainId)} className="text-[12px] font-semibold text-accent hover:underline">
           Market page →
         </a>
       </div>
@@ -84,7 +84,7 @@ export default function LaunchKit({
         <a
           href={cardUrl}
           download={`${slug}-${chainId}-card.png`}
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
+          className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent hover:underline"
         >
           <Download className="h-3 w-3" aria-hidden /> Download the share card
         </a>
@@ -172,25 +172,25 @@ function ProofBlock({
   useEffect(() => setBody(draft), [draft]);
   const [copied, setCopied] = useState(false);
 
-  const btn = "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors";
+  const btn = "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[12px]/snug font-semibold transition-colors";
 
   return (
     <div className="space-y-2 rounded-2xl border border-ok/30 bg-ok/5 p-3" data-testid="launch-kit-proof">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-bold text-ink">
+        <span className="flex items-center gap-1.5 text-[12px]/snug font-bold text-ink">
           <ShieldCheck className="h-3.5 w-3.5 text-ok" aria-hidden /> Clean-launch proof
         </span>
-        <span className="text-[10px] text-ink-faint">read from chain</span>
+        <span className="text-[12px] text-ink-faint">read from chain</span>
       </div>
       {!proof ? (
-        <p className="text-[11px] text-ink-faint">{error ? `Could not read the launch yet (${error}). Retrying…` : "Reading the launch from chain…"}</p>
+        <p className="text-[12px] text-ink-faint">{error ? `Could not read the launch yet (${error}). Retrying…` : "Reading the launch from chain…"}</p>
       ) : !proof.supported ? (
-        <p className="text-[11px] text-ink-soft">No clean-launch proof for this market. {proof.reason}</p>
+        <p className="text-[12px] text-ink-soft">No clean-launch proof for this market. {proof.reason}</p>
       ) : (
         <>
           <ul className="space-y-1">
             {proof.checks.map((c) => (
-              <li key={c.id} className="flex items-start gap-1.5 text-[11.5px] text-ink">
+              <li key={c.id} className="flex items-start gap-1.5 text-[12px] text-ink">
                 <span className="mt-0.5 shrink-0">
                   {c.ok === true ? (
                     <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-label="passes" />
@@ -217,7 +217,7 @@ function ProofBlock({
             className="w-full resize-y rounded-xl border border-line bg-surface p-2.5 text-[12px] leading-relaxed text-ink focus:border-accent/40 focus:outline-none"
             data-testid="proof-post-text"
           />
-          <p className="truncate text-[10px] text-ink-faint">
+          <p className="truncate text-[12px] text-ink-faint">
             Link added at the end: <span className="font-mono text-accent">{proofUrl}</span>
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -299,7 +299,7 @@ function ListingRows({ chainId, token, chainName }: { chainId: number; token: st
               </span>
             ))}
         {status && status.aggregators.some((a) => a.state === "not-listed") && (
-          <span className="block text-[11px] text-ink-faint">A market appears there once the aggregator indexes ADEXTO curves on {chainName}.</span>
+          <span className="block text-[12px] text-ink-faint">A market appears there once the aggregator indexes ADEXTO curves on {chainName}.</span>
         )}
       </span>
     </li>

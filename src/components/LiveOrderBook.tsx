@@ -163,23 +163,23 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
   const maxSize = Math.max(...asks.map((a) => a.sizeToken), ...bids.map((b) => b.sizeToken), 1);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col text-[11px]" data-numeric>
+    <div className="flex h-full min-h-0 w-full flex-col text-[12px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
-        <span className="text-ink-soft font-bold text-[10px] uppercase">Curve depth ladder</span>
-        {asks.length > 0 && <span className="text-ink-faint text-[10px]">Spread: {spreadPct.toFixed(2)}%</span>}
+        <span className="text-ink-soft font-bold text-[12px] uppercase">Curve depth ladder</span>
+        {asks.length > 0 && <span className="text-ink-faint text-[12px]">Spread: {spreadPct.toFixed(2)}%</span>}
       </div>
 
       {!pool ? (
-        <div className="flex-1 flex items-center justify-center text-ink-faint text-[11px]">Loading pool state…</div>
+        <div className="flex-1 flex items-center justify-center text-ink-faint text-[12px]">Loading pool state…</div>
       ) : !pool.tradable ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-3">
           <Info className="w-4 h-4 text-warn" />
-          <span className="text-warn font-bold text-[10px] uppercase">No executable pool</span>
-          <span className="text-ink-soft text-[10px] leading-relaxed">{pool.reason}</span>
+          <span className="text-warn font-bold text-[12px] uppercase">No executable pool</span>
+          <span className="text-ink-soft text-[12px] leading-relaxed">{pool.reason}</span>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className={`${rowGrid} mb-1 shrink-0 px-1 text-[9px] uppercase tracking-wide text-ink-faint`}>
+          <div className={`${rowGrid} mb-1 shrink-0 px-1 text-[12px] uppercase tracking-wide text-ink-faint`}>
             <span>Price ({nativeSymbol})</span>
             <span className="text-right">Size ({symbol})</span>
             <span className="text-right">Total</span>
@@ -199,7 +199,7 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
                 />
                 <span className="relative z-10 truncate font-semibold text-danger">{fmtPrice(a.priceNative)}</span>
                 <span className="relative z-10 text-right text-ink-soft">{fmtSize(a.sizeToken)}</span>
-                <span className="relative z-10 truncate text-right text-[10px] text-ink-faint">
+                <span className="relative z-10 truncate text-right text-[12px] text-ink-faint">
                   {fmtNotional(a.notionalNative)} {nativeSymbol}
                 </span>
               </div>
@@ -207,12 +207,12 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
           </div>
 
           <div className="my-1.5 shrink-0 py-1 px-2 rounded-lg bg-surface border border-accent/30 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+            <div className="flex items-center gap-1.5 text-[12px]/snug font-semibold text-accent">
               <ArrowUp className="w-3.5 h-3.5 text-ok" />
               <span>{fmtPrice(spot)}</span>
-              <span className="text-[9px] text-ink-faint font-normal">{nativeSymbol}</span>
+              <span className="text-[12px] text-ink-faint font-normal">{nativeSymbol}</span>
             </div>
-            <span className="text-[10px] text-ink-soft">
+            <span className="text-[12px] text-ink-soft">
               {nativeUsd > 0 ? `≈ $${(spot * nativeUsd).toFixed(6)}` : ""}
             </span>
           </div>
@@ -229,14 +229,14 @@ export default function LiveOrderBook({ symbol, chainId, nativeSymbol, nativeUsd
                 />
                 <span className="relative z-10 truncate font-semibold text-ok">{fmtPrice(b.priceNative)}</span>
                 <span className="relative z-10 text-right text-ink-soft">{fmtSize(b.sizeToken)}</span>
-                <span className="relative z-10 truncate text-right text-[10px] text-ink-faint">
+                <span className="relative z-10 truncate text-right text-[12px] text-ink-faint">
                   {fmtNotional(b.notionalNative)} {nativeSymbol}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="pt-2 mt-1 shrink-0 border-t border-line flex items-center justify-between text-[9px] text-ink-faint">
+          <div className="pt-2 mt-1 shrink-0 border-t border-line flex items-center justify-between text-[12px] text-ink-faint">
             <span className="flex items-center gap-1">
               <ArrowDown className="w-2.5 h-2.5" /> Reserves
             </span>

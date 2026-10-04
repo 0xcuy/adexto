@@ -77,7 +77,7 @@ export default function HoldersPanel({
   const provisional = report && !complete ? "~" : "";
 
   const stat = "flex flex-col gap-0.5 rounded-xl border border-line bg-surface px-3 py-2";
-  const label = "text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint";
+  const label = "text-[12px] font-semibold uppercase tracking-[0.12em] text-ink-faint";
 
   return (
     <div
@@ -90,49 +90,49 @@ export default function HoldersPanel({
       data-curve-pct={report?.curvePct ?? ""}
     >
       <div className="mb-2.5 flex items-center justify-between border-b border-line pb-2">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+        <span className="flex items-center gap-1.5 text-[13px]/snug font-semibold text-ink">
           <Users className="h-3.5 w-3.5 text-accent" /> Holders
         </span>
         {report && !complete ? (
-          <span className="flex items-center gap-1 text-[10px] text-warn" title="Rebuilding balances from every Transfer since the token was minted">
+          <span className="flex items-center gap-1 text-[12px] text-warn" title="Rebuilding balances from every Transfer since the token was minted">
             <RefreshCw className="h-3 w-3 animate-spin" /> reading history {Math.floor(report.index.progress * 100)}%
           </span>
         ) : report ? (
-          <span className="text-[10px] text-ink-faint" title="Balances rebuilt from every Transfer since the token was minted">
+          <span className="text-[12px] text-ink-faint" title="Balances rebuilt from every Transfer since the token was minted">
             from every transfer since launch
           </span>
         ) : null}
       </div>
 
       {!report ? (
-        <p className="py-3 text-center text-[11px] text-ink-faint">{error ?? "Reading holders from the chain…"}</p>
+        <p className="py-3 text-center text-[12px] text-ink-faint">{error ?? "Reading holders from the chain…"}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-numeric>
             <div className={stat} title="Wallets holding any amount, not counting the curve or burn addresses">
               <span className={label}>Holders</span>
-              <span className="text-sm font-semibold text-ink">
+              <span className="text-[13px]/snug font-semibold text-ink">
                 {provisional}
                 {report.holders.toLocaleString("en-US")}
               </span>
             </div>
             <div className={stat} title="Share of the supply held by the ten largest wallets, not counting the curve">
               <span className={label}>Top 10</span>
-              <span className="text-sm font-semibold text-ink">
+              <span className="text-[13px]/snug font-semibold text-ink">
                 {provisional}
                 {fmtPct(report.top10Pct)}
               </span>
             </div>
             <div className={stat} title={`Share of the supply held by the wallet that launched this market (${report.creator})`}>
               <span className={label}>Creator</span>
-              <span className={`text-sm font-semibold ${report.creatorPct >= 5 ? "text-warn" : "text-ink"}`}>
+              <span className={`text-[13px]/snug font-semibold ${report.creatorPct >= 5 ? "text-warn" : "text-ink"}`}>
                 {provisional}
                 {fmtPct(report.creatorPct)}
               </span>
             </div>
             <div className={stat} title="Supply still held by the bonding curve, not yet bought">
               <span className={label}>In curve</span>
-              <span className="text-sm font-semibold text-ink">
+              <span className="text-[13px]/snug font-semibold text-ink">
                 {provisional}
                 {fmtPct(report.curvePct)}
               </span>
@@ -150,7 +150,7 @@ export default function HoldersPanel({
                 return (
                   // Di bawah lg barisnya setinggi tautannya (36 px), tanpa padding vertikal; dulu tautan 16 px
                   // dengan jarak 3,5 px ke baris berikutnya terlalu rapat untuk jempol.
-                  <li key={h.address} className="relative overflow-hidden rounded-lg px-2 text-[11px] lg:py-1" data-holder={h.address}>
+                  <li key={h.address} className="relative overflow-hidden rounded-lg px-2 text-[12px] lg:py-1" data-holder={h.address}>
                     <div className="absolute inset-y-0 left-0 bg-accent-soft" style={{ width: `${width}%` }} aria-hidden="true" />
                     <div className="relative flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
@@ -165,8 +165,8 @@ export default function HoldersPanel({
                           {h.address.slice(0, 6)}…{h.address.slice(-4)}
                           <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                         </a>
-                        {isMe && <span className="rounded bg-accent-soft px-1 text-[8px] font-bold text-accent">YOU</span>}
-                        {isDev && <span className="rounded bg-warn/15 px-1 text-[8px] font-bold text-warn">DEV</span>}
+                        {isMe && <span className="rounded bg-accent-soft px-1 text-[12px] font-bold text-accent">YOU</span>}
+                        {isDev && <span className="rounded bg-warn/15 px-1 text-[12px] font-bold text-warn">DEV</span>}
                       </span>
                       <span className="shrink-0 font-semibold text-ink">{fmtPct(h.pct)}</span>
                     </div>
@@ -175,7 +175,7 @@ export default function HoldersPanel({
               })}
             </ol>
           ) : (
-            <p className="mt-3 text-center text-[11px] text-ink-soft">No wallet holds ${symbol} yet; the whole supply is in the curve.</p>
+            <p className="mt-3 text-center text-[12px] text-ink-soft">No wallet holds ${symbol} yet; the whole supply is in the curve.</p>
           )}
         </>
       )}

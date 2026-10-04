@@ -50,15 +50,15 @@ export default function LaunchAnnouncement({
   };
 
   const btn =
-    "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors";
+    "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[12px]/snug font-semibold transition-colors";
 
   return (
     <div className="space-y-2 rounded-2xl border border-accent/30 bg-accent-soft/40 p-3 font-sans" data-testid="launch-announcement">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-bold text-ink">
+        <span className="flex items-center gap-1.5 text-[12px]/snug font-bold text-ink">
           <Megaphone className="h-3.5 w-3.5 text-accent" /> Announce ${symbol}
         </span>
-        <span className="text-[10px] text-ink-faint">edit the text, then post it from your own account</span>
+        <span className="text-[12px] text-ink-faint">edit the text, then post it from your own account</span>
       </div>
       <label className="sr-only" htmlFor={`announce-${chainId}`}>
         Announcement text
@@ -71,7 +71,7 @@ export default function LaunchAnnouncement({
         className="w-full resize-y rounded-xl border border-line bg-surface p-2.5 text-[12px] leading-relaxed text-ink focus:border-accent/40 focus:outline-none"
         data-testid="announcement-text"
       />
-      <p className="truncate text-[10px] text-ink-faint">
+      <p className="truncate text-[12px] text-ink-faint">
         Link added at the end: <span className="font-mono text-accent">{draft.marketUrl}</span>
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">

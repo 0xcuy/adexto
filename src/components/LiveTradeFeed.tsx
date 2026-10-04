@@ -125,14 +125,14 @@ export default function LiveTradeFeed({
   const isLive = source === "onchain";
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col text-[11px]" data-numeric>
+    <div className="flex h-full min-h-0 w-full flex-col text-[12px]" data-numeric>
       <div className="flex items-center justify-between border-b border-line pb-2 mb-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <Activity className={`w-3.5 h-3.5 ${isLive ? "text-ok animate-pulse" : "text-warn"}`} />
-          <span className="text-ink font-bold text-[10px] uppercase">Trade Feed</span>
+          <span className="text-ink font-bold text-[12px] uppercase">Trade Feed</span>
         </div>
         <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+          className={`text-[12px] font-bold px-2 py-0.5 rounded border ${
             isLive
               ? "text-ok bg-ok/10 border-ok/30"
               : "text-warn bg-warn/10 border-warn/30"
@@ -153,7 +153,7 @@ export default function LiveTradeFeed({
             title={f.title}
             data-feed-filter={f.key}
             // 32 px di bawah lg (dulu 22 px dan rapat: ERROR tap<24), ukuran lama di desktop.
-            className={`inline-flex h-[32px] min-w-[40px] items-center justify-center rounded-md border px-2.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5 lg:text-[10px] ${
+            className={`inline-flex h-[32px] min-w-[40px] items-center justify-center rounded-md border px-2.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5 ${
               filter === f.key
                 ? "border-accent/30 bg-accent-soft text-accent"
                 : "border-transparent bg-cream-3 text-ink-soft hover:text-ink"
@@ -162,7 +162,7 @@ export default function LiveTradeFeed({
             {f.label}
           </button>
         ))}
-        <span className="ml-auto text-[9px] text-ink-faint" data-feed-count={shown.length}>
+        <span className="ml-auto text-[12px] text-ink-faint" data-feed-count={shown.length}>
           {loaded ? `${shown.length} fill${shown.length === 1 ? "" : "s"}` : ""}
         </span>
       </div>
@@ -184,9 +184,9 @@ export default function LiveTradeFeed({
           baris yang terlihat tetap sekitar sembilan. */}
       <div className="max-h-[400px] min-h-0 flex-1 overflow-y-auto pr-1 sm:max-h-[260px] lg:max-h-none lg:grow lg:basis-0">
         {!loaded ? (
-          <div className="flex h-full items-center justify-center text-[11px] text-ink-faint">Loading…</div>
+          <div className="flex h-full items-center justify-center text-[12px] text-ink-faint">Loading…</div>
         ) : trades.length > 0 && shown.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-ink-soft">
+          <div className="flex h-full items-center justify-center px-3 text-center text-[12px] text-ink-soft">
             {filter === "mine"
               ? "The connected wallet has no fills in this market."
               : filter === "dev"
@@ -201,25 +201,37 @@ export default function LiveTradeFeed({
                 tentang pasarnya. */}
             {coverage?.error ? (
               <>
-                <span className="text-[10px] text-warn">Could not read trade history from the node.</span>
-                <span className="break-all text-[9px] text-ink-faint">{coverage.error}</span>
+                <span className="text-[12px] text-warn">Could not read trade history from the node.</span>
+                <span className="break-all text-[12px] text-ink-faint">{coverage.error}</span>
               </>
             ) : (
-              <span className="text-[10px] text-ink-soft">No trades recorded for ${symbol} yet.</span>
+              <span className="text-[12px] text-ink-soft">No trades recorded for ${symbol} yet.</span>
             )}
           </div>
         ) : (
           <table className="w-full table-fixed border-collapse text-left">
             <thead className="sticky top-0 z-10 bg-surface">
-              <tr className="text-[9px] uppercase tracking-[0.08em] text-ink-faint">
+              <tr className="text-[12px] uppercase text-ink-faint">
                 {/* Di bawah lg kolom trader lebih lebar (40%): ia memuat alamat dan tautan transaksi
-                    selebar 32 px. Ruangnya diambil dari kolom size, yang di sana tidak lagi mengulang $SYM
-                    di setiap baris. Lencana x402/DEV/YOU yang tidak muat pindah ke baris di atas alamat. */}
-                <th scope="col" className="w-[8%] pb-1.5 font-semibold lg:w-[9%]">age</th>
-                <th scope="col" className="w-[10%] pb-1.5 font-semibold lg:w-[11%]">side</th>
-                <th scope="col" className="w-[21%] pb-1.5 text-right font-semibold lg:w-[27%]">size</th>
-                <th scope="col" className="w-[21%] pb-1.5 text-right font-semibold lg:w-[22%]">price</th>
-                <th scope="col" className="w-[40%] pb-1.5 text-right font-semibold lg:w-[31%]">trader</th>
+                    selebar 32 px. Ruangnya diambil dari kolom size, yang tidak mengulang $SYM di setiap baris
+                    (sejak U2.5 juga di desktop: "−56,942 $PARCEL" berhuruf 12 px membungkus setiap baris jadi
+                    dua di d1280; satuannya ada di `title` kepala kolom). Lencana x402/DEV/YOU yang tidak muat
+                    pindah ke baris di atas alamat.
+                    Huruf 12 px (U2.5), diukur per kolom (kepala / isi terlebar):
+                    - Di bawah 640 px kolom age disembunyikan dan umurnya turun ke baris kedua sel side. Lima
+                      kolom butuh ±288 px dan tabelnya 266 px di 320 px, jadi harga dan alamat saling menimpa
+                      (ERROR overlap).
+                    - Di lg tabelnya hanya 286 px di d1024: age 10% (kepala 25 px), harga 23% (63 px), trader
+                      35% (alamat + ikon tx 91 px; lencana membungkus ke atasnya).
+                    - Kepala tanpa jarak huruf: "AGE" berjarak 28 px menimpa kolom side di t768 dan d1024.
+                    Lebar tiap kelompok berjumlah 100%. */}
+                <th scope="col" className="w-[9%] pb-1.5 font-semibold max-sm:hidden lg:w-[10%]">age</th>
+                <th scope="col" className="w-[10%] pb-1.5 font-semibold max-sm:w-[12%] lg:w-[11%]">side</th>
+                <th scope="col" className="w-[20%] pb-1.5 text-right font-semibold lg:w-[21%]" title={`Amount in $${symbol}`}>
+                  size
+                </th>
+                <th scope="col" className="w-[21%] pb-1.5 text-right font-semibold max-sm:w-[24%] lg:w-[23%]">price</th>
+                <th scope="col" className="w-[40%] pb-1.5 text-right font-semibold max-sm:w-[44%] lg:w-[35%]">trader</th>
               </tr>
             </thead>
             <tbody>
@@ -257,47 +269,50 @@ export default function LiveTradeFeed({
                     data-mine={mine ? "1" : "0"}
                     data-dev={dev ? "1" : "0"}
                   >
-                    <td className="py-1.5 text-[10px] text-ink-faint">{ago(t.timestamp)}</td>
-                    <td className={`py-1.5 text-[10px] font-semibold ${tone}`}>
+                    <td className="py-1.5 text-[12px] text-ink-faint max-sm:hidden">{ago(t.timestamp)}</td>
+                    <td className={`py-1.5 text-[12px] font-semibold ${tone}`}>
                       {burn ? (
                         <span className="inline-flex items-center gap-1">
-                          <Flame className="h-2.5 w-2.5" /> burn
+                          <Flame className="h-2.5 w-2.5 max-sm:hidden" aria-hidden="true" /> burn
                         </span>
                       ) : (
                         t.type.toLowerCase()
                       )}
+                      {/* Umur di bawah 640 px, pengganti kolom age yang disembunyikan di sana. */}
+                      <span className="block font-normal text-ink-faint sm:hidden">{ago(t.timestamp)}</span>
                     </td>
-                    <td className={`py-1.5 text-right text-[10px] font-medium ${tone}`}>
+                    <td className={`py-1.5 text-right text-[12px] font-medium ${tone}`}>
                       {burn ? "" : buy ? "+" : "−"}
-                      {fmtToken(t.amountToken)} <span className="text-ink-faint max-lg:hidden">${t.symbol}</span>
+                      {fmtToken(t.amountToken)}
                     </td>
-                    <td className="py-1.5 text-right text-[10px] text-ink">
+                    <td className="py-1.5 text-right text-[12px] text-ink">
                       {priceUsd > 0 ? `$${formatSmallNumber(priceUsd)}` : `${formatSmallNumber(t.priceNative)} ${t.nativeSymbol}`}
                     </td>
                     {/* Di bawah lg sel ini tanpa padding vertikal: kedua tautannya sudah setinggi 40 px
                         (dulu 16 px dan 9 px, rapat satu sama lain: ERROR tap<24), dan itulah tinggi barisnya. */}
-                    <td className="py-0 text-right text-[10px] lg:py-1.5">
+                    <td className="py-0 text-right text-[12px] lg:py-1.5">
                       {t.source === "genesis" ? (
                         <span className="text-ink-faint">reference</span>
                       ) : (
-                        // Di bawah lg boleh membungkus: di 320 px lencana + alamat + tautan tx 32 px lebih
-                        // lebar dari kolomnya (terukur meluber 32 px). Lencana ada lebih dulu di DOM, jadi
-                        // yang tidak muat membuat alamat dan tautannya turun ke baris kedua, rata kanan.
-                        // Di desktop tetap satu baris.
-                        <span className="flex flex-wrap items-center justify-end gap-x-1 whitespace-nowrap lg:inline-flex lg:flex-nowrap">
+                        // Boleh membungkus: di 320 px lencana + alamat + tautan tx 32 px lebih lebar dari
+                        // kolomnya (terukur meluber 32 px). Lencana ada lebih dulu di DOM, jadi yang tidak muat
+                        // membuat alamat dan tautannya turun ke baris kedua, rata kanan. Sejak huruf 12 px
+                        // (U2.5) juga di desktop: lencana DEV + alamat butuh ±128 px di kolom 100 px (d1024),
+                        // dan satu baris yang tak membungkus meluber ke kanan lalu terpotong panelnya.
+                        <span className="flex flex-wrap items-center justify-end gap-x-1 whitespace-nowrap">
                           {mine && (
-                            <span className="rounded bg-accent-soft px-1 text-[8px] font-bold text-accent" title="Your wallet">
+                            <span className="rounded bg-accent-soft px-1 text-[12px] font-bold text-accent" title="Your wallet">
                               YOU
                             </span>
                           )}
                           {dev && (
-                            <span className="rounded bg-warn/15 px-1 text-[8px] font-bold text-warn" title="The wallet that launched this market">
+                            <span className="rounded bg-warn/15 px-1 text-[12px] font-bold text-warn" title="The wallet that launched this market">
                               DEV
                             </span>
                           )}
                           {relayed && (
                             <span
-                              className="rounded bg-cream-3 px-1 text-[8px] font-bold text-ink-soft"
+                              className="rounded bg-cream-3 px-1 text-[12px] font-bold text-ink-soft"
                               title={senderNote}
                               data-relayed={viaX402 ? "x402" : "via"}
                             >
@@ -351,7 +366,7 @@ export default function LiveTradeFeed({
           identik dengan feed yang lengkap. Sekarang kalau riwayatnya utuh sampai
           peluncuran, itu dinyatakan; kalau terpotong, itu juga dinyatakan. */}
       {loaded && isLive && trades.length > 0 && coverage && (
-        <div className="mt-2 shrink-0 border-t border-line pt-1.5 text-[9px] text-ink-faint">
+        <div className="mt-2 shrink-0 border-t border-line pt-1.5 text-[12px] text-ink-faint">
           {coverage.reachedLaunch ? (
             <span>
               {trades.length} fill{trades.length === 1 ? "" : "s"} · full history since launch

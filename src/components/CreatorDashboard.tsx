@@ -12,6 +12,7 @@ import { formatSmallNumber } from "@/lib/pricing";
 import Stat from "@/components/ui/Stat";
 import Skeleton from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
+import Button from "@/components/ui/Button";
 import type { CreatorEarnings, CreatorMarket } from "@/lib/creator-earnings";
 
 /**
@@ -54,13 +55,20 @@ function fmtNative(v: number | null, symbol: string): string {
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 /**
+ * Tinggi minimal setiap keadaan wilayah hasil (U2.5). 75vh membuat penjelasan dan footer di bawahnya mulai di luar layar
+ * pada semua viewport audit, jadi pergantian keadaan tidak menggeser apa pun yang terlihat. Batas 720 px untuk layar
+ * tinggi, supaya kerangka tidak jauh lebih tinggi dari daftar sungguhan.
+ */
+const RESULTS_MIN_H = "min-h-[min(75vh,720px)]";
+
+/**
  * `initialAddress`: `?address=` yang dibaca server (U2.5). Dengan itu render pertama, termasuk HTML dari server, sudah tahu
  * alamat yang ditampilkan dan langsung memesan ruang kerangka. Dulu alamat itu baru terbaca di efek sesudah mount, jadi
  * lukisan pertama pendek ("Connect a wallet…"), lalu kerangka dan daftar mendorong penjelasan dan footer ke bawah:
  * CLS 0,26–0,35. Efek di bawah tetap ada untuk navigasi sisi klien.
  */
 export default function CreatorDashboard({ initialAddress = null }: { initialAddress?: string | null } = {}) {
-  const { address, isConnected, isConnecting, connectWallet } = useWallet();
+  const { address, isConnecting, connectWallet } = useWallet();
   /** Alamat dari `?address=` untuk melihat creator lain, hanya-baca. */
   const [override, setOverride] = useState<string | null>(() =>
     initialAddress && ethers.isAddress(initialAddress) ? ethers.getAddress(initialAddress) : null
@@ -170,16 +178,18 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8" data-testid="creator-dashboard">
       <div className="mb-8 border-b-2 border-line pb-6">
         <div className="kicker mb-3">CREATOR</div>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Creator earnings</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-soft">
+        <h1 className="font-display text-[28px] font-light leading-[1.1] tracking-tight text-ink sm:text-[36px]">Creator earnings</h1>
+        <p className="mt-3 max-w-2xl text-[13px]/snug leading-relaxed text-ink-soft">
           Every market pays its creator a share of each swap, on chain. This page reads what your markets have earned
           straight from each curve when it loads, across every chain, and lets you claim it.
         </p>
       </div>
 
-      {/* Alamat yang ditampilkan */}
+      {/* Alamat yang ditampilkan. Tingginya tidak bergantung pada wallet (U2.5): baris status minimal 34 px (dua baris
+          teks 12 px), dan tombol Connect wallet pindah ke keadaan kosong di bawah. Dulu tombol itu hilang begitu
+          wallet yang dipulihkan tersambung, sehingga di ponsel baris ini menyusut 48 px setelah halaman tampil. */}
       <div className="mb-5 flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 text-xs">
+        <div className="flex min-h-[34px] min-w-0 items-center text-[12px]/snug">
           {target ? (
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-ink-soft">Showing</span>
@@ -187,7 +197,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                 {short(target)}
               </span>
               <span
-                className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                className={`rounded border px-1.5 py-0.5 text-[12px] font-bold ${
                   own ? "border-ok/30 bg-ok/10 text-ok" : "border-line bg-cream-3 text-ink-soft"
                 }`}
               >
@@ -207,23 +217,13 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
               )}
             </span>
           ) : (
-            <span className="text-ink-soft">Connect a wallet to see what your markets have earned.</span>
+            <span className="text-ink-soft">No address chosen yet.</span>
           )}
         </div>
-        {/* Di bawah 640 px baris ini membungkus: tombol Connect selebar kartu, lalu kolom alamat yang mengisi sisa
-            lebar di samping View. Dulu tiga kontrol berlebar tetap berjajar dan View keluar 5 px dari layar 320 px,
-            jadi halaman bisa digeser ke samping. Kontrol 40 px di bawah lg; kolomnya 16 px supaya iOS tidak zoom. */}
+        {/* Di bawah 640 px kolom alamat mengisi lebar kartu di samping View. Dulu tiga kontrol berlebar tetap berjajar
+            dan View keluar 5 px dari layar 320 px, jadi halaman bisa digeser ke samping. Kontrol 40 px di bawah lg;
+            kolomnya 16 px supaya iOS tidak zoom. */}
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
-          {!isConnected && (
-            <button
-              type="button"
-              onClick={() => connectWallet()}
-              disabled={isConnecting}
-              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-60 max-sm:w-full lg:min-h-0 lg:py-1.5"
-            >
-              <Wallet className="h-3.5 w-3.5" /> {isConnecting ? "Connecting…" : "Connect wallet"}
-            </button>
-          )}
           <label className="sr-only" htmlFor="creator-lookup">
             Look up another address
           </label>
@@ -233,27 +233,21 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
             onChange={(e) => setLookup(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && view()}
             placeholder="0x… any creator address"
-            className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-line bg-cream-2 px-2.5 font-mono text-[16px] text-ink focus:border-accent/40 focus:outline-none sm:w-56 sm:flex-none lg:min-h-0 lg:py-1.5 lg:text-[11px]"
+            className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-line bg-cream-2 px-2.5 font-mono text-[16px] text-ink focus:border-accent/40 focus:outline-none sm:w-56 sm:flex-none lg:min-h-0 lg:py-1.5 lg:text-[12px]"
           />
           <button
             type="button"
             onClick={view}
-            className="min-h-[40px] shrink-0 rounded-lg border border-line bg-cream-2 px-3.5 text-xs font-bold text-ink hover:border-accent/40 lg:min-h-0 lg:px-3 lg:py-1.5"
+            className="min-h-[40px] shrink-0 rounded-lg border border-line bg-cream-2 px-3.5 text-[12px]/snug font-bold text-ink hover:border-accent/40 lg:min-h-0 lg:px-3 lg:py-1.5"
           >
             View
           </button>
         </div>
       </div>
 
-      {error && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> <span>{error}</span>
-        </div>
-      )}
-
       {notice && (
         <div
-          className={`mb-4 flex items-start gap-2 rounded-xl border p-3 text-xs ${
+          className={`mb-4 flex items-start gap-2 rounded-xl border p-3 text-[12px]/snug ${
             notice.kind === "ok" ? "border-ok/30 bg-ok/10 text-ok" : "border-danger/30 bg-danger/10 text-danger"
           }`}
           data-testid="creator-notice"
@@ -271,13 +265,41 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
         </div>
       )}
 
-      {/* Memuat (U2.5): kerangka angka + daftar, setinggi kira-kira hasilnya dan minimal 75vh. Dulu hanya satu kotak
-          pendek, jadi saat data tiba seluruh isi di bawahnya (penjelasan, footer) turun dan desktop mencatat CLS
-          0,27–0,35. Dengan ruang yang dipesan, yang ada di bawah kerangka sudah di luar layar sebelum data datang. */}
-      {/* `!error`, bukan `loading`: render pertama (sebelum efek memanggil load) juga harus memesan ruangnya. */}
+      {/* Wilayah hasil: setiap keadaannya (belum ada alamat, memuat, galat, daftar) minimal setinggi RESULTS_MIN_H
+          (U2.5). Yang berganti hanya isi wilayah ini, jadi penjelasan dan footer di bawahnya tidak bergeser.
+          - Wallet yang dipulihkan baru diketahui sesudah halaman tampil (`eth_accounts` di efek), jadi HTML pertama
+            selalu "belum ada alamat". Dulu keadaan itu tanpa isi, dan kerangka 75vh yang menyusul mendorong penjelasan
+            dan footer: CLS 0,22–0,28 di d1024–d1440 dengan wallet tiruan.
+          - Dengan `?address=` server sudah tahu alamatnya, jadi HTML pertama langsung kerangka (CLS 0,35 → 0). */}
+      {!target && (
+        <EmptyState
+          icon={Wallet}
+          titleAs="h2"
+          className={`${RESULTS_MIN_H} justify-center`}
+          title="Connect a wallet to see what your markets have earned"
+          body="Or paste any creator address above and press View. Every number is read from the curves themselves, on each chain."
+          action={
+            <Button variant="primary" onClick={() => connectWallet()} disabled={isConnecting}>
+              <Wallet className="h-[16px] w-[16px]" aria-hidden="true" /> {isConnecting ? "Connecting…" : "Connect wallet"}
+            </Button>
+          }
+        />
+      )}
+
+      {/* Galat tanpa data menggantikan kerangka, jadi ia juga memesan tinggi wilayahnya. */}
+      {error && (
+        <div className={data ? undefined : RESULTS_MIN_H}>
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 p-3 text-[12px]/snug text-danger">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Memuat: kerangka angka + daftar, setinggi kira-kira hasilnya. `!error`, bukan `loading`: render pertama
+          (sebelum efek memanggil load) juga harus menampilkannya. */}
       {target && !data && !error && (
-        <div className="min-h-[min(75vh,720px)] space-y-3" data-testid="creator-loading" aria-busy="true">
-          <p className="flex items-center gap-2 text-xs text-ink-soft">
+        <div className={`${RESULTS_MIN_H} space-y-3`} data-testid="creator-loading" aria-busy="true">
+          <p className="flex items-center gap-2 text-[12px]/snug text-ink-soft">
             <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" aria-hidden="true" /> Reading every curve this address
             created…
           </p>
@@ -291,7 +313,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
       )}
 
       {data && (
-        <div data-testid="creator-data" data-markets={data.markets.length}>
+        <div className={RESULTS_MIN_H} data-testid="creator-data" data-markets={data.markets.length}>
           {/* Angka pendapatan memakai `ui/Stat` (U2.4). `data-testid` tetap di elemen yang memuat angkanya, karena
               skrip membaca teksnya. */}
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -337,7 +359,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                   onClick={() => claimChain(c.chainId)}
                   disabled={claiming !== null}
                   data-testid={`claim-all-${c.chainId}`}
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2 text-left text-xs font-bold text-accent hover:border-accent/60 disabled:opacity-50 lg:min-h-0"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2 text-left text-[12px]/snug font-bold text-accent hover:border-accent/60 disabled:opacity-50 lg:min-h-0"
                 >
                   {claiming === `chain:${c.chainId}` ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5" />}
                   Claim all on {c.chainName} · {c.claimableMarkets} markets · one transaction
@@ -367,7 +389,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-line">
-              <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-line bg-cream-3/[0.04] px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint md:grid">
+              <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 border-b border-line bg-cream-3/[0.04] px-3 py-2 font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-ink-faint md:grid">
                 <span>Market</span>
                 <span>Chain</span>
                 <span>Contract</span>
@@ -382,7 +404,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                   return (
                     <div
                       key={m.key}
-                      className="grid grid-cols-2 gap-x-3 gap-y-1.5 px-3 py-3 text-xs md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center"
+                      className="grid grid-cols-2 gap-x-3 gap-y-1.5 px-3 py-3 text-[12px]/snug md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center"
                       data-testid="creator-row"
                       data-symbol={m.symbol}
                       data-chain={m.chainId}
@@ -404,7 +426,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                           ) : (
                             <span className="font-bold text-ink">${m.symbol}</span>
                           )}
-                          <span className={`rounded border px-1 py-px text-[9px] font-bold uppercase ${s.cls}`} title={s.title}>
+                          <span className={`rounded border px-1 py-px text-[12px] font-bold uppercase ${s.cls}`} title={s.title}>
                             {s.label}
                           </span>
                         </div>
@@ -412,38 +434,38 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                           href={`${m.explorer}/address/${m.curve}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-h-[32px] items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-accent lg:min-h-0"
+                          className="inline-flex min-h-[32px] items-center gap-1 font-mono text-[12px] text-ink-faint hover:text-accent lg:min-h-0"
                         >
                           curve {short(m.curve)} <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       </div>
                       <div className="text-ink-soft">
-                        <span className="text-[9px] uppercase text-ink-faint md:hidden">Chain </span>
+                        <span className="text-[12px] uppercase text-ink-faint md:hidden">Chain </span>
                         {m.chainName}
                       </div>
                       <div className="text-ink-soft">
-                        <span className="text-[9px] uppercase text-ink-faint md:hidden">Contract </span>
+                        <span className="text-[12px] uppercase text-ink-faint md:hidden">Contract </span>
                         {m.version ? `v${m.version}` : "pre-0.11.0"}
                         {m.creatorFeeBps !== null && (
-                          <span className="block text-[10px] text-ink-faint">
+                          <span className="block text-[12px] text-ink-faint">
                             your share {(m.creatorFeeBps / 100).toFixed(2)}%
                             {m.totalFeeBps !== null ? ` · fee ${(m.totalFeeBps / 100).toFixed(2)}%` : ""}
                           </span>
                         )}
                       </div>
                       <div>
-                        <span className="text-[9px] uppercase text-ink-faint md:hidden">Earned </span>
+                        <span className="text-[12px] uppercase text-ink-faint md:hidden">Earned </span>
                         <span className="font-mono text-ink">{fmtNative(m.lifetime, m.nativeSymbol)}</span>
-                        <span className="block text-[10px] text-ink-faint">{fmtUsd(m.lifetimeUsd)}</span>
+                        <span className="block text-[12px] text-ink-faint">{fmtUsd(m.lifetimeUsd)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] uppercase text-ink-faint md:hidden">Claimable </span>
+                        <span className="text-[12px] uppercase text-ink-faint md:hidden">Claimable </span>
                         <span className="font-mono text-ink">{fmtNative(m.owed, m.nativeSymbol)}</span>
-                        <span className="block text-[10px] text-ink-faint">{fmtUsd(m.owedUsd)}</span>
+                        <span className="block text-[12px] text-ink-faint">{fmtUsd(m.owedUsd)}</span>
                       </div>
                       <div className="col-span-2 flex justify-end md:col-span-1 md:w-16">
                         {m.error ? (
-                          <span className="text-[10px] text-warn" title={m.error}>
+                          <span className="text-[12px] text-warn" title={m.error}>
                             not readable
                           </span>
                         ) : own && owedPositive ? (
@@ -452,13 +474,13 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
                             onClick={() => claimOne(m)}
                             disabled={claiming !== null}
                             data-testid="claim-one"
-                            className="inline-flex min-h-[40px] items-center gap-1 rounded-lg bg-accent px-3.5 text-[11px] font-bold text-white hover:bg-accent-strong disabled:opacity-50 lg:min-h-0 lg:px-2.5 lg:py-1.5"
+                            className="inline-flex min-h-[40px] items-center gap-1 rounded-lg bg-accent px-3.5 text-[12px] font-bold text-white hover:bg-accent-strong disabled:opacity-50 lg:min-h-0 lg:px-2.5 lg:py-1.5"
                           >
                             {claiming === m.key ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Coins className="h-3 w-3" />}
                             Claim
                           </button>
                         ) : (
-                          <span className="text-[10px] text-ink-faint">{owedPositive ? "" : "nothing owed"}</span>
+                          <span className="text-[12px] text-ink-faint">{owedPositive ? "" : "nothing owed"}</span>
                         )}
                       </div>
                     </div>
@@ -468,7 +490,7 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
             </div>
           )}
 
-          <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-ink-faint">
+          <div className="mt-3 flex items-center justify-between gap-2 text-[12px] text-ink-faint">
             <span>
               Read from chain at {new Date(data.readAt).toISOString().slice(11, 19)} UTC · {data.checked} curves checked
               {data.unreadable > 0 ? ` · ${data.unreadable} could not be read and are missing` : ""}
@@ -486,10 +508,10 @@ export default function CreatorDashboard({ initialAddress = null }: { initialAdd
       )}
 
       <div className="mt-8 rounded-xl border border-line bg-surface p-4">
-        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink">
+        <h2 className="mb-2 flex items-center gap-1.5 text-[13px]/snug font-semibold text-ink">
           <Info className="h-3.5 w-3.5 text-accent" /> How these numbers are read
         </h2>
-        <ul className="space-y-1.5 text-[11px] leading-relaxed text-ink-soft">
+        <ul className="space-y-1.5 text-[12px] leading-relaxed text-ink-soft">
           <li>
             Each curve is asked three things: <code className="text-accent">creator()</code>,{" "}
             <code className="text-accent">creatorOwed()</code> and <code className="text-accent">totalCreatorFeesPaid()</code>.
