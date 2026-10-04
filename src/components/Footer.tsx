@@ -8,7 +8,8 @@ import { LAUNCH_SENTENCE } from "@/lib/launch-state";
  * SETIAP halaman ponsel (WCAG 2.2 SC 2.5.8). Selebar kolom, bukan selebar teks, supaya tautan
  * pendek seperti "Swap" juga ≥ 32 px lebarnya.
  */
-const COL_LINK = "flex min-h-[40px] w-full items-center transition-colors hover:text-accent lg:inline lg:min-h-0 lg:w-auto";
+// 28 px (dulu 40 px): owner 4 Okt 15:45, jarak antar tautan di ponsel terlalu jauh. Masih ≥ 24 px (SC 2.5.8).
+const COL_LINK = "flex min-h-[28px] w-full items-center transition-colors hover:text-accent lg:inline lg:min-h-0 lg:w-auto";
 const COL_LIST = "lg:space-y-2";
 const COL_HEAD = "font-bold text-ink mb-1 uppercase tracking-wider text-xs lg:mb-3";
 
