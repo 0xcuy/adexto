@@ -21,9 +21,10 @@ type Mode = "trade" | "cross-chain";
  *                unchanged).
  *   Cross-chain  move native or a stablecoin between the five chains, routed by LI.FI.
  *
- * Under both sit Balances (what the wallet holds on all five chains) and Recent transfers (its
- * cross-chain transfers through ADEXTO, from any device). `?mode=cross-chain` opens the second
- * mode, so it can be linked; `?token=` keeps opening Trade as it always did.
+ * Next to both (beside the card from lg, under it on phones) sit Balances (what the wallet holds on
+ * all five chains) and Recent transfers (its cross-chain transfers through ADEXTO, from any device).
+ * `?mode=cross-chain` opens the second mode, so it can be linked; `?token=` keeps opening Trade as
+ * it always did.
  */
 export default function SwapHub() {
   const params = useSearchParams();
@@ -61,7 +62,7 @@ export default function SwapHub() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8">
       <div className="mb-6 flex flex-col items-center text-center">
         <p className="kicker mb-3">{mode === "trade" ? "Sovereign bonding curve" : "Five chains, one wallet"}</p>
         <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Swap</h1>
@@ -72,47 +73,51 @@ export default function SwapHub() {
         </p>
       </div>
 
-      <div className="mx-auto max-w-md">
-        <div role="tablist" aria-label="Swap mode" className="mb-4 flex rounded-xl border border-line bg-cream-2 p-1 text-sm">
-          {modes.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              role="tab"
-              id={`swap-mode-${m.id}`}
-              aria-selected={mode === m.id}
-              aria-controls={`swap-panel-${m.id}`}
-              tabIndex={mode === m.id ? 0 : -1}
-              onClick={() => setMode(m.id)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                  e.preventDefault();
-                  const other = m.id === "trade" ? "cross-chain" : "trade";
-                  setMode(other);
-                  document.getElementById(`swap-mode-${other}`)?.focus();
-                }
-              }}
-              className={`flex h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors lg:h-[34px] ${
-                mode === m.id ? "bg-surface text-ink shadow-sm" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              {m.icon}
-              {m.label}
-            </button>
-          ))}
+      {/* Phones: one column, the wallet under the swap card. From lg the wallet sits beside the card, so a wallet with
+          many chains no longer pushes the page a few screens down. */}
+      <div className="mx-auto max-w-md lg:grid lg:max-w-none lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <div className="min-w-0">
+          <div role="tablist" aria-label="Swap mode" className="mb-4 flex rounded-xl border border-line bg-cream-2 p-1 text-sm">
+            {modes.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="tab"
+                id={`swap-mode-${m.id}`}
+                aria-selected={mode === m.id}
+                aria-controls={`swap-panel-${m.id}`}
+                tabIndex={mode === m.id ? 0 : -1}
+                onClick={() => setMode(m.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    const other = m.id === "trade" ? "cross-chain" : "trade";
+                    setMode(other);
+                    document.getElementById(`swap-mode-${other}`)?.focus();
+                  }
+                }}
+                className={`flex h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors lg:h-[34px] ${
+                  mode === m.id ? "bg-surface text-ink shadow-sm" : "text-ink-soft hover:text-ink"
+                }`}
+              >
+                {m.icon}
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          <div id="swap-panel-trade" role="tabpanel" aria-labelledby="swap-mode-trade" hidden={mode !== "trade"}>
+            <SwapTerminal embedded />
+          </div>
+          <div id="swap-panel-cross-chain" role="tabpanel" aria-labelledby="swap-mode-cross-chain" hidden={mode !== "cross-chain"}>
+            {mode === "cross-chain" && <CrossChainSwap balances={balances} preset={preset} onSent={recent.add} />}
+          </div>
         </div>
 
-        <div id="swap-panel-trade" role="tabpanel" aria-labelledby="swap-mode-trade" hidden={mode !== "trade"}>
-          <SwapTerminal embedded />
-        </div>
-        <div id="swap-panel-cross-chain" role="tabpanel" aria-labelledby="swap-mode-cross-chain" hidden={mode !== "cross-chain"}>
-          {mode === "cross-chain" && <CrossChainSwap balances={balances} preset={preset} onSent={recent.add} />}
-        </div>
-
-        <div className="mt-6">
+        <aside aria-label="Wallet" className="mt-6 min-w-0 lg:mt-0" data-testid="swap-wallet">
           <BalancesPanel balances={balances} onMove={onMove} />
-        </div>
-        <RecentTransfers recent={recent} />
+          <RecentTransfers recent={recent} hold={Boolean(address) && !balances.report && !balances.error} />
+        </aside>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, History, Loader2 } from "lucide-react";
 import { chainFromId, chainMark, explorerTxUrl } from "@/lib/chains";
 import type { RecentTransfer } from "@/lib/cross-chain-client";
@@ -36,9 +37,17 @@ function TxLink({ href, children }: { href: string; children: React.ReactNode })
  * Recent transfers: the connected wallet's cross-chain transfers through ADEXTO, under Balances on
  * both Swap modes. Hidden until there is something to list.
  */
-export default function RecentTransfers({ recent }: { recent: RecentTransfersState }) {
+/** Shown before "Show all", so the list stays short next to the balances. */
+const FIRST = 3;
+
+export default function RecentTransfers({ recent, hold = false }: { recent: RecentTransfersState; hold?: boolean }) {
   const { list, historyError, announcement } = recent;
-  if (!list.length) return null;
+  const [showAll, setShowAll] = useState(false);
+  // `hold`: the balances above are still loading. The history usually answers first, and the list
+  // would then be pushed a screen down when the balances arrive. On desktop both sit in view, so that
+  // push measured as a layout shift of 0.28 at 1024 px. Waiting costs a second or two.
+  if (hold || !list.length) return null;
+  const shown = showAll ? list : list.slice(0, FIRST);
   return (
     <section className="glass-panel mt-6 rounded-card p-5" aria-labelledby="swap-recent-title" data-testid="swap-recent">
       <h2 id="swap-recent-title" className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -51,8 +60,8 @@ export default function RecentTransfers({ recent }: { recent: RecentTransfersSta
           Showing this browser&apos;s transfers only. {historyError}
         </p>
       )}
-      <ul className="mt-3 space-y-2">
-        {list.map((t) => {
+      <ul id="swap-recent-list" className="mt-3 space-y-2">
+        {shown.map((t) => {
           const { className, icon } = tone(t);
           const arrived = t.received ?? (t.expected || chainName(t.toChainId));
           return (
@@ -87,6 +96,17 @@ export default function RecentTransfers({ recent }: { recent: RecentTransfersSta
           );
         })}
       </ul>
+      {list.length > FIRST && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          aria-controls="swap-recent-list"
+          className="mt-2 flex min-h-[40px] w-full items-center justify-center rounded-xl border border-line text-xs font-semibold text-ink-soft hover:border-line-strong hover:text-ink lg:min-h-[34px]"
+        >
+          {showAll ? "Show fewer" : `Show all ${list.length}`}
+        </button>
+      )}
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
