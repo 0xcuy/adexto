@@ -271,10 +271,18 @@ export default function ExplorerPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Markets</h1>
+            {/* Di ponsel kalimat pendek yang selalu satu baris: kalimat panjang membungkus di 320 px, dan
+                pergantian dari "Reading the registry…" dulu mendorong pencarian, filter dan daftar turun
+                (CLS 0,215 di m320 produksi). */}
             <p className="mt-2 text-[14px] text-ink-soft">
-              {loading
-                ? "Reading the registry…"
-                : `${projects.length} listed · ${tradableCount} with an executable bonding curve`}
+              {loading ? (
+                "Reading the registry…"
+              ) : (
+                <>
+                  <span className="sm:hidden">{`${projects.length} listed · ${tradableCount} tradable`}</span>
+                  <span className="hidden sm:inline">{`${projects.length} listed · ${tradableCount} with an executable bonding curve`}</span>
+                </>
+              )}
             </p>
           </div>
           <div className="flex w-full items-center gap-2 md:w-auto">
@@ -309,38 +317,11 @@ export default function ExplorerPage() {
           className="-mx-4 flex min-w-0 snap-x items-center gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-1 sm:px-0 max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)] [&::-webkit-scrollbar]:hidden"
           data-filter-rail
         >
-          {/* Kelompok yang BERNAMA, alasan yang sama seperti di MarketPicker: deretan chip
-              tanpa induk diumumkan pembaca layar sebagai tombol lepas tanpa pernah menyebut
-              itu filter apa. */}
-          <div role="group" aria-label="Filter markets by category" className="flex shrink-0 items-center gap-1.5">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory(cat)}
-                aria-pressed={category === cat}
-                className={`${CHIP} ${category === cat ? CHIP_ON : CHIP_OFF}`}
-              >
-                {cat === "all" ? "All" : cat}
-              </button>
-            ))}
-          </div>
-          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line" />
-          <button
-            type="button"
-            onClick={() => setWatchOnly((v) => !v)}
-            aria-pressed={watchOnly}
-            title="Show only the markets you starred in this browser"
-            data-watch-filter
-            className={`${CHIP} gap-1.5 ${
-              watchOnly ? "border-warn/40 bg-warn/10 text-warn" : CHIP_OFF
-            }`}
-          >
-            <Star className="h-3.5 w-3.5" fill={watchOnly ? "currentColor" : "none"} />
-            Watchlist{watchlist.ready ? ` (${watchlist.keys.length})` : ""}
-          </button>
-          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line" />
-          <div role="group" aria-label="Filter markets by chain" className="flex shrink-0 items-center gap-1.5 pr-6 lg:pr-0">
+          {/* Urutan rel: chain, Watchlist, lalu kategori PALING AKHIR. Chip kategori diturunkan dari data, jadi
+              baru muncul sesudah registry terbaca; di ujung rel kemunculannya tidak menggeser chip lain. Kelompok
+              yang BERNAMA, alasan yang sama seperti di MarketPicker: deretan chip tanpa induk diumumkan pembaca
+              layar sebagai tombol lepas tanpa pernah menyebut itu filter apa. */}
+          <div role="group" aria-label="Filter markets by chain" className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => setChainFilter("all")}
@@ -364,6 +345,39 @@ export default function ExplorerPage() {
                   <img src={chainMark(c) as string} alt="" aria-hidden="true" className="h-[14px] w-[14px] shrink-0 rounded-sm object-contain" />
                 ) : null}
                 {c.key}
+              </button>
+            ))}
+          </div>
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line" />
+          <button
+            type="button"
+            onClick={() => setWatchOnly((v) => !v)}
+            aria-pressed={watchOnly}
+            title="Show only the markets you starred in this browser"
+            data-watch-filter
+            className={`${CHIP} gap-1.5 ${
+              watchOnly ? "border-warn/40 bg-warn/10 text-warn" : CHIP_OFF
+            }`}
+          >
+            <Star className="h-3.5 w-3.5" fill={watchOnly ? "currentColor" : "none"} />
+            {/* Hitungan dipesan dari awal (`invisible` sampai watchlist terbaca), supaya chip tidak melebar
+                lalu menggeser chip chain di sebelahnya. */}
+            Watchlist{" "}
+            <span className={`tabular-nums ${watchlist.ready ? "" : "invisible"}`}>
+              ({watchlist.ready ? watchlist.keys.length : 0})
+            </span>
+          </button>
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line" />
+          <div role="group" aria-label="Filter markets by category" className="flex shrink-0 items-center gap-1.5 pr-6 lg:pr-0">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                aria-pressed={category === cat}
+                className={`${CHIP} ${category === cat ? CHIP_ON : CHIP_OFF}`}
+              >
+                {cat === "all" ? "All types" : cat}
               </button>
             ))}
           </div>
