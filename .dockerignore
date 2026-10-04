@@ -1,0 +1,27 @@
+# Konteks build Docker untuk `adexto-web` (Dockerfile di akar repo).
+#
+# KENAPA BERKAS INI ADA
+#
+# Tanpa berkas ini, `COPY . .` di tahap builder ikut menyalin `node_modules` milik HOST ke atas
+# `node_modules` hasil `npm ci` dari tahap `deps`. Di VPS ada `/root/adexto/node_modules` basi
+# (1 GB, 17 Agustus 2026) yang tidak pernah disentuh rsync (dikecualikan `.rsyncignore`), jadi
+# setiap image dibangun dengan dependensi dari folder itu, bukan dari `package-lock.json`.
+# Terukur 4 Oktober 2026 sesudah deploy: lockfile meminta next 15.5.27 dan sharp 0.35.5, tetapi
+# kontainer menjalankan next 15.5.23 dan sharp 0.34.5 — versi yang terkena GHSA-2xp9-vwfh-vxw4
+# (RCE lewat AVIF di pengoptimal gambar). Pembaruan dependensi apa pun tidak pernah sampai ke
+# produksi, dan konteks 1 GB itu juga dikirim ke daemon Docker pada setiap build.
+#
+# `.env.local` SENGAJA tidak dikecualikan: `next build` membacanya, dan mengubah itu bukan bagian
+# dari perbaikan ini. Ia tidak sampai ke image akhir — tahap runner hanya menyalin `public`,
+# `.next/standalone` dan `.next/static` (diperiksa: tidak ada `.env*` di `/app`).
+**/node_modules
+.next
+.git
+.data
+data
+*.log
+test-results
+playwright-report
+cloudflare-worker/.wrangler
+devchain/cache
+devchain/artifacts
