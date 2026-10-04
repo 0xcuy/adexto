@@ -63,13 +63,17 @@
 
 # Hanya Cloudflare (dan loopback) yang boleh menyambung ke situs adexto.
 #
+# Berkas HIDUP sudah memuat penjaga ini sejak 4 Oktober 2026 (dipasang saat banjir di /swap,
+# lihat `adexto_flood_guard` di bawah); blok ini menyalinnya apa adanya supaya repo dan server
+# tidak berbeda lagi. Nama snippet dan `abort` mengikuti berkas hidup.
+#
 # KENAPA INI PENTING
 #
 # Origin melayani permintaan langsung di IP publiknya, dan IP itu tidak rahasia (ada di repo ini
 # sendiri). Permintaan yang datang langsung tidak melewati WAF, aturan rate limit, maupun
 # perlindungan DDoS Cloudflare — jadi semua itu hanya berlaku bagi penyerang yang SOPAN. Dengan
 # matcher ini, origin hanya menjawab peer dari rentang Cloudflare; penyerang yang menembak IP
-# langsung mendapat 403 dan koneksinya ditutup sebelum menyentuh aplikasi.
+# langsung diputus (`abort`) sebelum menyentuh aplikasi.
 #
 # Ini juga menutup sisa jalur pemalsuan IP: `clientIp()` mempercayai `cf-connecting-ip` hanya
 # kalau peer-nya Cloudflare, dan sekarang peer selain Cloudflare tidak pernah sampai ke aplikasi.
@@ -77,16 +81,31 @@
 # DAFTARNYA HARUS SAMA dengan `src/lib/cloudflare-ips.ts` (diambil 24 September 2026, etag
 # 38f79d050aa027e3be3865e495dcc9bc). Segarkan keduanya bersamaan dari
 # https://api.cloudflare.com/client/v4/ips. Rentang yang hilang dari sini berarti pengunjung
-# yang dilayani PoP itu mendapat 403 — periksa daftar ini sebelum menyalahkan aplikasi.
+# yang dilayani PoP itu diputus — periksa daftar ini sebelum menyalahkan aplikasi.
 #
 # Loopback diizinkan supaya alat di VPS sendiri (curl --resolve ke 127.0.0.1) tetap bekerja.
 # Untuk perlindungan yang lebih kuat lagi, aktifkan Authenticated Origin Pulls di Cloudflare
 # (mTLS dari edge ke origin); matcher ini tetap berguna sebagai lapisan pertama.
-(cloudflare_only) {
-    @not_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32 127.0.0.0/8 ::1/128
-    respond @not_cloudflare 403 {
-        close
+(adexto_cf_only) {
+    @not_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32 127.0.0.0/8 ::1
+    abort @not_cloudflare
+}
+
+# Banjir 4 Oktober 2026: ~30.000 permintaan dalam 30 menit ke /swap, hampir semuanya dengan UA
+# "Chrome/127.0.0.0" (Chrome terkini ~149) dan sebagian dengan cache-buster acak `cb=`. Dijawab di
+# sini dalam mikrodetik alih-alih merender halaman. Jalur API dibiarkan, supaya agen dan integrasi
+# tetap bekerja. Disalin dari berkas hidup; Cloudflare juga menantang UA yang sama di edge.
+(adexto_flood_guard) {
+    @flood_ua {
+        not path /api/*
+        header User-Agent *Chrome/127.0.0.0*
     }
+    respond @flood_ua "Too many requests" 429
+    @flood_cachebuster {
+        path /swap /swap/*
+        query cb=*
+    }
+    respond @flood_cachebuster "Too many requests" 429
 }
 
 # Batas ukuran badan permintaan di proxy, sebelum menyentuh Node.
@@ -101,7 +120,8 @@
 }
 
 adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.xyz, aegis.adexto.xyz, qnova.adexto.xyz, csent.adexto.xyz {
-    import cloudflare_only
+    import adexto_cf_only
+    import adexto_flood_guard
     import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
@@ -157,7 +177,8 @@ compute.adexto.xyz {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
-    import cloudflare_only
+    import adexto_cf_only
+    import adexto_flood_guard
     import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
@@ -182,7 +203,8 @@ compute.adexto.xyz {
 # terpakai. Dipertahankan supaya permintaan HTTP langsung ke IP tidak menggantung — dan sekarang
 # permintaan langsung itu dijawab 403 oleh `cloudflare_only` alih-alih diteruskan ke aplikasi.
 :80 {
-    import cloudflare_only
+    import adexto_cf_only
+    import adexto_flood_guard
     import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
