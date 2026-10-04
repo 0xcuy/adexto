@@ -1,26 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Compass,
-  ArrowDownUp,
-  Rocket,
-  Cpu,
-  LayoutGrid,
-  CloudLightning,
-  BookOpen,
-  ShieldCheck,
-  FileText,
-  Plug,
-  Bot,
-  Trophy,
-  Twitter,
-  Github,
-  ArrowUpRight,
-} from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { MOBILE_TABS, MORE_GROUPS, SOCIAL_LINKS, isNavActive } from "@/config/nav";
 
 /**
  * Navigasi bawah untuk ponsel (di bawah `lg`).
@@ -30,34 +15,17 @@ import ThemeToggle from "@/components/ThemeToggle";
  * utama di sini selalu terlihat dan berada tepat di bawah jempol. Tujuan sisanya masuk ke
  * lembar "More", bersama tautan sosial dan pilihan tema.
  *
- * Urutannya mengikuti navbar desktop: Markets dan Swap untuk orang yang datang berdagang,
- * Launch di tengah sebagai langkah utama situs, lalu Compute.
+ * Isi tab dan lembar More datang dari `src/config/nav.ts` (U1.3, 4 Okt), satu sumber dengan mega menu
+ * desktop dan footer. Lembar More dikelompokkan sama dengan panel desktop: Markets, Launch, Build,
+ * Verify. Setiap baris 48 px, dan lembarnya digulir di dalam dirinya sendiri bila layar pendek.
  *
  * Murni navigasi: tidak membaca dompet, chain, atau data pasar apa pun.
  */
-
-const TABS = [
-  { href: "/explorer", label: "Markets", icon: Compass, match: ["/explorer", "/token"] },
-  { href: "/swap", label: "Swap", icon: ArrowDownUp, match: ["/swap"] },
-  { href: "/studio", label: "Launch", icon: Rocket, match: ["/studio"], primary: true },
-  { href: "/agent-compute", label: "Compute", icon: Cpu, match: ["/agent-compute"] },
-];
-
-const MORE_LINKS = [
-  // Plan 2: paling atas di daftar More (posisi dipatok di .kiro/plans/README.md §3).
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { href: "/agent/demo", label: "Agent demo", icon: CloudLightning },
-  { href: "/docs", label: "Docs", icon: BookOpen },
-  { href: "/x402", label: "x402 API", icon: Plug },
-  // Plan 1: direktori agen, tepat sesudah "x402 API" (posisi dipatok di .kiro/plans/README.md §3).
-  { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/security", label: "Security", icon: ShieldCheck },
-  { href: "/whitepaper", label: "Whitepaper", icon: FileText },
-];
-
 export default function MobileTabBar() {
   const pathname = usePathname() ?? "/";
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
 
   // Lembar ditutup setiap kali rute berubah, supaya tidak tertinggal menutupi halaman baru.
   useEffect(() => {
@@ -66,15 +34,18 @@ export default function MobileTabBar() {
 
   useEffect(() => {
     if (!moreOpen) return;
+    // Fokus masuk ke lembar saat dibuka (tautan pertama), dan kembali ke tombol More saat Esc.
+    sheet.current?.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMoreOpen(false);
+      if (e.key !== "Escape") return;
+      setMoreOpen(false);
+      moreButton.current?.focus();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [moreOpen]);
 
-  const isActive = (match: string[]) => match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
-  const moreActive = MORE_LINKS.some((l) => pathname === l.href || pathname.startsWith(`${l.href}/`));
+  const moreActive = MORE_GROUPS.some((g) => g.items.some((i) => isNavActive(pathname, i)));
 
   return (
     <>
@@ -89,6 +60,7 @@ export default function MobileTabBar() {
 
       {/* Lembar "More" — naik dari balik tab bar. */}
       <div
+        ref={sheet}
         id="mobile-more-sheet"
         role="dialog"
         aria-label="More"
@@ -104,49 +76,62 @@ export default function MobileTabBar() {
         }}
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-10 rounded-full bg-line-strong" />
-        <nav aria-label="More pages" className="space-y-0.5">
-          {MORE_LINKS.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(`${href}/`);
-            return (
-              <Link
-                key={href}
-                href={href}
-                tabIndex={moreOpen ? 0 : -1}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-panel px-3 py-3 text-[14px] font-medium transition-colors ${
-                  active ? "bg-accent-soft text-accent" : "text-ink hover:bg-cream-3"
-                }`}
+        <nav aria-label="More pages" className="space-y-2">
+          {MORE_GROUPS.map((group) => (
+            <div key={group.key} role="group" aria-labelledby={`more-group-${group.key}`}>
+              <p
+                id={`more-group-${group.key}`}
+                className="px-3 pb-0.5 pt-1 text-[12px] font-semibold uppercase tracking-wider text-ink-faint"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                  <Icon className="h-4 w-4" />
-                </span>
-                {label}
-              </Link>
-            );
-          })}
+                {group.label}
+              </p>
+              <ul>
+                {group.items.map((item) => {
+                  const active = isNavActive(pathname, item);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        tabIndex={moreOpen ? 0 : -1}
+                        aria-current={active ? "page" : undefined}
+                        // Tautan #anchor di rute yang sama tidak mengganti pathname, jadi tutup di sini juga.
+                        onClick={() => setMoreOpen(false)}
+                        className={`flex min-h-[48px] items-center gap-3 rounded-panel px-3 text-[14px] font-medium transition-colors ${
+                          active ? "bg-accent-soft text-accent" : "text-ink hover:bg-cream-3"
+                        }`}
+                      >
+                        <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                          <Icon className="h-[16px] w-[16px]" aria-hidden="true" />
+                        </span>
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
         <div className="mt-2 border-t border-line pt-2">
           {moreOpen && <ThemeToggle variant="row" />}
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-3">
-          <a
-            href="https://x.com/adexto_"
-            target="_blank"
-            rel="noopener noreferrer"
-            tabIndex={moreOpen ? 0 : -1}
-            className="flex items-center justify-center gap-2 rounded-panel bg-cream-3 py-2.5 text-[12px] font-medium text-ink-soft hover:text-ink"
-          >
-            <Twitter className="h-4 w-4" /> @adexto_ <ArrowUpRight className="h-3 w-3" />
-          </a>
-          <a
-            href="https://github.com/0xcuy/adexto"
-            target="_blank"
-            rel="noopener noreferrer"
-            tabIndex={moreOpen ? 0 : -1}
-            className="flex items-center justify-center gap-2 rounded-panel bg-cream-3 py-2.5 text-[12px] font-medium text-ink-soft hover:text-ink"
-          >
-            <Github className="h-4 w-4" /> GitHub <ArrowUpRight className="h-3 w-3" />
-          </a>
+        <div className="mt-2 grid grid-cols-3 gap-2 border-t border-line pt-3">
+          {SOCIAL_LINKS.map(({ href, label, name, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              tabIndex={moreOpen ? 0 : -1}
+              title={name}
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-panel bg-cream-3 text-[12px] font-medium text-ink-soft hover:text-ink"
+            >
+              <Icon className="h-[16px] w-[16px] shrink-0" aria-hidden="true" />
+              <span>{label}</span>
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ))}
         </div>
       </div>
 
@@ -156,8 +141,8 @@ export default function MobileTabBar() {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="mx-auto grid h-[var(--tabbar-h)] max-w-lg grid-cols-5">
-          {TABS.map(({ href, label, icon: Icon, match, primary }) => {
-            const active = isActive(match);
+          {MOBILE_TABS.map(({ href, label, icon: Icon, match, primary }) => {
+            const active = isNavActive(pathname, { href, match });
             return (
               <li key={href} className="flex">
                 <Link
@@ -183,6 +168,7 @@ export default function MobileTabBar() {
           })}
           <li className="flex">
             <button
+              ref={moreButton}
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
               aria-expanded={moreOpen}
