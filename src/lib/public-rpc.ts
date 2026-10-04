@@ -42,7 +42,12 @@ export interface PublicRpcChain {
 
 /** Segmen jalur → chain. Hanya chain yang memang tidak terjangkau dari sebagian jaringan pengunjung. */
 const PUBLIC_RPC_CHAINS: Record<string, PublicRpcChain> = {
-  robinhood: { chainId: 4663, upstreams: ["https://rpc.mainnet.chain.robinhood.com"] },
+  // drpc dulu: dari VPS 0,05–0,07 dtk per `eth_call`, endpoint resmi 1,5–1,9 dtk (terukur 5 Okt
+  // 05:4x, lihat `SERVER_READ_RPC` di chains.ts). Endpoint resmi tetap cadangan bila drpc gagal.
+  robinhood: {
+    chainId: 4663,
+    upstreams: ["https://robinhood.drpc.org", "https://rpc.mainnet.chain.robinhood.com"],
+  },
 };
 
 /**
@@ -238,9 +243,12 @@ async function callUpstream(chain: PublicRpcChain, method: string, params: Param
         return { kind: "result", result: json.result };
       }
       if (json?.error && typeof json.error === "object") {
+        const e = json.error;
+        // Galat PENYEDIA (batas laju, kuota, timeout) bukan jawaban chain: coba upstream berikutnya.
+        const msg = typeof e.message === "string" ? e.message : "";
+        if (!/revert/i.test(msg) && /rate|limit|too many|quota|timeout|unavailable|capacity/i.test(msg)) continue;
         // Galat chain (mis. "execution reverted" beserta data revert-nya) diteruskan: ethers butuh
         // data itu untuk menjelaskan revert. Bentuknya dibatasi, isinya tidak diubah.
-        const e = json.error;
         const error: { code: number; message: string; data?: string } = {
           code: typeof e.code === "number" ? e.code : -32603,
           message: typeof e.message === "string" ? e.message.slice(0, 500) : "upstream error",

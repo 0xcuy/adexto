@@ -557,10 +557,34 @@ export function toHexChainId(chainId: number): string {
  * Endpoint itu menolak batch, jadi provider yang memakai URL ini wajib `batchMaxCount: 1`
  * (`readProvider` sudah begitu).
  */
-export function rpcUrlFor(chain: Pick<ChainInfo, "rpcUrl" | "browserRpcPath">): string {
-  if (typeof window !== "undefined" && chain.browserRpcPath) return `${window.location.origin}${chain.browserRpcPath}`;
-  return chain.rpcUrl;
+export function rpcUrlFor(chain: Pick<ChainInfo, "key" | "rpcUrl" | "browserRpcPath">): string {
+  if (typeof window !== "undefined") {
+    return chain.browserRpcPath ? `${window.location.origin}${chain.browserRpcPath}` : chain.rpcUrl;
+  }
+  return SERVER_READ_RPC[chain.key] ?? chain.rpcUrl;
 }
+
+/**
+ * Endpoint `eth_call` sisi SERVER yang berbeda dari `rpcUrl`, per chain.
+ *
+ * Robinhood: `rpc.mainnet.chain.robinhood.com` lambat DARI VPS, bukan dari mana-mana. Terukur
+ * 5 Okt 2026 05:4x, `eth_call getReserves()` kurva SAI, lima kali berturut-turut:
+ *
+ *   dari VPS  rpc.mainnet.chain.robinhood.com   1,47–1,95 dtk   (TLS 0,06 dtk; sisanya server)
+ *   dari PC   rpc.mainnet.chain.robinhood.com   0,29–0,36 dtk
+ *   dari VPS  robinhood.drpc.org                0,05–0,07 dtk   5/5
+ *   dari VPS  robinhood-rpc.publicnode.com      0,22–0,24 dtk   5/5
+ *
+ * Akibatnya `/api/pool?chainId=4663` (tangga depth, fee) 5,5–6,8 dtk per permintaan, sementara
+ * pasar Arbitrum yang sama 0,08 dtk. Endpoint resmi kemungkinan memperlambat IP VPS karena semua
+ * baca pengunjung kini lewat IP itu (`/api/public-rpc/robinhood`).
+ *
+ * HANYA untuk `eth_call` dan sejenisnya. Baca LOG tetap ke `rpcUrl` (lihat `logReadProvider`):
+ * drpc menolak `eth_getLogs` di atas 10.000 blok dan publicnode menolaknya sebagai permintaan arsip.
+ */
+const SERVER_READ_RPC: Partial<Record<ChainKey, string>> = {
+  Robinhood: "https://robinhood.drpc.org",
+};
 
 export function readProvider(chain: ChainInfo): JsonRpcProvider {
   return new JsonRpcProvider(rpcUrlFor(chain), chain.chainId, {
@@ -615,7 +639,8 @@ const LOG_READ_RPC: Partial<Record<ChainKey, string>> = {
  * baca-cepatnya tidak melayani log — lihat `LOG_READ_RPC`.
  */
 export function logReadProvider(chain: ChainInfo): JsonRpcProvider {
-  const url = LOG_READ_RPC[chain.key] ?? rpcUrlFor(chain);
+  // Di server log dibaca dari `rpcUrl`, BUKAN `SERVER_READ_RPC` (rentang log-nya lebih sempit).
+  const url = LOG_READ_RPC[chain.key] ?? (typeof window !== "undefined" ? rpcUrlFor(chain) : chain.rpcUrl);
   return new JsonRpcProvider(url, chain.chainId, {
     staticNetwork: true,
     batchMaxCount: 1,
