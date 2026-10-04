@@ -217,10 +217,11 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
               <h2 id={titleId} className="text-base font-semibold text-ink">
                 Select a market
               </h2>
+              {/* 40 px di bawah lg (dulu 21 px dan rapat dengan judul: ERROR tap<24 di 320–412 px), ikon tetap 16 px. */}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-1 text-ink-faint transition-colors hover:bg-cream-2 hover:text-ink"
+                className="-mr-2 inline-flex h-[40px] w-[40px] items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-cream-2 hover:text-ink lg:mr-0 lg:h-auto lg:w-auto lg:p-1"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -252,7 +253,8 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                   type="button"
                   onClick={() => onChainFilter("all")}
                   aria-pressed={chainFilter === "all"}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  // Chip 36 px di bawah lg (dulu 27 px); ukuran lama di desktop.
+                  className={`inline-flex min-h-[36px] items-center rounded-full border px-3 text-xs font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
                     chainFilter === "all"
                       ? "border-accent/40 bg-accent-soft text-accent"
                       : "border-line bg-cream-2 text-ink-soft hover:text-ink"
@@ -269,7 +271,7 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
                       onClick={() => onChainFilter(String(c.chainId))}
                       aria-pressed={active}
                       title={c.label}
-                      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                      className={`flex min-h-[36px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition-colors lg:min-h-0 lg:py-1.5 ${
                         active
                           ? "border-accent/40 bg-accent-soft text-accent"
                           : "border-line bg-cream-2 text-ink-soft hover:text-ink"
@@ -286,14 +288,16 @@ export default function MarketPicker({ markets, selectedKey, onSelect, chainFilt
             </div>
 
             <div className="px-5 pb-3 pt-3">
-              <div className="flex items-center gap-2 rounded-xl border border-line bg-cream-2 px-3 py-2 focus-within:border-accent/40">
+              {/* Kolom cari: input setinggi kotaknya (40 px) di bawah lg, huruf 16 px supaya iOS tidak memperbesar
+                  halaman. Dulu input-nya 18 px di dalam kotak 35 px. */}
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-cream-2 px-3 focus-within:border-accent/40 lg:py-2">
                 <Search className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
                 <input
                   ref={searchRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search name or paste address"
-                  className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                  className="h-[40px] w-full bg-transparent text-[16px] text-ink placeholder:text-ink-faint focus:outline-none lg:h-auto lg:text-sm"
                 />
               </div>
             </div>

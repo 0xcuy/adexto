@@ -624,7 +624,11 @@ export default function CrossChainSwap({
             <span className="flex items-center gap-2">
               <span data-numeric>{heldRaw == null ? (balances.loading ? "…" : "—") : `${formatUnitsShort(heldRaw, fromAsset.decimals)} ${fromAsset.symbol}`}</span>
               {heldRaw != null && heldRaw > 0n && (
-                <button type="button" onClick={setMax} className="rounded-md border border-accent/30 bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">
+                <button
+                  type="button"
+                  onClick={setMax}
+                  className="inline-flex min-h-[32px] min-w-[40px] items-center justify-center rounded-md border border-accent/30 bg-accent-soft px-2 text-[11px] font-semibold text-accent lg:min-h-0 lg:min-w-0 lg:py-0.5"
+                >
                   Max
                 </button>
               )}

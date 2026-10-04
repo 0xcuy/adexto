@@ -10,6 +10,8 @@ import { claimCreatorFees, claimCreatorFeesBatch, describeTxError } from "@/lib/
 import { explorerTxUrl, resolveChain } from "@/lib/chains";
 import { formatSmallNumber } from "@/lib/pricing";
 import Stat from "@/components/ui/Stat";
+import Skeleton from "@/components/ui/Skeleton";
+import EmptyState from "@/components/ui/EmptyState";
 import type { CreatorEarnings, CreatorMarket } from "@/lib/creator-earnings";
 
 /**
@@ -51,10 +53,18 @@ function fmtNative(v: number | null, symbol: string): string {
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-export default function CreatorDashboard() {
+/**
+ * `initialAddress`: `?address=` yang dibaca server (U2.5). Dengan itu render pertama, termasuk HTML dari server, sudah tahu
+ * alamat yang ditampilkan dan langsung memesan ruang kerangka. Dulu alamat itu baru terbaca di efek sesudah mount, jadi
+ * lukisan pertama pendek ("Connect a wallet…"), lalu kerangka dan daftar mendorong penjelasan dan footer ke bawah:
+ * CLS 0,26–0,35. Efek di bawah tetap ada untuk navigasi sisi klien.
+ */
+export default function CreatorDashboard({ initialAddress = null }: { initialAddress?: string | null } = {}) {
   const { address, isConnected, isConnecting, connectWallet } = useWallet();
   /** Alamat dari `?address=` untuk melihat creator lain, hanya-baca. */
-  const [override, setOverride] = useState<string | null>(null);
+  const [override, setOverride] = useState<string | null>(() =>
+    initialAddress && ethers.isAddress(initialAddress) ? ethers.getAddress(initialAddress) : null
+  );
   const [lookup, setLookup] = useState("");
   const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(false);
@@ -261,9 +271,22 @@ export default function CreatorDashboard() {
         </div>
       )}
 
-      {target && loading && !data && (
-        <div className="flex items-center gap-2 rounded-xl border border-line bg-surface p-6 text-xs text-ink-soft" data-testid="creator-loading">
-          <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" /> Reading every curve this address created…
+      {/* Memuat (U2.5): kerangka angka + daftar, setinggi kira-kira hasilnya dan minimal 75vh. Dulu hanya satu kotak
+          pendek, jadi saat data tiba seluruh isi di bawahnya (penjelasan, footer) turun dan desktop mencatat CLS
+          0,27–0,35. Dengan ruang yang dipesan, yang ada di bawah kerangka sudah di luar layar sebelum data datang. */}
+      {/* `!error`, bukan `loading`: render pertama (sebelum efek memanggil load) juga harus memesan ruangnya. */}
+      {target && !data && !error && (
+        <div className="min-h-[min(75vh,720px)] space-y-3" data-testid="creator-loading" aria-busy="true">
+          <p className="flex items-center gap-2 text-xs text-ink-soft">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" aria-hidden="true" /> Reading every curve this address
+            created…
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} shape="rect" className="h-[112px] w-full" />
+            ))}
+          </div>
+          <Skeleton shape="rect" className="h-[320px] w-full" />
         </div>
       )}
 
@@ -324,12 +347,21 @@ export default function CreatorDashboard() {
           )}
 
           {data.markets.length === 0 ? (
-            <div className="rounded-xl border border-line bg-surface p-6 text-center text-sm text-ink-soft" data-testid="creator-empty">
-              No curve on any chain names this address as its creator.{" "}
-              <Link href="/studio?mode=express" className="font-semibold text-accent hover:underline">
-                Launch a market
-              </Link>{" "}
-              and its fees start here.
+            <div data-testid="creator-empty">
+              <EmptyState
+                compact
+                icon={Coins}
+                title="No markets yet"
+                body={
+                  <>
+                    No curve on any chain names this address as its creator.{" "}
+                    <Link href="/studio?mode=express" className="font-semibold text-accent hover:underline">
+                      Launch a market
+                    </Link>{" "}
+                    and its fees start here.
+                  </>
+                }
+              />
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-line">
@@ -359,11 +391,11 @@ export default function CreatorDashboard() {
                       <div className="col-span-2 min-w-0 md:col-span-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {m.slug && m.status === "listed" ? (
-                            // 32 px di bawah md, sama dengan tautan kurva tepat di bawahnya: dulu 14 px dan rapat dengannya
-                            // (ERROR tap<24 di 320–412 px saat ada data).
+                            // 32 px di bawah lg (tablet sentuh juga), sama dengan tautan kurva tepat di bawahnya: dulu 14 px
+                            // dan rapat dengannya (ERROR tap<24 di 320–412 px saat ada data).
                             <Link
                               href={`/token/${m.slug}?chain=${m.chainId}`}
-                              className="inline-flex min-h-[32px] items-center font-bold text-ink hover:text-accent md:min-h-0"
+                              className="inline-flex min-h-[32px] min-w-[32px] items-center font-bold text-ink hover:text-accent lg:min-h-0 lg:min-w-0"
                             >
                               ${m.symbol}
                             </Link>
@@ -378,7 +410,7 @@ export default function CreatorDashboard() {
                           href={`${m.explorer}/address/${m.curve}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-h-[32px] items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-accent md:min-h-0"
+                          className="inline-flex min-h-[32px] items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-accent lg:min-h-0"
                         >
                           curve {short(m.curve)} <ExternalLink className="h-2.5 w-2.5" />
                         </a>

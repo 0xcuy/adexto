@@ -47,7 +47,12 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
             {report && !report.pricesLive ? ", some prices are not live" : ""}.
           </p>
         </div>
-        <button type="button" onClick={() => void refresh()} aria-label="Refresh balances" className="rounded-lg p-2 text-ink-faint hover:bg-cream-2 hover:text-ink">
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          aria-label="Refresh balances"
+          className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-cream-2 hover:text-ink lg:h-auto lg:w-auto lg:p-2"
+        >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
         </button>
       </div>
@@ -55,6 +60,9 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
       {error && <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 p-3 text-[12px] text-danger">{error}</p>}
       {report && chains.length === 0 && <p className="mt-3 text-[12px] text-ink-soft">Nothing on these five chains yet.</p>}
 
+      {/* Baris aset boleh membungkus (U2.5): di 320 px jumlah, nilai USD dan tombol Move/Trade/Claim tidak muat satu
+          baris, dan jumlahnya dulu dipotong sampai 4–5 angka. Sekarang nilai + tombol turun ke baris kedua, rata
+          kanan, dan tombolnya 32 px di bawah lg (dulu 23 px dan rapat antar baris: ERROR tap<24). */}
       <div className="mt-4 space-y-3">
         {chains.map((c) => {
           const info = chainFromId(c.chainId);
@@ -82,7 +90,7 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                     .map((a) => {
                       const logo = a.kind === "native" ? nativeAssetLogo(a.symbol) : null;
                       return (
-                        <li key={a.address} className="flex items-center justify-between gap-2 py-1.5">
+                        <li key={a.address} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1.5">
                           <span className="flex min-w-0 items-center gap-2 text-ink">
                             {logo ? <img src={logo} alt="" aria-hidden="true" className="h-4 w-4 rounded-full object-contain" /> : <span aria-hidden="true" className="h-4 w-4 rounded-full border border-line bg-cream-3" />}
                             <span className="font-medium">{a.symbol}</span>
@@ -90,12 +98,12 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                               {formatTokenAmount(a.amount)}
                             </span>
                           </span>
-                          <span className="flex shrink-0 items-center gap-2">
+                          <span className="ml-auto flex shrink-0 items-center gap-2">
                             <span className="text-ink-soft" data-numeric>
                               {a.usd == null ? "—" : formatUsd(a.usd)}
                             </span>
                             {onMove && (
-                              <button type="button" onClick={() => onMove(c.chainId)} className="rounded-md border border-line px-2 py-0.5 text-[11px] font-semibold text-accent hover:border-accent/40">
+                              <button type="button" onClick={() => onMove(c.chainId)} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                                 Move
                               </button>
                             )}
@@ -104,38 +112,38 @@ export default function BalancesPanel({ balances, onMove }: { balances: SwapBala
                       );
                     })}
                   {c.positions.map((p) => (
-                    <li key={p.symbol} className="flex items-center justify-between gap-2 py-1.5">
+                    <li key={p.symbol} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1.5">
                       <span className="flex min-w-0 items-center gap-2 text-ink">
                         <img src={p.image || "/logo.svg"} alt="" aria-hidden="true" className="h-4 w-4 rounded-full object-cover" />
                         <span className="font-medium">${p.symbol}</span>
-                        <span className="truncate text-ink-soft" data-numeric>
+                        <span className="min-w-0 text-ink-soft" data-numeric>
                           {formatTokenAmount(p.held + p.staked)}
                           {p.staked > 0 ? ` (${formatTokenAmount(p.staked)} staked)` : ""}
                         </span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2">
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
                         <span className="text-ink-soft" data-numeric title="What selling to the curve would return now, after fees">
                           {p.valueUsd == null ? "—" : formatUsd(p.valueUsd)}
                         </span>
-                        <Link href={`/swap?token=${encodeURIComponent(p.symbol)}&chain=${c.chainId}`} className="rounded-md border border-line px-2 py-0.5 text-[11px] font-semibold text-accent hover:border-accent/40">
+                        <Link href={`/swap?token=${encodeURIComponent(p.symbol)}&chain=${c.chainId}`} className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                           Trade
                         </Link>
                       </span>
                     </li>
                   ))}
                   {c.creatorFees.map((f) => (
-                    <li key={`fee-${f.symbol}`} className="flex items-center justify-between gap-2 py-1.5">
+                    <li key={`fee-${f.symbol}`} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1.5">
                       <span className="text-ink">
                         Creator fees on ${f.symbol}{" "}
                         <span className="text-ink-soft" data-numeric>
                           {formatTokenAmount(f.amountNative)} {c.nativeSymbol}
                         </span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2">
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
                         <span className="text-ink-soft" data-numeric>
                           {f.usd == null ? "—" : formatUsd(f.usd)}
                         </span>
-                        <Link href="/creator" className="rounded-md border border-line px-2 py-0.5 text-[11px] font-semibold text-accent hover:border-accent/40">
+                        <Link href="/creator" className="inline-flex min-h-[32px] items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-accent hover:border-accent/40 lg:min-h-0 lg:px-2 lg:py-0.5">
                           Claim
                         </Link>
                       </span>

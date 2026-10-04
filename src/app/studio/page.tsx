@@ -1911,8 +1911,8 @@ export default function StudioPage() {
           </div>
           <div className="bg-surface px-3 py-2">
             <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Market agent</dt>
-            {/* Dua baris di bawah 640 px (dulu satu baris terpotong ±48 huruf), satu baris mulai 640 px. */}
-            <dd className="mt-0.5 font-medium text-ink max-sm:line-clamp-2 sm:truncate" title={agentPersona}>
+            {/* Dua baris di bawah lg (dulu satu baris terpotong ±48 huruf di ponsel dan tablet), satu baris di desktop. */}
+            <dd className="mt-0.5 font-medium text-ink max-lg:line-clamp-2 lg:truncate" title={agentPersona}>
               {agentPersona || "none"}
             </dd>
           </div>
