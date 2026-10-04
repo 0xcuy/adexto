@@ -21,7 +21,8 @@ import {
   type SwapChainId,
 } from "@/config/swap-assets";
 
-const LIFI_API = "https://li.quest/v1";
+/** Paths passed to `lifi()` carry their API version ("/v1/…", "/v2/…"). */
+const LIFI_HOST = "https://li.quest";
 /** Shown in LI.FI's own analytics. No integrator fee is configured, so it moves no money. */
 const INTEGRATOR = "adexto";
 const TIMEOUT_MS = 15_000;
@@ -48,7 +49,7 @@ async function lifi<T>(path: string, init: { method?: "GET" | "POST"; body?: unk
   if (key) headers["x-lifi-api-key"] = key;
   let res: Response;
   try {
-    res = await fetch(`${LIFI_API}${path}`, {
+    res = await fetch(`${LIFI_HOST}${path}`, {
       method: init.method ?? "GET",
       headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
@@ -230,7 +231,7 @@ export async function findRoutes(request: RouteRequest): Promise<{ routes: SwapR
       ...(request.denyBridges.length ? { bridges: { deny: request.denyBridges } } : {}),
     },
   };
-  const json = await lifi<any>("/advanced/routes", { method: "POST", body });
+  const json = await lifi<any>("/v1/advanced/routes", { method: "POST", body });
   const raw: any[] = Array.isArray(json?.routes) ? json.routes : [];
   const routes: SwapRouteSummary[] = [];
   for (const r of raw) {
@@ -280,7 +281,7 @@ export async function prepareTransfer(routeId: string, address: string): Promise
     throw new SwapRouteError("This quote was made for a different wallet. Refresh the routes.", 409);
   }
   const step = cached.route.steps[0];
-  const result = await lifi<any>("/advanced/stepTransaction", { method: "POST", body: step });
+  const result = await lifi<any>("/v1/advanced/stepTransaction", { method: "POST", body: step });
   const tx = result?.transactionRequest;
   const reject = (why: string) => {
     throw new SwapRouteError(`The route returned a transaction that does not match the quote (${why}). Nothing was sent.`, 502);
@@ -353,28 +354,179 @@ export interface TransferStatus {
   explorerUrl: string | null;
 }
 
+const TRANSFER_STATES = ["PENDING", "DONE", "FAILED", "NOT_FOUND", "INVALID"] as const;
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+
+const NOT_SEEN_YET: TransferStatus = {
+  status: "NOT_FOUND",
+  substatus: null,
+  message: "The bridge has not picked this transaction up yet.",
+  receiving: null,
+  explorerUrl: null,
+};
+
+export interface TransferAmount {
+  /** Base units, decimal string. */
+  amount: string;
+  symbol: string;
+  decimals: number;
+  usd: number | null;
+}
+
+/** ASCII only and short, so a symbol taken from LI.FI's token list cannot imitate "USDC" or "ETH". */
+const SAFE_SYMBOL = /^[A-Za-z0-9.$_-]{1,12}$/;
+
+/**
+ * One side of a transfer as LI.FI reports it. Symbol and decimals come from our own allowlist when
+ * the token is one of ours; LI.FI's metadata is only the fallback (a bridge can deliver a different
+ * token than asked, LI.FI's "PARTIAL"). Unknown decimals drop the amount rather than guess it.
+ */
+function transferAmount(side: any, chainId: number): TransferAmount | null {
+  const amount = String(side?.amount ?? "");
+  if (!/^[0-9]{1,60}$/.test(amount)) return null;
+  const known = findSwapAsset(chainId, side?.token?.address);
+  const decimals = known?.decimals ?? Number(side?.token?.decimals);
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) return null;
+  const listed = String(side?.token?.symbol ?? "");
+  const usd = Number(side?.amountUSD);
+  return {
+    amount,
+    symbol: known?.symbol ?? (SAFE_SYMBOL.test(listed) ? listed : "token"),
+    decimals,
+    usd: side?.amountUSD != null && Number.isFinite(usd) ? usd : null,
+  };
+}
+
+/** LI.FI's own transfer explorer is the only link this file passes on from LI.FI's answers. */
+function lifiExplorerLink(v: unknown): string | null {
+  return typeof v === "string" && v.length < 300 && v.startsWith("https://scan.li.fi/") ? v : null;
+}
+
 export async function readTransferStatus(params: { txHash: string; fromChainId: number; toChainId: number; bridge: string | null }): Promise<TransferStatus> {
   const q = new URLSearchParams({ txHash: params.txHash, fromChain: String(params.fromChainId), toChain: String(params.toChainId) });
   if (params.bridge) q.set("bridge", params.bridge);
-  const json = await lifi<any>(`/status?${q.toString()}`);
-  const allowed = ["PENDING", "DONE", "FAILED", "NOT_FOUND", "INVALID"];
-  const status = allowed.includes(json?.status) ? json.status : "PENDING";
+  let json: any;
+  try {
+    json = await lifi<any>(`/v1/status?${q.toString()}`);
+  } catch (error) {
+    /**
+     * For a few seconds after the source transaction confirms, LI.FI has not indexed it and answers
+     * 400 "Transaction hash is not found in any chain". Measured on the first real transfer
+     * (2026-10-04, Base → Robinhood): the very first poll got it, the next one was DONE. That is the
+     * normal first state of every transfer, so it is reported as NOT_FOUND, not as an error.
+     */
+    if (error instanceof SwapRouteError && error.status === 400 && /not found/i.test(error.message)) return NOT_SEEN_YET;
+    throw error;
+  }
+  /**
+   * The status endpoint also matches LI.FI's own `transactionId`, so a hash that is not a source
+   * transaction can come back as somebody else's transfer (seen with a made-up hash). Only an answer
+   * about the hash that was asked for counts.
+   */
+  if (String(json?.sending?.txHash ?? "").toLowerCase() !== params.txHash.toLowerCase()) return NOT_SEEN_YET;
+  const status = (TRANSFER_STATES as readonly string[]).includes(json?.status) ? json.status : "PENDING";
   const r = json?.receiving;
+  const receivingChain = Number(r?.chainId);
+  const got = r ? transferAmount(r, receivingChain) : null;
   return {
     status,
-    substatus: typeof json?.substatus === "string" ? json.substatus : null,
+    substatus: typeof json?.substatus === "string" ? json.substatus.slice(0, 60) : null,
     message: typeof json?.substatusMessage === "string" ? json.substatusMessage.slice(0, 200) : null,
     receiving: r
       ? {
-          txHash: typeof r.txHash === "string" ? r.txHash : null,
-          chainId: Number.isFinite(Number(r.chainId)) ? Number(r.chainId) : null,
-          amount: r.amount != null ? String(r.amount) : null,
-          symbol: typeof r.token?.symbol === "string" ? r.token.symbol.slice(0, 12) : null,
-          decimals: Number.isFinite(Number(r.token?.decimals)) ? Number(r.token.decimals) : null,
+          txHash: TX_HASH.test(String(r.txHash ?? "")) ? r.txHash : null,
+          chainId: Number.isFinite(receivingChain) ? receivingChain : null,
+          amount: got?.amount ?? null,
+          symbol: got?.symbol ?? null,
+          decimals: got?.decimals ?? null,
         }
       : null,
-    explorerUrl: typeof json?.lifiExplorerLink === "string" && json.lifiExplorerLink.startsWith("https://") ? json.lifiExplorerLink : null,
+    explorerUrl: lifiExplorerLink(json?.lifiExplorerLink),
   };
+}
+
+// ── Transfer history of a wallet ────────────────────────────────────────────
+
+export interface TransferRecord {
+  txHash: string;
+  fromChainId: number;
+  toChainId: number;
+  sent: TransferAmount;
+  /** What arrived, once delivered. */
+  received: TransferAmount | null;
+  toolKey: string;
+  toolName: string;
+  status: TransferStatus["status"];
+  substatus: string | null;
+  receivingTxHash: string | null;
+  explorerUrl: string | null;
+  /** Unix milliseconds of the source transaction. */
+  sentAt: number;
+}
+
+declare global {
+  var __ADEXTO_SWAP_HISTORY__: Map<string, { at: number; value: TransferRecord[] }> | undefined;
+}
+
+const HISTORY_TTL_MS = 15_000;
+const MAX_HISTORY_CACHE = 1_000;
+
+/**
+ * Cross-chain transfers a wallet sent through ADEXTO's routes, newest first, from LI.FI's transfer
+ * index (filtered to integrator "adexto" and to our five chains).
+ *
+ * Why this exists: the swap page used to keep its "Recent transfers" list in the browser's
+ * localStorage only, so a transfer sent from a phone, another browser, or a script never showed up
+ * anywhere else. LI.FI records every transfer made with our integrator id, so the list can follow the
+ * wallet instead of the device.
+ */
+export async function listTransfers(addressRaw: string): Promise<TransferRecord[]> {
+  const address = ethers.getAddress(addressRaw);
+  const key = address.toLowerCase();
+  if (!(globalThis.__ADEXTO_SWAP_HISTORY__ instanceof Map)) globalThis.__ADEXTO_SWAP_HISTORY__ = new Map();
+  const cache = globalThis.__ADEXTO_SWAP_HISTORY__;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < HISTORY_TTL_MS) return hit.value;
+
+  // Without status=ALL the endpoint returns DONE transfers only, and a transfer in transit would
+  // be missing from every device but the one that sent it.
+  const q = new URLSearchParams({ integrator: INTEGRATOR, wallet: address, status: "ALL", limit: "20" });
+  const [json, bridges] = await Promise.all([lifi<any>(`/v2/analytics/transfers?${q.toString()}`), listBridges().catch(() => [] as SwapBridge[])]);
+  const names = new Map(bridges.map((b) => [b.key, b.name]));
+  const ours = new Set<number>(SWAP_CHAIN_IDS);
+  const value: TransferRecord[] = [];
+  for (const t of Array.isArray(json?.data) ? json.data : []) {
+    const s = t?.sending;
+    const r = t?.receiving;
+    if (!s || !TX_HASH.test(String(s.txHash ?? ""))) continue;
+    if (String(t?.fromAddress ?? "").toLowerCase() !== key) continue;
+    if (t?.metadata?.integrator !== INTEGRATOR) continue;
+    const fromChainId = Number(s.chainId);
+    const toChainId = Number(r?.chainId);
+    if (!ours.has(fromChainId) || !ours.has(toChainId)) continue;
+    const sent = transferAmount(s, fromChainId);
+    if (!sent) continue;
+    const status = (TRANSFER_STATES as readonly string[]).includes(t?.status) ? (t.status as TransferStatus["status"]) : "PENDING";
+    const toolKey = /^[A-Za-z0-9]{2,40}$/.test(String(t?.tool ?? "")) ? String(t.tool) : "";
+    value.push({
+      txHash: s.txHash,
+      fromChainId,
+      toChainId,
+      sent,
+      received: status === "DONE" ? transferAmount(r, toChainId) : null,
+      toolKey,
+      toolName: names.get(toolKey) ?? (toolKey || "Bridge"),
+      status,
+      substatus: typeof t?.substatus === "string" ? t.substatus.slice(0, 60) : null,
+      receivingTxHash: TX_HASH.test(String(r?.txHash ?? "")) ? r.txHash : null,
+      explorerUrl: lifiExplorerLink(t?.lifiExplorerLink),
+      sentAt: Number.isFinite(Number(s.timestamp)) ? Number(s.timestamp) * 1000 : 0,
+    });
+  }
+  value.sort((a, b) => b.sentAt - a.sentAt);
+  if (cache.size >= MAX_HISTORY_CACHE) cache.clear();
+  cache.set(key, { at: Date.now(), value });
+  return value;
 }
 
 // ── Bridges that serve our chains, for the provider toggles ─────────────────
@@ -389,7 +541,7 @@ export interface SwapBridge {
 export async function listBridges(): Promise<SwapBridge[]> {
   const hit = globalThis.__ADEXTO_SWAP_TOOLS__;
   if (hit && Date.now() - hit.at < TOOLS_TTL_MS && Array.isArray(hit.value)) return hit.value;
-  const json = await lifi<any>(`/tools?chains=${SWAP_CHAIN_IDS.join(",")}`);
+  const json = await lifi<any>(`/v1/tools?chains=${SWAP_CHAIN_IDS.join(",")}`);
   const ours = new Set<number>(SWAP_CHAIN_IDS);
   const value: SwapBridge[] = [];
   for (const b of Array.isArray(json?.bridges) ? json.bridges : []) {

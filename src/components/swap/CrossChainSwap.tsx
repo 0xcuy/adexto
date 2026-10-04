@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
-import { AlertTriangle, ArrowDownUp, CheckCircle2, ExternalLink, Loader2, RefreshCw, Settings2, X } from "lucide-react";
+import { AlertTriangle, ArrowDownUp, Loader2, RefreshCw, Settings2, X } from "lucide-react";
 
 import { useWallet } from "@/context/WalletContext";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { describeTxError } from "@/lib/dex";
-import { chainFromId, chainMark, explorerTxUrl, nativeAssetLogo } from "@/lib/chains";
+import { chainFromId, chainMark, nativeAssetLogo } from "@/lib/chains";
 import { formatUsd } from "@/lib/pricing";
 import { SWAP_CHAIN_IDS, swapAssetsFor, type SwapAsset } from "@/config/swap-assets";
 import {
@@ -15,14 +15,11 @@ import {
   SLIPPAGE_CHOICES,
   formatEta,
   formatUnitsShort,
-  loadRecentTransfers,
   loadSwapSettings,
   parseAmount,
   requestBridges,
   requestRoutes,
-  requestStatus,
   requestTransfer,
-  saveRecentTransfers,
   saveSwapSettings,
   sendPreparedTransfer,
   type RecentTransfer,
@@ -319,21 +316,16 @@ function RouteCard({
   );
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: "In transit",
-  DONE: "Delivered",
-  FAILED: "Failed",
-  NOT_FOUND: "Waiting for the bridge to see it",
-  INVALID: "Not a bridge transfer",
-};
-
 export default function CrossChainSwap({
   balances,
   preset,
+  onSent,
 }: {
   balances: SwapBalances;
   /** Set by the Balances panel's "Move" button; `nonce` makes repeated clicks on one chain count. */
   preset?: { fromChainId: number; nonce: number } | null;
+  /** A transfer confirmed on the source chain. Recent transfers (in SwapHub) follows it from here. */
+  onSent: (entry: RecentTransfer) => void;
 }) {
   const { address, isConnected, isConnecting, connectWallet } = useWallet();
 
@@ -355,12 +347,10 @@ export default function CrossChainSwap({
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recent, setRecent] = useState<RecentTransfer[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     setSettings(loadSwapSettings());
-    setRecent(loadRecentTransfers());
     requestBridges()
       .then(setBridges)
       .catch((e) => setBridgesError(String(e?.message ?? e)));
@@ -469,40 +459,6 @@ export default function CrossChainSwap({
   const lossTooHigh = Boolean(selected && selected.valueLossPct != null && selected.valueLossPct > settings.valueLossWarnPct);
   const insufficient = Boolean(amount && heldRaw != null && amount > heldRaw);
 
-  // Poll recent transfers that are still on their way.
-  const recentRef = useRef(recent);
-  recentRef.current = recent;
-  const pollRecent = useCallback(async () => {
-    const list = recentRef.current;
-    const open = list.filter((t) => (t.status === "PENDING" || t.status === "NOT_FOUND") && Date.now() - t.sentAt < 2 * 3600_000);
-    if (!open.length) return;
-    let changed = false;
-    const next = [...list];
-    for (const t of open) {
-      try {
-        const s = await requestStatus(t);
-        const i = next.findIndex((x) => x.txHash === t.txHash);
-        if (i >= 0 && (next[i].status !== s.status || next[i].receivingTxHash !== (s.receiving?.txHash ?? null))) {
-          next[i] = { ...next[i], status: s.status, receivingTxHash: s.receiving?.txHash ?? null, explorerUrl: s.explorerUrl ?? next[i].explorerUrl };
-          changed = true;
-          if (s.status === "DONE") balances.refreshSoon();
-        }
-      } catch {
-        // try again on the next tick
-      }
-    }
-    if (changed) {
-      setRecent(next);
-      saveRecentTransfers(next);
-    }
-  }, [balances]);
-
-  useEffect(() => {
-    void pollRecent();
-    const timer = setInterval(() => void pollRecent(), 6_000);
-    return () => clearInterval(timer);
-  }, [pollRecent]);
-
   const execute = async () => {
     if (!isConnected || !address) {
       await connectWallet();
@@ -526,8 +482,9 @@ export default function CrossChainSwap({
         expectedAddress: address,
         onLine: setLine,
       });
-      const entry: RecentTransfer = {
+      onSent({
         txHash,
+        from: address.toLowerCase(),
         fromChainId,
         toChainId,
         sent: `${formatUnitsShort(selected.fromAmount, fromAsset.decimals)} ${fromAsset.symbol} on ${fromChain.name}`,
@@ -535,14 +492,12 @@ export default function CrossChainSwap({
         toolKey: selected.tool.key,
         toolName: selected.tool.name,
         sentAt: Date.now(),
-        status: "PENDING",
+        // Confirmed on the source chain, not yet indexed by the bridge: the first status poll moves it on.
+        status: "NOT_FOUND",
         receivingTxHash: null,
         explorerUrl: null,
-      };
-      const next = [entry, ...recentRef.current.filter((r) => r.txHash !== txHash)];
-      setRecent(next);
-      saveRecentTransfers(next);
-      setLine(`Sent through ${selected.tool.name}. It shows as delivered below once ${toChain.name} receives it.`);
+      });
+      setLine(`Sent through ${selected.tool.name}. It is listed under Recent transfers below and shows as delivered once ${toChain.name} receives it.`);
       setAmountInput("");
       balances.refreshSoon();
     } catch (e) {
@@ -715,50 +670,6 @@ export default function CrossChainSwap({
       <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
         Routes are found by LI.FI and carried by the bridge named on each route. You sign in your own wallet, and ADEXTO never holds the funds.
       </p>
-
-      {recent.length > 0 && (
-        <section className="mt-5 border-t border-line pt-4" aria-labelledby="xc-recent">
-          <h3 id="xc-recent" className="mb-2 text-[12px] font-semibold text-ink-soft">
-            Recent transfers
-          </h3>
-          <ul className="space-y-2">
-            {recent.map((t) => (
-              <li key={t.txHash} className="rounded-2xl border border-line bg-surface p-3 text-[12px]">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-semibold text-ink">
-                    <ChainMark chainId={t.fromChainId} />→<ChainMark chainId={t.toChainId} />
-                    <span className="truncate">{t.toolName}</span>
-                  </span>
-                  <span
-                    className={`flex shrink-0 items-center gap-1 font-semibold ${t.status === "DONE" ? "text-ok" : t.status === "FAILED" ? "text-danger" : "text-ink-soft"}`}
-                  >
-                    {t.status === "DONE" ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : t.status === "FAILED" ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> : <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-                    {STATUS_LABEL[t.status] ?? t.status}
-                  </span>
-                </div>
-                <p className="mt-1 text-ink-soft" data-numeric>
-                  {t.sent} → {t.expected}
-                </p>
-                <p className="mt-1 flex flex-wrap gap-x-3 text-[11px]">
-                  <a href={explorerTxUrl(t.fromChainId, t.txHash)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
-                    Sent <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                  </a>
-                  {t.receivingTxHash && (
-                    <a href={explorerTxUrl(t.toChainId, t.receivingTxHash)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
-                      Received <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                  )}
-                  {t.explorerUrl && (
-                    <a href={t.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
-                      Bridge status <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                  )}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <SettingsDialog
         open={settingsOpen}

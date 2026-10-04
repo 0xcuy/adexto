@@ -7,6 +7,8 @@ import { ArrowLeftRight, Repeat } from "lucide-react";
 import SwapTerminal from "@/components/SwapTerminal";
 import CrossChainSwap from "@/components/swap/CrossChainSwap";
 import BalancesPanel from "@/components/swap/BalancesPanel";
+import RecentTransfers from "@/components/swap/RecentTransfers";
+import { useRecentTransfers } from "@/components/swap/useRecentTransfers";
 import { useSwapBalances } from "@/components/swap/useSwapBalances";
 import { useWallet } from "@/context/WalletContext";
 
@@ -19,8 +21,9 @@ type Mode = "trade" | "cross-chain";
  *                unchanged).
  *   Cross-chain  move native or a stablecoin between the five chains, routed by LI.FI.
  *
- * Under both sits Balances: what the wallet holds on all five chains. `?mode=cross-chain` opens
- * the second mode, so it can be linked; `?token=` keeps opening Trade as it always did.
+ * Under both sit Balances (what the wallet holds on all five chains) and Recent transfers (its
+ * cross-chain transfers through ADEXTO, from any device). `?mode=cross-chain` opens the second
+ * mode, so it can be linked; `?token=` keeps opening Trade as it always did.
  */
 export default function SwapHub() {
   const params = useSearchParams();
@@ -28,6 +31,7 @@ export default function SwapHub() {
   const pathname = usePathname();
   const { address } = useWallet();
   const balances = useSwapBalances(address);
+  const recent = useRecentTransfers(address, balances.refreshSoon);
 
   const urlMode: Mode = params.get("mode") === "cross-chain" && !params.get("token") ? "cross-chain" : "trade";
   const [mode, setModeState] = useState<Mode>(urlMode);
@@ -102,12 +106,13 @@ export default function SwapHub() {
           <SwapTerminal embedded />
         </div>
         <div id="swap-panel-cross-chain" role="tabpanel" aria-labelledby="swap-mode-cross-chain" hidden={mode !== "cross-chain"}>
-          {mode === "cross-chain" && <CrossChainSwap balances={balances} preset={preset} />}
+          {mode === "cross-chain" && <CrossChainSwap balances={balances} preset={preset} onSent={recent.add} />}
         </div>
 
         <div className="mt-6">
           <BalancesPanel balances={balances} onMove={onMove} />
         </div>
+        <RecentTransfers recent={recent} />
       </div>
     </div>
   );

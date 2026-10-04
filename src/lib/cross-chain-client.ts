@@ -10,10 +10,10 @@
 import { ethers } from "ethers";
 import { ensureWalletChain, ERC20_ABI } from "@/lib/dex";
 import type { ChainInfo } from "@/lib/chains";
-import type { PreparedTransfer, SwapBridge, SwapRouteSummary, TransferStatus } from "@/lib/lifi-server";
+import type { PreparedTransfer, SwapBridge, SwapRouteSummary, TransferRecord, TransferStatus } from "@/lib/lifi-server";
 import type { BalancesReport } from "@/lib/swap-balances";
 
-export type { PreparedTransfer, SwapBridge, SwapRouteSummary, TransferStatus, BalancesReport };
+export type { PreparedTransfer, SwapBridge, SwapRouteSummary, TransferRecord, TransferStatus, BalancesReport };
 
 // ── Settings ────────────────────────────────────────────────────────────────
 
@@ -66,35 +66,82 @@ export function saveSwapSettings(s: SwapSettings) {
 
 export interface RecentTransfer {
   txHash: string;
+  /**
+   * Sending wallet, lowercase. Entries saved before this field existed have none; they are shown
+   * again once the wallet's history on the server lists them.
+   */
+  from?: string;
   fromChainId: number;
   toChainId: number;
   /** Display amounts, already formatted, so the list never needs prices to render. */
   sent: string;
+  /** What the quote promised. Empty for a transfer this browser did not send. */
   expected: string;
+  /** What arrived, once the bridge reports it. */
+  received?: string;
   toolKey: string;
   toolName: string;
   sentAt: number;
   status: TransferStatus["status"];
+  /** LI.FI's detail, e.g. COMPLETED, PARTIAL or REFUNDED under DONE. */
+  substatus?: string;
   receivingTxHash: string | null;
   explorerUrl: string | null;
+}
+
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+const STATES: ReadonlyArray<TransferStatus["status"]> = ["PENDING", "DONE", "FAILED", "NOT_FOUND", "INVALID"];
+const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+
+/**
+ * localStorage is only as trustworthy as every script that ever ran on this origin, so each saved
+ * entry is rebuilt field by field, and the only link kept from it is LI.FI's explorer.
+ */
+function cleanRecent(r: any): RecentTransfer | null {
+  if (!r || typeof r.txHash !== "string" || !TX_HASH.test(r.txHash)) return null;
+  const fromChainId = Number(r.fromChainId);
+  const toChainId = Number(r.toChainId);
+  if (!Number.isInteger(fromChainId) || !Number.isInteger(toChainId)) return null;
+  return {
+    txHash: r.txHash,
+    ...(typeof r.from === "string" && ethers.isAddress(r.from) ? { from: r.from.toLowerCase() } : {}),
+    fromChainId,
+    toChainId,
+    sent: text(r.sent, 80),
+    expected: text(r.expected, 80),
+    ...(typeof r.received === "string" ? { received: text(r.received, 80) } : {}),
+    toolKey: /^[A-Za-z0-9]{2,40}$/.test(String(r.toolKey ?? "")) ? r.toolKey : "",
+    toolName: text(r.toolName, 40) || "Bridge",
+    sentAt: Number.isFinite(Number(r.sentAt)) ? Number(r.sentAt) : 0,
+    status: STATES.includes(r.status) ? r.status : "PENDING",
+    ...(typeof r.substatus === "string" && /^[A-Z_]{1,40}$/.test(r.substatus) ? { substatus: r.substatus } : {}),
+    receivingTxHash: typeof r.receivingTxHash === "string" && TX_HASH.test(r.receivingTxHash) ? r.receivingTxHash : null,
+    explorerUrl: typeof r.explorerUrl === "string" && r.explorerUrl.startsWith("https://scan.li.fi/") ? r.explorerUrl : null,
+  };
 }
 
 export function loadRecentTransfers(): RecentTransfer[] {
   try {
     const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
     if (!Array.isArray(raw)) return [];
-    return raw.filter((r) => r && typeof r.txHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(r.txHash)).slice(0, MAX_RECENT);
+    return raw
+      .map(cleanRecent)
+      .filter((r): r is RecentTransfer => r !== null)
+      .slice(0, MAX_RECENT);
   } catch {
     return [];
   }
 }
 
-export function saveRecentTransfers(list: RecentTransfer[]) {
+/** Saves the newest entries and returns exactly what was kept. */
+export function saveRecentTransfers(list: RecentTransfer[]): RecentTransfer[] {
+  const kept = list.slice(0, MAX_RECENT);
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, MAX_RECENT)));
+    localStorage.setItem(RECENT_KEY, JSON.stringify(kept));
   } catch {
     // same as settings
   }
+  return kept;
 }
 
 // ── API calls ───────────────────────────────────────────────────────────────
@@ -150,6 +197,12 @@ export async function requestBridges(): Promise<SwapBridge[]> {
 
 export async function requestBalances(address: string): Promise<BalancesReport> {
   return readJson(await fetch(`/api/swap/balances?address=${address}`, { cache: "no-store" }));
+}
+
+/** Cross-chain transfers the wallet sent through ADEXTO, from any device, newest first. */
+export async function requestHistory(address: string): Promise<TransferRecord[]> {
+  const json = await readJson(await fetch(`/api/swap/history?address=${encodeURIComponent(address)}`, { cache: "no-store" }));
+  return Array.isArray(json?.transfers) ? json.transfers : [];
 }
 
 // ── Sending ─────────────────────────────────────────────────────────────────
