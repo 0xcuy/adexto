@@ -1,6 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+
+/**
+ * Promise JSON yang dimulai skrip prefetch inline (lihat `prefetchScript`), dipakai SEKALI lalu
+ * dibuang, supaya polling berikutnya selalu mengambil data baru.
+ */
+function takePrefetched(url: string): Promise<any> | null {
+  const store = (window as unknown as { __adextoPrefetch?: Record<string, Promise<any>> }).__adextoPrefetch;
+  const hit = store?.[url];
+  if (!hit) return null;
+  delete store[url];
+  return hit;
+}
 import {
   createChart,
   ColorType,
@@ -408,6 +420,26 @@ export default function RealtimeCandleChart({
   supply,
   launchedAt,
 }: Props) {
+  /**
+   * Unduhan data chart bawaan dimulai saat HTML diurai, bukan sesudah hidrasi.
+   *
+   * Tanpa ini permintaan candle baru berangkat setelah seluruh JavaScript halaman selesai
+   * dimuat dan dijalankan, dan di HP itu detik-detik pertama. Skrip inline kecil di bawah
+   * (`prefetchScript`) memulai `fetch` begitu parser sampai di chart dan menyimpan promise-nya;
+   * pemuatan pertama mengambilnya lewat `takePrefetched`.
+   *
+   * BUKAN `<link rel="preload" as="fetch">`: terukur, preload yang belum selesai DIBATALKAN
+   * (`net::ERR_ABORTED`) saat halaman terhidrasi, lalu `fetch` mengulang dari nol.
+   *
+   * URL-nya sama persis dengan `fetch` di efek muat data (bucket bawaan 60, satuan bawaan USD);
+   * `?tf=`/`?range=` memakai bucket lain, sehingga prefetch-nya tidak terpakai dan dibuang.
+   */
+  const prefetchUrls = [
+    `/api/agent/telemetry?symbol=${encodeURIComponent(symbol)}&chainId=${chainId}&bucket=60`,
+    `/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`,
+  ];
+  // `encodeURIComponent` menyandikan `<`, `>` dan kutip, jadi JSON-nya aman di dalam <script>.
+  const prefetchScript = `(function(w){try{var p=w.__adextoPrefetch=w.__adextoPrefetch||{};${JSON.stringify(prefetchUrls)}.forEach(function(u){if(!p[u])p[u]=fetch(u).then(function(r){return r.ok?r.json():null}).catch(function(){return null})})}catch(e){}})(window)`;
   const containerRef = useRef<HTMLDivElement>(null);
   /**
    * Kontainer dan chart TERPISAH untuk osilator (RSI, MACD).
@@ -1175,12 +1207,29 @@ export default function RealtimeCandleChart({
      * itulah yang membuat pembelian pertama tidak pernah tampil.
      */
     async function load(): Promise<number | null> {
+      // Kurs diambil BERSAMAAN dengan candle, bukan sesudahnya: satu putaran jaringan lebih
+      // sedikit sebelum chart tergambar, dan di HP putaran itu ratusan milidetik.
+      // Kurs yang masih segar di `FX_CACHE` tidak diambil lagi.
+      const fxUrl = `/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`;
+      const fxHit = unit === "usd" ? FX_CACHE.get(nativeSymbol) : undefined;
+      const fxFresh = Boolean(fxHit && Date.now() - fxHit.at < 60_000);
+      const fxPending: Promise<any> | null =
+        unit === "usd" && !fxFresh
+          ? (takePrefetched(fxUrl) ??
+            fetch(fxUrl)
+              .then((r) => (r.ok ? r.json() : null))
+              .catch(() => null))
+          : null;
       try {
-        const res = await fetch(
-          `/api/agent/telemetry?symbol=${encodeURIComponent(symbol)}&chainId=${chainId}&bucket=${interval}`
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
+        const url = `/api/agent/telemetry?symbol=${encodeURIComponent(symbol)}&chainId=${chainId}&bucket=${interval}`;
+        const prefetched = takePrefetched(url);
+        // Prefetch yang gagal (null) jatuh ke `fetch` biasa, tidak menunggu polling berikutnya.
+        let data: any = prefetched ? await prefetched : null;
+        if (!data) {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          data = await res.json();
+        }
         if (cancelled) return null;
 
         /**
@@ -1194,17 +1243,13 @@ export default function RealtimeCandleChart({
         // Kurs dolar (sumbu USD), disimpan 60 detik: polling 15 detik tidak perlu mengambilnya lagi.
         let fxPoints: Array<[number, number]> = [];
         if (unit === "usd") {
-          const hit = FX_CACHE.get(nativeSymbol);
-          if (hit && Date.now() - hit.at < 60_000) fxPoints = hit.points;
+          if (fxFresh && fxHit) fxPoints = fxHit.points;
           else {
-            try {
-              const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
-              const fx = fxRes.ok ? await fxRes.json() : null;
-              fxPoints = Array.isArray(fx?.points) ? fx.points : [];
-              if (fxPoints.length) FX_CACHE.set(nativeSymbol, { at: Date.now(), points: fxPoints });
-            } catch {
-              // Riwayat kurs tidak terbaca: sumbu jatuh ke native di bawah.
-            }
+            // Sudah berjalan sejak awal `load()` (atau sejak HTML diurai); null = tidak terbaca,
+            // dan sumbu jatuh ke native di bawah.
+            const fx = await fxPending;
+            fxPoints = Array.isArray(fx?.points) ? fx.points : [];
+            if (fxPoints.length) FX_CACHE.set(nativeSymbol, { at: Date.now(), points: fxPoints });
             if (cancelled) return null;
           }
         }
@@ -1647,6 +1692,8 @@ export default function RealtimeCandleChart({
 
   return (
     <div className="w-full flex flex-col h-full justify-between">
+      {/* Prefetch data chart bawaan; berjalan sekali saat HTML server diurai. Lihat `prefetchUrls`. */}
+      <script dangerouslySetInnerHTML={{ __html: prefetchScript }} suppressHydrationWarning />
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-1 border-b border-line shrink-0">
         {/* Di bawah 640 px dua baris tetap: pasangan + perubahan, lalu harga, USD dan kurs. Dulu satu
             baris yang membungkus, dan begitu persen perubahannya bertambah digit (+0.00% → +0.0048%)

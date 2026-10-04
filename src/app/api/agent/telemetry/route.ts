@@ -198,7 +198,15 @@ export async function GET(req: Request) {
     let indexStatus: IndexStatus | null = null;
     if (indexable(project) && project.poolLive) {
       try {
-        const { index, status } = await ensureMarketIndex(project, { waitMs: 1_500 });
+        /**
+         * Tidak menunggu sama sekali bila indexer (Envio/subgraph) sudah memberi riwayat UTUH.
+         * Indeks pasar diperbarui tiap 15 dtk lewat `eth_getLogs` ke RPC chain, dan menunggu
+         * pembaruan itu adalah sebagian besar waktu dingin endpoint ini (terukur 0,6–1,1 dtk
+         * pada SAI/4663 dengan Envio). Riwayatnya tidak bertambah apa pun; pembaruan tetap
+         * berjalan di belakang untuk `recipient` dan permintaan berikutnya.
+         */
+        const indexerComplete = Boolean(coverage?.reachedLaunch && !coverage.truncated && coverage.calls === 0);
+        const { index, status } = await ensureMarketIndex(project, { waitMs: indexerComplete ? 0 : 1_500 });
         indexStatus = status;
         if (index) {
           const fromIndex = indexedTrades(index, symbol, chain.nativeSymbol);
