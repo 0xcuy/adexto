@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
+import { AGENT_MODEL_IDS } from "@/lib/og-attestation";
+import { publicErrorMessage } from "@/lib/public-error";
 
 // 0G Compute Official Mainnet Router Endpoint
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
@@ -22,6 +25,51 @@ const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
 const CHAT_LIMIT = 20;
 const CHAT_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * Batas MASUKAN, karena `max_tokens` hanya membatasi keluaran.
+ *
+ * Tanpa ini satu permintaan bisa membawa riwayat sebesar jendela konteks model, dan 20
+ * permintaan per 5 menit menjadi 20 kali konteks penuh yang dibayar kunci kami. Angkanya
+ * longgar untuk pemakai sungguhan: prompt sistem terminal token (state kurva + mandat)
+ * sekitar 3 KB, dan percakapan panel jarang lebih dari belasan giliran. Riwayat yang lebih
+ * panjang DIPOTONG dari yang tertua, bukan ditolak, jadi percakapan panjang tetap jalan.
+ */
+const CHAT_MAX_BODY_BYTES = 128 * 1024;
+const MAX_SYSTEM_PROMPT_CHARS = 8_000;
+const MAX_MESSAGES = 24;
+const MAX_MESSAGE_CHARS = 8_000;
+const MAX_HISTORY_CHARS = 32_000;
+/** Model penalaran di router bisa berpikir lama sebelum token pertama; dua menit di atasnya. */
+const CHAT_UPSTREAM_TIMEOUT_MS = 120_000;
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+/**
+ * Riwayat yang dikirim ke router: hanya giliran `user`/`assistant` berisi teks, paling banyak
+ * `MAX_MESSAGES`, masing-masing dipotong, dan totalnya dijaga dengan membuang yang tertua.
+ *
+ * Peran `system` dari klien dibuang. Prompt sistem sudah punya jalurnya sendiri
+ * (`systemPrompt`, yang dibatasi panjangnya); membiarkan pesan `system` lain menyelip di
+ * riwayat berarti dua jalur untuk hal yang sama, dan hanya satu yang dibatasi.
+ */
+function boundedMessages(input: unknown): ChatMessage[] {
+  if (!Array.isArray(input)) return [];
+  const out: ChatMessage[] = [];
+  for (const m of input.slice(-MAX_MESSAGES)) {
+    if (!m || typeof m !== "object") continue;
+    const role = (m as { role?: unknown }).role;
+    const content = (m as { content?: unknown }).content;
+    if ((role !== "user" && role !== "assistant") || typeof content !== "string" || !content) continue;
+    out.push({ role, content: content.slice(0, MAX_MESSAGE_CHARS) });
+  }
+  let total = out.reduce((n, m) => n + m.content.length, 0);
+  while (out.length > 1 && total > MAX_HISTORY_CHARS) {
+    total -= out[0].content.length;
+    out.shift();
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
   try {
     if (!OG_API_KEY) {
@@ -42,10 +90,39 @@ export async function POST(req: Request) {
         { status: 429, headers: rateLimitHeaders(gate) }
       );
     }
-    const { messages, model, systemPrompt, chain, temperature } = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonBody(req, CHAT_MAX_BODY_BYTES);
+    } catch (e) {
+      if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
+      return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
+    }
 
-    // Default to verified active model on 0G Mainnet Router
+    /**
+     * Model DIBATASI ke daftar yang memang ditawarkan situs ini.
+     *
+     * Sebelumnya `model` diteruskan apa adanya ke router dengan kunci kami. Router yang sama
+     * melayani model lain yang jauh lebih mahal, jadi endpoint anonim ini adalah proxy gratis
+     * ke model mana pun yang bisa dijangkau kunci itu. Model yang tidak dikenal jatuh ke
+     * bawaan, bukan ditolak: Studio dan terminal token hanya pernah mengirim id dari
+     * `AGENT_MODEL_IDS`, jadi yang berubah hanya pemanggil yang memilih model sendiri.
+     */
+    // Baris `targetModel` di bawah sengaja berbentuk "nama-variabel atau-bawaan": audit_consistency.mjs
+    // membaca model bawaan chat dari pola itu untuk memastikan /api/chat tidak memakai model pool.
+    const model =
+      typeof body.model === "string" && (AGENT_MODEL_IDS as readonly string[]).includes(body.model) ? body.model : "";
     const targetModel = model || "glm-5.3";
+
+    const messages = boundedMessages(body.messages);
+    if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
+      return NextResponse.json({ error: "messages must end with a user message." }, { status: 400 });
+    }
+    const systemPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS) : "";
+    const chain = typeof body.chain === "string" ? body.chain.slice(0, 40) : "";
+    const temperature =
+      typeof body.temperature === "number" && Number.isFinite(body.temperature)
+        ? Math.min(Math.max(body.temperature, 0), 1.5)
+        : undefined;
 
     const systemMessage = {
       role: "system",
@@ -76,6 +153,20 @@ Help developers generate smart contracts, configure bonding curve parameters, au
       stream: true,
     };
 
+    /**
+     * Permintaan hilir dihentikan ketika pengunjungnya pergi, atau setelah batas waktu.
+     *
+     * Sebelumnya tidak ada `signal` sama sekali: router yang menggantung menahan soket ini
+     * selamanya, dan pengunjung yang menutup tab tetap membuat model menulis sampai 4.096
+     * token yang tidak dibaca siapa pun — dibayar oleh kunci kami. `req.signal` gugur saat
+     * klien memutus; `cancel()` pada aliran di bawah menangani kasus yang sama dari sisi
+     * respons.
+     */
+    const upstream = new AbortController();
+    const onClientGone = () => upstream.abort();
+    req.signal?.addEventListener("abort", onClientGone, { once: true });
+    const deadline = setTimeout(() => upstream.abort(), CHAT_UPSTREAM_TIMEOUT_MS);
+
     const res = await fetch(`${OG_ROUTER_URL}/chat/completions`, {
       method: "POST",
       headers: {
@@ -83,13 +174,20 @@ Help developers generate smart contracts, configure bonding curve parameters, au
         "content-type": "application/json",
       },
       body: JSON.stringify(payload),
+      signal: upstream.signal,
+    }).catch((e) => {
+      clearTimeout(deadline);
+      throw e;
     });
 
     if (!res.ok) {
-      const errText = await res.text();
+      clearTimeout(deadline);
+      // Detail router dicatat di log server, tidak diteruskan apa adanya ke pemanggil anonim.
+      const errText = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+      console.warn(`[adexto] chat router ${res.status}: ${errText}`);
       return NextResponse.json(
-        { error: `0G Router Mainnet error (${res.status}): ${errText}` },
-        { status: res.status }
+        { error: `0G Router Mainnet error (${res.status}).` },
+        { status: res.status >= 500 ? 502 : res.status }
       );
     }
 
@@ -258,8 +356,15 @@ Help developers generate smart contracts, configure bonding curve parameters, au
         } finally {
           // Dulu `close()` dipanggil tanpa penjaga, jadi jalur [DONE] dan error
           // bisa menutup controller dua kali dan melempar TypeError.
+          clearTimeout(deadline);
+          req.signal?.removeEventListener("abort", onClientGone);
           close();
         }
+      },
+      // Klien memutus di tengah aliran: hentikan juga generasi di router.
+      cancel() {
+        clearTimeout(deadline);
+        upstream.abort();
       },
     });
 
@@ -282,7 +387,7 @@ Help developers generate smart contracts, configure bonding curve parameters, au
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: `0G Compute Engine Error: ${error.message || "Failed to stream"}` },
+      { error: `0G Compute Engine Error: ${publicErrorMessage(error, "Failed to stream")}` },
       { status: 500 }
     );
   }
