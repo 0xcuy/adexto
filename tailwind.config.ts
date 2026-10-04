@@ -108,11 +108,18 @@ export default {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
+        // Panel mega menu header (UI-1 U1.2). Dipakai hanya lewat `motion-safe:`, jadi pengguna
+        // `prefers-reduced-motion` melihat panel langsung di tempatnya, tanpa geser.
+        'nav-in': 'nav-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both',
       },
       keyframes: {
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-10px)' },
+        },
+        'nav-in': {
+          from: { opacity: '0', transform: 'translateY(-4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
         glow: {
           '0%': { boxShadow: '0 0 15px rgba(124, 58, 237, 0.3)' },
