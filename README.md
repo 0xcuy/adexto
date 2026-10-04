@@ -33,6 +33,7 @@
 <p align="center"><sub>
   <a href="#the-loop">The loop</a> ·
   <a href="#live-on-five-mainnets">Live markets</a> ·
+  <a href="#architecture">Architecture</a> ·
   <a href="#start-here">Start here</a> ·
   <a href="#what-arrives-with-a-market">What arrives</a> ·
   <a href="#how-the-market-works">How it works</a> ·
@@ -101,11 +102,48 @@ The 11 listed markets, read from chain on 2026-10-04. The same ticker on two cha
 
 ---
 
+## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/architecture-dark.png">
+  <img src="docs/assets/readme/architecture-light.png" width="100%" alt="Architecture. Three ways in: people in a browser with their own wallet use the web app at adexto.xyz; AI agents with their own key use the MCP server at /api/mcp; any HTTP client uses the x402 gateway at x402.adexto.xyz. The web app anchors launch metadata on 0G DA, the MCP server's agent answers come from the 0G Compute router, and the x402 gateway settles in USDC on Base. On chain, on Monad, Arbitrum One, Robinhood Chain, Base and 0G: AdextoFactory 1.0.0, byte-identical on five chains, deploys a token and its curve in one transaction and checks ERC-8004 ownership if asked; the stake contracts open the market's agent and Agent Compute; the curve holds the whole supply against a virtual reserve, with fee legs fixed at launch and no owner or withdraw function.">
+</picture>
+
+Three ways in, one set of contracts. People use the web app with their own wallet, AI agents use the MCP server with their own key, and any HTTP client can buy over x402 with USDC on Base. Every launch, stake and claim is signed by the user's own key: the web app and the MCP server prepare those transactions and never hold that key. The x402 gateway buys on the market's chain with its own relayer key and the payer as recipient, and only after that delivery does it submit the payer's USDC authorization on Base.
+
+> [!NOTE]
+> **What we run, and what we don't.** The web app and the MCP server (Next.js, this repo), the x402 gateway (a Cloudflare Worker in [`cloudflare-worker/`](cloudflare-worker/)) and the market index are ours, off-chain. On chain nothing has an owner: no factory, curve, token or stake contract has an admin key. The ERC-8004 Identity Registry, USDC, 0G DA, the 0G Compute router and the indexers belong to third parties.
+
+---
+
 ## Start here
 
-**In a browser.** [Launch a market](https://adexto.xyz/studio): Express mode needs a name, a ticker and an image, and shows what the launch will cost on the chain you picked before you sign. [Explorer](https://adexto.xyz/explorer) lists every market on every chain, and [/creator](https://adexto.xyz/creator) shows what any address has earned.
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/globe.svg" width="24" height="24" alt=""><br>
+      <b>In a browser</b><br>
+      <sub>Express mode needs a name, a ticker and an image, and shows what the launch costs on your chain before you sign.</sub><br>
+      <a href="https://adexto.xyz/studio">Launch a market →</a>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/bot.svg" width="24" height="24" alt=""><br>
+      <b>From an agent</b><br>
+      <sub>MCP with no account and no API key. The agent launches, stakes and claims with its own key.</sub><br>
+      <a href="#connect-an-agent">Connect an agent →</a>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/terminal.svg" width="24" height="24" alt=""><br>
+      <b>Over plain HTTP</b><br>
+      <sub>An unpaid request answers <code>402</code> with the exact USDC terms. No SDK and no account.</sub><br>
+      <a href="#buy-over-x402">Buy over x402 →</a>
+    </td>
+  </tr>
+</table>
 
-**From an agent, over MCP.** No account and no API key.
+[Explorer](https://adexto.xyz/explorer) lists every market on every chain, and [/creator](https://adexto.xyz/creator) shows what any address has earned. To run it yourself, see [Local development](#local-development).
+
+### Connect an agent
 
 ```sh
 claude mcp add --transport http adexto https://adexto.xyz/api/mcp
@@ -117,7 +155,7 @@ claude mcp add --transport http adexto https://adexto.xyz/api/mcp
 
 Fourteen tools: discover and quote markets, buy with USDC on Base, read trade history and stakes, ask a market's agent, and launch, stake and claim with your own key. Guides for other clients and the agent kit are in [`0xcuy/adexto-mcp`](https://github.com/0xcuy/adexto-mcp).
 
-**Over plain HTTP, with x402.** An unpaid request answers `402` with the exact USDC terms:
+### Buy over x402
 
 ```sh
 curl -i 'https://x402.adexto.xyz/v1/x402/buy/loop?chain=143'
@@ -125,24 +163,51 @@ curl -i 'https://x402.adexto.xyz/v1/x402/buy/loop?chain=143'
 
 Sign the EIP-3009 authorization it describes and send the request again. The curve on the market's own chain delivers to your address, and only then is the payment settled. Reference: [adexto.xyz/x402](https://adexto.xyz/x402) and the [OpenAPI document](https://x402.adexto.xyz/openapi.json).
 
-**From source.** See [Local development](#local-development).
-
 ---
 
 ## What arrives with a market
 
 A launchpad hands a creator a token and a page. Here one transaction opens a working venue, whether an agent or a person sends it, and all of this arrives with it. None of it is a roadmap item, and none of it needs a listing or an application.
 
-| What arrives | What it means |
-| --- | --- |
-| **Machine buyers** | An MCP server exposes the markets to AI agents (discover, quote, buy, read history), resolved from the same registry the site uses, so a new market answers on the first request. |
-| **A cross-chain price** | A buyer holding only USDC on Base takes a position without bridging and without ever holding the market's gas token. It pays over plain HTTP with an EIP-3009 authorization that the USDC contract verifies itself, settled with real funds. |
-| **Creator earnings in one place** | [/creator](https://adexto.xyz/creator) reads every curve an address created, on every chain, and claims the fees per market or per chain in one transaction. |
-| **An agent for the market** | It answers questions about its own curve, fee split and depth. It carries its token and curve addresses because it is bound to them, and its inference runs on the 0G Compute router. |
-| **A stake from the first block** | Every market can be staked from its first block, in its own `AdextoAgentStake` or in its chain's `AdextoStakeHub`. A stake opens the market's agent over MCP and counts toward an [Agent Compute](https://adexto.xyz/agent-compute) API key for an OpenAI-compatible endpoint on the 0G Compute router. |
-| **A trading terminal** | For the people who trade beside the agents: candles from one second up, RSI, MACD, Bollinger and VWAP, your own and the creator's trades on the chart, a curve depth ladder, a trade feed you can filter, your position with PnL, the holder list, a watchlist and share cards, all usable on a market that is minutes old. |
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/bot.svg" width="24" height="24" alt=""><br>
+      <b>Machine buyers</b><br>
+      <sub>An MCP server exposes every market to AI agents (discover, quote, buy, read history), resolved from the same registry the site uses, so a new market answers on the first request.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/arrow-left-right.svg" width="24" height="24" alt=""><br>
+      <b>A cross-chain price</b><br>
+      <sub>A buyer holding only USDC on Base takes a position without bridging and without ever holding the market's gas token, paying with an EIP-3009 authorization that the USDC contract verifies itself.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/hand-coins.svg" width="24" height="24" alt=""><br>
+      <b>Creator earnings in one place</b><br>
+      <sub><a href="https://adexto.xyz/creator">/creator</a> reads every curve an address created, on every chain, and claims the fees per market or per chain in one transaction.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/sparkles.svg" width="24" height="24" alt=""><br>
+      <b>An agent for the market</b><br>
+      <sub>It answers questions about its own curve, fee split and depth. It carries its token and curve addresses because it is bound to them, and its inference runs on the 0G Compute router.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/layers.svg" width="24" height="24" alt=""><br>
+      <b>A stake from the first block</b><br>
+      <sub>In the market's own <code>AdextoAgentStake</code> or its chain's <code>AdextoStakeHub</code>. A stake opens the market's agent over MCP and counts toward an <a href="https://adexto.xyz/agent-compute">Agent Compute</a> API key.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="docs/assets/readme/icons/chart-candlestick.svg" width="24" height="24" alt=""><br>
+      <b>A trading terminal</b><br>
+      <sub>Candles from one second up, RSI, MACD, Bollinger and VWAP, the creator's trades on the chart, a depth ladder, your position with PnL, the holder list and share cards, on a market minutes old.</sub>
+    </td>
+  </tr>
+</table>
 
-What is **not** here: no autonomous trading bot runs a market on a creator's behalf. ERC-8004 identity binding is real and checked on-chain at launch, but it is opt-in, and it records an identity rather than starting a strategy.
+> [!NOTE]
+> **What is not here:** no autonomous trading bot runs a market on a creator's behalf. ERC-8004 identity binding is real and checked on-chain at launch, but it is opt-in, and it records an identity rather than starting a strategy.
 
 ---
 
@@ -190,7 +255,8 @@ Every swap pays four legs: creator, depth, buyback and protocol. Each rate is fi
 | Protocol | 0.10% | `protocolOwed`, claimable only to the factory's immutable `protocolTreasury` |
 | **Trader pays** | **1.00%** | |
 
-Read `totalFeeBps()` on the curve instead of adding these up. It is the contract's own answer to what a trade costs, whichever generation created the market. No rate has a setter, on the factory or on any curve.
+> [!TIP]
+> Read `totalFeeBps()` on the curve instead of adding these up. It is the contract's own answer to what a trade costs, whichever generation created the market. No rate has a setter, on the factory or on any curve.
 
 <details>
 <summary><b>The six <code>0.11.0</code> markets, and the rules behind every leg</b></summary>
@@ -221,6 +287,16 @@ The buyback is permissionless and self-contained. `executeBuyback` carries only 
 
 ## Inside one launch
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/launch-dark.png">
+  <img src="docs/assets/readme/launch-light.png" width="100%" alt="One launch transaction, gas only. Step 1: the factory deploys the curve first, so the token can bind it immutably. Step 2: it deploys the token, with a fixed supply minted entirely to the factory. Step 3: it seeds 100% of supply into the curve, then requires its own balance to be zero. An optional ERC-8004 check reverts unless the caller owns the agent, and deployTrinity is not payable, so nothing can be deposited. Every trade on the standard preset pays 1.00% in total, read from the curve as totalFeeBps 100: 0.70% to the creator, 0.10% depth that stays in the curve, 0.10% buyback that anyone may spend on the curve and burn, and 0.10% protocol, claimable only to the immutable treasury. No rate has a setter; the six 0.11.0 markets keep 0.40%.">
+</picture>
+
+<details>
+<summary><b>The same launch as a Mermaid diagram, with every call named</b></summary>
+
+<br>
+
 ```mermaid
 graph TD
     Creator([Creator]) -->|1 tx per chain, gas only<br/>deployTrinity is NOT payable| Factory[AdextoFactory 1.0.0]
@@ -240,16 +316,11 @@ graph TD
     Curve -->|0.10% protocol, carved OUT OF<br/>the 1.00% standard preset| Protocol[protocolOwed →<br/>claimProtocolFees is permissionless,<br/>destination is immutable]
 
     Vault -->|executeBuyback: no caller gate,<br/>max 1% of reserve per call, 1h apart| Burn[buys along the curve,<br/>burns what it bought]
-
-    classDef live fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px,color:#201810;
-    classDef partial fill:#fffbeb,stroke:#f59e0b,stroke-width:2px,color:#201810;
-    classDef ext fill:#eef2ff,stroke:#4338ca,stroke-width:2px,color:#201810;
-    class Factory,Token,Curve,Depth,CreatorFee,Vault,Burn live;
-    class Meta partial;
-    class Registry ext;
 ```
 
-Three things in that picture exist but are **not** part of `deployTrinity`:
+</details>
+
+Three details that are easy to misread, none of them part of `deployTrinity`:
 
 - **`agentIdentity` is just an address.** It is required non-zero and stored immutably on both the token and the curve, and it may call `executeTreasuryBuyback` to burn tokens it holds itself. It is not automatically the 0G Compute agent: the studio passes the creator's own wallet by default.
 - **The x402 edge is a customer of the curve, not an operator of it.** It calls `buy` with the payer as recipient, exactly like any other address, and it holds no privileged position: it cannot deposit into `treasuryNative`, which fills only from the buyback leg of swap fees. The 0G Compute agent is an inference route and holds no key to anything on-chain. See [agent-to-agent](#agent-to-agent-where-the-loop-closes-and-where-it-breaks).
@@ -317,7 +388,8 @@ An Arbitrum Orbit chain. ADEXTO v1 is the first generation here, so there is no 
 | AdextoAgentStake | [`0x01b250a2db25561dB185f4628B93C72048D8bc1B`](https://robinhoodchain.blockscout.com/address/0x01b250a2db25561dB185f4628B93C72048D8bc1B) | **live** · the `$SAI` stake · `minStake` 10,000 SAI · 2,424 B · no `owner()` |
 | AdextoStakeHub | [`0x05EFA7F066FcbefbE650EDd58583C107831A600B`](https://robinhoodchain.blockscout.com/address/0x05EFA7F066FcbefbE650EDd58583C107831A600B) | **live** · every Robinhood Chain market except `$SAI`, from the v1 factory · `VERSION` `1.0.0` · 4,278 B · minimum 0.001% of supply · block 77733726 · no `owner()` |
 
-The factory here sits at the deployer's first-nonce address, and on Base and Monad that same address holds an unrelated pre-release contract. An address means nothing without its chain id.
+> [!WARNING]
+> **An address means nothing without its chain id.** The factory here sits at the deployer's first-nonce address, and on Base and Monad that same address holds an unrelated pre-release contract.
 
 ### <img src="public/brand/base.svg" width="20" height="20" alt=""> Base Mainnet · chain ID 8453
 
@@ -346,29 +418,29 @@ The factory here sits at the deployer's first-nonce address, and on Base and Mon
 
 ## Honest status
 
-What works, and exactly what that means. Every figure below was read from chain or from the live service, with the date it was read.
+What works, and exactly what that means. Every figure below was read from chain or from the live service, with the date it was read. 🟢 live · 🟡 live, with a gap the row names.
 
 | Component | State | In one line |
 | --- | --- | --- |
-| ADEXTO v1 (`AdextoFactory` `1.0.0`) | **Live on 5 mainnets, current** | Byte-identical on all five, an exact match on Sourcify, and every new launch goes through it. |
-| `AdextoFactory` `0.11.0` | **Live on 4 mainnets, superseded** | Still permissionless; its six listed markets keep their 0.40% permanently. |
-| `AdextoStakeHub` `1.0.0` | **Live on 5 mainnets** | Any market is stakeable from its first block, with nothing deployed for it. |
-| Protocol fee revenue | **Accruing on all five** | The 0.10% leg is charged on every `0.11.0` and v1 curve; the treasury has never sent a transaction. |
-| ERC-8004 agent binding | **Works, opt-in** | The factory reverts unless the caller owns the agent; 6 of the 11 listed markets are bound. |
-| Launching through the site | **Enabled on five chains** | The studio launches on v1 everywhere, Express and Advanced. |
-| Creator earnings (`/creator`) | **Live** | Reads matched chain field by field; both claim paths were exercised on a local chain. |
-| Live markets | **11 on five mainnets** | Every launch that exists on chain is accounted for in `onchain-launches.json`. |
-| Trading | **Live on all five, nearly all of it ours** | 66 fills across the 11 listed curves. That proves the paths, not outside demand. |
-| MCP server | **Live, 14 tools** | Launch, stake and claim with the agent's own key, plus one capped, operator-signed purchase tool. |
-| x402 edge gateway | **Settles on Base; delivers on all five** | Paid deliveries on four chains; Robinhood Chain is quoted and wired, with no paid delivery yet. |
-| Agent Compute | **Live on all five** | A stake gets an API key for an OpenAI-compatible endpoint on the 0G Compute router. |
-| Market staking (`ask_agent`) | **Live on every market** | A stake in the market's contract opens its agent over MCP. |
-| Agent inference (0G) | **Works** | The router reports Intel TDX; that is its word, attributed to it, not our verification. |
-| 0G DA metadata anchoring | **Live** | All 11 listed markets have a storage transaction on 0G mainnet. |
-| The Graph | **Base and Arbitrum, `0.11.0` markets only** | The v1 factories are not in the manifest yet; the site reads RPC logs instead. |
-| Envio (Monad) | **Live for `0.11.0`** | The v1 Monad factory is not indexed yet. |
-| Trade history, holders, positions | **Complete from each launch block** | One gap: the MCP `trade_history` tool can stop short on 0G's oldest markets, and says so. |
-| No admin surface | **Guaranteed by the contracts** | Every fee rate is immutable, nothing on the launch path has an owner or a setter, and no curve can be drained. |
+| ADEXTO v1 (`AdextoFactory` `1.0.0`) | 🟢 **Live on 5 mainnets, current** | Byte-identical on all five, an exact match on Sourcify, and every new launch goes through it. |
+| `AdextoFactory` `0.11.0` | 🟢 **Live on 4 mainnets, superseded** | Still permissionless; its six listed markets keep their 0.40% permanently. |
+| `AdextoStakeHub` `1.0.0` | 🟢 **Live on 5 mainnets** | Any market is stakeable from its first block, with nothing deployed for it. |
+| Protocol fee revenue | 🟢 **Accruing on all five** | The 0.10% leg is charged on every `0.11.0` and v1 curve; the treasury has never sent a transaction. |
+| ERC-8004 agent binding | 🟢 **Works, opt-in** | The factory reverts unless the caller owns the agent; 6 of the 11 listed markets are bound. |
+| Launching through the site | 🟢 **Enabled on five chains** | The studio launches on v1 everywhere, Express and Advanced. |
+| Creator earnings (`/creator`) | 🟢 **Live** | Reads matched chain field by field; both claim paths were exercised on a local chain. |
+| Live markets | 🟢 **11 on five mainnets** | Every launch that exists on chain is accounted for in `onchain-launches.json`. |
+| Trading | 🟢 **Live on all five, nearly all of it ours** | 66 fills across the 11 listed curves. That proves the paths, not outside demand. |
+| MCP server | 🟢 **Live, 14 tools** | Launch, stake and claim with the agent's own key, plus one capped, operator-signed purchase tool. |
+| x402 edge gateway | 🟡 **Settles on Base; delivers on all five** | Paid deliveries on four chains; Robinhood Chain is quoted and wired, with no paid delivery yet. |
+| Agent Compute | 🟢 **Live on all five** | A stake gets an API key for an OpenAI-compatible endpoint on the 0G Compute router. |
+| Market staking (`ask_agent`) | 🟢 **Live on every market** | A stake in the market's contract opens its agent over MCP. |
+| Agent inference (0G) | 🟢 **Works** | The router reports Intel TDX; that is its word, attributed to it, not our verification. |
+| 0G DA metadata anchoring | 🟢 **Live** | All 11 listed markets have a storage transaction on 0G mainnet. |
+| The Graph | 🟡 **Base and Arbitrum, `0.11.0` markets only** | The v1 factories are not in the manifest yet; the site reads RPC logs instead. |
+| Envio (Monad) | 🟡 **Live for `0.11.0`** | The v1 Monad factory is not indexed yet. |
+| Trade history, holders, positions | 🟡 **Complete from each launch block** | One gap: the MCP `trade_history` tool can stop short on 0G's oldest markets, and says so. |
+| No admin surface | 🟢 **Guaranteed by the contracts** | Every fee rate is immutable, nothing on the launch path has an owner or a setter, and no curve can be drained. |
 
 <details>
 <summary><b>The evidence behind every row</b></summary>
@@ -410,7 +482,8 @@ What works, and exactly what that means. Every figure below was read from chain 
 
 **It works, and it is off unless you ask for it.** Pass an agent id at launch and `AdextoFactory` calls `ownerOf(agentId)` on the [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Identity Registry, refusing the launch unless you own that agent, so a token cannot attach itself to somebody else's identity and inherit its reputation. Leave the id out and the launch is one transaction with no agent attached.
 
-**Scope, stated precisely: this integrates the Identity Registry.** The standard has three registries, and ownership is the one that matters at launch. Reputation and Validation are outside what a launch needs, so they are not touched, and `supportsInterface` is not implemented. Calling this "ERC-8004 compliance" would overstate one registry into three.
+> [!NOTE]
+> **Scope, stated precisely: this integrates the Identity Registry.** The standard has three registries, and ownership is the one that matters at launch. Reputation and Validation are outside what a launch needs, so they are not touched, and `supportsInterface` is not implemented. Calling this "ERC-8004 compliance" would overstate one registry into three.
 
 | | |
 | --- | --- |
@@ -587,7 +660,10 @@ Self-hosting runs from `subgraph/docker-compose.yml`. Public-RPC `eth_getLogs` c
 
 ## Security
 
-There has been **no human review** of these contracts. Several analysers and fuzzers run against them (Foundry fuzz and invariant tests, Echidna, Slither, Aderyn, Solhint and Semgrep), and every finding is triaged in public at [adexto.xyz/security](https://adexto.xyz/security), which also has copy-paste `cast` commands to check each deployment yourself. That is not offered as a substitute for a review. [`audit/README.md`](audit/README.md) is the scope document for one: 825 SLOC across the five v1 contracts and the registry interface, with the expected results (`forge test`: 80 passed, 0 failed).
+> [!IMPORTANT]
+> There has been **no human review** of these contracts. Deployed bytecode is permanent: a fix can only ship as a new factory at a new address, while every existing market keeps the code it was born with.
+
+Several analysers and fuzzers run against the contracts (Foundry fuzz and invariant tests, Echidna, Slither, Aderyn, Solhint and Semgrep), and every finding is triaged in public at [adexto.xyz/security](https://adexto.xyz/security), which also has copy-paste `cast` commands to check each deployment yourself. That is not offered as a substitute for a review. [`audit/README.md`](audit/README.md) is the scope document for one: 825 SLOC across the five v1 contracts and the registry interface, with the expected results (`forge test`: 80 passed, 0 failed).
 
 Report a vulnerability privately as described in [SECURITY.md](SECURITY.md). Please do not open a public issue for it.
 
@@ -639,4 +715,7 @@ Business Source License 1.1 (BUSL-1.1). See [LICENSE](LICENSE) for terms.
 
 Change Date: 2030-09-29 (MIT).
 
-<sub>© 2026 ADEXTO Core Contributors · [adexto.xyz](https://adexto.xyz) · Banner background generated with z-image-turbo on the 0G Compute router ([provenance](docs/assets/readme/SOURCES.md)).</sub>
+<p align="center"><sub>
+  © 2026 ADEXTO Core Contributors · <a href="https://adexto.xyz">adexto.xyz</a><br>
+  Banner background generated with z-image-turbo on the 0G Compute router. Diagrams and icons are rendered by <a href="docs/assets/readme/render.mjs"><code>render.mjs</code></a>. Provenance: <a href="docs/assets/readme/SOURCES.md">SOURCES.md</a>.
+</sub></p>
