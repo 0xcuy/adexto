@@ -229,6 +229,15 @@ const RANGES = [
   { label: "All", seconds: Number.POSITIVE_INFINITY },
 ] as const;
 type RangeLabel = (typeof RANGES)[number]["label"];
+/**
+ * Ukuran tombol toolbar. Di bawah lg 36 px (target sentuh; px karena rem situs 14 px, jadi `h-9` hanya
+ * 31,5 px), mulai lg ukuran desktop lama (`px-2 py-0.5`). `TB_GROUPED` untuk tombol di dalam kelompok
+ * berbingkai 1 px, supaya kelompoknya juga 36 px.
+ */
+const TB = "inline-flex h-[36px] min-w-[36px] shrink-0 items-center justify-center px-2.5 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5";
+const TB_GROUPED = "inline-flex h-[34px] min-w-[36px] items-center justify-center px-2.5 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5";
+/** Tombol ikon (Candles/Line): di desktop tetap `py-1` seperti dulu. */
+const TB_GROUPED_ICON = "inline-flex h-[34px] min-w-[36px] items-center justify-center px-2.5 lg:h-auto lg:min-w-0 lg:px-2 lg:py-1";
 
 /** Lebar bar yang boleh dipilih otomatis untuk sebuah rentang. */
 const AUTO_BUCKETS = [300, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400, 259200, 604800];
@@ -1584,7 +1593,10 @@ export default function RealtimeCandleChart({
   return (
     <div className="w-full flex flex-col h-full justify-between">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-1 border-b border-line shrink-0">
-        <div className="flex items-center gap-3 flex-wrap">
+        {/* Di bawah 640 px dua baris tetap: pasangan + perubahan, lalu harga, USD dan kurs. Dulu satu
+            baris yang membungkus, dan begitu persen perubahannya bertambah digit (+0.00% → +0.0048%)
+            harga USD pindah baris dan chart turun 32 px (CLS 0,019 di 360 px). Mulai 640 px seperti dulu. */}
+        <div className="flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink sm:text-lg">
             <span>
               ${symbol}/{nativeSymbol}
@@ -1600,20 +1612,26 @@ export default function RealtimeCandleChart({
               {formatPct(changePct)}%
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:contents">
           <span className="text-xs font-semibold text-accent sm:text-sm" data-numeric>
             {priceNative > 0 ? formatSmallNumber(priceNative) : "—"} {nativeSymbol}
           </span>
-          {priceUsd > 0 && (
-            <span className="text-[11px] text-ink-soft" data-numeric>
-              ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
-            </span>
-          )}
+          {/* Angka USD dan kurs datang sesudah lukisan pertama. Tempatnya dipesan (placeholder tak terlihat
+              selebar angkanya) supaya baris judul ini tidak tiba-tiba membungkus di ponsel dan mendorong
+              toolbar serta chart ke bawah (terukur 360 px: 25 px, CLS 0,019). */}
+          <span
+            className={`text-[11px] text-ink-soft ${priceUsd > 0 ? "" : "invisible"}`}
+            aria-hidden={priceUsd > 0 ? undefined : true}
+            data-numeric
+          >
+            ≈ ${priceUsd > 0 ? (priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)) : "0.000000"}
+          </span>
           {/* Kurs yang dipakai untuk angka USD di sebelahnya, dinyatakan.
               Candle-nya digambar dalam satuan native, jadi harga USD di atas bergerak dua
               sebab: fill baru, DAN {nativeSymbol} yang bergerak terhadap dolar. Tanpa kurs
               yang tertulis, sebab kedua terlihat seperti chart yang berselisih dengan
               headernya. Angkanya disegarkan tiap 15 detik oleh halaman ini. */}
-          {nativeUsd > 0 && (
+          {nativeUsd > 0 ? (
             <span
               className="rounded border border-line px-1.5 py-0.5 text-[10px] text-ink-faint"
               title={`USD figures on this chart use 1 ${nativeSymbol} = $${nativeUsd}, refreshed every 15 seconds. The candles themselves are priced in ${nativeSymbol}.`}
@@ -1621,12 +1639,23 @@ export default function RealtimeCandleChart({
             >
               {nativeSymbol} ${nativeUsd < 1 ? nativeUsd.toFixed(4) : nativeUsd.toFixed(2)}
             </span>
+          ) : (
+            <span className="invisible rounded border border-line px-1.5 py-0.5 text-[10px]" aria-hidden="true" data-numeric>
+              {nativeSymbol} $0000.00
+            </span>
           )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 text-[11px]">
+        {/* Toolbar. Di bawah 640 px tombolnya dulu membungkus jadi tiga-empat baris tombol 21 px yang rapat
+            (ERROR tap<24 di 360 px). Sekarang di sana satu rel yang bisa digeser, tombol 36 px, dengan
+            "Indicators" di LUAR rel: popovernya akan terpotong oleh overflow rel kalau ikut di dalam. Mulai
+            640 px rel menjadi `contents`, jadi semua tombol membungkus seperti sebelumnya; mulai lg ukurannya
+            kembali ke ukuran desktop lama. */}
+        <div className="flex w-full min-w-0 items-center gap-1 text-[11px] sm:w-auto sm:flex-wrap">
+          <div className="-ml-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 pl-1 pr-6 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] sm:contents [&::-webkit-scrollbar]:hidden">
           {/* Satuan sumbu: dolar, atau aset native chain. */}
-          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
             {(
               [
                 ["USD", "usd"],
@@ -1651,7 +1680,7 @@ export default function RealtimeCandleChart({
                     ? `Price in dollars, converted with recorded ${nativeSymbol}/USD rates. In this unit the market keeps moving when ${nativeSymbol} moves, even with no trades.`
                     : `Price in ${nativeSymbol}, exactly as the curve prices it`
                 }
-                className={`px-2 py-0.5 font-bold transition-colors ${
+                className={`${TB_GROUPED} font-bold transition-colors ${
                   unit === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -1661,7 +1690,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Bentuk: candle, atau garis penutupan. */}
-          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
             {(
               [
                 ["Candles", "candles", ChartCandlestick],
@@ -1675,7 +1704,7 @@ export default function RealtimeCandleChart({
                 aria-pressed={chartKind === value}
                 aria-label={`${label} chart`}
                 title={`${label} chart`}
-                className={`px-2 py-1 transition-colors ${
+                className={`${TB_GROUPED_ICON} transition-colors ${
                   chartKind === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -1685,7 +1714,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Sumbu: harga per token, atau kapitalisasi. */}
-          <div className="mr-1 flex items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
             {[
               { label: "Price", on: !showMcap, set: false },
               { label: "MCAP", on: showMcap, set: true },
@@ -1699,7 +1728,7 @@ export default function RealtimeCandleChart({
                     ? "Chart the market cap: price x supply. 100% of supply is in the curve, so this equals FDV."
                     : "Chart the price of one token"
                 }
-                className={`px-2 py-0.5 font-bold transition-colors ${
+                className={`${TB_GROUPED} font-bold transition-colors ${
                   o.on ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -1718,7 +1747,9 @@ export default function RealtimeCandleChart({
               tidak mungkin memuat perubahan apa pun — yang tergambar selalu garis rata, dan itu
               terbaca sebagai chart rusak. Tombolnya disembunyikan alih-alih dibiarkan
               menghasilkan tampilan yang pasti kosong. */}
-          <div className={`relative ${unit === "usd" ? "hidden" : ""}`}>
+          {/* Di bawah 640 px pilihan sub-menit terbuka SEBARIS di dalam rel, bukan sebagai popover:
+              popover di dalam penggulir akan terpotong. Mulai 640 px tetap popover seperti dulu. */}
+          <div className={`relative flex shrink-0 items-center gap-1 ${unit === "usd" ? "hidden" : ""}`}>
             <button
               type="button"
               onClick={() => setShowSubMinute((v) => !v)}
@@ -1726,7 +1757,7 @@ export default function RealtimeCandleChart({
               aria-haspopup="true"
               aria-label="Sub-minute timeframes"
               title="Timeframes under one minute"
-              className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+              className={`${TB} rounded font-bold border transition-colors ${
                 subMinuteActive || showSubMinute
                   ? "bg-accent-soft text-accent border-accent/30"
                   : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
@@ -1735,7 +1766,7 @@ export default function RealtimeCandleChart({
               {subMinuteActive ? INTERVALS.find((i) => i.seconds === interval)?.label : "s"}
             </button>
             {showSubMinute && (
-              <div className="absolute left-0 top-full z-30 mt-1 flex gap-1 rounded-xl border border-line bg-surface p-1 shadow-[var(--shadow-panel)]">
+              <div className="flex gap-1 sm:absolute sm:left-0 sm:top-full sm:z-30 sm:mt-1 sm:rounded-xl sm:border sm:border-line sm:bg-surface sm:p-1 sm:shadow-[var(--shadow-panel)]">
                 {INTERVALS.filter((i) => i.sub).map((i) => (
                   <button
                     key={i.label}
@@ -1745,8 +1776,8 @@ export default function RealtimeCandleChart({
                       setIntervalSeconds(i.seconds);
                       setShowSubMinute(false);
                     }}
-                    className={`rounded px-2 py-0.5 font-bold transition-colors ${
-                      interval === i.seconds ? "bg-accent-soft text-accent" : "text-ink-soft hover:bg-cream-3 hover:text-ink"
+                    className={`${TB} rounded font-bold transition-colors ${
+                      interval === i.seconds ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink sm:bg-transparent sm:hover:bg-cream-3"
                     }`}
                   >
                     {i.label}
@@ -1765,7 +1796,7 @@ export default function RealtimeCandleChart({
                 setIntervalSeconds(i.seconds);
               }}
               aria-pressed={!range && interval === i.seconds}
-              className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+              className={`${TB} rounded font-bold border transition-colors ${
                 !range && interval === i.seconds
                   ? "bg-accent-soft text-accent border-accent/30"
                   : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
@@ -1777,7 +1808,7 @@ export default function RealtimeCandleChart({
           {/* Rentang, dipisah garis tipis dari lebar bar: keduanya menjawab pertanyaan berbeda
               ("seberapa jauh ke belakang" vs "seberapa lebar tiap candle"), dan meletakkannya
               sejajar tanpa pemisah membuat 1y terbaca sebagai candle setahun. */}
-          <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-line-strong" />
+          <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
           {RANGES.map((r) => {
             const nowSec = Math.floor(Date.now() / 1000);
             /**
@@ -1806,7 +1837,7 @@ export default function RealtimeCandleChart({
                     ? "The whole history, from the first trade (or from launch before any trade), with the candle width picked to fit"
                     : "The last 365 days, or since launch for a younger market, with the candle width picked to fit"
                 }
-                className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+                className={`${TB} rounded font-bold border transition-colors ${
                   range === r.label
                     ? "bg-accent-soft text-accent border-accent/30"
                     : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
@@ -1827,7 +1858,7 @@ export default function RealtimeCandleChart({
                 ? "Mark your trades (B/S) and the creator's trades (D) on the chart"
                 : "Mark the creator's trades (D) on the chart. Connect a wallet to mark yours too"
             }
-            className={`ml-1 px-2 py-0.5 rounded font-bold border transition-colors ${
+            className={`${TB} ml-1 rounded font-bold border transition-colors ${
               showMarks
                 ? "bg-accent-soft text-accent border-accent/30"
                 : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
@@ -1835,14 +1866,15 @@ export default function RealtimeCandleChart({
           >
             Marks
           </button>
+          </div>
 
-          <div className="relative ml-1">
+          <div className="relative shrink-0 sm:ml-1">
             <button
               type="button"
               onClick={() => setShowIndicatorMenu((v) => !v)}
               aria-expanded={showIndicatorMenu}
               aria-haspopup="true"
-              className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+              className={`${TB} rounded font-bold border transition-colors ${
                 showIndicatorMenu
                   ? "bg-accent-soft text-accent border-accent/30"
                   : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
@@ -1856,7 +1888,7 @@ export default function RealtimeCandleChart({
                 {OVERLAYS.map((o) => (
                   <label
                     key={o.key}
-                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-cream-3 cursor-pointer"
+                    className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-cream-3 lg:min-h-0"
                   >
                     <input
                       type="checkbox"
@@ -1877,7 +1909,7 @@ export default function RealtimeCandleChart({
                 {PANES.map((p) => (
                   <label
                     key={p.key}
-                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-cream-3 cursor-pointer"
+                    className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-cream-3 lg:min-h-0"
                   >
                     <input
                       type="checkbox"
@@ -1897,32 +1929,43 @@ export default function RealtimeCandleChart({
         </div>
       </div>
 
-      {/* OHLC legend under the crosshair. */}
-      {legend && (
-        <div className="flex shrink-0 flex-wrap items-center gap-2.5 pb-1 text-[11px] text-ink-soft" data-numeric>
-          {(["open", "high", "low", "close"] as const).map((k) => (
-            <span key={k}>
-              {k[0].toUpperCase()}
-              <span className={legend.close >= legend.open ? "text-ok ml-0.5" : "text-danger ml-0.5"}>
-                {formatSmallNumber(legend[k])}
+      {/* OHLC legend under the crosshair.
+          Barisnya selalu dirender dengan tinggi satu baris yang dipesan. Dulu ia baru muncul saat candle
+          pertama datang (±2,5 s), dan chart di bawahnya turun 21 px pada saat itu. */}
+      <div className="flex min-h-[22px] shrink-0 flex-wrap items-center gap-2.5 pb-1 text-[11px] text-ink-soft" data-numeric>
+        {legend && (
+          <>
+            {(["open", "high", "low", "close"] as const).map((k) => (
+              <span key={k}>
+                {k[0].toUpperCase()}
+                <span className={legend.close >= legend.open ? "text-ok ml-0.5" : "text-danger ml-0.5"}>
+                  {formatSmallNumber(legend[k])}
+                </span>
               </span>
+            ))}
+            <span>
+              Vol<span className="text-accent ml-0.5">{legend.volume.toFixed(4)}</span>
             </span>
-          ))}
-          <span>
-            Vol<span className="text-accent ml-0.5">{legend.volume.toFixed(4)}</span>
-          </span>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {/* min-h dinaikkan dari 300 ke 460: tinggi chart sekarang dibaca dari kontainer ini,
-          jadi kelas inilah yang menentukan seberapa besar terminalnya. */}
+          jadi kelas inilah yang menentukan seberapa besar terminalnya. Di bawah 640 px 340: di
+          sana tab Trade memuat chart DAN formulir swap, dan chart 460 px mendorong formulirnya
+          satu layar penuh ke bawah. */}
       {/* Pembungkus `relative` supaya catatan "No data before …" bisa melayang di atas chart
           tanpa menjadi anak kontainer yang diisi lightweight-charts. Tinggi tetap dibaca dari
           kontainer di dalamnya, yang mengisi pembungkus. */}
-      <div className="relative flex w-full flex-1 min-h-[460px] flex-col">
+      <div className="relative flex w-full flex-1 min-h-[340px] flex-col sm:min-h-[460px]">
+        {/* Logo atribusi TradingView (`a#tv-attr-logo`, dari pustaka: 35×19 px, bottom 10 px) diberi
+            padding 3 px atas-bawah dan digeser 3 px, jadi gambarnya tetap di tempat dan ukuran yang
+            sama tetapi area ketuknya 35×25. Di bawah 24 px ia target kecil, dan saat halaman digulir di
+            bawah tab Trade/Market/You yang menempel, audit menilainya rapat (ERROR tap<24 di 320 px).
+            Atribusinya sendiri tidak diubah atau disembunyikan. */}
         <div
           ref={containerRef}
-          className="w-full flex-1 min-h-[460px] overflow-hidden rounded-xl"
+          className="w-full flex-1 min-h-[340px] overflow-hidden rounded-xl sm:min-h-[460px] [&_#tv-attr-logo]:bottom-[7px] [&_#tv-attr-logo]:h-[25px] [&_#tv-attr-logo]:py-[3px]"
           data-testid="price-chart"
           data-marks-me={markSummary.me}
           data-marks-dev={markSummary.dev}
@@ -1974,7 +2017,7 @@ export default function RealtimeCandleChart({
               onClick={() => setLogScale((v) => !v)}
               aria-pressed={logScale}
               title="Logarithmic price axis: equal vertical distance means equal PERCENTAGE change, so a 0.0002% move and a 2% move finally look different"
-              className={`rounded border px-1.5 py-0.5 font-bold transition-colors ${
+              className={`inline-flex h-[32px] min-w-[36px] items-center justify-center rounded border px-2 font-bold transition-colors lg:h-auto lg:min-w-0 lg:px-1.5 lg:py-0.5 ${
                 logScale ? "border-accent/30 bg-accent-soft text-accent" : "border-line bg-cream-3 text-ink-soft hover:text-ink"
               }`}
             >
@@ -1985,7 +2028,7 @@ export default function RealtimeCandleChart({
               onClick={() => setAutoScale((v) => !v)}
               aria-pressed={autoScale}
               title="Auto-fit the price axis to the data. Turn it off to pan and zoom the axis yourself without it snapping back."
-              className={`rounded border px-1.5 py-0.5 font-bold transition-colors ${
+              className={`inline-flex h-[32px] min-w-[36px] items-center justify-center rounded border px-2 font-bold transition-colors lg:h-auto lg:min-w-0 lg:px-1.5 lg:py-0.5 ${
                 autoScale ? "border-accent/30 bg-accent-soft text-accent" : "border-line bg-cream-3 text-ink-soft hover:text-ink"
               }`}
             >

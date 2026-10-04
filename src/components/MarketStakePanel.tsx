@@ -163,7 +163,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
 
   return (
     <div id="stake" className="glass-panel scroll-mt-20 space-y-3 rounded-card p-4" data-testid="market-stake-panel">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Layers className="h-3.5 w-3.5 text-accent" aria-hidden="true" /> Stake ${symbol}
         </span>
@@ -189,7 +189,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
               <>
                 {" "}
                 and an{" "}
-                <Link href={`/agent-compute?stake=${computeId}`} className="font-semibold text-accent hover:underline">
+                <Link href={`/agent-compute?stake=${computeId}`} className="whitespace-nowrap font-semibold text-accent hover:underline">
                   Agent Compute key
                 </Link>
                 {hub && <> funded by this market&apos;s own trading</>}
@@ -215,13 +215,15 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
             aria-label={`Amount of ${symbol} to stake`}
-            className="min-w-0 flex-1 rounded-xl border border-line bg-cream-2 px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+            // 16 px di bawah lg: Safari iOS memperbesar halaman saat kolom berhuruf < 16 px disentuh.
+            className="h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-cream-2 px-3 font-mono text-[16px] text-ink focus:border-accent focus:outline-none lg:h-auto lg:py-2 lg:text-sm"
           />
+          {/* Di bawah lg 44 px, setinggi kolom isiannya (rem situs 14 px, jadi px). Desktop tetap. */}
           <button
             type="button"
             onClick={doStake}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-xs font-bold text-white disabled:opacity-50"
+            className="inline-flex h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-50 lg:h-auto lg:px-3.5 lg:py-2"
           >
             {busy === "stake" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5" />} Stake
           </button>
@@ -230,7 +232,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
               type="button"
               onClick={doUnstake}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold text-ink-soft disabled:opacity-50"
+              className="inline-flex h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-line bg-surface px-3 text-xs font-bold text-ink-soft disabled:opacity-50 lg:h-auto lg:py-2"
             >
               {busy === "unstake" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />} Unstake all
             </button>
@@ -240,7 +242,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
         <button
           type="button"
           onClick={() => void connectWallet()}
-          className="w-full rounded-xl border border-accent/40 bg-accent-soft py-2 text-xs font-bold text-accent"
+          className="h-[44px] w-full rounded-xl border border-accent/40 bg-accent-soft text-xs font-bold text-accent lg:h-auto lg:py-2"
         >
           Connect a wallet to stake
         </button>
@@ -253,7 +255,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
         href={explorerAddressUrl(chain, stake.contract)}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1 text-[10px] text-ink-faint hover:text-accent"
+        className="flex min-h-[32px] items-center gap-1 text-[10px] text-ink-faint hover:text-accent lg:min-h-0"
       >
         {hub ? "AdextoStakeHub" : "AdextoAgentStake"} {stake.contract.slice(0, 6)}…{stake.contract.slice(-4)} · no owner, no admin
         <ExternalLink className="h-2.5 w-2.5" />

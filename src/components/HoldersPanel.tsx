@@ -148,7 +148,9 @@ export default function HoldersPanel({
                 // batang selebar itu tidak terlihat.
                 const width = report.top[0].pct > 0 ? Math.max(2, (h.pct / report.top[0].pct) * 100) : 0;
                 return (
-                  <li key={h.address} className="relative overflow-hidden rounded-lg px-2 py-1 text-[11px]" data-holder={h.address}>
+                  // Di bawah lg barisnya setinggi tautannya (36 px), tanpa padding vertikal; dulu tautan 16 px
+                  // dengan jarak 3,5 px ke baris berikutnya terlalu rapat untuk jempol.
+                  <li key={h.address} className="relative overflow-hidden rounded-lg px-2 text-[11px] lg:py-1" data-holder={h.address}>
                     <div className="absolute inset-y-0 left-0 bg-accent-soft" style={{ width: `${width}%` }} aria-hidden="true" />
                     <div className="relative flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
@@ -157,7 +159,7 @@ export default function HoldersPanel({
                           href={explorerAddressUrl(chain, h.address)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-0.5 font-mono text-accent hover:underline"
+                          className="inline-flex min-h-[36px] items-center gap-0.5 font-mono text-accent hover:underline lg:min-h-0"
                           title={`${h.address} · ${formatTokenAmount(h.tokens)} $${symbol}`}
                         >
                           {h.address.slice(0, 6)}…{h.address.slice(-4)}

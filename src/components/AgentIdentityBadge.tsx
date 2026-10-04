@@ -62,7 +62,10 @@ export default function AgentIdentityBadge({ chain, tokenAddress }: { chain: Cha
       rel="noopener noreferrer"
       data-testid="agent-identity-badge"
       title={`Bound at launch to ERC-8004 agent ${binding.agentId} in the Identity Registry ${binding.registry} on ${chain.name}. The factory checked that the launcher owned this agent; the binding is immutable on the token contract.`}
-      className="flex items-center gap-1 rounded border border-ok/30 bg-ok/10 px-2 py-0.5 font-bold text-ok hover:underline"
+      // Tinggi dalam px (rem situs 14 px): 32 px di bawah lg supaya bisa diketuk, 22 px di desktop.
+      // Ukuran ini sama dengan slot yang dipesan TokenTerminal, jadi lencana yang datang belakangan
+      // tidak menggeser apa pun.
+      className="inline-flex h-[32px] items-center gap-1 whitespace-nowrap rounded-lg border border-ok/30 bg-ok/10 px-2.5 text-[11px] font-bold text-ok hover:underline lg:h-[22px] lg:rounded lg:px-2"
     >
       <Fingerprint className="h-3 w-3" aria-hidden="true" /> ERC-8004 agent #{binding.agentId}
     </a>

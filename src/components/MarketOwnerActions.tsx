@@ -166,8 +166,10 @@ export default function MarketOwnerActions({
     }
   };
 
+  // 36 px di bawah lg (target sentuh), 27 px di desktop: sama dengan chip tautan proyek, karena
+  // sejak U2.2 keduanya duduk di satu baris.
   const btn =
-    "inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent";
+    "inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[11px] font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px]";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -192,7 +194,7 @@ export default function MarketOwnerActions({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block rounded-lg px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+                className="flex h-[40px] items-center rounded-lg px-2.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-[30px]"
               >
                 {label}
               </a>
@@ -207,7 +209,7 @@ export default function MarketOwnerActions({
               href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}?chain=${chainId}&v=${SHARE_CARD_VERSION}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border-t border-line px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+              className="flex h-[40px] items-center gap-1.5 rounded-lg border-t border-line px-2.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-[30px]"
             >
               <ImageIcon className="h-3 w-3" /> market card
             </a>
@@ -222,7 +224,7 @@ export default function MarketOwnerActions({
                 href={`/api/share-card/${encodeURIComponent(symbol.toLowerCase())}/position?chain=${chainId}&holder=${address}&v=${SHARE_CARD_VERSION}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+                className="flex h-[40px] items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-[30px]"
               >
                 <Wallet className="h-3 w-3" /> my position card
               </a>
@@ -231,7 +233,7 @@ export default function MarketOwnerActions({
               type="button"
               role="menuitem"
               onClick={copyLink}
-              className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+              className="flex h-[40px] w-full items-center gap-1.5 rounded-lg px-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-[30px]"
             >
               {copied ? <Check className="h-3 w-3 text-ok" /> : <Copy className="h-3 w-3" />}
               {copied ? "copied" : "copy link"}

@@ -428,7 +428,8 @@ export default function SwapTerminal() {
                   key={m}
                   onClick={() => swap.setMode(m)}
                   aria-pressed={swap.mode === m}
-                  className={`rounded-lg px-3.5 py-1.5 font-semibold capitalize transition-colors ${
+                  // 34 px di bawah lg, sama dengan tombol buy/sell di halaman token; ukuran lama di desktop.
+                  className={`inline-flex h-[34px] items-center rounded-lg px-4 font-semibold capitalize transition-colors lg:h-auto lg:px-3.5 lg:py-1.5 ${
                     swap.mode === m
                       ? m === "buy"
                         ? "bg-ok/10 text-ok"
@@ -444,7 +445,7 @@ export default function SwapTerminal() {
               type="button"
               onClick={() => setShowSlippage((v) => !v)}
               aria-expanded={showSlippage}
-              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-ink-soft transition-colors hover:bg-cream-2 hover:text-ink"
+              className="flex h-[36px] items-center gap-1.5 rounded-lg px-2.5 text-xs text-ink-soft transition-colors hover:bg-cream-2 hover:text-ink lg:h-auto lg:px-2 lg:py-1.5"
               title="Slippage settings"
             >
               <Settings2 className="h-3.5 w-3.5" />

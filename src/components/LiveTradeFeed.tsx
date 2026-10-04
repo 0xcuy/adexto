@@ -152,7 +152,8 @@ export default function LiveTradeFeed({
             aria-pressed={filter === f.key}
             title={f.title}
             data-feed-filter={f.key}
-            className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            // 32 px di bawah lg (dulu 22 px dan rapat: ERROR tap<24), ukuran lama di desktop.
+            className={`inline-flex h-[32px] min-w-[40px] items-center justify-center rounded-md border px-2.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5 lg:text-[10px] ${
               filter === f.key
                 ? "border-accent/30 bg-accent-soft text-accent"
                 : "border-transparent bg-cream-3 text-ink-soft hover:text-ink"
@@ -179,7 +180,9 @@ export default function LiveTradeFeed({
           daripada sebagai celah kosong. Di ponsel tingginya tetap dibatasi. */}
       {/* `basis-0` di desktop: jumlah baris TIDAK ikut menentukan tinggi kolom. Tanpa itu daftar
           50 fill membuat kolom kiri memanjang dan kotak chat di kanan ikut meregang kosong. */}
-      <div className="max-h-[260px] min-h-0 flex-1 overflow-y-auto pr-1 lg:max-h-none lg:grow lg:basis-0">
+      {/* Di bawah 640 px baris setinggi 40 px (lihat sel trader), jadi batasnya dinaikkan supaya jumlah
+          baris yang terlihat tetap sekitar sembilan. */}
+      <div className="max-h-[400px] min-h-0 flex-1 overflow-y-auto pr-1 sm:max-h-[260px] lg:max-h-none lg:grow lg:basis-0">
         {!loaded ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-faint">Loading…</div>
         ) : trades.length > 0 && shown.length === 0 ? (
@@ -209,11 +212,14 @@ export default function LiveTradeFeed({
           <table className="w-full table-fixed border-collapse text-left">
             <thead className="sticky top-0 z-10 bg-surface">
               <tr className="text-[9px] uppercase tracking-[0.08em] text-ink-faint">
-                <th scope="col" className="w-[9%] pb-1.5 font-semibold">age</th>
-                <th scope="col" className="w-[11%] pb-1.5 font-semibold">side</th>
-                <th scope="col" className="w-[27%] pb-1.5 text-right font-semibold">size</th>
-                <th scope="col" className="w-[22%] pb-1.5 text-right font-semibold">price</th>
-                <th scope="col" className="w-[31%] pb-1.5 text-right font-semibold">trader</th>
+                {/* Di bawah lg kolom trader lebih lebar (40%): ia memuat alamat dan tautan transaksi
+                    selebar 32 px. Ruangnya diambil dari kolom size, yang di sana tidak lagi mengulang $SYM
+                    di setiap baris. Lencana x402/DEV/YOU yang tidak muat pindah ke baris di atas alamat. */}
+                <th scope="col" className="w-[8%] pb-1.5 font-semibold lg:w-[9%]">age</th>
+                <th scope="col" className="w-[10%] pb-1.5 font-semibold lg:w-[11%]">side</th>
+                <th scope="col" className="w-[21%] pb-1.5 text-right font-semibold lg:w-[27%]">size</th>
+                <th scope="col" className="w-[21%] pb-1.5 text-right font-semibold lg:w-[22%]">price</th>
+                <th scope="col" className="w-[40%] pb-1.5 text-right font-semibold lg:w-[31%]">trader</th>
               </tr>
             </thead>
             <tbody>
@@ -244,7 +250,9 @@ export default function LiveTradeFeed({
                 return (
                   <tr
                     key={t.id}
-                    className={`border-t border-line/60 align-baseline ${mine ? "bg-accent-soft/40" : ""}`}
+                    // Di bawah lg `align-middle`: sel trader bisa dua baris (lencana di atas alamat), dan
+                    // kolom lain sebaiknya duduk di tengah baris itu, bukan sejajar baris lencananya.
+                    className={`border-t border-line/60 align-middle lg:align-baseline ${mine ? "bg-accent-soft/40" : ""}`}
                     data-trade-row
                     data-mine={mine ? "1" : "0"}
                     data-dev={dev ? "1" : "0"}
@@ -261,16 +269,22 @@ export default function LiveTradeFeed({
                     </td>
                     <td className={`py-1.5 text-right text-[10px] font-medium ${tone}`}>
                       {burn ? "" : buy ? "+" : "−"}
-                      {fmtToken(t.amountToken)} <span className="text-ink-faint">${t.symbol}</span>
+                      {fmtToken(t.amountToken)} <span className="text-ink-faint max-lg:hidden">${t.symbol}</span>
                     </td>
                     <td className="py-1.5 text-right text-[10px] text-ink">
                       {priceUsd > 0 ? `$${formatSmallNumber(priceUsd)}` : `${formatSmallNumber(t.priceNative)} ${t.nativeSymbol}`}
                     </td>
-                    <td className="py-1.5 text-right text-[10px]">
+                    {/* Di bawah lg sel ini tanpa padding vertikal: kedua tautannya sudah setinggi 40 px
+                        (dulu 16 px dan 9 px, rapat satu sama lain: ERROR tap<24), dan itulah tinggi barisnya. */}
+                    <td className="py-0 text-right text-[10px] lg:py-1.5">
                       {t.source === "genesis" ? (
                         <span className="text-ink-faint">reference</span>
                       ) : (
-                        <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                        // Di bawah lg boleh membungkus: di 320 px lencana + alamat + tautan tx 32 px lebih
+                        // lebar dari kolomnya (terukur meluber 32 px). Lencana ada lebih dulu di DOM, jadi
+                        // yang tidak muat membuat alamat dan tautannya turun ke baris kedua, rata kanan.
+                        // Di desktop tetap satu baris.
+                        <span className="flex flex-wrap items-center justify-end gap-x-1 whitespace-nowrap lg:inline-flex lg:flex-nowrap">
                           {mine && (
                             <span className="rounded bg-accent-soft px-1 text-[8px] font-bold text-accent" title="Your wallet">
                               YOU
@@ -292,29 +306,33 @@ export default function LiveTradeFeed({
                           )}
                           {/* Alamat membuka ALAMAT yang sama di explorer; transaksinya punya
                               ikonnya sendiri. Dulu alamatnya membuka transaksi, yang untuk beli
-                              lewat relai memperlihatkan pengirim yang berbeda dari alamat ini. */}
-                          <a
-                            href={explorerAddressUrl(t.chainId, wallet)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`${wallet} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
-                              nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
-                            }`}
-                            aria-label={`Open ${wallet} on the explorer`}
-                            className="font-mono text-accent hover:underline"
-                          >
-                            {wallet.slice(0, 6)}…{wallet.slice(-4)}
-                          </a>
-                          <a
-                            href={explorerTxUrl(t.chainId, t.txHash)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={relayed ? `Transaction · ${senderNote}` : "Open this transaction on the explorer"}
-                            aria-label="Open this transaction on the explorer"
-                            className="inline-flex items-center text-ink-faint hover:text-accent"
-                          >
-                            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                          </a>
+                              lewat relai memperlihatkan pengirim yang berbeda dari alamat ini.
+                              Keduanya satu kelompok, supaya pembungkusan di ponsel tidak pernah
+                              memisahkan ikon tx dari alamatnya. */}
+                          <span className="inline-flex items-center gap-1">
+                            <a
+                              href={explorerAddressUrl(t.chainId, wallet)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`${wallet} · ${t.amountNative.toFixed(6)} ${t.nativeSymbol}${
+                                nativeUsd > 0 ? ` (${(t.amountNative * nativeUsd).toFixed(2)} USD)` : ""
+                              }`}
+                              aria-label={`Open ${wallet} on the explorer`}
+                              className="inline-flex min-h-[40px] items-center font-mono text-accent hover:underline lg:min-h-0"
+                            >
+                              {wallet.slice(0, 6)}…{wallet.slice(-4)}
+                            </a>
+                            <a
+                              href={explorerTxUrl(t.chainId, t.txHash)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={relayed ? `Transaction · ${senderNote}` : "Open this transaction on the explorer"}
+                              aria-label="Open this transaction on the explorer"
+                              className="inline-flex h-[40px] w-[32px] shrink-0 items-center justify-center text-ink-faint hover:text-accent lg:h-auto lg:w-auto"
+                            >
+                              <ExternalLink className="h-3 w-3 shrink-0 lg:h-2.5 lg:w-2.5" />
+                            </a>
+                          </span>
                         </span>
                       )}
                     </td>

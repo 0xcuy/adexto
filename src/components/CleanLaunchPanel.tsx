@@ -116,12 +116,14 @@ export default function CleanLaunchPanel({
           <CheckRow key={c.id} check={c} />
         ))}
       </ul>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-[11px]">
+      {/* Di bawah lg tiap tautan setinggi 36 px (dulu 18 px dan rapat: ERROR tap<24); jaraknya diambil
+          dari gap, jadi tinggi kakinya hampir sama. Desktop tetap seperti dulu. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 border-t border-line pt-1.5 text-[11px] lg:mt-3 lg:gap-x-4 lg:gap-y-2 lg:pt-3">
         <a
           href={explorerTxUrl(chainId, proof.launch.txHash)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+          className="inline-flex min-h-[36px] items-center gap-1 font-semibold text-accent hover:underline lg:min-h-0"
         >
           Launch transaction <ExternalLink className="h-3 w-3" aria-hidden />
         </a>
@@ -129,7 +131,7 @@ export default function CleanLaunchPanel({
           href={share.xUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+          className="inline-flex min-h-[36px] items-center gap-1 font-semibold text-accent hover:underline lg:min-h-0"
           data-testid="clean-launch-share-x"
         >
           <Share2 className="h-3 w-3" aria-hidden /> Share proof on X
@@ -138,7 +140,7 @@ export default function CleanLaunchPanel({
           href={`/api/launch-proof?chainId=${chainId}&token=${proof.token}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-semibold text-ink-soft hover:text-accent hover:underline"
+          className="inline-flex min-h-[36px] items-center font-semibold text-ink-soft hover:text-accent hover:underline lg:min-h-0"
         >
           Raw JSON
         </a>

@@ -19,6 +19,7 @@ import MarketStatsStrip from "@/components/MarketStatsStrip";
 import MyPositionPanel from "@/components/MyPositionPanel";
 import HoldersPanel from "@/components/HoldersPanel";
 import WatchStar from "@/components/WatchStar";
+import ChainChip from "@/components/ui/ChainChip";
 import MarketOwnerActions from "@/components/MarketOwnerActions";
 import AgentIdentityBadge from "@/components/AgentIdentityBadge";
 import MarketStakePanel from "@/components/MarketStakePanel";
@@ -357,40 +358,70 @@ export default function TokenTerminal({
   return (
     <div className="mx-auto max-w-[1600px] space-y-3 px-3 py-6 sm:px-6">
       {/* Header */}
-      <div className="glass-panel flex flex-col justify-between gap-5 rounded-card border border-line p-4 shadow-[var(--shadow-panel)] sm:p-5 lg:flex-row lg:items-center">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-accent/30 bg-cream-2 p-1">
+      <div className="glass-panel flex flex-col justify-between gap-4 rounded-card border border-line p-4 shadow-[var(--shadow-panel)] sm:p-5 lg:flex-row lg:items-center lg:gap-5">
+        {/* Di bawah lg kepala ini grid dua kolom: logo + baris judul di atas, lalu baris meta, pitch dan
+            tautan selebar kartu (pembungkus teksnya `contents`). Sebelumnya semua teks duduk di kolom 206 px
+            di samping logo (320 px), jadi pil dan tautan pecah per kata dan kepalanya setinggi 518 px.
+            Di lg ke atas susunannya tetap logo + kolom teks. */}
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 lg:flex lg:gap-4">
+          <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-accent/30 bg-cream-2 p-1 lg:h-14 lg:w-14">
             <img src={project.image} alt={project.name} className="w-full h-full object-cover rounded-xl" />
           </div>
 
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">{project.name}</h1>
-              <span className="rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
+          <div className="contents lg:block lg:min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+              <h1 className="min-w-0 break-words font-display text-[22px] font-medium leading-tight tracking-tight text-ink sm:text-3xl">
+                {project.name}
+              </h1>
+              <span className="whitespace-nowrap rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
                 ${project.symbol}
               </span>
-              <WatchStar chainId={project.chainId} symbol={project.symbol} size="sm" />
+              <WatchStar chainId={project.chainId} symbol={project.symbol} size="lg" />
               {project.verified ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-ok/30 bg-ok/10 px-2 py-0.5 text-[11px] font-semibold text-ok">
-                  <ShieldCheck className="w-3 h-3" /> Contract verified on-chain
+                /* Di bawah 640 px hanya ikonnya, teksnya tetap dibaca pembaca layar (sama seperti baris
+                   explorer): kolom judul di 320 px hanya 208 px dan slot lencana agent butuh 172 px. */
+                <span
+                  className="inline-flex h-[24px] items-center gap-1 whitespace-nowrap rounded-md border border-ok/30 bg-ok/10 px-1.5 text-[11px] font-semibold text-ok sm:px-2"
+                  title="Contract verified on-chain"
+                >
+                  <ShieldCheck className="w-3 h-3" aria-hidden="true" />
+                  <span className="max-sm:sr-only">Contract verified on-chain</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-md border border-warn/30 bg-warn/10 px-2 py-0.5 text-[11px] font-semibold text-warn">
                   <AlertTriangle className="w-3 h-3" /> Showcase entry — not factory-minted
                 </span>
               )}
+              {/* Lencana ERC-8004 dibaca dari kontrak token sesudah halaman tampil (dua panggilan RPC
+                  berurutan, ±1 s). Dulu ia muncul di tengah baris meta dan menambah satu baris, jadi chart
+                  dan seluruh isi di bawahnya turun 25–30 px: CLS 0,31 di 768 px dan 0,15 di 1280 px.
+                  Sekarang ukurannya dipesan sejak lukisan pertama di ujung baris judul, sehingga lencana
+                  mengisi tempat yang sudah ada. Untuk token tanpa agent, slot ini hanya ruang kosong di
+                  ujung baris. Entri showcase (bukan dari factory) tidak pernah terikat, jadi tanpa slot. */}
+              <span
+                className={
+                  project.verified ? "inline-flex min-h-[32px] min-w-[172px] items-center lg:min-h-[22px]" : "contents"
+                }
+              >
+                <AgentIdentityBadge chain={chain} tokenAddress={project.tokenAddress} />
+              </span>
             </div>
 
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
-              <span className="text-accent font-bold bg-accent-soft px-2 py-0.5 rounded border border-accent/30">
-                {project.chainLabel}
-              </span>
+            {/* Baris meta. Di bawah lg satu baris yang bisa digeser, tidak membungkus, dengan target
+                32 px; di lg ke atas membungkus seperti dulu. Nama chain lewat ChainChip (logo + nama pendek),
+                bukan label panjang "Arbitrum One (42161)" yang dulu memakan satu baris sendiri di ponsel. */}
+            <div className="col-span-2 -mx-4 flex min-w-0 items-center gap-1.5 overflow-x-auto px-4 text-xs text-ink-soft [scrollbar-width:none] max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] sm:-mx-5 sm:px-5 lg:mx-0 lg:mt-1 lg:flex-wrap lg:gap-x-3 lg:gap-y-1 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
+              <ChainChip chain={chain} className="max-lg:h-[32px] max-lg:px-2.5" />
               {deployments.length > 1 && (
-                <span className="text-accent font-bold bg-accent-soft px-2 py-0.5 rounded border border-accent/30">
+                <span className="inline-flex h-[32px] shrink-0 items-center whitespace-nowrap rounded-lg border border-accent/30 bg-accent-soft px-2.5 font-bold text-accent lg:h-auto lg:rounded lg:px-2 lg:py-0.5">
                   {deployments.length} chains
                 </span>
               )}
-              <button onClick={copyAddress} className="flex items-center gap-1 hover:text-ink">
+              <button
+                onClick={copyAddress}
+                title="Copy the token address"
+                className="inline-flex h-[32px] shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 hover:text-ink lg:h-auto lg:border-0 lg:bg-transparent lg:px-0"
+              >
                 {/* Mono dibuang dari WADAH baris meta ini, tetapi alamatnya sendiri
                     tetap mono — itu string mesin, dan justru bagian yang orang
                     bandingkan karakter demi karakter dengan explorer. */}
@@ -403,7 +434,7 @@ export default function TokenTerminal({
                 href={explorerAddressUrl(chain, project.tokenAddress)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline flex items-center gap-1"
+                className="inline-flex h-[32px] shrink-0 items-center gap-1 whitespace-nowrap px-1.5 text-accent hover:underline lg:h-auto lg:px-0"
               >
                 Explorer <ExternalLink className="w-3 h-3" />
               </a>
@@ -412,18 +443,16 @@ export default function TokenTerminal({
                   href={explorerAddressUrl(chain, project.poolAddress)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-accent hover:underline flex items-center gap-1"
+                  className="inline-flex h-[32px] shrink-0 items-center gap-1 whitespace-nowrap px-1.5 text-accent hover:underline lg:h-auto lg:px-0"
                 >
                   Pool <ExternalLink className="w-3 h-3" />
                 </a>
               )}
-              {/* Hanya tampil bila token ini terikat ke agent ERC-8004, dibaca dari kontraknya. */}
-              <AgentIdentityBadge chain={chain} tokenAddress={project.tokenAddress} />
               <a
                 href={`https://x402.adexto.xyz/v1/x402/${project.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline flex items-center gap-1 font-bold"
+                className="inline-flex h-[32px] shrink-0 items-center gap-1 whitespace-nowrap px-1.5 font-bold text-accent hover:underline lg:h-auto lg:px-0"
               >
                 x402 API <CloudLightning className="w-3 h-3" />
               </a>
@@ -433,42 +462,37 @@ export default function TokenTerminal({
                 ia berasal dari formulir peluncuran, jadi satu-satunya bentuk yang aman
                 di halaman publik adalah teks biasa. */}
             {project.description && (
-              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-soft">{project.description}</p>
+              <p className="col-span-2 max-w-2xl text-[13px] leading-relaxed text-ink-soft lg:mt-2">{project.description}</p>
             )}
 
-            {/* Tautan milik proyek.
+            {/* Tautan milik proyek dan tombol share/sunting dalam SATU baris (dulu dua baris).
                 `rel="noopener noreferrer nofollow ugc"` bukan hiasan: tujuannya ditulis
                 orang lain, jadi halaman ini tidak meneruskan reputasi dan tidak memberi
                 akses `window.opener` ke tab tujuan. Registry sudah menolak skema selain
                 http(s), jadi href di sini tidak bisa menjadi `javascript:`. */}
-            {(project.links.x || project.links.website || project.links.github || project.links.docs) && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {([
-                  // Tanpa ikon: labelnya sudah memuat "@", dan ikon AtSign di sebelahnya
-                  // membuat chip terbaca "@ @handle".
-                  project.links.x ? { key: "x", label: `@${project.links.x}`, href: `https://x.com/${project.links.x}`, Icon: null } : null,
-                  project.links.website ? { key: "website", label: "Website", href: project.links.website, Icon: Globe } : null,
-                  project.links.github ? { key: "github", label: "GitHub", href: project.links.github, Icon: Github } : null,
-                  project.links.docs ? { key: "docs", label: "Docs", href: project.links.docs, Icon: BookOpen } : null,
-                ].filter(Boolean) as Array<{ key: string; label: string; href: string; Icon: typeof Globe | null }>).map(
-                  ({ key, label, href, Icon }) => (
-                    <a
-                      key={key}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow ugc"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent"
-                    >
-                      {Icon ? <Icon className="h-3 w-3" /> : null}
-                      {label}
-                    </a>
-                  )
-                )}
-              </div>
-            )}
-
-            {/* Bagikan untuk semua orang; sunting hanya untuk dompet yang meluncurkan. */}
-            <div className="mt-2.5">
+            <div className="col-span-2 flex flex-wrap items-center gap-1.5 lg:mt-2.5">
+              {([
+                // Tanpa ikon: labelnya sudah memuat "@", dan ikon AtSign di sebelahnya
+                // membuat chip terbaca "@ @handle".
+                project.links.x ? { key: "x", label: `@${project.links.x}`, href: `https://x.com/${project.links.x}`, Icon: null } : null,
+                project.links.website ? { key: "website", label: "Website", href: project.links.website, Icon: Globe } : null,
+                project.links.github ? { key: "github", label: "GitHub", href: project.links.github, Icon: Github } : null,
+                project.links.docs ? { key: "docs", label: "Docs", href: project.links.docs, Icon: BookOpen } : null,
+              ].filter(Boolean) as Array<{ key: string; label: string; href: string; Icon: typeof Globe | null }>).map(
+                ({ key, label, href, Icon }) => (
+                  <a
+                    key={key}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    className="inline-flex h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent/40 hover:text-accent lg:h-[27px] lg:px-2.5"
+                  >
+                    {Icon ? <Icon className="h-3 w-3" /> : null}
+                    {label}
+                  </a>
+                )
+              )}
+              {/* Bagikan untuk semua orang; sunting hanya untuk dompet yang meluncurkan. */}
               <MarketOwnerActions
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -680,7 +704,7 @@ export default function TokenTerminal({
           <button
             type="button"
             onClick={() => switchToChain(chain).catch((e) => swap.setErrorLine(describeTxError(e)))}
-            className="px-3 py-1.5 rounded-lg bg-warn hover:bg-warn/90 text-white font-semibold text-xs shrink-0 transition-colors"
+            className="inline-flex h-[40px] shrink-0 items-center rounded-lg bg-warn px-3.5 text-xs font-semibold text-white transition-colors hover:bg-warn/90 lg:h-auto lg:px-3 lg:py-1.5"
           >
             Switch to {chain.name}
           </button>
@@ -706,7 +730,7 @@ export default function TokenTerminal({
              * chart hanya ketika salah satunya menyala. Dengan tinggi yang dipatok, kotak itu
              * akan meluber keluar kartu dan terpotong.
              */}
-            <div className="glass-panel p-4 rounded-card border border-line min-h-[620px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between">
+            <div className="glass-panel p-4 rounded-card border border-line min-h-[480px] shadow-[var(--shadow-panel)] bg-surface flex flex-col justify-between sm:min-h-[620px]">
               <RealtimeCandleChart
                 symbol={project.symbol}
                 chainId={project.chainId}
@@ -749,10 +773,11 @@ export default function TokenTerminal({
               label="Market activity"
               value={activityTab}
               onChange={setActivityTab}
+              fit="content"
               items={[
                 ["book", "Depth & trades"],
                 ["holders", "Holders"],
-                ["agent", `Ask $${project.symbol} agent`],
+                ["agent", `Ask $${project.symbol} agent`, "Ask agent"],
               ]}
             />
             {activityTab === "book" && (
@@ -850,12 +875,16 @@ export default function TokenTerminal({
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       disabled={chatLoading}
-                      className="flex-1 rounded-xl px-3 py-2 text-xs bg-cream-2 border border-line focus:border-accent/30 focus:outline-none text-ink"
+                      aria-label={`Ask the $${project.symbol} agent`}
+                      /* 16 px di bawah lg: Safari iOS memperbesar halaman saat kolom berhuruf < 16 px
+                         disentuh. Tinggi 44 px di sana, ukuran lama di desktop. */
+                      className="h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/30 focus:outline-none lg:h-auto lg:py-2 lg:text-xs"
                     />
                     <button
                       type="submit"
                       disabled={chatLoading || !chatInput.trim()}
-                      className="p-2 rounded-xl bg-accent text-white disabled:opacity-50"
+                      aria-label="Send"
+                      className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-50 lg:h-auto lg:w-auto lg:p-2"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>
@@ -927,7 +956,7 @@ export default function TokenTerminal({
                             setClaimingFees(false);
                           }
                         }}
-                        className="rounded-xl bg-ok px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40"
+                        className="inline-flex h-[40px] items-center rounded-xl bg-ok px-4 text-xs font-semibold text-white transition-colors hover:bg-ok/90 disabled:opacity-40 lg:h-[34px]"
                       >
                         {claimingFees ? "Claiming…" : "Claim"}
                       </button>
@@ -939,10 +968,13 @@ export default function TokenTerminal({
               <div className="flex items-center justify-between border-b border-line pb-2.5">
                 <span className="text-sm font-semibold text-ink">Sovereign Curve Swap</span>
                 <div className="flex items-center gap-2">
+                  {/* Area sentuh 36 px di ponsel (ikonnya tetap 14 px), 28 px di desktop. */}
                   <button
                     type="button"
                     onClick={() => setShowSlippage((v) => !v)}
-                    className="p-1 rounded text-ink-soft hover:text-ink"
+                    aria-expanded={showSlippage}
+                    aria-label="Slippage settings"
+                    className="inline-flex h-[36px] w-[36px] items-center justify-center rounded-lg text-ink-soft hover:text-ink lg:h-[28px] lg:w-[28px]"
                     title="Slippage settings"
                   >
                     <Settings2 className="w-3.5 h-3.5" />
@@ -953,7 +985,7 @@ export default function TokenTerminal({
                         key={m}
                         onClick={() => swap.setMode(m)}
                         aria-pressed={swap.mode === m}
-                        className={`rounded-lg px-3.5 py-1.5 font-semibold capitalize transition-colors ${
+                        className={`inline-flex h-[34px] items-center rounded-lg px-4 font-semibold capitalize transition-colors lg:h-[28px] lg:px-3.5 ${
                           swap.mode === m
                             ? m === "buy"
                               ? "bg-ok/10 text-ok"
@@ -1008,7 +1040,7 @@ export default function TokenTerminal({
                       href={explorerTxUrl(chain, swap.txHash)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-semibold text-accent underline"
+                      className="inline-flex min-h-[32px] items-center gap-1 font-semibold text-accent underline lg:min-h-0"
                     >
                       <span className="font-mono">
                         {swap.txHash.slice(0, 10)}…{swap.txHash.slice(-8)}
@@ -1064,6 +1096,7 @@ export default function TokenTerminal({
               label="Your account"
               value={accountTabShown}
               onChange={setAccountTab}
+              fit="content"
               items={[
                 ["position", "Position"],
                 ["stake", "Stake"],
@@ -1129,31 +1162,53 @@ export default function TokenTerminal({
   );
 }
 
-/** Tab bersegmen untuk terminal: satu baris tombol, `aria-pressed` pada yang aktif. */
+/**
+ * Tab bersegmen untuk terminal: satu baris tombol, `aria-pressed` pada yang aktif. Tinggi dalam px (rem situs
+ * 14 px): 44 px di ponsel, karena tab utama Trade/Market/You adalah kontrol yang paling sering diketuk di sana;
+ * 34 px di desktop.
+ *
+ * `fit="content"`: di bawah lg lebar tiap tombol mengikuti labelnya. Dengan lebar sama, "Depth & trades" dan
+ * "Ask $PARCEL agent" terpotong di 320–393 px sementara "Holders" menyisakan ruang. Label ketiga di `items`
+ * (opsional) adalah label pendek untuk < 640 px; label lengkapnya tampil mulai 640 px. Jangan dipakai untuk
+ * label yang dicari skrip (Trade/Market/You, Position/Stake/Launch facts): isi teks tombolnya jadi dua label.
+ */
 function SegTabs<T extends string>({
   label,
   value,
   onChange,
   items,
+  fit = "equal",
 }: {
   label: string;
   value: T;
   onChange: (v: T) => void;
-  items: Array<[T, string]>;
+  items: Array<[T, string, string?]>;
+  fit?: "equal" | "content";
 }) {
   return (
     <div role="group" aria-label={label} className="flex gap-1 rounded-2xl border border-line bg-surface p-1">
-      {items.map(([v, text]) => (
+      {items.map(([v, text, short]) => (
         <button
           key={v}
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`flex-1 truncate rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
-            value === v ? "bg-accent-soft text-accent" : "text-ink-soft hover:text-ink"
-          }`}
+          // `block truncate`, dan labelnya teks LANGSUNG di tombol, bukan di <span>: skrip memakai
+          // `button:text-is("Market")` / `button:text-is("Stake")`, dan Playwright mencocokkan elemen
+          // TERKECIL yang memuat teks itu, jadi span di dalamnya membuat tombolnya tidak cocok lagi.
+          // Tombol berdisplay block tetap memusatkan isinya secara vertikal.
+          className={`block h-[44px] min-w-0 truncate rounded-xl text-center text-[13px] font-semibold transition-colors lg:h-[34px] lg:flex-1 lg:px-3 lg:text-xs ${
+            fit === "content" ? "flex-auto px-2.5" : "flex-1 px-3"
+          } ${value === v ? "bg-accent-soft text-accent" : "text-ink-soft hover:text-ink"}`}
         >
-          {text}
+          {short ? (
+            <>
+              <span className="block truncate sm:hidden">{short}</span>
+              <span className="hidden truncate sm:block">{text}</span>
+            </>
+          ) : (
+            text
+          )}
         </button>
       ))}
     </div>

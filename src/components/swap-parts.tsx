@@ -73,7 +73,8 @@ export function SlippageRow({ value, onChange }: { value: number; onChange: (bps
             type="button"
             onClick={() => onChange(bps)}
             aria-pressed={value === bps}
-            className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
+            // 36 px di bawah lg (rem situs 14 px, jadi px), ukuran lama di desktop.
+            className={`inline-flex h-[36px] min-w-[44px] items-center justify-center rounded-lg border px-2.5 text-xs font-semibold transition-colors lg:h-auto lg:min-w-0 lg:py-1 ${
               value === bps
                 ? "border-accent/30 bg-accent-soft text-accent"
                 : "border-transparent bg-cream-3 text-ink-soft hover:text-ink"
@@ -137,7 +138,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
                   key={pct}
                   type="button"
                   onClick={() => swap.setAmountFraction(pct)}
-                  className="rounded-lg border border-line bg-cream-2 px-2 py-1 text-[11px] font-semibold text-ink-soft transition-colors hover:text-ink"
+                  className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-line bg-cream-2 px-2 text-[11px] font-semibold text-ink-soft transition-colors hover:text-ink lg:h-auto lg:min-w-0 lg:py-1"
                   data-numeric
                 >
                   {pct}%
@@ -146,7 +147,7 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
               <button
                 type="button"
                 onClick={swap.setMaxAmount}
-                className="rounded-lg border border-accent/30 bg-accent-soft px-2 py-1 text-[11px] font-semibold text-accent"
+                className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-accent/30 bg-accent-soft px-2 text-[11px] font-semibold text-accent lg:h-auto lg:min-w-0 lg:py-1"
               >
                 Max
               </button>
@@ -350,8 +351,10 @@ export function FeeLines({
    * pindah ke balik satu klik, dengan totalnya tetap terbaca tanpa klik.
    */
   return (
-    <details className="group rounded-2xl border border-line bg-cream-2 px-3.5 py-2.5 text-xs [&_summary::-webkit-details-marker]:hidden">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+    /* Padding vertikal pindah dari <details> ke <summary>: yang diketuk adalah summary, dan dulu kotaknya
+       hanya setinggi teks (14 px) walau kartunya 31 px. Di bawah lg minimal 40 px; desktop tetap sama. */
+    <details className="group rounded-2xl border border-line bg-cream-2 px-3.5 text-xs [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-[40px] cursor-pointer list-none items-center justify-between gap-3 py-2.5 lg:min-h-0">
         <span className="flex items-center gap-1.5 text-ink-soft">
           Fee <span className="font-semibold text-ink" data-numeric>{pct(totalBps)}</span>
           <ChevronDown className="h-3.5 w-3.5 text-ink-faint transition-transform duration-200 group-open:rotate-180" />
@@ -361,7 +364,7 @@ export function FeeLines({
         </span>
       </summary>
 
-      <div className="mt-2.5 space-y-1.5 border-t border-line pt-2.5">
+      <div className="space-y-1.5 border-t border-line pb-2.5 pt-2.5">
         {(
           [
             ["Curve depth", lpFeeBps, feeUsd.lp, "text-ink-soft", "stays in the curve"],
