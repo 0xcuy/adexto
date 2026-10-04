@@ -626,6 +626,12 @@ export async function handleCompute(request: Request, env: ComputeEnv, deps: Com
     payTo: env.X402_PAYEE,
   });
 
+  // `content-length` yang mengaku besar ditolak SEBELUM badan dibaca: `text()` menampung badan
+  // utuh di memori isolate (128 MB), dan pemeriksaan panjang sesudahnya sudah terlambat.
+  const declared = Number(request.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > COMPUTE_LIMITS.maxBodyBytes) {
+    return { status: 413, body: { error: "body_too_large", detail: `The body is over ${COMPUTE_LIMITS.maxBodyBytes} bytes.`, note: NO_CHARGE } };
+  }
   const raw = await request.text();
   if (raw.length > COMPUTE_LIMITS.maxBodyBytes) {
     return { status: 413, body: { error: "body_too_large", detail: `The body is over ${COMPUTE_LIMITS.maxBodyBytes} bytes.`, note: NO_CHARGE } };

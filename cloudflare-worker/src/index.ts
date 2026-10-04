@@ -12,6 +12,15 @@ import {
 } from "./x402";
 import { bazaarExtension, listMarkets, openApiDocument, resourceInfo, wellKnownX402 } from "./discovery";
 import { COMPUTE_PATH, computeEnabled, computeListing, handleCompute, routerCaller, type ComputeDeps, type ComputeEnv } from "./compute";
+import { claimPayment, type PaymentLockEnv } from "./payment-lock";
+
+// Kelas Durable Object harus diekspor dari modul utama supaya binding `PAYMENT_LOCK` bisa diikat.
+export { PaymentNonceLock } from "./payment-lock";
+
+/** Binding Rate Limiting Workers (`[[ratelimits]]` di wrangler.toml). */
+interface RateLimiterLike {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
 
 /**
  * Cloudflare Worker — gerbang x402 untuk ADEXTO: BELI TOKEN LINTAS CHAIN.
@@ -56,7 +65,12 @@ import { COMPUTE_PATH, computeEnabled, computeListing, handleCompute, routerCall
  * `ComputeEnv` menambahkan var compute berbayar (`X402_COMPUTE_*`, lihat compute.ts). Semuanya
  * opsional dan bawaannya mati, jadi Worker tanpa var itu berperilaku persis seperti sebelumnya.
  */
-export interface Env extends ComputeEnv {
+export interface Env extends ComputeEnv, PaymentLockEnv {
+  /**
+   * Rem laju per IP untuk jalur beli/kutip (lihat wrangler.toml). Opsional: tanpa binding,
+   * jalurnya berjalan seperti sebelumnya.
+   */
+  QUOTE_LIMITER?: RateLimiterLike;
   /** Penerima USDC. Var worker, TIDAK PERNAH dari header permintaan. */
   X402_PAYEE: string;
   /** Harga satu pembelian dalam satuan terkecil USDC (6 desimal). */
@@ -383,6 +397,30 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: { ...CORS, "Access-Control-Allow-Methods": "GET, POST, OPTIONS" } });
+    }
+
+    /**
+     * Rem laju per IP SEBELUM satu pun subrequest, untuk setiap jalur.
+     *
+     * Hampir setiap jalur di sini murah bagi pemanggil dan mahal bagi kami: kutipan tanpa bayar
+     * adalah lima subrequest (registry dan harga di origin, `getBuyQuote`, saldo dan harga gas lewat
+     * relai RPC kami), `?health=1` satu panggilan RPC, dokumen discovery satu pembacaan registry.
+     * Tanpa rem, loop di sini menjadi amplifikasi ke origin dan ke relai yang SAMA yang dipakai
+     * untuk menyelesaikan pembayaran sungguhan. `cf-connecting-ip` di dalam Worker ditulis
+     * Cloudflare sendiri, jadi tidak bisa dipalsukan pemanggil. Batasnya per lokasi Cloudflare
+     * (sifat binding ini) dan longgar: satu pembelian agen hanya dua permintaan (kutip, bayar).
+     * Tanpa binding `QUOTE_LIMITER`, perilakunya sama seperti sebelumnya.
+     */
+    if (env.QUOTE_LIMITER) {
+      const caller = request.headers.get("cf-connecting-ip") || "unknown";
+      const { success } = await env.QUOTE_LIMITER.limit({ key: `ip:${caller}` });
+      if (!success) {
+        return json(
+          { error: "rate_limited", detail: "Too many requests from this address. Retry in a minute. No payment was taken." },
+          429,
+          { "Retry-After": "60" }
+        );
+      }
     }
 
     const url = new URL(request.url);
@@ -809,124 +847,150 @@ export default {
     // adalah satu-satunya pihak yang terbukti memiliki dananya.
     const to = ethers.isAddress(recipient) ? ethers.getAddress(recipient) : (pre.payer as string);
 
-    // Antar dulu.
-    let buyTx: string;
-    const deliveredTo = to;
+    /**
+     * Klaim otorisasi ini SEBELUM apa pun diantar. Tanpa klaim, otorisasi yang sama yang dikirim
+     * bersamaan lolos `verifyPayment` berkali-kali (nonce baru tercatat di USDC sesudah settle) dan
+     * setiap salinannya diantar dengan persediaan kami. Alasan lengkap di `payment-lock.ts`.
+     */
+    const authorization = payload.payload.authorization;
+    const claim = await claimPayment(env, String(pre.payer), authorization.nonce, authorization.validBefore);
+    if (!claim.ok) {
+      return json({ error: claim.error, detail: claim.detail }, claim.status);
+    }
+    // Turun ke false HANYA pada jalur di mana tidak ada token yang berpindah, supaya pembeli boleh
+    // memakai otorisasi yang sama lagi. Selain itu klaimnya bertahan sampai otorisasi kedaluwarsa.
+    let keepClaim = true;
     try {
-      const signer = new ethers.Contract(market.poolAddress, CURVE_ABI, operator);
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
-      const tx = await signer.buy(minTokensOut, to, deadline, { value: nativeIn });
-      buyTx = tx.hash;
-      const rc = await waitReceipt(ogProvider, tx.hash);
-      if (!rc) {
-        // Tidak mengaku gagal dan tidak menagih: hash-nya sudah ada, pembeli bisa
-        // memeriksanya sendiri. Biaya ketidakpastian ini ditanggung kami.
+      // Antar dulu.
+      let buyTx: string;
+      const deliveredTo = to;
+      let submitted = false;
+      try {
+        const signer = new ethers.Contract(market.poolAddress, CURVE_ABI, operator);
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+        const tx = await signer.buy(minTokensOut, to, deadline, { value: nativeIn });
+        submitted = true;
+        buyTx = tx.hash;
+        const rc = await waitReceipt(ogProvider, tx.hash);
+        if (!rc) {
+          // Tidak mengaku gagal dan tidak menagih: hash-nya sudah ada, pembeli bisa
+          // memeriksanya sendiri. Biaya ketidakpastian ini ditanggung kami.
+          return json(
+            {
+              error: "delivery_unconfirmed",
+              detail: `buy was submitted but its receipt could not be read back within the timeout`,
+              delivery: { transaction: tx.hash, chainId: market.chainId, to, curve: market.poolAddress, unconfirmed: true },
+              note: "No payment was taken. Check the transaction before retrying, or the purchase may happen twice.",
+            },
+            202
+          );
+        }
+        if (rc.status !== 1) {
+          // Revert: tidak ada token yang berpindah, jadi otorisasinya dilepas.
+          keepClaim = false;
+          return json(
+            { error: "delivery_failed", detail: `buy reverted in ${rc.hash}`, note: "No payment was taken." },
+            502
+          );
+        }
+      } catch (e: any) {
+        // Galat SEBELUM transaksi terkirim: tidak ada token yang berpindah, otorisasinya dilepas.
+        // Galat SESUDAHNYA (membaca receipt): transaksinya mungkin mined, jadi klaimnya bertahan.
+        if (!submitted) keepClaim = false;
         return json(
           {
-            error: "delivery_unconfirmed",
-            detail: `buy was submitted but its receipt could not be read back within the timeout`,
-            delivery: { transaction: tx.hash, chainId: market.chainId, to, curve: market.poolAddress, unconfirmed: true },
-            note: "No payment was taken. Check the transaction before retrying, or the purchase may happen twice.",
+            error: "delivery_failed",
+            detail: String(e?.shortMessage ?? e?.message ?? e).slice(0, 200),
+            note: submitted
+              ? "No payment was taken, but the buy transaction was submitted. Check it before signing a new authorization, or the purchase may happen twice."
+              : "No payment was taken. The authorization you signed is unused and still spendable.",
           },
-          202
-        );
-      }
-      if (rc.status !== 1) {
-        return json(
-          { error: "delivery_failed", detail: `buy reverted in ${rc.hash}`, note: "No payment was taken." },
           502
         );
       }
-    } catch (e: any) {
-      return json(
-        {
-          error: "delivery_failed",
-          detail: String(e?.shortMessage ?? e?.message ?? e).slice(0, 200),
-          note: "No payment was taken. The authorization you signed is unused and still spendable.",
-        },
-        502
-      );
-    }
 
-    // Baru tagih.
-    const settled = await settlePayment({
-      payload,
-      requirements,
-      provider: baseProvider,
-      relayerKey: env.X402_RELAYER_PRIVATE_KEY,
-    });
+      // Baru tagih.
+      const settled = await settlePayment({
+        payload,
+        requirements,
+        provider: baseProvider,
+        relayerKey: env.X402_RELAYER_PRIVATE_KEY,
+      });
 
-    /**
-     * Terakhir: bakar, kalau sudah layak.
-     *
-     * Urutannya bukan kebetulan. Burn dijalankan SETELAH pembeli dilayani sepenuhnya —
-     * token terkirim, pembayaran diselesaikan — karena ia urusan protokol dengan
-     * dirinya sendiri dan tidak boleh berdiri di antara pembeli dan barangnya.
-     *
-     * Pembelian yang baru saja terjadi sudah menaikkan `treasuryNative` lewat kaki fee
-     * buyback, jadi fungsi di bawah membelanjakan uang yang dihasilkan fill ini sendiri.
-     * Tidak ada yang perlu dipindahkan antar chain, dan tidak ada kontrak baru.
-     */
-    const burn = await autoBurn(
-      market.poolAddress,
-      operator,
-      ogProvider,
-      slippageBps,
-      BigInt(env.X402_BURN_GAS_MULTIPLE ?? "3")
-    );
-
-    const body = {
-      symbol: market.symbol,
-      chain: market.chainName,
-      delivery: {
-        success: true,
-        transaction: buyTx,
-        chainId: market.chainId,
-        to: deliveredTo,
-        token: market.tokenAddress,
-        curve: market.poolAddress,
-        minTokensOut: ethers.formatEther(minTokensOut),
-        nativeSpent: ethers.formatEther(nativeIn),
-      },
-      settlement: settled.success
-        ? {
-            success: true,
-            transaction: settled.transaction,
-            network: settled.network,
-            payer: settled.payer,
-            asset: requirements.asset,
-            amount: requirements.maxAmountRequired,
-            payTo: requirements.payTo,
-          }
-        : { success: false, errorReason: settled.errorReason, detail: settled.detail, payer: settled.payer },
       /**
-       * Dilaporkan sebagai data, bukan sebagai galat.
+       * Terakhir: bakar, kalau sudah layak.
        *
-       * `executed: false` bukan kegagalan pembelian: ia berarti vault belum melewati
-       * ambang gas, dan `skipped` menyebut angkanya supaya keputusannya bisa diperiksa
-       * siapa pun alih-alih dipercaya.
+       * Urutannya bukan kebetulan. Burn dijalankan SETELAH pembeli dilayani sepenuhnya —
+       * token terkirim, pembayaran diselesaikan — karena ia urusan protokol dengan
+       * dirinya sendiri dan tidak boleh berdiri di antara pembeli dan barangnya.
+       *
+       * Pembelian yang baru saja terjadi sudah menaikkan `treasuryNative` lewat kaki fee
+       * buyback, jadi fungsi di bawah membelanjakan uang yang dihasilkan fill ini sendiri.
+       * Tidak ada yang perlu dipindahkan antar chain, dan tidak ada kontrak baru.
        */
-      buyback: burn,
-      note: settled.success
-        ? undefined
-        : "The tokens were delivered but the payment did not settle, so this purchase was free. Nothing is owed.",
-    };
+      const burn = await autoBurn(
+        market.poolAddress,
+        operator,
+        ogProvider,
+        slippageBps,
+        BigInt(env.X402_BURN_GAS_MULTIPLE ?? "3")
+      );
 
-    return json(body, 200, {
-      "X-PAYMENT-RESPONSE": b64({
-        success: settled.success,
-        transaction: settled.transaction,
-        errorReason: settled.errorReason,
-        network: requirements.network,
-        payer: settled.payer,
-      }),
-      "PAYMENT-RESPONSE": paymentResponseHeader({
-        success: settled.success,
-        transaction: settled.transaction,
-        errorReason: settled.errorReason,
-        network: requirements.network,
-        payer: settled.payer,
-      }),
-    });
+      const body = {
+        symbol: market.symbol,
+        chain: market.chainName,
+        delivery: {
+          success: true,
+          transaction: buyTx,
+          chainId: market.chainId,
+          to: deliveredTo,
+          token: market.tokenAddress,
+          curve: market.poolAddress,
+          minTokensOut: ethers.formatEther(minTokensOut),
+          nativeSpent: ethers.formatEther(nativeIn),
+        },
+        settlement: settled.success
+          ? {
+              success: true,
+              transaction: settled.transaction,
+              network: settled.network,
+              payer: settled.payer,
+              asset: requirements.asset,
+              amount: requirements.maxAmountRequired,
+              payTo: requirements.payTo,
+            }
+          : { success: false, errorReason: settled.errorReason, detail: settled.detail, payer: settled.payer },
+        /**
+         * Dilaporkan sebagai data, bukan sebagai galat.
+         *
+         * `executed: false` bukan kegagalan pembelian: ia berarti vault belum melewati
+         * ambang gas, dan `skipped` menyebut angkanya supaya keputusannya bisa diperiksa
+         * siapa pun alih-alih dipercaya.
+         */
+        buyback: burn,
+        note: settled.success
+          ? undefined
+          : "The tokens were delivered but the payment did not settle, so this purchase was free. Nothing is owed.",
+      };
+
+      return json(body, 200, {
+        "X-PAYMENT-RESPONSE": b64({
+          success: settled.success,
+          transaction: settled.transaction,
+          errorReason: settled.errorReason,
+          network: requirements.network,
+          payer: settled.payer,
+        }),
+        "PAYMENT-RESPONSE": paymentResponseHeader({
+          success: settled.success,
+          transaction: settled.transaction,
+          errorReason: settled.errorReason,
+          network: requirements.network,
+          payer: settled.payer,
+        }),
+      });
+    } finally {
+      await claim.finish(keepClaim);
+    }
   },
 };

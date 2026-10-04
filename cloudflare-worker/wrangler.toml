@@ -135,3 +135,33 @@ X402_COMPUTE_PAYER_LIMIT = "20/600"
 #   X402_COMPUTE_ROUTER_KEY — kunci Adexto Router untuk compute berbayar, BELUM disetel. Harus
 #   kunci tersendiri yang dipin ke provider 0g-compute dengan plafon bulanan, bukan kunci pool
 #   pemegang stake: plafonnya adalah batas kerugian kalau batas per payer di atas ditembus.
+
+# Kunci satu-pakai untuk otorisasi pembayaran: satu (payer, nonce) = satu pengiriman token.
+#
+# Gerbang mengantar dulu lalu menagih, dan nonce EIP-3009 baru tercatat di USDC sesudah settle.
+# Tanpa kunci ini otorisasi yang sama, dikirim bersamaan, lolos verifikasi berkali-kali dan
+# diantar berkali-kali dengan persediaan kami — hanya satu yang tertagih. Durable Object per payer
+# membuat klaimnya atomik di seluruh lokasi. Alasan lengkap di src/payment-lock.ts.
+#
+# Tanpa binding ini kodenya tetap jalan dengan kunci per isolate (lebih lemah), jadi deploy kode
+# lebih dulu tidak memecahkan apa pun. Kelas berbasis SQLite tersedia di paket Workers gratis.
+[[durable_objects.bindings]]
+name = "PAYMENT_LOCK"
+class_name = "PaymentNonceLock"
+
+[[migrations]]
+tag = "v1-payment-lock"
+new_sqlite_classes = ["PaymentNonceLock"]
+
+# Rem laju per IP untuk SETIAP jalur Worker ini (lihat awal `fetch` di index.ts): kutipan tanpa bayar
+# memicu lima subrequest ke origin dan relai RPC kami. Per lokasi Cloudflare, 120 per menit: satu
+# pembelian agen hanya dua permintaan, dan server MCP di origin memanggil dari satu IP untuk semua
+# penggunanya, jadi batasnya sengaja longgar. `namespace_id` harus unik di akun Cloudflare ini;
+# ganti kalau 8402 sudah dipakai binding lain.
+[[ratelimits]]
+name = "QUOTE_LIMITER"
+namespace_id = "8402"
+
+  [ratelimits.simple]
+  limit = 120
+  period = 60
