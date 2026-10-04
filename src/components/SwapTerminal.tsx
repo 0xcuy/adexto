@@ -52,7 +52,11 @@ interface Market extends SwapMarket {
    mesin yang sama, dan sebelumnya tampilannya ditulis dua kali — lengkap dengan
    selisih yang tidak pernah diputuskan siapa pun. Alasan lengkapnya di berkas itu. */
 
-export default function SwapTerminal() {
+/**
+ * `embedded`: rendered inside SwapHub (/swap), which owns the page heading and the mode switch.
+ * The trading logic is identical either way; only the outer container and the heading change.
+ */
+export default function SwapTerminal({ embedded = false }: { embedded?: boolean } = {}) {
   const searchParams = useSearchParams();
   const requestedSymbol = (searchParams.get("token") || "").toUpperCase();
   const chainParam = searchParams.get("chain");
@@ -236,7 +240,7 @@ export default function SwapTerminal() {
   const tradableCount = markets.filter((m) => m.tradable).length;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className={embedded ? "" : "max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12"}>
       {/* Lencana mono berbingkai "SOVEREIGN BONDING CURVE · VIRTUAL RESERVE" diganti
           `.kicker`, bentuk eyebrow yang sama dengan seluruh situs. Yang lama adalah
           satu-satunya elemen bertipografi terminal di atas lipatan halaman ini, dan
@@ -248,6 +252,19 @@ export default function SwapTerminal() {
           kartunya. Rincian itu tidak hilang: panel fee di dalam kartu memuatnya, dibaca dari
           kurva pasar yang benar-benar dipilih, jadi angkanya berlaku untuk pasar itu alih-alih
           menjadi ringkasan umum yang bisa salah di separuh pasar. */}
+      {embedded ? (
+        // Always rendered, one line tall, so the card below does not jump when the count arrives.
+        <p className="mb-3 min-h-[18px] text-center text-[12px] leading-[18px] text-ink-faint">
+          {loading ? (
+            "Loading markets…"
+          ) : (
+            <>
+              <span data-numeric>{tradableCount}</span> of <span data-numeric>{markets.length}</span> markets have an
+              executable curve
+            </>
+          )}
+        </p>
+      ) : (
       <div className="mb-8 flex flex-col items-center text-center">
         <p className="kicker mb-3">Sovereign bonding curve</p>
         <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Swap</h1>
@@ -261,6 +278,7 @@ export default function SwapTerminal() {
           </p>
         )}
       </div>
+      )}
 
       <div className="max-w-md mx-auto">
         {/* Strip wallet hanya ditampilkan saat SUDAH tersambung. Saat belum,
@@ -312,7 +330,7 @@ export default function SwapTerminal() {
                 href={explorerAddressUrl(chain, selected.poolAddress ?? selected.tokenAddress)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-ink-faint transition-colors hover:text-ink"
+                className="flex min-h-[32px] items-center gap-1 text-ink-faint transition-colors hover:text-ink"
               >
                 <span className="font-mono">
                   {(selected.poolAddress ?? selected.tokenAddress).slice(0, 6)}…
@@ -336,7 +354,9 @@ export default function SwapTerminal() {
               keadaan NORMAL saat `/swap` dibuka telanjang. Tanpa kalimat ini kartu hanya
               memperlihatkan pemilih di atas ruang kosong, yang terbaca seperti gagal
               memuat alih-alih menunggu keputusan. */}
-          {!loading && markets.length > 0 && !selected && (
+          {/* Shown while loading too (unless a ?token= link is about to pick a market), so the
+              card does not grow by this banner's height when the market list arrives. */}
+          {!selected && (loading ? !requestedSymbol : markets.length > 0 && !(requestedSymbol && !preselectDone.current)) && (
             <div className="mb-4 rounded-panel border border-line bg-surface px-3.5 py-3">
               {/* Satu baris. Versi sebelumnya tiga baris yang menjelaskan kembali apa yang
                   sudah dikatakan pemilih di atasnya ("Select a market · N available") dan
@@ -551,7 +571,7 @@ export default function SwapTerminal() {
               </span>
               <Link
                 href={`/token/${selected.slug}?chain=${selected.chainId}`}
-                className="shrink-0 font-semibold text-accent hover:underline"
+                className="inline-flex min-h-[32px] shrink-0 items-center font-semibold text-accent hover:underline"
               >
                 Open ${selected.symbol} terminal →
               </Link>
