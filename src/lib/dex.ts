@@ -222,7 +222,7 @@ export async function checkAgentOwnership(
   owner: string
 ): Promise<AgentOwnership> {
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true, batchMaxCount: 1 });
     if ((await provider.getCode(AGENT_REGISTRY_ADDRESS)) === "0x") return { state: "missing" };
     const registry = new ethers.Contract(AGENT_REGISTRY_ADDRESS, IDENTITY_REGISTRY_ABI, provider);
     const actual: string = await registry.ownerOf(agentId);

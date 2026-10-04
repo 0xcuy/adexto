@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { resolveChainOrDefault, type ChainInfo } from "@/lib/chains";
+import { readProvider, resolveChainOrDefault, type ChainInfo } from "@/lib/chains";
 import {
   ERC20_ABI, applySlippage, describeTxError, executeBuy, executeSell,
   poolIsTradable, quoteBuyLocal, quoteSellLocal, readPoolState,
@@ -168,7 +168,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
       return;
     }
     try {
-      const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+      const provider = readProvider(chain);
       const native = await provider.getBalance(address);
       setNativeBalance(BigInt(native));
       try {

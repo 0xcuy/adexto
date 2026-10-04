@@ -357,6 +357,12 @@ export const ADEXTO_CONTRACTS = {
      * some networks (Indonesian ISPs time out on it), so server-side reads run from the VPS.
      */
     rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    /**
+     * Peramban membaca chain ini lewat origin situs, bukan lewat `rpcUrl` di atas: ISP Indonesia
+     * memblokir `*.robinhood.com`. Endpoint publik baca-saja; lihat `src/lib/public-rpc.ts` dan
+     * `rpcUrlFor` di `src/lib/chains.ts`. Server tetap memakai `rpcUrl`.
+     */
+    browserRpcPath: "/api/public-rpc/robinhood",
     // The explorer Robinhood's own docs list; it imports Sourcify verifications.
     blockExplorer: "https://robinhoodchain.blockscout.com",
     // ADEXTO v1 is the first generation here: no legacy factory, hook or governor.

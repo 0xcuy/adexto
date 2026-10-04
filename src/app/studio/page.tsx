@@ -17,7 +17,7 @@ import { useWallet } from "@/context/WalletContext";
 import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 import LaunchCostCard from "@/components/LaunchCostCard";
 import LaunchKit from "@/components/LaunchKit";
-import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
+import { CHAIN_LIST, rpcUrlFor, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership, describeTxError, ensureWalletChain } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { formatSmallNumber } from "@/lib/pricing";
@@ -790,7 +790,7 @@ export default function StudioPage() {
         needsFetch.map(async (chain) => {
           const raw = (agentBinding.agentIds[chain.chainId] ?? "").trim();
           if (!/^\d+$/.test(raw)) return [chain.chainId, { state: "idle" } as AgentCheck] as const;
-          const result = await checkAgentOwnership(chain.rpcUrl, BigInt(raw), address);
+          const result = await checkAgentOwnership(rpcUrlFor(chain), BigInt(raw), address);
           let check: AgentCheck;
           if (result.state === "owned") {
             check = {

@@ -28,7 +28,7 @@
  * memasukkannya ke bundel setiap pengunjung, termasuk yang memakai ekstensi dan tidak akan pernah
  * menyentuh QR. `await import(...)` hanya berjalan saat seseorang benar-benar memilihnya.
  */
-import { CHAIN_LIST } from "@/lib/chains";
+import { CHAIN_LIST, rpcUrlFor } from "@/lib/chains";
 
 /**
  * Project id dari https://dashboard.reown.com/.
@@ -86,7 +86,7 @@ async function init(): Promise<any> {
        */
       const optionalChains = CHAIN_LIST.map((c) => c.chainId);
       const rpcMap: Record<number, string> = {};
-      for (const c of CHAIN_LIST) rpcMap[c.chainId] = c.rpcUrl;
+      for (const c of CHAIN_LIST) rpcMap[c.chainId] = rpcUrlFor(c);
 
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://adexto.xyz";
 

@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
-import { CHAIN_LIST, type ChainInfo } from "@/lib/chains";
+import { CHAIN_LIST, readProvider, type ChainInfo } from "@/lib/chains";
 import { ERC20_ABI, describeTxError } from "@/lib/dex";
 import { issueKeyMessage, revokeKeyMessage } from "@/lib/agent-compute-message";
 import {
@@ -748,7 +748,7 @@ function StakeCard({
   const readBalance = useCallback(async () => {
     if (!address || !srcChain) return;
     try {
-      const provider = new ethers.JsonRpcProvider(srcChain.rpcUrl, srcChain.chainId, { staticNetwork: true });
+      const provider = readProvider(srcChain);
       const token = new ethers.Contract(src.token, ERC20_ABI, provider);
       const raw: bigint = await token.balanceOf(address);
       setBalance(Number(ethers.formatUnits(raw, src.decimals)));

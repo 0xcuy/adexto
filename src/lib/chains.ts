@@ -40,6 +40,12 @@ export interface ChainInfo {
   name: string;
   label: string;
   rpcUrl: string;
+  /**
+   * Jalur RPC di origin situs yang dipakai PERAMBAN untuk chain ini, atau null. Ada untuk chain
+   * yang `rpcUrl`-nya tidak terjangkau dari sebagian jaringan pengunjung (Robinhood: diblokir ISP
+   * Indonesia). Jangan dibaca langsung: pakai `rpcUrlFor(chain)` atau `readProvider(chain)`.
+   */
+  browserRpcPath: string | null;
   blockExplorer: string;
   nativeSymbol: string;
   nativeCurrencyName: string;
@@ -114,6 +120,7 @@ interface ChainSource {
   readonly chainName: string;
   readonly nativeSymbol: string;
   readonly rpcUrl: string;
+  readonly browserRpcPath?: string | null;
   readonly blockExplorer: string;
   readonly factoryAddress: string;
   readonly curveFactoryAddress?: string | null;
@@ -139,6 +146,7 @@ type ChainOverride = Partial<
     | "chainId"
     | "name"
     | "rpcUrl"
+    | "browserRpcPath"
     | "blockExplorer"
     | "nativeSymbol"
     | "curveFactoryAddress"
@@ -202,6 +210,14 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     name,
     label: `${name} (${chainId})`,
     rpcUrl: o.rpcUrl ?? source.rpcUrl,
+    // Override yang mengganti rpcUrl/chainId (latihan testnet) mematikan jalur peramban kecuali
+    // ia menyebutnya sendiri: proxy itu meneruskan ke upstream MAINNET, bukan ke rpcUrl override.
+    browserRpcPath:
+      o.browserRpcPath !== undefined
+        ? o.browserRpcPath
+        : o.rpcUrl !== undefined || o.chainId !== undefined
+          ? null
+          : (source.browserRpcPath ?? null),
     blockExplorer: o.blockExplorer ?? source.blockExplorer,
     nativeSymbol: o.nativeSymbol ?? source.nativeSymbol,
     nativeCurrencyName: nativeName,
@@ -283,6 +299,7 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
     name: DEVCHAIN_NAME,
     label: `${DEVCHAIN_NAME} (${DEVCHAIN_ID})`,
     rpcUrl: DEVCHAIN_RPC || "http://127.0.0.1:8545",
+    browserRpcPath: null,
     blockExplorer: DEVCHAIN_EXPLORER,
     nativeSymbol: DEVCHAIN_SYMBOL,
     nativeCurrencyName: DEVCHAIN_SYMBOL,
@@ -528,8 +545,25 @@ export function toHexChainId(chainId: number): string {
  * `staticNetwork` ikut disetel supaya tidak ada `eth_chainId` tambahan pada setiap
  * provider baru; chainId-nya sudah kita ketahui dari config.
  */
+/**
+ * URL RPC untuk BACA, menurut siapa yang membaca.
+ *
+ * Di peramban, chain yang punya `browserRpcPath` dibaca lewat origin situs (`/api/public-rpc/…`),
+ * karena `rpcUrl`-nya tidak terjangkau dari sebagian jaringan pengunjung: ISP Indonesia memblokir
+ * `*.robinhood.com`, dan tanpa ini estimasi dan fee di pasar Robinhood kosong (terukur 5 Okt 2026).
+ * Di server selalu `rpcUrl`: VPS tidak terkena blokir itu, dan memutar baca server lewat
+ * endpointnya sendiri hanya menambah satu lompatan.
+ *
+ * Endpoint itu menolak batch, jadi provider yang memakai URL ini wajib `batchMaxCount: 1`
+ * (`readProvider` sudah begitu).
+ */
+export function rpcUrlFor(chain: Pick<ChainInfo, "rpcUrl" | "browserRpcPath">): string {
+  if (typeof window !== "undefined" && chain.browserRpcPath) return `${window.location.origin}${chain.browserRpcPath}`;
+  return chain.rpcUrl;
+}
+
 export function readProvider(chain: ChainInfo): JsonRpcProvider {
-  return new JsonRpcProvider(chain.rpcUrl, chain.chainId, {
+  return new JsonRpcProvider(rpcUrlFor(chain), chain.chainId, {
     staticNetwork: true,
     batchMaxCount: 1,
   });
@@ -581,7 +615,7 @@ const LOG_READ_RPC: Partial<Record<ChainKey, string>> = {
  * baca-cepatnya tidak melayani log — lihat `LOG_READ_RPC`.
  */
 export function logReadProvider(chain: ChainInfo): JsonRpcProvider {
-  const url = LOG_READ_RPC[chain.key] ?? chain.rpcUrl;
+  const url = LOG_READ_RPC[chain.key] ?? rpcUrlFor(chain);
   return new JsonRpcProvider(url, chain.chainId, {
     staticNetwork: true,
     batchMaxCount: 1,
