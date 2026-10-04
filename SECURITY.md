@@ -24,7 +24,8 @@ confirmed, not a required form:
 
 In scope:
 
-- the contracts in [`contracts/`](contracts/), on any of the four mainnets they are deployed to
+- the contracts in [`contracts/`](contracts/), on any of the five mainnets they are deployed to
+  (Monad, Arbitrum One, Robinhood Chain, Base and 0G)
 - the application and its API routes under `src/app/api/`
 - the x402 edge worker in [`cloudflare-worker/`](cloudflare-worker/)
 - the MCP server at `/api/mcp`, including `pay_and_buy`
