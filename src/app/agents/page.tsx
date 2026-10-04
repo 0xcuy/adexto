@@ -203,7 +203,8 @@ async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
           as unsigned transactions for the agent&apos;s own wallet to sign. It speaks the 2026-07-28 MCP revision and
           the 2025 revisions.
         </p>
-        <div className="grid gap-3 lg:grid-cols-2">
+        {/* minmax(0,1fr): trek grid tidak boleh melebar mengikuti baris kode terpanjang. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
           <CopyBlock label="Claude Code" code={claudeCode} />
           <CopyBlock label="Cursor, Windsurf and other JSON configs" code={jsonConfig} />
         </div>
