@@ -9,6 +9,7 @@ import { getActiveEip1193 } from "@/lib/wallet-provider";
 import { claimCreatorFees, claimCreatorFeesBatch, describeTxError } from "@/lib/dex";
 import { explorerTxUrl, resolveChain } from "@/lib/chains";
 import { formatSmallNumber } from "@/lib/pricing";
+import Stat from "@/components/ui/Stat";
 import type { CreatorEarnings, CreatorMarket } from "@/lib/creator-earnings";
 
 /**
@@ -189,7 +190,7 @@ export default function CreatorDashboard() {
                     setOverride(null);
                     setUrlAddress(null);
                   }}
-                  className="font-semibold text-accent hover:underline"
+                  className="inline-flex min-h-[32px] items-center font-semibold text-accent hover:underline lg:min-h-0"
                 >
                   Back to my wallet
                 </button>
@@ -199,13 +200,16 @@ export default function CreatorDashboard() {
             <span className="text-ink-soft">Connect a wallet to see what your markets have earned.</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* Di bawah 640 px baris ini membungkus: tombol Connect selebar kartu, lalu kolom alamat yang mengisi sisa
+            lebar di samping View. Dulu tiga kontrol berlebar tetap berjajar dan View keluar 5 px dari layar 320 px,
+            jadi halaman bisa digeser ke samping. Kontrol 40 px di bawah lg; kolomnya 16 px supaya iOS tidak zoom. */}
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {!isConnected && (
             <button
               type="button"
               onClick={() => connectWallet()}
               disabled={isConnecting}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-60"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-60 max-sm:w-full lg:min-h-0 lg:py-1.5"
             >
               <Wallet className="h-3.5 w-3.5" /> {isConnecting ? "Connecting…" : "Connect wallet"}
             </button>
@@ -219,12 +223,12 @@ export default function CreatorDashboard() {
             onChange={(e) => setLookup(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && view()}
             placeholder="0x… any creator address"
-            className="w-44 rounded-lg border border-line bg-cream-2 px-2.5 py-1.5 font-mono text-[11px] text-ink focus:border-accent/40 focus:outline-none sm:w-56"
+            className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-line bg-cream-2 px-2.5 font-mono text-[16px] text-ink focus:border-accent/40 focus:outline-none sm:w-56 sm:flex-none lg:min-h-0 lg:py-1.5 lg:text-[11px]"
           />
           <button
             type="button"
             onClick={view}
-            className="rounded-lg border border-line bg-cream-2 px-3 py-1.5 text-xs font-bold text-ink hover:border-accent/40"
+            className="min-h-[40px] shrink-0 rounded-lg border border-line bg-cream-2 px-3.5 text-xs font-bold text-ink hover:border-accent/40 lg:min-h-0 lg:px-3 lg:py-1.5"
           >
             View
           </button>
@@ -265,35 +269,39 @@ export default function CreatorDashboard() {
 
       {data && (
         <div data-testid="creator-data" data-markets={data.markets.length}>
+          {/* Angka pendapatan memakai `ui/Stat` (U2.4). `data-testid` tetap di elemen yang memuat angkanya, karena
+              skrip membaca teksnya. */}
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-line bg-surface p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Earned, all time</div>
-              <div className="mt-1 font-display text-2xl text-ink" data-testid="creator-lifetime-usd">
-                {fmtUsd(data.totals.lifetimeUsd)}
-              </div>
-              <div className="mt-0.5 text-[10px] text-ink-faint">paid out plus claimable</div>
+              <Stat
+                size="lg"
+                label="Earned, all time"
+                value={<span data-testid="creator-lifetime-usd">{fmtUsd(data.totals.lifetimeUsd)}</span>}
+                hint="paid out plus claimable"
+              />
             </div>
             <div className="rounded-xl border border-line bg-surface p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Claimable now</div>
-              <div className="mt-1 font-display text-2xl text-ink" data-testid="creator-owed-usd">
-                {fmtUsd(data.totals.owedUsd)}
-              </div>
-              <div className="mt-0.5 text-[10px] text-ink-faint">
-                {data.chains
-                  .filter((c) => c.owed > 0)
-                  .map((c) => `${formatSmallNumber(c.owed)} ${c.nativeSymbol} on ${c.chainName}`)
-                  .join(" · ") || "nothing to claim"}
-              </div>
+              <Stat
+                size="lg"
+                label="Claimable now"
+                value={<span data-testid="creator-owed-usd">{fmtUsd(data.totals.owedUsd)}</span>}
+                hint={
+                  data.chains
+                    .filter((c) => c.owed > 0)
+                    .map((c) => `${formatSmallNumber(c.owed)} ${c.nativeSymbol} on ${c.chainName}`)
+                    .join(" · ") || "nothing to claim"
+                }
+              />
             </div>
             <div className="rounded-xl border border-line bg-surface p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Markets</div>
-              <div className="mt-1 font-display text-2xl text-ink" data-testid="creator-market-count">
-                {data.totals.markets}
-              </div>
-              <div className="mt-0.5 text-[10px] text-ink-faint">
-                {listed} listed{data.totals.markets - listed > 0 ? `, ${data.totals.markets - listed} superseded or test` : ""}
-                {data.totals.unpriced > 0 ? ` · ${data.totals.unpriced} without a dollar price` : ""}
-              </div>
+              <Stat
+                size="lg"
+                label="Markets"
+                value={<span data-testid="creator-market-count">{data.totals.markets}</span>}
+                hint={`${listed} listed${data.totals.markets - listed > 0 ? `, ${data.totals.markets - listed} superseded or test` : ""}${
+                  data.totals.unpriced > 0 ? ` · ${data.totals.unpriced} without a dollar price` : ""
+                }`}
+              />
             </div>
           </div>
 
@@ -306,7 +314,7 @@ export default function CreatorDashboard() {
                   onClick={() => claimChain(c.chainId)}
                   disabled={claiming !== null}
                   data-testid={`claim-all-${c.chainId}`}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2 text-xs font-bold text-accent hover:border-accent/60 disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2 text-left text-xs font-bold text-accent hover:border-accent/60 disabled:opacity-50 lg:min-h-0"
                 >
                   {claiming === `chain:${c.chainId}` ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5" />}
                   Claim all on {c.chainName} · {c.claimableMarkets} markets · one transaction
@@ -351,7 +359,12 @@ export default function CreatorDashboard() {
                       <div className="col-span-2 min-w-0 md:col-span-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {m.slug && m.status === "listed" ? (
-                            <Link href={`/token/${m.slug}?chain=${m.chainId}`} className="font-bold text-ink hover:text-accent">
+                            // 32 px di bawah md, sama dengan tautan kurva tepat di bawahnya: dulu 14 px dan rapat dengannya
+                            // (ERROR tap<24 di 320–412 px saat ada data).
+                            <Link
+                              href={`/token/${m.slug}?chain=${m.chainId}`}
+                              className="inline-flex min-h-[32px] items-center font-bold text-ink hover:text-accent md:min-h-0"
+                            >
                               ${m.symbol}
                             </Link>
                           ) : (
@@ -365,7 +378,7 @@ export default function CreatorDashboard() {
                           href={`${m.explorer}/address/${m.curve}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-accent"
+                          className="inline-flex min-h-[32px] items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-accent md:min-h-0"
                         >
                           curve {short(m.curve)} <ExternalLink className="h-2.5 w-2.5" />
                         </a>
@@ -405,7 +418,7 @@ export default function CreatorDashboard() {
                             onClick={() => claimOne(m)}
                             disabled={claiming !== null}
                             data-testid="claim-one"
-                            className="inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-accent-strong disabled:opacity-50"
+                            className="inline-flex min-h-[40px] items-center gap-1 rounded-lg bg-accent px-3.5 text-[11px] font-bold text-white hover:bg-accent-strong disabled:opacity-50 lg:min-h-0 lg:px-2.5 lg:py-1.5"
                           >
                             {claiming === m.key ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Coins className="h-3 w-3" />}
                             Claim
@@ -430,7 +443,7 @@ export default function CreatorDashboard() {
               type="button"
               onClick={() => target && load(target)}
               disabled={loading}
-              className="inline-flex items-center gap-1 font-semibold text-accent hover:underline disabled:opacity-50"
+              className="inline-flex min-h-[32px] shrink-0 items-center gap-1 font-semibold text-accent hover:underline disabled:opacity-50 lg:min-h-0"
             >
               <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
             </button>

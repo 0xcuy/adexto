@@ -55,7 +55,7 @@ function ChainChip({ chainId, name }: { chainId: number; name: string }) {
 
 function MarketCell({ m }: { m: { slug: string; chainId: number; symbol: string; image: string; name?: string } }) {
   return (
-    <Link href={marketHref(m)} className="flex min-w-0 items-center gap-2.5 hover:text-accent">
+    <Link href={marketHref(m)} className="flex min-w-0 items-center gap-2.5 hover:text-accent max-lg:min-h-[40px]">
       {/* eslint-disable-next-line @next/next/no-img-element -- logo token dari registry */}
       <img src={m.image} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-lg border border-line object-cover" />
       <span className="min-w-0">
@@ -83,6 +83,51 @@ function Section({ icon, title, note, children, id }: { icon: React.ReactNode; t
 const th = "px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-faint";
 const td = "px-4 py-2.5 align-middle";
 
+/**
+ * Ponsel (< 640 px, U2.4): setiap tabel di halaman ini juga dirender sebagai daftar kartu, dan tabelnya baru tampil
+ * mulai 640 px. Tabel delapan kolom di 320–412 px dulu hanya bisa digeser ke samping, dan tabel empat kolom memeras
+ * nama pasar. Halaman ini dirender server tanpa state, jadi dua bentuk ini hanya HTML; yang tersembunyi
+ * `display: none`, jadi juga tidak dibaca pembaca layar. Pengecualian: pasar ber-agent memakai satu daftar grid
+ * untuk semua lebar, karena `AgentScoreBadge` mengambil skornya sendiri dan dua salinan berarti dua permintaan.
+ */
+function PhoneList({ children }: { children: React.ReactNode }) {
+  return <ol className="divide-y divide-line sm:hidden">{children}</ol>;
+}
+
+function PhoneRow({
+  rank,
+  main,
+  meta,
+  value,
+  valueLabel,
+}: {
+  rank?: number;
+  main: React.ReactNode;
+  meta?: React.ReactNode;
+  value: React.ReactNode;
+  valueLabel: string;
+}) {
+  return (
+    <li className="flex items-center gap-3 px-4 py-2.5 text-xs">
+      {rank !== undefined ? (
+        <span className="w-4 shrink-0 text-[11px] text-ink-faint" data-numeric>
+          {rank}
+        </span>
+      ) : null}
+      <div className="min-w-0 flex-1">
+        {main}
+        {meta ? <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-ink-soft">{meta}</div> : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <span className="block text-[14px] font-semibold text-ink" data-numeric>
+          {value}
+        </span>
+        <span className="block text-[10px] text-ink-faint">{valueLabel}</span>
+      </div>
+    </li>
+  );
+}
+
 function usd(v: number | null): string {
   if (v === null || !Number.isFinite(v)) return "—";
   if (v === 0) return "$0";
@@ -107,7 +152,7 @@ export default async function LeaderboardPage() {
           Markets ranked by unique buyers, not volume: one wallet buying a hundred times still counts once. ADEXTO team
           wallets and each market&apos;s own creator never count as buyers. Read from every swap on chain, across five
           chains.{" "}
-          <Link href="/rewards" className="font-semibold text-accent hover:underline">
+          <Link href="/rewards" className="whitespace-nowrap font-semibold text-accent hover:underline">
             Refer traders →
           </Link>
         </p>
@@ -148,7 +193,23 @@ export default async function LeaderboardPage() {
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Section id="newest" icon={<Rocket className="h-4 w-4 text-accent" aria-hidden />} title="Newest launches">
-              <table className="w-full text-left text-xs">
+              <PhoneList>
+                {data.newest.map((m) => (
+                  <PhoneRow
+                    key={`${m.chainId}-${m.token}`}
+                    main={<MarketCell m={m} />}
+                    meta={
+                      <>
+                        <ChainChip chainId={m.chainId} name={m.chainName} />
+                        <span>launched {ago(m.deployedAt, now)}</span>
+                      </>
+                    }
+                    value={m.buyers24h}
+                    valueLabel="buyers 24h"
+                  />
+                ))}
+              </PhoneList>
+              <table className="hidden w-full text-left text-xs sm:table">
                 <thead>
                   <tr>
                     <th className={th}>Market</th>
@@ -177,7 +238,31 @@ export default async function LeaderboardPage() {
             </Section>
 
             <Section id="creators" icon={<Crown className="h-4 w-4 text-accent" aria-hidden />} title="Top creators" note="Creator fees earned, paid plus unclaimed, read from each curve.">
-              <table className="w-full text-left text-xs">
+              <PhoneList>
+                {data.creators.map((c) => (
+                  <PhoneRow
+                    key={c.address}
+                    main={
+                      <span className="flex flex-wrap items-center gap-x-2">
+                        <Link href={`/creator?address=${c.address}`} className="inline-flex min-h-[40px] items-center font-mono text-ink hover:text-accent">
+                          {short(c.address)}
+                        </Link>
+                        {c.isTeam && (
+                          <span className="rounded border border-line px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">ADEXTO team</span>
+                        )}
+                      </span>
+                    }
+                    meta={
+                      <span className="min-w-0">
+                        {c.markets} · {c.symbols.map((s) => `$${s}`).join(" ")}
+                      </span>
+                    }
+                    value={usd(c.revenueUsd)}
+                    valueLabel="earned"
+                  />
+                ))}
+              </PhoneList>
+              <table className="hidden w-full text-left text-xs sm:table">
                 <thead>
                   <tr>
                     <th className={th}>Creator</th>
@@ -189,7 +274,10 @@ export default async function LeaderboardPage() {
                   {data.creators.map((c) => (
                     <tr key={c.address}>
                       <td className={td}>
-                        <Link href={`/creator?address=${c.address}`} className="font-mono text-ink hover:text-accent">
+                        <Link
+                          href={`/creator?address=${c.address}`}
+                          className="inline-flex items-center whitespace-nowrap font-mono text-ink hover:text-accent max-lg:min-h-[40px]"
+                        >
                           {short(c.address)}
                         </Link>
                         {c.isTeam && (
@@ -218,34 +306,43 @@ export default async function LeaderboardPage() {
             {data.agentBound.length === 0 ? (
               <p className="px-4 py-4 text-xs text-ink-soft">No market is bound to an agent identity yet.</p>
             ) : (
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr>
-                    <th className={th}>Market</th>
-                    <th className={th}>Chain</th>
-                    <th className={th}>Agent Score</th>
-                    <th className={`${th} text-right`}>Buyers 24h</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
+              /* Satu daftar grid untuk semua lebar (lihat catatan PhoneList): di ponsel kartu dua baris, mulai 640 px
+                 empat kolom dengan kepala kolom seperti tabel sebelumnya. Skor tetap dari AgentScoreBadge (UI-1). */
+              <div className="text-xs">
+                <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] border-b border-line sm:grid" aria-hidden="true">
+                  <span className={th}>Market</span>
+                  <span className={th}>Chain</span>
+                  <span className={th}>Agent Score</span>
+                  <span className={`${th} text-right`}>Buyers 24h</span>
+                </div>
+                <ul className="divide-y divide-line">
                   {data.agentBound.map((m) => (
-                    <tr key={`${m.chainId}-${m.token}`}>
-                      <td className={td}>
+                    <li
+                      key={`${m.chainId}-${m.token}`}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] sm:gap-x-0 sm:px-0"
+                    >
+                      <div className="min-w-0 sm:px-4">
                         <MarketCell m={m} />
-                      </td>
-                      <td className={td}>
-                        <ChainChip chainId={m.chainId} name={m.chainName} />
-                      </td>
-                      <td className={td}>
-                        <AgentScoreBadge chainId={m.chainId} token={m.token} />
-                      </td>
-                      <td className={`${td} text-right font-semibold text-ink`} data-numeric>
+                      </div>
+                      <div className="text-right font-semibold text-ink sm:order-last sm:px-4" data-numeric>
                         {m.buyers24h}
-                      </td>
-                    </tr>
+                        <span className="block text-[10px] font-normal text-ink-faint sm:hidden">buyers 24h</span>
+                      </div>
+                      <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:contents">
+                        <span className="sm:px-4">
+                          <ChainChip chainId={m.chainId} name={m.chainName} />
+                        </span>
+                        <span className="sm:px-4">
+                          {/* 32 px di bawah lg lewat prop `className` milik komponennya (tanpa mengedit berkas UI-1):
+                              pil 23 px ini dinilai rapat oleh audit saat lewat di dekat tab bar bawah (ERROR tap<24
+                              di 320–393 px). */}
+                          <AgentScoreBadge chainId={m.chainId} token={m.token} className="max-lg:min-h-[32px]" />
+                        </span>
+                      </div>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </div>
             )}
             <p className="border-t border-line px-4 py-2 text-[11px] text-ink-faint">
               The full agent directory is on{" "}
@@ -284,8 +381,10 @@ export default async function LeaderboardPage() {
                 <ContestTable entries={data.contest.previous.slice(0, 3)} now={now} empty="" />
               </>
             )}
-            <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">
-              <Link href="/studio" className="font-semibold text-accent hover:underline">
+            {/* Tautan berdiri sendiri (bukan di dalam kalimat), jadi di bawah lg ia butuh area ketuk sendiri: dulu
+                setinggi teks (14 px) dan rapat dengan baris kontes di atasnya, ERROR tap<24 di 320 px. */}
+            <p className="border-t border-line px-4 py-1 text-[11px] text-ink-soft lg:py-2">
+              <Link href="/studio" className="inline-flex min-h-[40px] items-center font-semibold text-accent hover:underline lg:min-h-0">
                 Launch in the Studio →
               </Link>
             </p>
@@ -303,7 +402,33 @@ export default async function LeaderboardPage() {
 
 function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }) {
   return (
-    <div className="overflow-x-auto">
+    <>
+    <PhoneList>
+      {rows.map((m, i) => (
+        <PhoneRow
+          key={`${m.chainId}-${m.token}`}
+          rank={i + 1}
+          main={<MarketCell m={m} />}
+          meta={
+            <>
+              <ChainChip chainId={m.chainId} name={m.chainName} />
+              <span data-numeric>
+                {m.trades24h} trade{m.trades24h === 1 ? "" : "s"} · {usd(m.volume24hUsd)}
+              </span>
+              <span className="text-ink-faint">{ago(m.lastTradeAt, now)}</span>
+            </>
+          }
+          value={
+            <>
+              {m.buyers24h}
+              {m.partial && <span className="ml-1 text-[10px] font-normal text-ink-faint">indexing</span>}
+            </>
+          }
+          valueLabel="buyers 24h"
+        />
+      ))}
+    </PhoneList>
+    <div className="hidden overflow-x-auto sm:block">
       <table className="w-full min-w-[720px] text-left text-xs">
         <thead>
           <tr>
@@ -345,17 +470,37 @@ function TrendingTable({ rows, now }: { rows: LeaderboardMarket[]; now: number }
           ))}
         </tbody>
       </table>
-      {rows.every((m) => m.buyers24h === 0) && (
-        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">No wallet outside the team and the creators has bought in the last 24 hours.</p>
-      )}
     </div>
+    {rows.every((m) => m.buyers24h === 0) && (
+      <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">No wallet outside the team and the creators has bought in the last 24 hours.</p>
+    )}
+    </>
   );
 }
 
 function ContestTable({ entries, now, empty }: { entries: ContestEntry[]; now: number; empty: string }) {
   if (entries.length === 0) return empty ? <p className="px-4 pb-3 text-xs text-ink-soft">{empty}</p> : null;
   return (
-    <table className="w-full text-left text-xs">
+    <>
+    <PhoneList>
+      {entries.map((e, i) => (
+        <PhoneRow
+          key={`${e.chainId}-${e.token}`}
+          rank={i + 1}
+          main={<MarketCell m={e} />}
+          meta={
+            <>
+              <ChainChip chainId={e.chainId} name={e.chainName} />
+              {e.creator ? <span className="font-mono">{short(e.creator)}</span> : null}
+              <span className="text-ink-faint">{e.open ? until(e.windowEndsAt, now) : "final"}</span>
+            </>
+          }
+          value={e.score}
+          valueLabel="net buyers"
+        />
+      ))}
+    </PhoneList>
+    <table className="hidden w-full text-left text-xs sm:table">
       <thead>
         <tr>
           <th className={th}>#</th>
@@ -385,5 +530,6 @@ function ContestTable({ entries, now, empty }: { entries: ContestEntry[]; now: n
         ))}
       </tbody>
     </table>
+    </>
   );
 }

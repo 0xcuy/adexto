@@ -96,10 +96,11 @@ export default function RewardsClient() {
           {!isConnected || !address ? (
             <div className="space-y-2">
               <p className="text-xs text-ink-soft">Connect the wallet that should receive referral credit. Your address is your code; a handle is optional.</p>
+              {/* Tombol dan kolom di halaman ini 44 px di bawah lg (rem situs 14 px, jadi px); desktop tetap. */}
               <button
                 type="button"
                 onClick={() => connectWallet().catch(() => {})}
-                className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-strong"
+                className="min-h-[44px] rounded-xl bg-accent px-4 text-xs font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
               >
                 Connect wallet
               </button>
@@ -120,7 +121,7 @@ export default function RewardsClient() {
                       setTimeout(() => setCopied(false), 1800);
                     } catch {}
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-strong"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-semibold text-white hover:bg-accent-strong lg:min-h-0 lg:py-2"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
                   {copied ? "Copied" : "Copy link"}
@@ -140,14 +141,14 @@ export default function RewardsClient() {
                     onChange={(e) => setHandleInput(e.target.value)}
                     placeholder="your_handle"
                     maxLength={20}
-                    className="w-full rounded-xl border border-line bg-cream-2 px-3 py-2 text-xs text-ink focus:border-accent/40 focus:outline-none"
+                    className="min-h-[44px] w-full rounded-xl border border-line bg-cream-2 px-3 text-[16px] text-ink focus:border-accent/40 focus:outline-none lg:min-h-0 lg:py-2 lg:text-xs"
                   />
                 </label>
                 <button
                   type="button"
                   disabled={busy || !handleInput.trim()}
                   onClick={register}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink hover:border-accent/40 disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-xs font-semibold text-ink hover:border-accent/40 disabled:opacity-50 lg:min-h-0 lg:py-2"
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Sign to claim handle
                 </button>
@@ -175,8 +176,34 @@ export default function RewardsClient() {
                 </div>
               ))}
             </div>
+            {/* Ponsel (< 640 px): satu kartu per minggu; tabel enam kolom baru tampil mulai 640 px. */}
             {stats.weeks && stats.weeks.length > 0 && (
-              <table className="w-full text-left text-xs">
+              <ul className="divide-y divide-line text-xs sm:hidden">
+                {stats.weeks.map((w) => (
+                  <li key={w.week} className="px-4 py-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-semibold text-ink">{w.week}</span>
+                      <span className="font-semibold text-ink" data-numeric>
+                        {usd(w.volumeUsd)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-ink-soft" data-numeric>
+                      {w.trades} trade{w.trades === 1 ? "" : "s"} · {w.wallets} wallet{w.wallets === 1 ? "" : "s"} · protocol fee{" "}
+                      {usd(w.protocolFeeUsd)}
+                      {stats.termsConfirmed && (
+                        <>
+                          {" "}
+                          · est. reward {usd(w.rewardUsd ?? 0)}
+                          {!w.meetsMinimum && <span className="text-ink-faint"> (below minimum)</span>}
+                        </>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {stats.weeks && stats.weeks.length > 0 && (
+              <table className="hidden w-full text-left text-xs sm:table">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">
                     <th className="px-4 py-2">Week (UTC)</th>
@@ -213,7 +240,12 @@ export default function RewardsClient() {
                     <span className="text-ink">
                       {r.isBuy ? "Buy" : "Sell"} ${r.symbol} by <span className="font-mono">{short(r.wallet)}</span>
                     </span>
-                    <a href={explorerTxUrl(r.chainId, r.txHash)} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+                    <a
+                      href={explorerTxUrl(r.chainId, r.txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex shrink-0 items-center whitespace-nowrap font-semibold text-accent hover:underline max-lg:min-h-[36px]"
+                    >
                       {usd(r.volumeUsd)} · tx
                     </a>
                   </li>
