@@ -1,694 +1,160 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import { ArrowRight } from "lucide-react";
 import VerifiedDeploymentCard from "@/components/VerifiedDeploymentCard";
-// `Zap` dan `Lock` dibuang bersama empat kartu MCP fiktif yang memakainya. `Database` dan
-// `Sparkles` sudah tidak terpakai sebelum itu, dan ikut dibuang di kesempatan yang sama.
-import { ShieldCheck, Cpu, Terminal, Layers, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
-import { agentAttestation } from "@/lib/og-attestation";
-import { LAUNCH_CLAUSE } from "@/lib/launch-state";
-import { STUDIO_VERSION } from "@/config/subgraph";
-import docsPages from "@/config/docs-pages.json";
+import Disclosure from "@/components/ui/Disclosure";
+import DocsShell from "@/app/docs/DocsShell";
+import { DocSection, SourceNote } from "@/app/docs/DocBlocks";
+import { DOC_GROUPS, DOC_SUMMARIES } from "@/app/docs/docs-nav";
+import ComponentStatus, { ComputeAttestation } from "@/app/docs/TechnicalStatus";
 
 /**
- * Halaman ini server component, jadi status attestation dibaca langsung dari
- * router 0G saat render — tanpa perjalanan tambahan lewat peramban dan tanpa
- * kunci API pernah meninggalkan server.
- */
-
-/**
- * Judul panduan dibaca dari `docs-pages.json`, blurb-nya ditulis tangan di sini.
+ * Beranda docs (`/docs`, juga `docs.adexto.xyz`).
  *
- * Judulnya datang dari berkas itu supaya menambah halaman tidak menuntut menyunting dua
- * tempat dan tidak bisa menghasilkan tautan ke halaman yang tidak ada. Blurb-nya TIDAK dari
- * sana: satu baris yang memutuskan apakah pembaca mengklik itu tulisan, bukan metadata, dan
- * isi `docs-pages.json` disusun model bahasa.
+ * Dibuat ulang 4 Okt atas permintaan owner, meniru docs comfy.fun: "What is ADEXTO" dalam kalimat pendek,
+ * "Where to start", daftar panduan, lalu kontrak dan status di bagian akhir. Sebelumnya halaman ini dibuka
+ * dengan sembilan kartu kecil lalu esai status komponen sepanjang beberapa layar.
+ *
+ * Yang DIJAGA dari versi lama:
+ *   - `<VerifiedDeploymentCard />` tetap dirender DI BERKAS INI (`audit_consistency.mjs` memeriksa bahwa
+ *     registry kontrak hidup di halaman permanen, dan `/explorer` menunjuk ke sini untuk daftar kontrak).
+ *   - Tabel attestation router 0G (`ComputeAttestation`) tetap terbuka: pil "0G TeeML · TDX reported" di
+ *     footer menaut ke halaman ini.
+ *   - Status komponen demi komponen (`ComponentStatus`) dipindah utuh ke `TechnicalStatus.tsx` dan
+ *     dirender di sini dalam satu lipatan.
+ * Semua teks publik English; klaim mengikuti UI-POLISH §2.4 (launch, stake dan claim mengembalikan
+ * transaksi tanpa tanda tangan; `pay_and_buy` memakai kunci operator).
  */
-const BLURBS: Record<string, string> = {
-  launch: "One transaction, no liquidity deposit, no creator allocation.",
-  trading: "The curve as a permanent venue, and the exit path.",
-  fees: "Four legs, and where the protocol leg sits in each factory generation.",
-  chains: "Four mainnets, and why the bytecode hashes match.",
-  x402: "Pay with USDC over HTTP, receive on another chain.",
-  mcp: "Fourteen tools. Two spend money and say whose key signs; four return transactions for your own key.",
-  "agent-identity": "One ERC-8004 registry, integrated, opt-in.",
-  data: "Registry first, indexers additive, and why they differ per chain.",
-  security: "What the contracts guarantee, and what has not been done.",
+export const metadata: Metadata = {
+  title: "Docs — ADEXTO",
+  description:
+    "What ADEXTO is, how a launch, a trade and the fees work, and how an agent uses it over MCP and x402. Short guides, with the contract addresses and status at the end.",
 };
-const DOC_PAGES = ((docsPages as { order?: string[]; pages: Record<string, { title: string }> }).order ?? [])
-  .filter((slug) => docsPages.pages[slug as keyof typeof docsPages.pages])
-  .map((slug) => ({
-    slug,
-    title: (docsPages.pages as Record<string, { title: string }>)[slug].title,
-    blurb: BLURBS[slug] ?? "",
-  }));
-export default async function DocsPage() {
-  const tee = await agentAttestation();
+
+const TOC = [
+  { id: "where-to-start", label: "Where to start" },
+  { id: "guides", label: "All guides" },
+  { id: "contracts", label: "Contracts and status" },
+];
+
+function Lead({ word, children }: { word: string; children: React.ReactNode }) {
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-      {/* Header */}
-      {/* ── Navigasi ke halaman anak ────────────────────────────────────────
-          Halaman ini TIDAK diubah menjadi indeks. Ia sudah punya peran: status
-          komponen demi komponen, dan `audit_consistency.mjs` memeriksa bahwa ia
-          merender VerifiedDeploymentCard. Mengubahnya menjadi daftar tautan akan
-          memindahkan isi yang sudah diperiksa ke tempat yang belum.
+    <li className="flex gap-3 text-[16px] leading-[1.7] text-ink-soft">
+      <span aria-hidden="true" className="mt-[0.72em] h-[5px] w-[5px] shrink-0 rounded-full bg-accent" />
+      <span>
+        <strong className="font-semibold text-ink">{word}</strong> {children}
+      </span>
+    </li>
+  );
+}
 
-          Jadi panduan ditaruh DI ATAS sebagai jalan masuk, dan status tetap di
-          bawahnya. Pembaca yang datang untuk belajar berhenti di kartu; pembaca
-          yang datang memverifikasi terus turun. */}
-      <div className="mb-10">
-        <div className="kicker mb-3">DOCUMENTATION</div>
-        <h1 className="mb-2 font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Build on ADEXTO</h1>
-        <p className="mb-6 max-w-2xl text-sm leading-relaxed text-ink-soft">
-          Nine guides covering a launch, the curve, fees, the chains, paying from another chain, the MCP server for
-          agents, agent identity, reading market data, and what the contracts guarantee.
+const A = ({ href, children }: { href: string; children: React.ReactNode }) => (
+  <Link href={href} className="font-medium text-accent underline decoration-accent/30 underline-offset-[3px] hover:decoration-accent">
+    {children}
+  </Link>
+);
+
+export default function DocsHome() {
+  return (
+    <DocsShell
+      current="/docs"
+      title="What is ADEXTO"
+      kicker="Docs"
+      toc={TOC}
+      intro={
+        <p>
+          ADEXTO is a place to launch a token and trade it on a bonding curve, on Monad, Arbitrum One, Robinhood Chain,
+          Base and 0G.
         </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {DOC_PAGES.map((p) => (
-            <Link
-              key={p.slug}
-              href={`/docs/${p.slug}`}
-              className="group rounded-xl border border-line p-3 transition hover:border-accent/40 hover:bg-cream-3/[0.05]"
-            >
-              <div className="text-[13px] font-bold text-ink group-hover:text-accent">{p.title}</div>
-              <div className="mt-0.5 text-[11px] leading-snug text-ink-faint">{p.blurb}</div>
-            </Link>
-          ))}
-        </div>
+      }
+    >
+      <ul className="space-y-3">
+        <Lead word="Launch">
+          a market in one transaction. You pay gas only: there is no liquidity deposit, and the whole supply goes into
+          the curve.
+        </Lead>
+        <Lead word="Trade">
+          any market on its own page. Every market trades against its own curve, and each chain is a separate market.
+        </Lead>
+        <Lead word="Earn">
+          as the creator. You hold no allocation; on the standard fee preset you are paid 0.70% of every trade instead.
+        </Lead>
+        <Lead word="Build">
+          with an agent. Bind a token to an ERC-8004 agent at launch, and let the agent launch, stake and claim over
+          MCP: the server returns unsigned transactions and the agent signs them with its own key.
+        </Lead>
+      </ul>
+      <div className="mt-6 rounded-panel border border-accent/25 bg-accent-soft p-4 text-[15px] leading-relaxed text-ink">
+        Launches and trades are real transactions on mainnet. Check the network and the transaction in your wallet
+        before you confirm.
       </div>
 
-      <div className="border-b-2 border-line pb-6 mb-10">
-        <div className="kicker mb-3">DEVELOPER ECOSYSTEM &amp; INTEGRATION SPEC</div>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">Technical status, component by component</h1>
-        {/* Aturan header: apa pun yang disebut di sini harus cocok dengan seksi
-            "status jujur" di bawah. Header yang membantah isi halamannya sendiri
-            lebih merusak kepercayaan daripada daftar yang lebih pendek. Jembatan
-            lintas-chain turun dari halaman ini sepenuhnya, bukan cuma ditandai
-            belum aktif — dan gerbang World ID mengikuti jalan yang sama setelah
-            dicabut, karena "ada tapi mati" adalah keadaan yang paling mudah
-            disalahbaca pembaca. */}
-        {/* "Not live: the mainnet launch factory" berhenti benar saat 0.10.0
-            di-broadcast ke keempat mainnet. Dibiarkan di sini, kalimat ini
-            menyangkal hal yang sudah bisa dipakai — dan itu sama tidak akuratnya
-            dengan mengklaim yang belum ada. */}
-        {/* Kalimat pembuka ini dulu berbunyi "What is built, what is deployed, and what
-            is not", diikuti daftar "Not live:" dan satu kalimat tentang tidak adanya
-            governance, lalu ditutup "Every section below says which it is."
-            
-            Semuanya akurat. Yang salah bobotnya: paragraf pertama sebuah halaman teknis
-            adalah ruang paling mahal di seluruh dokumen, dan separuhnya dipakai untuk
-            menyebut apa yang TIDAK ada. Pembaca yang sampai ke /docs sudah memutuskan
-            ingin tahu cara kerjanya; yang ia butuhkan lebih dulu adalah apa yang bisa
-            dipanggil hari ini.
-            
-            Kalimat governance-nya diubah arah, bukan dibuang: fakta yang sama — tanpa
-            owner, tanpa setter, tarif immutable — adalah JAMINAN, dan itulah alasan tidak
-            ada yang bisa mengalihkan atau menguras apa pun. Ditulis sebagai kekuatan ia
-            memberi tahu hal yang sama tanpa terbaca seperti fitur yang gagal dibangun. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: ADEXTO v1, the launch factory <code className="text-accent">1.0.0</code>, on five mainnets (0G, Base, Arbitrum One, Monad and Robinhood Chain) with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, a 180-second per-wallet launch window, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
+      <div className="mt-12">
+        <DocSection id="where-to-start" heading="Where to start">
+          <ul className="mt-4 space-y-3">
+            <Lead word="New here?">
+              Read <A href="/docs/launch">Launch a market</A>, then what a trade costs in <A href="/docs/fees">Fees</A>.
+            </Lead>
+            <Lead word="Want to trade?">
+              Read <A href="/docs/trading">Trading</A>, then open the <A href="/explorer">markets</A>.
+            </Lead>
+            <Lead word="Building an agent?">
+              Point it at the <A href="/docs/mcp">MCP server</A>, or pay from another chain with{" "}
+              <A href="/docs/x402">x402</A>.
+            </Lead>
+            <Lead word="Checking before you trust anything?">
+              Read <A href="/docs/security">Security</A>, then the <A href="/docs#contracts">contract addresses</A> below.
+            </Lead>
+          </ul>
+        </DocSection>
       </div>
 
-      {/* Enterprise Architecture Stack */}
-      <div className="section-block mb-4 space-y-5">
-        <div className="kicker">
-          <Award className="w-4 h-4 text-ok" />
-          <span>PRODUCTION ARCHITECTURE &amp; PROTOCOL COMPOSITION</span>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Enterprise Infrastructure Layer</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-medium">
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">0G Compute &amp; DA Turbo</strong>
-            <p className="text-ink-soft">Agent inference through the 0G Compute router, plus 0G DA for anchoring launch metadata. The router reports Intel TDX attestation via dstack for every model we call — read live in the table below, not asserted here.</p>
+      <div className="mt-12">
+        <DocSection id="guides" heading="All guides">
+          <div className="mt-5 space-y-8">
+            {DOC_GROUPS.filter((g) => g.label !== "Start").map((g) => {
+              const pages = g.items.filter((i) => i.slug);
+              if (!pages.length) return null;
+              return (
+                <div key={g.label}>
+                  <p className="text-[12px] font-semibold uppercase tracking-wider text-ink-faint">{g.label}</p>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {pages.map((p) => (
+                      <li key={p.href}>
+                        <Link
+                          href={p.href}
+                          className="group flex h-full flex-col rounded-panel border border-line bg-surface p-4 transition-colors hover:border-accent/40 hover:bg-cream-2"
+                        >
+                          <span className="flex items-center gap-1.5 text-[15px] font-semibold text-ink group-hover:text-accent">
+                            {p.label}
+                            <ArrowRight className="h-[14px] w-[14px] text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                          </span>
+                          <span className="mt-1 text-[14px] leading-snug text-ink-soft">{DOC_SUMMARIES[p.slug as string]?.[0]}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
-
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            {/* Kartu ini dulu mengklaim proof-of-personhood World ID. Gerbangnya
-                dicabut, dan penggantinya sengaja menyatakan BATASNYA, bukan cuma
-                fiturnya — pembaca yang bertanya "apa yang menahan spam" berhak
-                mendapat jawaban yang tidak melebihkan. */}
-            <strong className="text-accent block font-bold text-sm">Launch gate: wallet attestation</strong>
-            <p className="text-ink-soft">
-              A launch requires an <strong>EIP-191 signature</strong> verified <strong>server-side</strong>, so the
-              address credited as creator is one the caller provably controls — not a boolean sent from the browser.
-              {/* Kalimat ini SENGAJA tidak memakai kosakata identitas yang dilarang
-                  audit_claims. Larangannya cocok substring, jadi menyangkal klaim
-                  dengan kata yang sama tetap memicunya. Penjaganya tidak dilemahkan
-                  untuk halaman ini — pengecualian sekali berarti pengecualian
-                  selamanya — jadi kalimatnya yang diganti kata. */}
-              There is <strong>no identity check at all</strong>. What limits abuse is economic, not identity — a ticker
-              belongs to one owner per chain, listing only happens after a mined transaction so every entry costs real
-              gas, one address may list at most <strong>10 tickers</strong>, and at the 500-market limit new listings are
-              refused rather than pushing older ones out. Rotating addresses can still get past the per-address cap, so
-              the guarantee is narrow and worth stating plainly: existing markets cannot be evicted. Note too
-              that <code className="text-accent">deployTrinity</code> has no access control, so this gate governs
-              listing on this site, never the on-chain launch itself.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">Sovereign Bonding Curve</strong>
-            {/* Nama kontraknya `AdextoCurve` sejak 0.11.0. `SovereignCurve` masih hidup
-                di chain dan masih melayani pasar yang lahir dari factory sebelumnya,
-                jadi keduanya disebut — mengganti nama lama akan membuat pembaca yang
-                memeriksa pasar lama tidak menemukan kontrak yang mereka lihat. */}
-            <p className="text-ink-soft">A standalone <code className="text-accent">AdextoCurve</code> per token, opening against a virtual reserve so no liquidity deposit is needed. The configured fee is the whole fee a trader pays and splits four ways on-chain — depth stays in the curve, the creator is paid directly, buyback-and-burn that anyone can trigger, and a 0.10% protocol leg. Nothing is added on top. Every rate is immutable, so each market keeps the rates it launched with: the six earlier markets come from the 0.11.0 factories and pay 0.40% because their protocol leg was added on top, while every ADEXTO v1 launch pays the configured total (1.00% on the default tier).</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">The Graph Decentralized Network</strong>
-            {/* "still indexes the v1 factory" terlalu murah hati. Manifest yang
-                dipublish ditarik dari IPFS dan diperiksa: ia mendeklarasikan
-                `network: mainnet` (Ethereum) untuk alamat yang punya 0 byte
-                bytecode di Ethereum dan 7.216 byte di 0G. Ia memindai chain yang
-                SALAH sejak blok 1, jadi barisnya nol dan akan selamanya nol. */}
-            {/* "is not yet deployed" berhenti benar pada 2026-09-04: subgraph
-                multi-chain yang ditulis ulang sudah ter-deploy ke Subgraph Studio
-                untuk Base dan Arbitrum One, terverifikasi sync melewati startBlock
-                factory tanpa indexing error. Yang MASIH benar adalah bagian
-                keduanya — situs ini belum membacanya, karena SUBGRAPH_URL_* sengaja
-                dibiarkan kosong sampai ada satu peluncuran nyata yang terindeks. */}
-            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is deployed to Subgraph Studio for Base and Arbitrum One at {STUDIO_VERSION ?? "no version configured"}, both synced past the factory&apos;s start block with no indexing errors. This site is now wired to read them, and the registry remains the primary source with the indexer additive — so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. No data comes from The Graph for the three live markets either, and the reason is narrower than it looks: two are on 0G and one is on Monad, and Studio serves neither chain. 0G is absent from The Graph&apos;s networks registry, and Monad is listed there without Subgraphs support — Firehose and Substreams only. Monad is indexed anyway, by Envio HyperIndex rather than a subgraph: full history from the factory&apos;s deploy block, 1.93M blocks in under 45 seconds, checked figure by figure against what the curve contracts store. 0G is still read straight from RPC logs.</p>
-          </div>
-
-          {/* Kartu ini dulu berwarna amber, sederet dengan sebuah kartu "Planned:
-              cross-chain routing" — jadi yang berjalan dan yang belum ada memakai warna
-              peringatan yang sama. Warnanya diperbaiki lebih dulu; kartu "Planned"-nya
-              kemudian dicabut seluruhnya, dan alasannya ada di komentar di bawah kartu
-              buyback. Setelah itu tidak ada lagi kartu amber di daftar ini, yang memang
-              seharusnya: setiap baris di sini menyatakan sesuatu yang berjalan. */}
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">Cloudflare Workers x402</strong>
-            <p className="text-ink-soft">Sells a cross-chain buy. An unpaid request is answered with HTTP 402 and a quote; pay it with USDC on Base and the curve on the target chain sends the tokens to your own address. Settlement is by EIP-3009, so USDC itself checks the signature and no new contract has to be trusted.</p>
-            {/* Batas kapasitasnya TIDAK ditulis ulang di sini, dan itu keputusan sadar,
-                bukan kelalaian.
-
-                Endpoint-nya sendiri yang melaporkannya, di tempat yang bisa
-                ditindaklanjuti: setiap kutipan 402 membawa `inventory.remainingBuys`,
-                dan kalau persediaan habis jawabannya 503 lengkap dengan alasannya —
-                diperiksa SEBELUM pembayaran disentuh, jadi tidak ada yang tertagih untuk
-                pesanan yang tidak bisa dipenuhi. Integrator mendapatkannya di payload
-                pada saat ia relevan.
-
-                Ujinya begini: menghapus sebuah penyangkalan hanya menjadi bohong kalau
-                ada tempat lain yang mengklaim sebaliknya. Tidak ada halaman yang
-                menjanjikan kapasitas tanpa batas, dan vault buyback dinyatakan di
-                halaman ini didanai 0,05% dari setiap swap — sebuah mekanisme on-chain
-                yang tidak pernah diklaim berasal dari pendapatan x402. Jadi tidak ada
-                klaim yang jadi palsu karena kalimat itu tidak ada di sini.
-
-                Yang tetap menyimpannya: prompt sistem agen, supaya kalau ada yang
-                BERTANYA jawabannya benar; dan kartu pendapatan di /pitch, karena di
-                sana plafon itu bagian dari angkanya — membuangnya akan membuat
-                pendapatannya terbaca lebih besar daripada yang sebenarnya bisa terjadi. */}
-          </div>
-
-          <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-1.5">
-            <strong className="text-accent block font-bold text-sm">Buyback execution</strong>
-            {/* Klaim lama: "a buyback cannot be sandwiched on a venue we do not
-                control." Benar tapi menyesatkan, karena yang berbahaya justru
-                sandwich di kurvanya SENDIRI — dan itu tepatnya alasan plafon 1%
-                ada. Menyebut satu risiko yang tidak berlaku sambil menghilangkan
-                yang berlaku lebih buruk daripada tidak menyebut apa pun. */}
-            <p className="text-ink-soft">
-              Buybacks execute against the token&apos;s own curve and burn what they buy. Anyone may trigger
-              one — no key gates it, so an idle operator cannot leave the vault stranded, and there is no
-              withdrawal path for the funds to go anywhere else. Each call is capped at 1% of the curve
-              reserve, which is what makes opening it safe: an unbounded buyback could be sandwiched on the
-              curve itself, wasting the vault&apos;s purchasing power.
-            </p>
-          </div>
-
-          {/* KARTU "Planned: cross-chain & aggregator routing" DICABUT SELURUHNYA.
-              Isinya tiga hal, dan ketiganya tidak layak menempati ruang di sini.
-
-              1. "Aggregator routing (1inch Fusion) is designed for but not integrated."
-                 String "1inch" tidak ada di satu pun kontrak, skrip, atau berkas
-                 aplikasi — HANYA di halaman ini. Jadi ia mengiklankan rencana yang tidak
-                 punya jejak di mana pun, bentuk kesalahan yang sama dengan empat kartu
-                 alat MCP yang sudah dihapus dari halaman ini.
-
-              2. "Cross-chain treasury routing is not part of this protocol…" Alasannya
-                 benar dan bagus — buyback memindahkan nilai antar dua bucket di DALAM
-                 satu kontrak, jadi mengirimkannya ke chain lain menuntut fungsi
-                 penarikan yang justru dijanjikan tidak ada. Tapi ini JAWABAN ATAS
-                 PERTANYAAN YANG TIDAK PERNAH DIAJUKAN halaman ini: CCIP nol kemunculan
-                 di seluruh situs. Dulu yang bisa menimbulkan pertanyaan itu adalah
-                 `AdextoCCIPReceiver.sol` dan `AdextoCCIPTreasuryRouter.sol` di repo, dan
-                 pembaca repo dijawab di repo — bukan lewat kartu peringatan di halaman
-                 produk. Sekarang kedua berkas itu pun sudah tidak ada: keduanya dihapus
-                 saat cakupan audit dirapikan, dan alasannya tercatat di `audit/README.md`
-                 beserta alamat yang tetap hidup di chain. Jadi pertanyaannya makin tidak
-                 mungkin muncul dari halaman ini, dan kartunya tetap tidak perlu kembali.
-
-              3. Klaim `_mint` sekali di konstruktor, tanpa mint function, tanpa
-                 `owner()`, tanpa proxy. Ini nyata dan berharga — dan sudah dinyatakan di
-                 TIGA tempat lain: paragraf multi-chain di halaman ini sendiri
-                 (`AdextoToken has none — _mint runs…`), /security, dan deret jaminan di
-                 halaman depan. Jadi menghapusnya di sini tidak menghilangkan satu pun
-                 klaim, hanya satu pengulangan.
-
-              Kalau suatu hari routing agregator benar-benar dipasang, kartunya boleh
-              kembali — tapi sesudah kodenya ada, bukan sebelum. */}
-        </div>
+        </DocSection>
       </div>
 
-      {/* Bonding Curve Pricing Mechanics */}
-      <div className="section-block mb-4 space-y-5">
-        <div className="kicker">
-          <Layers className="w-4 h-4 text-accent" />
-          <span>ON-CHAIN PRICING &amp; BONDING CURVE SPECIFICATION</span>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">How Token Pricing &amp; Sovereign Curves Work</h2>
-        
-        <div className="space-y-4 text-xs text-ink leading-relaxed font-medium">
-          <p>
-            Unlike traditional launchpads where an admin dictates prices or drains exit liquidity, ADEXTO enforces <strong>deterministic on-chain pricing</strong> governed entirely by the token&apos;s own bonding curve:
+      <div className="mt-12">
+        <DocSection id="contracts" heading="Contracts and status">
+          <p className="mt-4 text-[16px] leading-[1.75] text-ink-soft">
+            Every contract address the app uses, the attestation the 0G compute router reports for the models an agent
+            can call, and the status of each component, for anyone who wants to check before trusting the docs above.
           </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs pt-2">
-            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
-              <span className="text-accent font-bold block text-sm">1. Market-Driven Price</span>
-              <p className="text-ink-soft font-sans text-xs">
-                Prices are determined 100% algorithmically by supply and demand. Every buy order locks native currency (0G / ETH) and releases tokens along the constant-product curve (x·y=k over a virtual reserve).
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
-              <span className="text-accent font-bold block text-sm">2. Tradable From Block One</span>
-              <p className="text-ink-soft font-sans text-xs">
-                The factory deploys the token and its curve in one transaction, opening against a virtual reserve. Zero
-                creator capital: the launch costs gas and nothing else, and 100% of supply sits in the curve.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-surface border border-accent/30 space-y-2">
-              {/* Judul lama "0G TEE Auto-Buyback" menisbatkan eksekusinya ke agent
-                  di dalam TEE. Tidak ada agent yang menjalankannya: fungsinya kini
-                  tanpa izin dan dipicu siapa pun, dan sebelum itu ia dibatasi ke
-                  dompet creator yang di seluruh testnet memanggilnya nol kali. */}
-              <span className="text-accent font-bold block text-sm">3. Permissionless buyback &amp; burn</span>
-              <p className="text-ink-soft font-sans text-xs">
-                On the default tier the creator configures 0.30%: 0.05% of every swap accrues to the
-                token&apos;s buyback vault, and anyone can spend it buying tokens on the curve and burning them
-                — capped at 1% of the reserve per call. A separate 0.10% goes to the creator, and 0.15% of
-                depth stays in the curve — that retained depth is what lifts the price floor as volume
-                accumulates. The protocol&apos;s 0.10% is charged on top, so a trader pays 0.40%; it leaves the
-                curve, which is why it does not lift the floor.
-              </p>
-            </div>
-          </div>
-        </div>
+          <VerifiedDeploymentCard />
+          <ComputeAttestation />
+          <Disclosure id="status" className="mt-8" summary="Component status, in detail" hint="long read">
+            <ComponentStatus />
+          </Disclosure>
+        </DocSection>
       </div>
-
-      {/* Seksi ini dulu berjudul "Planned MCP surface" dan memuat empat kartu:
-          EVIDIQ Signet, Sentinel, Helm, dan Aegis & Notary. Keempatnya DICABUT, dan
-          bukan karena gaya.
-
-          Nama fungsinya tidak ada di repo ini — itu sudah tercatat. Yang baru
-          diperiksa: keempatnya juga TIDAK ADA di EVIDIQ. Pencarian
-          `signet_generate_brand`, `sentinel_verify_calldata`, `helm_register_cron`
-          dan `notary_anchor_receipt` di /home/cucu/Coder/EVIDIQ/ mengembalikan nol
-          berkas. MCP EVIDIQ yang sungguhan menyajikan sepuluh alat dengan nama yang
-          sama sekali lain: verify_agent, check_endpoint_trust, verify_identity,
-          attest_trust_report, batch_verify, core_capabilities, estimate_cost,
-          get_evidiq_skill, how_to_install, verify_core_report.
-
-          Jadi kartu-kartu itu bukan roadmap yang belum sampai. Kartu itu fiksi yang
-          memakai nama produk lain, ditulis dalam gaya API yang berjalan — lengkap
-          dengan tanda tangan fungsi yang bisa disalin — di halaman yang tugasnya
-          menyatakan apa yang sudah jadi. Spanduk peringatan tidak memperbaikinya:
-          empat kartu terperinci melawan satu paragraf peringatan, dan yang diingat
-          pembaca adalah kartunya.
-
-          Kartu Aegis & Notary bahkan sudah berisi ralat atas dirinya sendiri
-          (`0x8a3c…ee7D` disebut kunci enclave, padahal dompet deployer biasa).
-          Sebuah kartu yang isi utamanya adalah pembatalan klaimnya sendiri lebih baik
-          dihapus daripada dirawat.
-
-          Yang menggantikannya di bawah adalah permukaan MCP yang BENAR-BENAR jalan. */}
-      <div className="mb-5 mt-2">
-        <div className="kicker">MCP surface</div>
-        <h2 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
-          Shipped, and callable today
-        </h2>
-        <p className="mt-3 text-sm text-ink-soft leading-relaxed">
-          One MCP server runs in this repository, at{" "}
-          <code className="text-accent">/api/mcp</code>. It wraps the x402 cross-chain buy: an agent can list
-          every market, price one, read its full trade history, and pay for a position with USDC on Base while
-          the bonding curve delivers on the market&apos;s own chain. Streamable HTTP, no auth, no API key.
-        </p>
-      </div>
-
-      <div className="card p-5 space-y-4 mb-12">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-            <Terminal className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="font-bold text-ink text-base">adexto-x402</h3>
-            <span className="text-xs font-mono text-ink-soft font-bold">Six tools, five of them free</span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <tbody>
-              {[
-                ["list_markets", "free", "Every tradable market, its chain and curve address"],
-                ["get_market", "free", "One market in detail, with the resource URL that quotes it"],
-                ["quote_buy", "free", "The HTTP 402 challenge, without spending anything"],
-                ["how_to_pay", "free", "Challenge to settled buy, step by step"],
-                ["buy_token", "0.10 USDC on Base", "Settles on Base; the curve delivers on its own chain"],
-                ["trade_history", "free", "Every swap, stating whether it reaches the launch block"],
-              ].map(([name, cost, what]) => (
-                <tr key={name} className="border-b border-line/60 align-top last:border-0">
-                  <td className="py-2 pr-4 font-mono text-accent font-bold whitespace-nowrap">{name}</td>
-                  <td className="py-2 pr-4 text-ink-soft whitespace-nowrap">{cost}</td>
-                  <td className="py-2 text-ink-soft leading-relaxed">{what}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4">
-          <ShieldCheck className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-          <p className="text-xs leading-relaxed text-ink-soft">
-            No signing, settlement or payment verification happens in the MCP server. It forwards to the x402
-            gateway, the market registry and the indexer, and the 402 an agent receives is the gateway&apos;s own
-            challenge passed through untouched. Full documentation, including the client config, is on the{" "}
-            <Link href="/mcp" className="text-accent hover:underline font-medium">
-              MCP server page
-            </Link>
-            .
-          </p>
-        </div>
-      </div>
-
-
-      {/* ── ADVANCED PROTOCOL SPECIFICATIONS ────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        {/* Spec 1: Multi-chain launch model */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <Network className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">One chain per launch</h3>
-              <span className="text-xs font-mono text-accent font-bold">One independent market per chain</span>
-            </div>
-          </div>
-          {/* "A launch can target 1–4 chains in one flow" berhenti benar: studio kini
-              satu chain per peluncuran, dipilih seperti radio, karena default empat
-              chain membelah likuiditas peluncuran kecil menjadi empat pasar tipis. */}
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            A launch targets one chain. That chain receives its own <code className="text-accent">AdextoToken</code> and
-            its own <code className="text-accent">AdextoCurve</code>, deployed by that chain&apos;s factory in a
-            single transaction. All five chains are available — one launch each. Addresses differ per chain and{" "}
-            <strong>supply is not shared</strong>: there is no bridge, so every market has its own depth and its own
-            price.
-          </p>
-          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft space-y-1">
-            <div>per chain: token + bonding curve (virtual reserve, no deposit)</div>
-            {/* Dulu berbunyi bahwa dua lapisan pesan lintas-chain tidak punya endpoint
-                di 0G atau Monad. Untuk yang pertama itu SALAH — router-nya dibaca dengan
-                eth_getCode dan hidup di keempat chain, 10.761 byte di 0G dan 11.130 byte
-                di Monad. Yang kedua tidak pernah diverifikasi, jadi tidak diklaim apa
-                pun tentangnya. Dan penghalang sebenarnya bukan lapisan pesan: supply
-                lintas chain butuh wewenang mint, dan AdextoToken tidak punya — itu yang
-                disebut di bawah, karena itu yang benar-benar mengikat. */}
-            <div className="text-warn">
-              shared supply across chains would need mint authority on the destination; AdextoToken has none — _mint runs
-              once in the constructor, with no mint function, no minter role and no proxy.
-            </div>
-          </div>
-        </div>
-
-        {/* Spec 2: ERC-8004 AI Agent Identity Standard */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">Agent-bound token</h3>
-              <span className="text-xs font-mono text-accent font-bold">Opening-window cap &amp; ownerless token</span>
-            </div>
-          </div>
-          {/* Kartu ini punya dua klaim yang sudah tidak benar.
-
-              Badge-nya berbunyi "agent-only buyback" dan cuplikannya menampilkan
-              `modifier onlyAgent() { require(msg.sender == agentIdentity); _ }`.
-              Modifier itu SUDAH DIHAPUS dari SovereignCurve: buyback kini tanpa
-              izin, dibatasi ukuran per panggilan. Cuplikannya juga tidak pernah
-              persis begitu bahkan ketika modifier-nya masih ada — yang lama
-              memeriksa `agentTreasury || factory`, bukan `agentIdentity`.
-              Menampilkan kode yang tidak ada di kontrak, di halaman berjudul
-              spesifikasi, runtuh pada pemeriksaan pertama.
-
-              Yang benar sekarang, dan bisa dibuka di berkasnya: cap 1% selama 5
-              blok, token tanpa owner sama sekali, dan buyback tanpa izin
-              berplafon. */}
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            For 180 seconds after launch, no wallet may hold more than 1% of supply, so no single address can take
-            the opening curve, and splitting a buy across many transactions does not get around it. This lives in{" "}
-            <code className="text-accent">AdextoToken._update</code> and is unrelated to any token standard. (The six
-            0.11.0 markets used an earlier form: a 1% cap per transfer for their first 5 blocks.) The token has{" "}
-            <strong>no owner and no admin function</strong>, so there is nothing to renounce and no lever to misuse.
-            Buybacks are permissionless — anyone may trigger one, bounded by size and by a one-hour cooldown rather
-            than by identity.
-          </p>
-          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft">
-            require(nativeAmount * 100 &lt;= virtualNative + _curveNative);
-          </div>
-        </div>
-
-        {/* Spec 3: Cloudflare Workers x402 Micropayments */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <CloudLightning className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">Cloudflare x402 Protocol Flow</h3>
-              <span className="text-xs font-mono text-accent font-bold">Quote, pay and delivery all live</span>
-            </div>
-          </div>
-          {/* Baris contoh di bawah dulu berbunyi `Authorization: x402-v1
-              EIP712Sig(0x1234...USDC)` — sebuah header yang tidak pernah ada. Yang
-              benar-benar dibaca endpoint adalah `X-PAYMENT` berisi JSON ter-base64
-              sesuai x402 v2. */}
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            Puts an HTTP 402 gate in front of a cross-chain buy, so another machine can read the price and what
-            it would receive without a blockchain call. Paying means signing an EIP-3009 transfer authorization
-            on USDC: the token contract checks it, so no separate escrow has to be trusted. Delivery happens
-            before the charge, which means a failed buy costs us rather than the buyer.
-          </p>
-          <div className="p-2.5 rounded-lg bg-surface border border-line font-mono text-[11px] text-ink-soft">
-            X-PAYMENT: base64(&#123; scheme: &quot;exact&quot;, network: &quot;base&quot;, payload: &#123; signature, authorization &#125; &#125;)
-          </div>
-        </div>
-
-        {/* Spec 4: Subdomain Dynamic Rewrite & On-Chain DAO */}
-        <div className="card card-hover p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center border border-accent/30">
-              <Globe className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-ink text-base">Subdomain Rewrite</h3>
-              <span className="text-xs font-mono text-accent font-bold">Edge Routing</span>
-            </div>
-          </div>
-          {/* SEKSI DAO DICABUT DARI SINI, dan alasannya bukan "belum selesai".
-              
-              Teks lama menjelaskan panjang kenapa tidak ada suara yang bisa masuk:
-              governanceToken alamat nol di Base/Monad, dan di 0G/Arbitrum menunjuk hook
-              v1 yang tidak punya balanceOf. Semuanya benar. Yang tidak disebut: bahkan
-              kalau alamatnya dibetulkan, proposal yang lolos tidak bisa memerintah apa
-              pun. `execute` hanya memanggil `targetContract.call`, jadi governor terbatas
-              pada apa yang alamatnya sendiri sudah diizinkan — dan tidak ada satu pun
-              setter di jalur peluncuran, tidak ada owner, semua tarif fee immutable.
-              Bahkan parameter fee hook v1 yang katanya diperintah pun immutable sejak
-              lahir.
-              
-              Jadi ini bukan fitur tertunda, ini kontradiksi dengan jaminan inti protokol.
-              Halaman /governance sudah dihapus seluruhnya. Menyisakan penjelasan panjang
-              di sini hanya memindahkan basa-basinya. */}
-          <p className="text-xs text-ink leading-relaxed font-medium">
-            Edge middleware translates <code className="text-accent">[token].adexto.xyz</code> into a per-token
-            terminal.
-          </p>
-          {/* PARAGRAF GOVERNANCE DICABUT dari permukaan yang terbaca.
-              
-              Isinya benar: tidak ada owner, tidak ada setter, setiap tarif immutable,
-              sehingga proposal yang lolos pun tidak punya apa pun untuk dipanggil. Tapi
-              menjelaskan panjang sebuah fitur yang sengaja TIDAK ADA membuat halaman
-              terbaca seperti daftar penyesalan, dan pembaca tidak mendapat apa pun yang
-              bisa ditindaklanjuti dari situ.
-              
-              Fakta yang sama sudah pindah ke paragraf pembuka halaman ini, ditulis
-              sebagai jaminan: tarif tidak bisa dialihkan dan reserve tidak bisa dikuras.
-              Itu memberi tahu pembaca hal yang identik sambil menjawab pertanyaan yang
-              memang ia punya.
-              
-              Alamat `AdextoGovernor` tetap ada di registry kontrak, karena kontraknya
-              memang di chain. Yang dicabut narasinya, bukan faktanya — menyembunyikan
-              alamatnya akan jadi kelalaian yang berbeda dan lebih buruk. */}
-        </div>
-      </div>
-
-      {/* 0G TEE Architecture Section */}
-      {/* Seksi ini dulu berjudul "0G Private Computer (TEE) Hardware Specification"
-          dan berbunyi: "The agent private keys never leave the secure hardware
-          boundary, ensuring zero developer tampering and strict compliance for
-          institutional VC capital", dengan kartu "Attestation Protocol: Remote
-          Quote SEV-SNP".
-
-          Tidak ada satu baris pun di repo ini yang mengambil, mengurai, atau
-          memverifikasi laporan attestation SEV-SNP — sudah dicari dengan grep di
-          seluruh src/, cloudflare-worker/, dan scripts/. Jalur agennya adalah
-          `fetch` HTTPS biasa ke router-api.0g.ai. Menyebut "Remote Quote SEV-SNP"
-          sebagai protokol attestation KAMI, di halaman berjudul spesifikasi, adalah
-          klaim yang runtuh pada pertanyaan pertama.
-
-          Juga: "Intel SGX / AMD SEV-SNP" menyebut dua teknologi yang berbeda
-          sekaligus, yang menandakan tidak ada satu pun yang benar-benar diperiksa.
-          Dan `teeAttestationRoot` di calldata factory sebenarnya root penyimpanan
-          0G DA — dinamai seolah attestation.
-
-          PEMUTAKHIRAN 2026-08-21: nama itu SUDAH diubah menjadi `metadataRoot`, dan
-          factory barunya sudah di-deploy ke keempat testnet. Kalimat "tidak bisa
-          diubah lagi tanpa factory baru" yang dulu ada di sini sudah tidak berlaku. */}
-      {/* Seksi ini sudah dua kali salah, ke dua arah berlawanan.
-          Mula-mula ia berbunyi "The agent private keys never leave the secure
-          hardware boundary… Attestation Protocol: Remote Quote SEV-SNP" tanpa satu
-          pun pemeriksaan. Lalu saya menghapus klaim TEE-nya seluruhnya — juga
-          salah, karena router 0G MEMANG menyatakan attestation, per model, dalam
-          bentuk yang bisa dibaca mesin.
-          Yang benar ada di tengah, dan sekarang DIBACA, bukan ditulis: tabel di
-          bawah datang dari `GET /v1/models` di router. Perhatikan juga hardware-nya
-          Intel TDX, bukan AMD SEV-SNP seperti yang situs ini klaim selama berbulan. */}
-      <section className="section-block space-y-4">
-        <h2 className="text-lg font-bold text-ink flex items-center gap-2">
-          <Cpu className="w-5 h-5 text-accent" />
-          Agent execution: read from the router, not asserted here
-        </h2>
-
-        <div
-          className={`flex items-start gap-3 rounded-2xl border p-4 ${
-            tee.live && tee.allAttested ? "border-ok/30 bg-ok/10" : "border-warn/30 bg-warn/10"
-          }`}
-        >
-          {tee.live && tee.allAttested ? (
-            <CheckCircle2 className="w-4 h-4 text-ok shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-          )}
-          <p className="text-xs leading-relaxed text-ink-soft">
-            {!tee.live ? (
-              <>
-                <strong className="text-ink">The 0G router did not answer.</strong> Attestation status is
-                unknown right now — this page will not present that as safe.
-              </>
-            ) : tee.allAttested ? (
-              <>
-                <strong className="text-ink">Every model this app can use reports TEE attestation.</strong>{" "}
-                Read live from the router when this page rendered. Verify it yourself with{" "}
-                <code className="text-ink">curl -s https://adexto.xyz/api/tee</code>.
-              </>
-            ) : (
-              <>
-                <strong className="text-ink">At least one selectable model is not reported as attested.</strong>{" "}
-                See the table below.
-              </>
-            )}
-          </p>
-        </div>
-
-        <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-          <table className="table-clean min-w-[560px]">
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Attested</th>
-                <th>Tier</th>
-                <th>Hardware</th>
-                <th>Verifier</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tee.models.map((m) => (
-                <tr key={m.id}>
-                  <td className="font-mono text-[11px] text-ink">{m.id}</td>
-                  <td className="font-mono text-[11px]">
-                    {m.attested === true ? (
-                      <span className="text-ok">yes</span>
-                    ) : m.attested === false ? (
-                      <span className="text-danger">no</span>
-                    ) : (
-                      <span className="text-warn">not reported</span>
-                    )}
-                  </td>
-                  <td className="font-mono text-[11px] text-ink-soft">{m.tier ?? "—"}</td>
-                  <td className="font-mono text-[11px] text-ink-soft">{m.teeType ?? "—"}</td>
-                  <td className="font-mono text-[11px] text-ink-soft">{m.verifier ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-          The two tiers mean different things, and 0G draws the line themselves:{" "}
-          <strong className="text-ink">TeeML</strong> is 0G&apos;s own model in 0G&apos;s own enclave, with the
-          inference attested inside it. <strong className="text-ink">TeeTLS</strong> is a third party running the
-          weights while 0G attests the transport, so the routing path is provable rather than the inference
-          itself. All three models above are TeeML.
-        </p>
-
-        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-          <strong className="text-ink">Where our verification stops.</strong> The table is the router&apos;s
-          declaration, not a raw Intel TDX quote. There is no attestation endpoint on the router — every likely
-          path returns 404 — and completion responses carry no attestation material, so ADEXTO cannot
-          independently prove the enclave for a specific answer. Doing that would mean running the dstack
-          verifier against a quote we cannot currently obtain. What each response does carry is the serving
-          provider&apos;s on-chain address in an <code className="text-accent">x-provider</code> header, which
-          names who answered even though it does not attest how.
-        </p>
-
-        {/* Paragraf ini dulu ditutup dengan "cannot be corrected without a new
-            factory" — dan itu sudah tidak berlaku, karena factory barunya memang
-            di-deploy dan namanya memang dikoreksi. Membiarkannya berarti halaman
-            ini menyatakan sebuah keterbatasan yang tidak lagi ada. */}
-        <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-          One naming trap worth stating plainly, and it has since been corrected: the factory parameter now
-          reads <code className="text-accent">metadataRoot</code>, and it holds the 0G DA storage root of the
-          launch metadata — a content hash of what was uploaded, not a hardware attestation. It was called{" "}
-          <code className="text-accent">teeAttestationRoot</code> until 2026-08-21, and that name is what let
-          earlier revisions of this site imply an attestation nobody had checked. Renaming a parameter does not
-          change a function selector or an event topic — only types count toward those — so the ABI stayed
-          compatible and existing calldata still matches.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
-          <div className="p-3.5 rounded-lg bg-surface border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Inference endpoint</span>
-            <span className="text-ink font-bold text-sm">router-api.0g.ai/v1</span>
-          </div>
-          <div className="p-3.5 rounded-lg bg-surface border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Attestation source</span>
-            <span className="text-ink font-bold text-sm">router declaration</span>
-          </div>
-          <div className="p-3.5 rounded-lg bg-surface border border-line">
-            <span className="text-ink-soft block text-[11px] font-bold">Raw quote verified by us</span>
-            <span className="text-warn font-bold text-sm">No</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ON-CHAIN DEPLOYMENT VERIFICATION ────────────────────────── */}
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8 mt-10">
-        <VerifiedDeploymentCard />
-      </div>
-    </div>
+      <SourceNote />
+    </DocsShell>
   );
 }

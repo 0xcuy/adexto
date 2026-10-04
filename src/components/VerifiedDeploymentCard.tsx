@@ -144,8 +144,15 @@ export default function VerifiedDeploymentCard() {
     },
   ];
 
+  /**
+   * Tata letak untuk kolom baca docs (±720 px), satu-satunya tempat kartu ini dirender (`/docs`, seksi
+   * "Contracts and status"; `src/app/_pitch` folder privat, tidak dirutekan). Dulu kartu ini memakai grid
+   * empat kolom selebar halaman: di kolom docs labelnya terpotong jadi "AdextoFacto…", dan di ponsel label
+   * generasi lama pecah per huruf karena badge-nya `nowrap` (tangkapan Playwright 4 Okt). Sekarang setiap
+   * baris dua tingkat: label + badge, lalu alamat + aksi.
+   */
   return (
-    <div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-10 overflow-hidden">
+    <div className="w-full pt-6">
       {/* Tanpa bingkai luar: tabel di dalamnya sudah punya bingkai sendiri, dan
           setelah seksi lain dilepas bingkainya, kotak ini menjadi satu-satunya
           kotak besar di halaman — bingkai ganda yang justru menarik perhatian
@@ -154,7 +161,7 @@ export default function VerifiedDeploymentCard() {
         {/* Glow Accent */}
         <div className="hidden sm:block absolute top-0 right-0 w-96 h-96 bg-accent-soft rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-6 mb-6">
+        <div className="relative mb-5 flex flex-col gap-4 border-b border-line pb-6">
           <div>
             {/* Badge ini sengaja tetap "DEPLOYED & VERIFIABLE", bukan naik jadi
                 "LIVE", meskipun factory kurva kini sudah di-broadcast. Alasannya
@@ -166,9 +173,8 @@ export default function VerifiedDeploymentCard() {
               <CheckCircle2 className="w-3.5 h-3.5 text-ok" />
               <span>DEPLOYED &amp; VERIFIABLE ON-CHAIN</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-ink flex items-center gap-2">
-              <span>Deployed contract registry</span>
-            </h2>
+            {/* h3: di /docs kartu ini berada di bawah h2 "Contracts and status". */}
+            <h3 className="text-[18px] font-semibold leading-snug text-ink">Deployed contract registry</h3>
             {/* Kalimat ini dulu berbunyi "Addresses below are the v1 generation".
                 Itu SALAH sejak tabelnya sendiri diperbaiki: empat baris teratas adalah
                 AdextoCurveFactory v0.10.0 — justru generasi yang dipakai. Tabelnya
@@ -177,9 +183,9 @@ export default function VerifiedDeploymentCard() {
                 tabel barunya.
 
                 Sekarang caption tidak lagi mengklaim generasi untuk SELURUH daftar.
-                Generasi adalah urusan kolom "Gen", satu badge per baris, karena di situ
-                ia tidak bisa berbeda dari baris yang dijelaskannya. */}
-            <p className="text-xs sm:text-sm text-ink-soft mt-1">
+                Generasi adalah urusan badge di setiap baris (dulu kolom "Gen"), karena di
+                situ ia tidak bisa berbeda dari baris yang dijelaskannya. */}
+            <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
               Every address here is deployed and can be checked on its own chain. The list spans two generations on
               purpose and each row states which one it is:{" "}
               {/* Kalimat ini membantah tabelnya sendiri untuk KEDUA kalinya, dengan cara
@@ -194,15 +200,16 @@ export default function VerifiedDeploymentCard() {
               that launches tokens today, and the superseded{" "}
               <code className="text-accent">{SUPERSEDED_CURVE_FACTORY_GENERATION.contract}</code>{" "}
               v{SUPERSEDED_CURVE_FACTORY_GENERATION.version} entries are kept because the six earlier markets were
-              created by them and still trade.
+              created by them and still trade.{" "}
               {/* Kalimat ini dulu berbunyi "…but {LAUNCH_CLAUSE}, which is why there is still
                   nothing to trade." Dua-duanya berhenti benar begitu $ADEXTO diluncurkan:
-                  klausanya berubah makna, dan ada pasar yang bisa diperdagangkan. */}
+                  klausanya berubah makna, dan ada pasar yang bisa diperdagangkan.
+                  `{" "}` di atas: tanpa itu JSX menempelkan dua kalimat ("trade.Launching"). */}
               Launching is enabled on all five mainnets, and {LAUNCH_CLAUSE}.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
             <div className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink-soft">
               RPC: <span className="text-accent font-bold">evmrpc.0g.ai</span>
             </div>
@@ -218,46 +225,37 @@ export default function VerifiedDeploymentCard() {
             hampir separuh tinggi halaman dan terbaca seperti dump basis data.
             Sekarang baris ramping: label, badge, alamat, dan dua aksi ikon.
             Data, tautan, dan logika salin tidak berubah. */}
-        <div className="rounded-xl border border-line overflow-hidden">
-          {/* Badge diberi kolom sendiri. Saat ia ikut mengalir bersama label,
-              label panjang seperti "AdextoTrinityFactory (Arbitrum One 42161)"
-              mendorong badge ke baris kedua dan tinggi baris jadi tidak rata. */}
-          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)_auto] items-center gap-3 border-b border-line bg-cream-3/[0.03] px-3 py-2">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">Contract</span>
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">Gen</span>
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">Address</span>
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">Verify</span>
-          </div>
-
-          <div className="divide-y divide-line/[0.06]">
+        <div className="relative rounded-xl border border-line overflow-hidden">
+          {/* Dua tingkat per baris, tanpa kepala kolom. Baris pertama label (boleh membungkus, tidak pernah
+              dipotong) lalu badge generasi, yang turun ke baris sendiri bila tidak muat. Baris kedua alamat
+              dan dua aksi. Alamat dipotong di TENGAH (awal + enam karakter terakhir tetap terlihat), dan
+              tombol Copy selalu menyalin alamat lengkap. */}
+          <ul className="divide-y divide-line">
             {records.map((rec, i) => {
               const isCopied = copiedKey === `rec_${i}`;
+              const tail = rec.address.length > 24 ? rec.address.slice(-6) : "";
+              const head = tail ? rec.address.slice(0, -6) : rec.address;
               return (
-                <div
-                  key={i}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors hover:bg-cream-3/[0.025] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)_auto] sm:gap-3"
-                >
-                  <span className="min-w-0 truncate text-[11px] font-bold text-ink" title={rec.label}>
-                    {rec.label}
-                  </span>
+                <li key={i} className="px-3 py-2.5 transition-colors hover:bg-cream-3/[0.025] sm:px-4">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="min-w-0 break-words text-[13px] font-semibold leading-snug text-ink">{rec.label}</span>
+                    <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-normal tracking-wider ${rec.color}`}>
+                      {rec.badge}
+                    </span>
+                  </div>
 
-                  <span
-                    className={`justify-self-end whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider sm:justify-self-start ${rec.color}`}
-                  >
-                    {rec.badge}
-                  </span>
-
-                  <span className="addr col-span-2 min-w-0 truncate text-accent/90 sm:col-span-1" title={rec.address}>
-                    {rec.address}
-                  </span>
-
-                  <div className="col-span-2 flex items-center gap-1 justify-end sm:col-span-1">
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <span className="addr flex min-w-0 flex-1 text-accent/90" title={rec.address}>
+                      <span className="min-w-0 truncate">{head}</span>
+                      {tail && <span className="shrink-0">{tail}</span>}
+                    </span>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(rec.address, `rec_${i}`)}
                       title={isCopied ? "Copied" : "Copy address"}
                       aria-label={`Copy address for ${rec.label}`}
-                      className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+                      // 36 px di layar sentuh (dulu 23 px, rapat dengan tombol di sebelahnya), 28 px mulai lg.
+                      className="inline-flex h-[36px] w-[36px] items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-[28px] lg:w-[28px]"
                     >
                       {isCopied ? (
                         <Check className="h-3.5 w-3.5 text-ok" />
@@ -271,15 +269,15 @@ export default function VerifiedDeploymentCard() {
                       rel="noopener noreferrer"
                       title="Verify on explorer"
                       aria-label={`Verify ${rec.label} on explorer`}
-                      className="rounded-md p-1.5 text-accent transition-colors hover:bg-accent-soft hover:text-accent"
+                      className="inline-flex h-[36px] w-[36px] items-center justify-center rounded-md text-accent transition-colors hover:bg-accent-soft hover:text-accent lg:h-[28px] lg:w-[28px]"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </div>
       </div>
     </div>

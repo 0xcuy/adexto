@@ -563,7 +563,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "Read paths differ across the four supported networks due to varying external infrastructure availability on each blockchain."
+              "text": "Read paths differ across the supported networks due to varying external infrastructure availability on each blockchain."
             },
             {
               "type": "list",
@@ -800,7 +800,7 @@
             {
               "type": "list",
               "items": [
-                "Chain: the one picked in Express, or else the first chain that can launch, in the order Monad, Arbitrum, Base, 0G.",
+                "Chain: the one picked in Express, or else the first chain that can launch, in the order Monad, Arbitrum, Robinhood Chain, Base, 0G.",
                 "Fee: the Standard tier, 1.00% per trade, of which 0.70% goes to the creator, 0.10% stays in the curve as depth, 0.10% funds the buyback and 0.10% is the protocol leg.",
                 "Supply: 1,000,000,000 tokens, all of them in the curve and none to the creator.",
                 "Market agent: a neutral persona that answers questions about the market. No ERC-8004 identity is bound.",
@@ -818,7 +818,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The factory contract is deployed across four EVM mainnets using identical bytecode. The deployed factory addresses and chain identifiers are provided in the table below."
+              "text": "The factory contract is deployed across five EVM mainnets using identical bytecode. The deployed factory addresses and chain identifiers are provided in the table below."
             },
             {
               "type": "factsTable",
