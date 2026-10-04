@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { findProject } from "@/lib/registry";
 import { readPosition } from "@/lib/position-server";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * GET /api/market/position?symbol=ADEXTO&chainId=16661&wallet=0x…
@@ -40,6 +41,6 @@ export async function GET(req: Request) {
     }
     return NextResponse.json(report, { headers: { "cache-control": "no-store", ...rateLimitHeaders(verdict) } });
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message ?? error).slice(0, 200) }, { status: 502 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 502 });
   }
 }

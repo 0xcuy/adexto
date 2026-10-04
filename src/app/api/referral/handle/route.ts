@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { registerHandle } from "@/lib/referral";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 
 /**
  * `POST /api/referral/handle { handle, address, issuedAt, signature }` — daftarkan handle referral.
@@ -15,8 +16,9 @@ export async function POST(req: Request) {
   }
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ ok: false, code: "BAD_JSON", error: "Send a JSON body." }, { status: 400 });
   }
   const result = registerHandle({ handle: body?.handle, address: body?.address, issuedAt: body?.issuedAt, signature: body?.signature });

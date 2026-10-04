@@ -4,6 +4,7 @@ import { activeSlots, approveSlot, listSlots, removeSlot } from "@/lib/promoted"
 import { verifyAdmin } from "@/lib/growth-admin";
 import { promotedMessage, type PromotedAction } from "@/lib/growth-admin-message";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 
 /**
  * Slot Promoted. `GET` = slot aktif (`?all=1`: semua, untuk `/admin`). `POST` = setujui atau cabut
@@ -21,8 +22,9 @@ export async function POST(req: Request) {
   if (!verdict.ok) return NextResponse.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(verdict) });
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "Send a JSON body." }, { status: 400 });
   }
   let action: PromotedAction;

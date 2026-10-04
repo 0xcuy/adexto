@@ -138,12 +138,17 @@ export function poolConfigured(): boolean {
  */
 let sessionCookie: string | null = null;
 
+/** Batas waktu setiap panggilan ke API admin router. Sebelumnya tidak ada sama sekali. */
+const ROUTER_TIMEOUT_MS = 15_000;
+
 async function login(): Promise<void> {
   const res = await fetch(`${ROUTER_URL}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ password: ROUTER_PASSWORD }),
     cache: "no-store",
+    // Router di kotak yang sama; kalau ia menggantung, permintaan kunci tidak ikut menggantung.
+    signal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Router admin login failed (${res.status}).`);
@@ -175,6 +180,7 @@ async function adminFetch(path: string, init?: RequestInit, retried = false): Pr
       cookie: sessionCookie as string,
     },
     cache: "no-store",
+    signal: init?.signal ?? AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   });
 
   if ((res.status === 401 || res.status === 403) && !retried) {

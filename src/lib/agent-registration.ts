@@ -214,6 +214,9 @@ export async function pinToIpfs(bytes: Buffer, filename = "agent-registration.js
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}` },
       body: form,
+      // Berkasnya beberapa KB. Tanpa batas waktu, Pinata yang menggantung menahan permintaan
+      // dan soketnya selamanya; habisnya waktu jatuh ke `catch` dan pemanggil memakai `data:`.
+      signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) {
       return { ok: false, error: `Pinata responded ${res.status}: ${(await res.text()).slice(0, 200)}` };

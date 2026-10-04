@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { CHAIN_LIST } from "@/lib/chains";
 import { AGENT_REGISTRY_ADDRESS } from "@/lib/dex";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 import {
   agentRegistryId,
   buildRegistrationFile,
@@ -44,12 +46,35 @@ export const dynamic = "force-dynamic";
 const MAX_PERSONA = 400;
 const MAX_NAME = 64;
 
+/**
+ * Batas laju, karena setiap panggilan yang sah MENYEMATKAN berkas ke Pinata atas akun kami.
+ *
+ * Sebelumnya rute ini tanpa autentikasi dan tanpa batas: satu loop atas ticker acak menghabiskan
+ * kuota Pinata (atau menaikkan tagihannya) dan menerbitkan berkas permanen berisi teks pilihan
+ * pemanggil di bawah deskripsi kami. Satu creator mendaftarkan agent sekali per pasar, jadi 10
+ * per jam per alamat jauh di atas pemakaian sungguhan.
+ */
+const REGISTER_LIMIT = 10;
+const REGISTER_WINDOW_MS = 60 * 60_000;
+
 export async function POST(req: Request) {
+  const gate = rateLimit(`agent-register:${clientIp(req)}`, REGISTER_LIMIT, REGISTER_WINDOW_MS);
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: "Too many registration files requested. Try again later.", code: "RATE_LIMITED", retryAfter: gate.retryAfter },
+      { status: 429, headers: rateLimitHeaders(gate) }
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
   }
 
   const chainId = Number(body.chainId);

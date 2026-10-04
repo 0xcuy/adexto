@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { launchCosts } from "@/lib/launch-cost";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * GET /api/launch-cost — biaya membuka satu pasar, per chain, dihitung hidup.
@@ -22,6 +23,6 @@ export async function GET() {
       { headers: { "cache-control": "public, max-age=30" } }
     );
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: String(error?.message ?? error).slice(0, 200), costs: [] }, { status: 502 });
+    return NextResponse.json({ success: false, error: publicErrorMessage(error), costs: [] }, { status: 502 });
   }
 }

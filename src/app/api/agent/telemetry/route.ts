@@ -8,6 +8,8 @@ import { readSubgraphSwaps, subgraphServesSwaps } from "@/lib/subgraph";
 import { ensureMarketIndex, indexable, indexedTrades, type IndexStatus } from "@/lib/market-index";
 import { computeMarketStats } from "@/lib/market-stats";
 import { fxAt, fxSeries, lastObserved } from "@/lib/fx-history";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /** Batas baris yang dikirim. Candle dibangun dari SEMUA baris sebelum dipotong. */
 const MAX_TRADES_RETURNED = 5_000;
@@ -378,7 +380,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -390,8 +392,9 @@ export async function POST(req: Request) {
 
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "Body must be valid JSON." }, { status: 400 });
   }
 

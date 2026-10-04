@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 import {
   AGENT_COMPUTE_ENDPOINT,
   AGENT_COMPUTE_MODEL,
@@ -236,8 +237,9 @@ export async function POST(req: Request) {
 
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "A JSON body is required." }, { status: 400 });
   }
 
@@ -286,8 +288,9 @@ export async function DELETE(req: Request) {
 
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "A JSON body is required." }, { status: 400 });
   }
 

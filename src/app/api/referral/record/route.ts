@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordReferral } from "@/lib/referral";
 import { clientIp, rateLimit, rateLimitHeaders, secretEquals } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 
 /**
  * `POST /api/referral/record { txHash, chainId, ref, source }` — antarmuka bersama README rencana §4.
@@ -22,8 +23,9 @@ export async function POST(req: Request) {
   }
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ ok: false, code: "BAD_JSON", error: "Send a JSON body." }, { status: 400 });
   }
   const secret = process.env.REFERRAL_RECORD_SECRET ?? "";

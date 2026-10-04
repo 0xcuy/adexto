@@ -3,6 +3,7 @@ import { findProject } from "@/lib/registry";
 import { ensureMarketIndex, indexable } from "@/lib/market-index";
 import { computeHolders } from "@/lib/holders";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * GET /api/market/holders?symbol=ADEXTO&chainId=16661
@@ -38,6 +39,6 @@ export async function GET(req: Request) {
     const report = computeHolders(index, { symbol: project.symbol, creator: project.creator, status });
     return NextResponse.json(report, { headers: { "cache-control": "no-store", ...rateLimitHeaders(verdict) } });
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message ?? error).slice(0, 200) }, { status: 502 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 502 });
   }
 }

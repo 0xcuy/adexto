@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runFeedTick } from "@/lib/telegram-feed";
 import { secretEquals } from "@/lib/rate-limit";
 import { telegramConfigured } from "@/lib/telegram";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * `POST /api/telegram/tick` — satu putaran feed Telegram (`src/lib/telegram-feed.ts`). Dipanggil cron
@@ -18,6 +19,6 @@ export async function POST(req: Request) {
   try {
     return NextResponse.json(await runFeedTick());
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message ?? e).slice(0, 200) }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(e) }, { status: 500 });
   }
 }

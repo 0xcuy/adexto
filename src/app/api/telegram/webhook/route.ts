@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleUpdate, type TgUpdate } from "@/lib/telegram-bot";
 import { secretEquals } from "@/lib/rate-limit";
+import { readJsonBody } from "@/lib/body-limit";
 import { telegramConfigured } from "@/lib/telegram";
 
 /**
@@ -20,7 +21,9 @@ export async function POST(req: Request) {
   if (!given || !secretEquals(given, secret)) return NextResponse.json({ error: "Forbidden." }, { status: 401 });
   let update: TgUpdate;
   try {
-    update = await req.json();
+    // Update Telegram berukuran beberapa KB; badan yang lebih besar dari batas dijawab sama
+    // seperti badan rusak (200, diabaikan) supaya Telegram tidak mengirimnya ulang terus.
+    update = await readJsonBody<TgUpdate>(req);
   } catch {
     return NextResponse.json({ ok: true });
   }

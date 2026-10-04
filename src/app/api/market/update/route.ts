@@ -3,6 +3,7 @@ import { verifyMessage } from "ethers";
 import { findProject, updateProjectMeta } from "@/lib/registry";
 import { validateProjectImage } from "@/lib/logo-image";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 import { MAX_SIGNATURE_AGE_MS, buildUpdateMessage, imageFingerprint } from "@/lib/market-update";
 
 /**
@@ -45,9 +46,14 @@ export async function POST(req: Request) {
 
   let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as Record<string, unknown>;
-  } catch {
+    // Badan terbesar yang sah membawa logo data URI (200.000 karakter), jadi batas rute logo.
+    body = await readJsonBody<Record<string, unknown>>(req, IMAGE_JSON_BODY_BYTES);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
   }
 
   const chainId = Number(body.chainId);

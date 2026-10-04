@@ -5,6 +5,7 @@ import { isDurable } from "@/lib/server-store";
 import { logoUrlFor } from "@/lib/logo-image";
 import { fetchCurveStats, type CurveStats, type SubgraphChainHealth } from "@/lib/subgraph";
 import { ANY_SUBGRAPH_CONFIGURED } from "@/config/subgraph";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * Project index consumed by /explorer, /swap and /token/[slug].
@@ -249,7 +250,7 @@ export async function POST() {
   try {
     return NextResponse.json(await payload());
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -257,6 +258,6 @@ export async function GET() {
   try {
     return NextResponse.json(await payload());
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 500 });
   }
 }

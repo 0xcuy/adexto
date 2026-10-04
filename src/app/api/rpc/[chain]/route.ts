@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { secretEquals } from "@/lib/rate-limit";
+import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 
 /**
  * Relai JSON-RPC sempit untuk Worker x402. Satu implementasi, beberapa chain.
@@ -145,7 +147,10 @@ const UPSTREAMS: Record<string, { chainId: number; urls: string[]; broadcast: st
 export async function POST(req: Request, ctx: { params: Promise<{ chain: string }> }) {
   const { chain: raw } = await ctx.params;
   const chain = String(raw || "").toLowerCase();
-  const upstream = UPSTREAMS[chain];
+  // `hasOwnProperty`: segmen jalur ini masukan bebas, dan `UPSTREAMS["constructor"]` adalah
+  // fungsi `Object` yang truthy — pemanggil mendapat 401 alih-alih 404, dan dengan kunci yang
+  // sah perulangan atas `upstream.urls` (undefined) melempar 500.
+  const upstream = Object.prototype.hasOwnProperty.call(UPSTREAMS, chain) ? UPSTREAMS[chain] : undefined;
   if (!upstream) {
     // Menyebut yang tersedia: relai yang menolak tanpa memberi tahu apa yang dilayani
     // membuat kesalahan ketik terbaca sebagai relai mati.
@@ -159,14 +164,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ chain: string 
   if (!secret) {
     return NextResponse.json({ error: "relay is not configured" }, { status: 503 });
   }
-  if (req.headers.get("x-relay-key") !== secret) {
+  // `secretEquals`, bukan `!==`, dengan alasan yang sama seperti `x-agent-key` di server MCP:
+  // perbandingan biasa keluar pada karakter pertama yang berbeda dan membocorkan prefiks lewat
+  // waktu jawab. Kunci relai ini yang memberi hak menyiarkan transaksi lewat origin.
+  const given = req.headers.get("x-relay-key") ?? "";
+  if (!given || !secretEquals(given, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    // Satu panggilan JSON-RPC (batch ditolak di bawah). Transaksi mentah terbesar yang wajar
+    // untuk relai ini jauh di bawah 64 KB.
+    body = await readJsonBody(req);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "body must be JSON-RPC" }, { status: 400 });
   }
   if (Array.isArray(body)) {

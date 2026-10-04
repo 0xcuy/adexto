@@ -6,7 +6,8 @@ import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
  * Studio memperkecil logo yang diunggah ke sisi yang sama supaya kedua jalur memakan ruang
  * registry yang sebanding. Dua konstanta terpisah akan menyimpang tanpa ada yang gagal.
  */
-import { LOGO_PX, validateProjectImage } from "@/lib/logo-image";
+import { LOGO_PX, sniffImageMime, validateProjectImage } from "@/lib/logo-image";
+import { readJsonBody } from "@/lib/body-limit";
 
 const OG_ROUTER_URL = process.env.OG_ROUTER_URL || "https://router-api.0g.ai/v1";
 const OG_API_KEY = process.env.OG_ROUTER_API_KEY || "";
@@ -302,7 +303,9 @@ export async function POST(req: Request) {
         { status: 429, headers: rateLimitHeaders(gate) }
       );
     }
-    const parsed = await req.json().catch(() => ({}));
+    // Dibatasi: semua field dipotong ke beberapa ratus karakter di bawah, jadi badan yang sah
+    // tidak pernah mendekati 64 KB. Badan yang lebih besar dibaca sebagai kosong.
+    const parsed: any = await readJsonBody(req).catch(() => ({}));
     const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
     tokenSymbol = str(parsed.tokenSymbol, 16);
     const tokenName = str(parsed.tokenName, 64);
@@ -342,6 +345,10 @@ export async function POST(req: Request) {
         size: LOGO_SIZE,
         response_format: "b64_json",
       }),
+      // Tanpa batas waktu, router yang menggantung menahan soket dan memori permintaan ini
+      // selamanya. Render "turbo" diukur dalam detik; 60 detik jauh di atasnya, dan habisnya
+      // waktu jatuh ke `catch` di bawah yang tetap mengembalikan logo cadangan.
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!res.ok) {
@@ -364,7 +371,18 @@ export async function POST(req: Request) {
      * hidup di chain: confirm menolak gambarnya dengan 400. Lebih baik ditolak di sini, saat
      * menekan Generate lagi masih gratis.
      */
-    const imageUrl = `data:image/png;base64,${b64}`;
+    /**
+     * Label diambil dari BYTE-nya, bukan diasumsikan PNG.
+     *
+     * `validateProjectImage` sekarang menolak data URI yang labelnya tidak cocok dengan isinya
+     * (lihat `sniffImageMime`). Kalau router suatu hari menjawab JPEG atau WebP, label PNG yang
+     * ditulis mati di sini akan membuat setiap render jatuh ke `fallback()`.
+     */
+    const kind = sniffImageMime(b64);
+    if (!kind) {
+      return fallback(prompt, tokenSymbol, "0G router answered with bytes that are not a PNG, JPEG or WebP image.", brief);
+    }
+    const imageUrl = `data:${kind};base64,${b64}`;
     const check = validateProjectImage(imageUrl);
     if (!check.ok) {
       return fallback(prompt, tokenSymbol, `The render was too large to list (${check.reason}). Generate again.`, brief);
