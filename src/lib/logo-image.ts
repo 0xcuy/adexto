@@ -62,6 +62,61 @@ export const MAX_IMAGE_DATA_URI_CHARS = 200_000;
 export type ImageCheck = { ok: true; value: string } | { ok: false, reason: string };
 
 /**
+ * Jalur relatif yang boleh disimpan sebagai `image`.
+ *
+ * KENAPA BUKAN LAGI `/^\/[^/]/`
+ *
+ * Pola lama hanya menolak `//host`, tapi parser URL browser (WHATWG) memperlakukan `\` sebagai
+ * `/` pada skema http(s) dan MEMBUANG tab serta newline di mana pun. Jadi `/\evil.example/x.png`
+ * dan `/<TAB>/evil.example/x.png` lolos pemeriksaan lalu dirender browser sebagai
+ * `//evil.example/x.png` — hotlink ke host pihak ketiga, persis hal yang ingin ditolak fungsi
+ * di bawah. Sekarang karakter kedua tidak boleh `/` atau `\`, dan seluruh jalur dibatasi ke
+ * himpunan karakter aman tanpa spasi, kontrol, backslash, kutip atau kurung (yang terakhir
+ * juga menutup jalan keluar dari `url(...)` CSS).
+ */
+const SAFE_SITE_PATH = /^\/(?![\/\\])[A-Za-z0-9\-._~%\/?=&]*$/;
+
+/**
+ * Tipe gambar menurut BYTE PEMBUKANYA, bukan menurut label `data:image/...;`.
+ *
+ * KENAPA INI WAJIB
+ *
+ * Label data URI ditulis pengirim. Tanpa memeriksa isinya, `data:image/png;base64,<AVIF>`
+ * diterima, disimpan, lalu disajikan `/api/logo/*` sebagai `image/png`. Decoder gambar
+ * (sharp/libheif di pengoptimal Next, decoder di browser dan di klien sosial yang mengambil
+ * kartu) memilih decoder dari byte, bukan dari label — jadi label yang bohong mengantarkan
+ * format apa pun yang penyerang pilih ke decoder yang tidak pernah kita maksudkan. Itulah
+ * jalur GHSA-2xp9-vwfh-vxw4 (AVIF -> RCE di pengoptimal) di repo ini.
+ *
+ * 24 karakter base64 = 18 byte, cukup untuk tanda tangan PNG (8), JPEG (3) dan WEBP (12).
+ * `atob` tersedia di browser, Edge runtime dan Node >= 16, jadi fungsi ini aman dipakai
+ * bersama klien dan server seperti isi berkas lainnya.
+ */
+export function sniffImageMime(base64: string): (typeof ACCEPTED_MIME)[number] | null {
+  let bin: string;
+  try {
+    bin = atob(base64.slice(0, 24));
+  } catch {
+    return null;
+  }
+  const at = (i: number) => bin.charCodeAt(i);
+  if (
+    bin.length >= 8 &&
+    at(0) === 0x89 &&
+    bin.slice(1, 4) === "PNG" &&
+    at(4) === 0x0d &&
+    at(5) === 0x0a &&
+    at(6) === 0x1a &&
+    at(7) === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (bin.length >= 3 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return "image/jpeg";
+  if (bin.length >= 12 && bin.slice(0, 4) === "RIFF" && bin.slice(8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+/**
  * Validasi nilai `image` yang datang dari klien.
  *
  * Menerima dua bentuk, dan tidak lebih:
@@ -77,10 +132,16 @@ export function validateProjectImage(input: unknown): ImageCheck {
 
   if (typeof input !== "string") return { ok: false, reason: "image must be a string" };
 
-  // Jalur internal: satu garis miring, lalu bukan garis miring lagi (`//host` adalah URL
-  // protocol-relative, bukan jalur lokal).
-  if (/^\/[^/]/.test(input)) {
+  // Jalur internal: satu garis miring, lalu bukan garis miring atau backslash lagi (`//host`
+  // dan `/\host` sama-sama URL protocol-relative bagi browser, bukan jalur lokal).
+  if (input.startsWith("/")) {
     if (input.length > 512) return { ok: false, reason: "image path is too long" };
+    if (!SAFE_SITE_PATH.test(input)) {
+      return {
+        ok: false,
+        reason: "image path must be a plain site-relative path (letters, digits, - . _ ~ % / ? = &)",
+      };
+    }
     return { ok: true, value: input };
   }
 
@@ -99,6 +160,17 @@ export function validateProjectImage(input: unknown): ImageCheck {
       reason:
         `image data URI is ${input.length} characters, over the ${MAX_IMAGE_DATA_URI_CHARS} limit. ` +
         `Images are stored inline in the market registry, so each one is capped.`,
+    };
+  }
+  // Label harus jujur tentang isinya. Kanvas browser selalu menghasilkan label yang cocok
+  // (Safari tanpa encoder WebP mengembalikan PNG berlabel PNG), jadi jalur Studio tidak
+  // pernah tertolak di sini — yang tertolak hanya byte yang dikirim dengan label palsu.
+  const declared = m[1];
+  const actual = sniffImageMime(m[2]);
+  if (actual !== declared) {
+    return {
+      ok: false,
+      reason: `image data URI is labelled ${declared} but its bytes are ${actual ?? "not a PNG, JPEG or WebP image"}`,
     };
   }
   return { ok: true, value: input };

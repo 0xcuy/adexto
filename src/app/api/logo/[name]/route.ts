@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listProjects } from "@/lib/registry";
-import { LOGO_URL_PATTERN, logoContentHash } from "@/lib/logo-image";
+import { LOGO_URL_PATTERN, logoContentHash, sniffImageMime } from "@/lib/logo-image";
 
 /**
  * Sajikan logo pasar sebagai GAMBAR, bukan sebagai data URI di dalam badan JSON.
@@ -54,7 +54,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ name: string }
   }
 
   const comma = project.image.indexOf(",");
-  const bytes = Buffer.from(project.image.slice(comma + 1), "base64");
+  const b64 = project.image.slice(comma + 1);
+
+  /**
+   * Byte-nya harus benar-benar berjenis yang dijanjikan ekstensinya.
+   *
+   * `validateProjectImage` sekarang menolak label palsu saat menulis, tetapi registry bisa
+   * memuat entri yang ditulis sebelum pemeriksaan itu ada. Rute ini adalah satu-satunya
+   * tempat byte unggahan orang keluar dengan alamat di domain kita, jadi pemeriksaannya
+   * diulang di sini: AVIF/HEIF atau apa pun yang menyamar sebagai PNG tidak pernah disajikan,
+   * baik ke browser maupun ke pengoptimal gambar (lihat `images.localPatterns`).
+   */
+  if (sniffImageMime(b64) !== MIME[ext]) {
+    return NextResponse.json({ error: "logo bytes do not match their type" }, { status: 404 });
+  }
+
+  const bytes = Buffer.from(b64, "base64");
 
   return new NextResponse(new Uint8Array(bytes), {
     headers: {

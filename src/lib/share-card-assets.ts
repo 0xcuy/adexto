@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, normalize, sep } from "node:path";
 import { chainMark, type ChainInfo } from "@/lib/chains";
+import { sniffImageMime } from "@/lib/logo-image";
 
 /**
  * Aset dan alamat untuk kartu bagikan (`/api/share-card/...`). Hanya untuk route server:
@@ -105,7 +106,13 @@ export function brandMark(size: number): { src: string; width: number; height: n
  */
 export function tokenLogoSrc(image: string | null | undefined): string | null {
   if (!image) return null;
-  if (/^data:image\/(?:png|jpeg|webp);base64,/.test(image)) return image;
+  const dataUri = /^data:(image\/(?:png|jpeg|webp));base64,/.exec(image);
+  if (dataUri) {
+    // Labelnya harus cocok dengan byte-nya sebelum diserahkan ke decoder renderer kartu.
+    // Entri yang ditulis sebelum `validateProjectImage` memeriksa byte bisa saja berlabel palsu;
+    // kartu jatuh ke monogram alih-alih men-decode format yang tidak pernah dimaksudkan.
+    return sniffImageMime(image.slice(dataUri[0].length)) === dataUri[1] ? image : null;
+  }
   if (image === "/logo.svg") return brandMark(256)?.src ?? null;
   if (/^\/[^/?#][^?#]*\.(?:png|jpe?g|webp)$/i.test(image)) return publicFileDataUri(image.slice(1));
   return null;
