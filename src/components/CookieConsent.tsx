@@ -117,17 +117,18 @@ export default function CookieConsent() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* 40 px di layar sentuh (di bawah lg), `h-9` di desktop seperti sebelumnya. */}
           <button
             type="button"
             onClick={() => decide("essential")}
-            className="h-9 rounded-xl border border-line bg-surface px-3 text-xs font-bold text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="h-[40px] rounded-xl border border-line bg-surface px-3 text-xs font-bold text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:h-9"
           >
             Essential only
           </button>
           <button
             type="button"
             onClick={() => decide("all")}
-            className="h-9 rounded-xl bg-accent px-4 text-xs font-bold text-white transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="h-[40px] rounded-xl bg-accent px-4 text-xs font-bold text-white transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:h-9"
           >
             Accept all
           </button>
@@ -139,7 +140,7 @@ export default function CookieConsent() {
             type="button"
             onClick={() => setShow(false)}
             aria-label="Close this notice without choosing"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-cream-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="flex h-[40px] w-[40px] items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-cream-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:h-9 lg:w-9"
           >
             <X className="h-4 w-4" />
           </button>

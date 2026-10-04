@@ -53,7 +53,8 @@ export default function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "
       onClick={toggle}
       aria-label={label}
       title={label}
-      className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+      // 40 px di layar sentuh (di bawah lg), 31,5 px (`h-9`) di desktop seperti sebelumnya.
+      className="flex h-[40px] w-[40px] items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:h-9 lg:w-9"
     >
       <Icon className="h-4 w-4" />
     </button>

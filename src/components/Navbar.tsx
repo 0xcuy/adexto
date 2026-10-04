@@ -71,12 +71,19 @@ export default function Navbar() {
         {/* gap-6 dan px-2.5 di lg: tepat di 1024px kiri butuh 561px tapi hanya dapat 549px, dan
             "Agent Compute" / "Agent demo" patah jadi dua baris. Ukuran penuh kembali mulai xl. */}
         <div className="flex min-w-0 items-center gap-6 xl:gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          {/* aria-label karena di bawah 440 px wordmark disembunyikan dan logonya aria-hidden:
+              tanpa label tautan ini tidak punya nama sama sekali. */}
+          <Link href="/" aria-label="ADEXTO home" className="flex h-[40px] min-w-[40px] items-center gap-2.5 group shrink-0 lg:h-auto">
             {/* Slot 2.5rem. Yang penting bukan angka slotnya tapi tinggi tinta yang
                 terlihat: sekitar 30px di header yang tingginya 57px. Di tema gelap
                 tinta #141110 dibalik oleh aturan `img[src="/logo.svg"]` di globals.css. */}
             <img src="/logo.svg" alt="" aria-hidden="true" className="w-9 h-9 object-contain shrink-0" />
-            <span className="font-display text-[19px] font-semibold tracking-[-0.03em] text-ink">
+            {/* Disembunyikan di bawah 440 px. Baseline 3 Okt: di 320 px "adexto." menimpa tombol
+                chain di setiap halaman (62 ERROR). Batas 380 px dari plan diukur ulang 4 Okt: di 380 px
+                dengan dompet tersambung dan chain "Robinhood" logo masih tertimpa 11 px, jadi batasnya
+                dinaikkan ke 440 px (sisa ruang ≥ 30 px di keadaan terlebar). Logo saja sudah cukup
+                sebagai merek di ponsel. */}
+            <span className="hidden font-display text-[19px] font-semibold tracking-[-0.03em] text-ink min-[440px]:inline">
               adexto<span className="text-accent">.</span>
             </span>
           </Link>
@@ -108,6 +115,8 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-1 border-r border-line pr-2 mr-1">
             <ThemeToggle />
           </div>
+          {/* Di bawah lg (ponsel dan tablet, layar sentuh) setiap kontrol header 40 px tingginya;
+              mulai lg kembali 31,5 px (`h-9`) seperti sebelumnya. */}
 
           {/* Network + wallet.
               Di `sm` ke atas keduanya satu segmented control. JANGAN tambahkan
@@ -120,7 +129,8 @@ export default function Navbar() {
               langsung terlihat di top bar — di situs ini chain menentukan token mana yang
               dibeli, jadi ia tidak boleh tersembunyi di ponsel. */}
           <div className="flex items-center gap-2">
-            <div className="hidden h-9 items-stretch rounded-xl border border-line bg-gradient-to-b from-surface to-cream-2 shadow-[var(--shadow-sm)] sm:inline-flex">
+            {/* 42 px di sm–lg: bingkai 1 px di atas-bawah, jadi kedua segmen di dalamnya tepat 40 px. */}
+            <div className="hidden h-[42px] items-stretch rounded-xl border border-line bg-gradient-to-b from-surface to-cream-2 shadow-[var(--shadow-sm)] sm:inline-flex lg:h-9">
               <ChainSwitcher variant="grouped" />
               <WalletMenu variant="grouped" />
             </div>
@@ -134,7 +144,7 @@ export default function Navbar() {
               `h-9` sama dengan segmented control di sebelahnya (rem situs ini 14px). */}
           <Link
             href="/studio"
-            className="btn-glow hidden sm:inline-flex h-9 items-center px-4 rounded-xl text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="btn-glow hidden sm:inline-flex h-[42px] items-center px-4 rounded-xl text-[13px] font-semibold bg-accent hover:bg-accent-strong text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:h-9"
           >
             Launch
           </Link>

@@ -126,7 +126,8 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
           grouped
             ? "h-full rounded-l-[11px] px-3"
-            : "rounded-lg border px-2.5 py-1.5",
+            : // Solo hanya tampil di ponsel (< sm), jadi tingginya 40 px: target sentuh penuh.
+              "h-[40px] min-w-[40px] justify-center rounded-lg border px-2.5",
           alert
             ? grouped
               ? "bg-warn/10 text-warn hover:bg-warn/15"
@@ -156,7 +157,9 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
             <span className={`h-1.5 w-1.5 rounded-full ${tradable(chainInfo) ? "bg-ok" : "bg-warn"}`} />
           </span>
         )}
-        <span className="max-w-[92px] truncate tracking-wide">{current ? current.key : "Unsupported"}</span>
+        {/* Di bawah 360 px hanya logo yang tampil; nama chain tetap terbaca di aria-label
+            "Network: …" (prefiks itu dibaca skrip, jangan diubah). */}
+        <span className="max-w-[92px] truncate tracking-wide max-[359px]:hidden">{current ? current.key : "Unsupported"}</span>
         <ChevronDown
           className={`h-3 w-3 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`}
         />
@@ -165,7 +168,14 @@ export default function ChainSwitcher({ variant = "solo" }: { variant?: "solo" |
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 z-50 mt-2 w-[264px] overflow-hidden rounded-xl border border-line bg-surface shadow-xl"
+          // Di bawah sm panel menempel ke lebar header, bukan ke tombolnya. Tombol ini duduk di
+          // tengah kanan bar ponsel, jadi panel 264 px yang diratakan ke kanan tombol keluar
+          // dari tepi kiri layar di 320–360 px. `fixed` di sini relatif ke <header>, karena
+          // backdrop-filter header menjadi containing block bagi turunan fixed.
+          // `top-full`: wadahnya `relative flex` di varian grouped, dan posisi statis anak absolut di
+          // dalam flex adalah puncak wadah, jadi tanpa `top` panel ini dulu menutupi tombolnya
+          // sendiri (terukur 4 Okt di 1440: tombol y 13–43, panel mulai y 20).
+          className="absolute right-0 top-full z-50 mt-2 w-[264px] overflow-hidden rounded-xl border border-line bg-surface shadow-xl max-sm:fixed max-sm:inset-x-3 max-sm:top-[60px] max-sm:mt-0 max-sm:w-auto"
         >
           <div className="flex items-center gap-1.5 border-b border-line bg-cream-2 px-3 py-2">
             <Globe className="h-3 w-3 text-accent" />

@@ -160,8 +160,9 @@ export default function WalletMenu({
      * memang tidak ada yang perlu dipilih.
      */
     const many = availableWallets.length > 1 || walletConnectReady;
+    const groupedIdle = variant === "grouped";
     return (
-      <div className="relative" ref={boxRef}>
+      <div className={groupedIdle ? "relative flex" : "relative"} ref={boxRef}>
         <button
           type="button"
           onClick={() => (many ? setOpen((v) => !v) : connectWallet())}
@@ -169,18 +170,43 @@ export default function WalletMenu({
           aria-haspopup={many ? "menu" : undefined}
           aria-expanded={many ? open : undefined}
           className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent hover:bg-accent-strong font-semibold text-white shadow-lg shadow-accent/10 transition-all hover:shadow-accent/10 disabled:opacity-60 ${
-            compact ? "w-full justify-center py-2.5 text-xs" : "px-3.5 py-2 text-[11px] sm:text-xs"
+            compact
+              ? "w-full justify-center py-2.5 text-xs"
+              : groupedIdle
+              ? "h-full px-3.5 text-xs"
+              : // Solo = top bar ponsel: 40 px, target sentuh penuh.
+                "h-[40px] px-3 text-[11px] sm:text-xs"
           }`}
         >
           <Wallet className="h-3.5 w-3.5 shrink-0" />
-          {isConnecting ? "Connecting…" : many ? "Choose wallet" : "Connect wallet"}
+          {isConnecting ? (
+            "Connecting…"
+          ) : compact || groupedIdle ? (
+            many ? "Choose wallet" : "Connect wallet"
+          ) : many ? (
+            /* Di bawah 400 px tombol ringkas: yang terlihat "Connect", label lengkap tetap TEKS di
+               dalam tombol (sr-only), karena audit_wallet_picker.mjs dan check-wallet-connect.mjs
+               mencocokkan textContent / has-text "Choose wallet". "Connect " ikut di nama aksesibel
+               supaya label yang terlihat ada di dalam nama (WCAG 2.5.3). Mulai 400 px, span
+               pertama display:none dan nama aksesibelnya "Choose wallet" seperti sebelumnya. */
+            <>
+              <span className="min-[400px]:hidden">Connect </span>
+              <span className="max-[399px]:sr-only">Choose wallet</span>
+            </>
+          ) : (
+            <>
+              Connect<span className="max-[399px]:sr-only"> wallet</span>
+            </>
+          )}
           {many && <ChevronDown className="h-3 w-3 shrink-0" />}
         </button>
 
         {open && many && (
           <div
             role="menu"
-            className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
+            // `top-full`: lihat catatan yang sama di ChainSwitcher. Wadah grouped `relative flex`
+            // menaruh posisi statis panel di puncak wadah, jadi tanpa `top` ia menutupi tombolnya.
+            className="absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
           >
             <p className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-ink-faint">
               {availableWallets.length > 0
@@ -260,7 +286,8 @@ export default function WalletMenu({
             // hairline yang tidak bisa bergeser dari pasangannya.
             ? "h-full rounded-r-[11px] border-l border-line px-3 hover:bg-surface"
             : `rounded-xl border border-line bg-surface hover:border-accent/30 ${
-                compact ? "w-full justify-between px-3 py-2" : "px-2.5 py-1.5"
+                // 40 px di layar sentuh (top bar ponsel, strip "Trading wallet" di swap); desktop tetap.
+                compact ? "w-full justify-between px-3 py-2" : "min-h-[40px] px-2.5 py-1.5 lg:min-h-0"
               }`,
         ].join(" ")}
       >
@@ -291,7 +318,8 @@ export default function WalletMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
+          // `top-full`: terukur 4 Okt di 1440, tombol y 13–43 dan menu mulai y 20 (menutupi tombolnya).
+          className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
         >
           <div className="border-b border-line px-2 pb-2 pt-1.5">
             <p className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">

@@ -93,10 +93,15 @@ export default function MobileTabBar() {
         role="dialog"
         aria-label="More"
         aria-hidden={!moreOpen}
-        className={`fixed inset-x-0 z-[56] rounded-t-card border-t border-line bg-cream-2 px-3 pb-3 pt-2 shadow-[var(--shadow-lift)] transition-[transform,opacity] duration-300 ease-settle lg:hidden ${
+        className={`fixed inset-x-0 z-[56] overflow-y-auto overscroll-contain rounded-t-card border-t border-line bg-cream-2 px-3 pb-3 pt-2 shadow-[var(--shadow-lift)] transition-[transform,opacity] duration-300 ease-settle lg:hidden ${
           moreOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-6 opacity-0"
         }`}
-        style={{ bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom))" }}
+        // Duduk di atas tab bar (tidak pernah menutupinya) dan tidak pernah lebih tinggi dari ruang
+        // di atasnya: di HP pendek (640 px) isinya digulir di dalam lembar, bukan terpotong.
+        style={{
+          bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom))",
+          maxHeight: "calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - 12px)",
+        }}
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-10 rounded-full bg-line-strong" />
         <nav aria-label="More pages" className="space-y-0.5">
