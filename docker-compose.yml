@@ -42,7 +42,18 @@ services:
     container_name: adexto-production
     restart: always
     ports:
-      - "3000:3000"
+      # Loopback ONLY. Caddy di host menyambung ke 127.0.0.1:3000, dan tidak ada yang lain
+      # yang perlu menjangkau port ini.
+      #
+      # `"3000:3000"` mempublikasikan port di SEMUA antarmuka, dan aturan NAT Docker berjalan
+      # sebelum rantai INPUT milik ufw — jadi "ufw tidak mengizinkan 3000" tidak berarti apa-apa
+      # untuk port kontainer. Siapa pun yang menjangkau port itu melewati Caddy, sehingga header
+      # `X-Peer-IP` yang ditimpa Caddy (dasar `clientIp()` di src/lib/rate-limit.ts) bisa ia tulis
+      # sendiri: setiap batas laju per-IP — chat berbayar, generate-logo, pay_and_buy — menjadi
+      # nol, dan WAF/DDoS Cloudflare tidak terlibat sama sekali. Diukur 4 Oktober 2026 dari luar:
+      # port 3000 tidak terjangkau (kemungkinan diblokir di lapisan lain), tetapi keamanannya
+      # tidak boleh bergantung pada aturan yang tidak tertulis di repo ini.
+      - "127.0.0.1:3000:3000"
     env_file:
       - .env.local
     environment:

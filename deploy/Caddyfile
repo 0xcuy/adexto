@@ -42,7 +42,67 @@
 # hari ini pun sudah 525. Caddy mencocokkan hostname paling spesifik lebih dulu, jadi
 # blok pertama tetap menang.
 
+# Opsi global — HARUS blok pertama di berkas ini.
+#
+# `read_header 10s`: bawaannya 1 menit, artinya satu klien bisa menahan satu koneksi selama
+# semenit hanya dengan mengirim header byte demi byte (slowloris), dan ribuan koneksi seperti itu
+# menghabiskan kapasitas tanpa satu permintaan pun selesai. Header permintaan yang sah tiba dalam
+# milidetik. `idle 2m` (bawaan 5m) membatasi berapa lama koneksi keep-alive yang diam ditahan.
+#
+# Sengaja TIDAK ada `write` atau `read_body`: keduanya batas keras untuk seluruh respons/unggahan,
+# dan akan memutus aliran SSE `/api/chat`, transport MCP, dan layanan lain di kotak ini.
+# Opsi ini berlaku untuk SEMUA situs di Caddy ini, termasuk router.zexa.my.id di bawah.
+{
+    servers {
+        timeouts {
+            read_header 10s
+            idle 2m
+        }
+    }
+}
+
+# Hanya Cloudflare (dan loopback) yang boleh menyambung ke situs adexto.
+#
+# KENAPA INI PENTING
+#
+# Origin melayani permintaan langsung di IP publiknya, dan IP itu tidak rahasia (ada di repo ini
+# sendiri). Permintaan yang datang langsung tidak melewati WAF, aturan rate limit, maupun
+# perlindungan DDoS Cloudflare — jadi semua itu hanya berlaku bagi penyerang yang SOPAN. Dengan
+# matcher ini, origin hanya menjawab peer dari rentang Cloudflare; penyerang yang menembak IP
+# langsung mendapat 403 dan koneksinya ditutup sebelum menyentuh aplikasi.
+#
+# Ini juga menutup sisa jalur pemalsuan IP: `clientIp()` mempercayai `cf-connecting-ip` hanya
+# kalau peer-nya Cloudflare, dan sekarang peer selain Cloudflare tidak pernah sampai ke aplikasi.
+#
+# DAFTARNYA HARUS SAMA dengan `src/lib/cloudflare-ips.ts` (diambil 24 September 2026, etag
+# 38f79d050aa027e3be3865e495dcc9bc). Segarkan keduanya bersamaan dari
+# https://api.cloudflare.com/client/v4/ips. Rentang yang hilang dari sini berarti pengunjung
+# yang dilayani PoP itu mendapat 403 — periksa daftar ini sebelum menyalahkan aplikasi.
+#
+# Loopback diizinkan supaya alat di VPS sendiri (curl --resolve ke 127.0.0.1) tetap bekerja.
+# Untuk perlindungan yang lebih kuat lagi, aktifkan Authenticated Origin Pulls di Cloudflare
+# (mTLS dari edge ke origin); matcher ini tetap berguna sebagai lapisan pertama.
+(cloudflare_only) {
+    @not_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32 127.0.0.0/8 ::1/128
+    respond @not_cloudflare 403 {
+        close
+    }
+}
+
+# Batas ukuran badan permintaan di proxy, sebelum menyentuh Node.
+#
+# Badan terbesar yang sah di situs ini sekitar 512 KB (logo data URI di `/api/deploy` dan
+# `/api/market/update`; lihat src/lib/body-limit.ts, yang menegakkan batas per rute). 4 MB
+# memberi ruang untuk rute baru tanpa membiarkan badan 100 MB sampai ke proses aplikasi.
+(adexto_body_limit) {
+    request_body {
+        max_size 4MB
+    }
+}
+
 adexto.xyz, www.adexto.xyz, studio.adexto.xyz, swap.adexto.xyz, explorer.adexto.xyz, aegis.adexto.xyz, qnova.adexto.xyz, csent.adexto.xyz {
+    import cloudflare_only
+    import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -97,6 +157,8 @@ compute.adexto.xyz {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
+    import cloudflare_only
+    import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -117,8 +179,11 @@ compute.adexto.xyz {
 }
 
 # Cloudflare menyambung ke origin lewat HTTPS (mode SSL zone: full), jadi blok ini jarang
-# terpakai. Dipertahankan supaya permintaan HTTP langsung ke IP tidak menggantung.
+# terpakai. Dipertahankan supaya permintaan HTTP langsung ke IP tidak menggantung — dan sekarang
+# permintaan langsung itu dijawab 403 oleh `cloudflare_only` alih-alih diteruskan ke aplikasi.
 :80 {
+    import cloudflare_only
+    import adexto_body_limit
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
