@@ -132,8 +132,11 @@ export default function LaunchCostCard({
       </p>
       {/* Cara menghitungnya ditulis di sini, bukan di halaman lain: pembaca yang ragu pada angka
           biaya sedang berada tepat di sini. */}
-      <details className="mt-1 text-[10px] leading-relaxed text-ink-faint">
-        <summary className="cursor-pointer font-semibold text-accent">How it is computed</summary>
+      {/* Di bawah lg summary-nya diberi padding 8 px atas-bawah: dulu kotak ketuknya hanya setinggi teks
+          (16 px) dan rapat dengan kalimat di atasnya, ERROR tap<24 di 393 px sejak baseline. `display`-nya
+          tidak diubah supaya penanda segitiga bawaan tetap ada. */}
+      <details className="text-[10px] leading-relaxed text-ink-faint lg:mt-1">
+        <summary className="cursor-pointer py-[8px] font-semibold text-accent lg:py-0">How it is computed</summary>
         <p className="mt-1">
           Gas used by <code className="text-accent">deployTrinity</code>, measured against the factory deployed on each
           chain with the same arguments this page sends

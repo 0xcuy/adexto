@@ -252,7 +252,7 @@ const attestationAge = (message: string) => {
 };
 
 export default function StudioPage() {
-  const { address, isConnected, isConnecting, connectWallet, switchToChain } = useWallet();
+  const { address, isConnected, isConnecting, connectWallet, switchToChain, walletChainId, chainInfo } = useWallet();
 
   // ── form state ───────────────────────────────────────────────────────────
   // Kosong: Studio membuka Express, dan orang yang datang untuk meluncurkan tokennya sendiri
@@ -400,6 +400,48 @@ export default function StudioPage() {
     liveChains.length > 0 ? [liveChains[0].chainId] : []
   );
 
+  /**
+   * Pilihan chain IKUT chain wallet (U2.3a, permintaan owner 4 Okt).
+   *
+   * Dulu `targetChainIds` diisi sekali dengan `liveChains[0]` (Monad, karena urutan CHAIN_LIST) dan
+   * halaman ini tidak pernah membaca wallet: wallet di Arbitrum One tetap mendapat Monad tercentang, dan
+   * kartu biaya gas ikut salah chain. Sumber yang diikuti sekarang:
+   *   - tersambung: `walletChainId`, chain asli wallet (null sampai terbaca);
+   *   - belum tersambung: `chainInfo`, pilihan Network di header (atau yang tersimpan di localStorage).
+   * Hanya id yang PERSIS ada di `liveChains`. `chainFromId` memetakan testnet ke mainnet-nya (421614 →
+   * Arbitrum), tetapi meluncurkan di Arbitrum One dari wallet di Sepolia tetap butuh pindah chain, jadi id
+   * itu diperlakukan seperti chain yang tidak didukung: pilihan tetap, dan petunjuknya tampil.
+   *
+   * Yang terakhir menang. `?chain=` (tautan launch yang dibagikan) dan klik di Studio DITAHAN sampai chain
+   * wallet benar-benar PINDAH, dari satu angka ke angka lain (`chainChanged`, atau Network di header yang
+   * memindah wallet). Nilai pertama yang datang saat restore atau connect (null → angka) tidak menimpanya:
+   * tautan launch Robinhood yang dibuka dengan wallet di Monad harus tetap menawarkan Robinhood. Saat belum
+   * tersambung, pilihan header sesudah pengguna menyentuh halaman juga melepas tahanan; pemulihan dari
+   * localStorage saat dimuat tidak.
+   *
+   * Tidak pernah berubah selama `deploying` (loop deploy memindah wallet sendiri, chain demi chain) dan
+   * tidak sesudah ada `results`. Klik chain di sini tidak memanggil wallet: pindah chain tetap terjadi di
+   * tombol Launch, lewat `ensureWalletChain`.
+   */
+  const chainHoldRef = useRef<"prefill" | "click" | null>(null);
+  /** Nilai sumber yang terakhir dilihat efek pengikut. null = belum pernah. */
+  const followSeenRef = useRef<{ connected: boolean; wallet: number | null; header: number } | null>(null);
+  /** Pengguna sudah menyentuh halaman (pointer/keyboard). Membedakan pilihan header dari pemulihan. */
+  const userActedRef = useRef(false);
+  /** Isi wilayah `aria-live`: perubahan chain otomatis diumumkan, perubahan oleh klik tidak. */
+  const [chainNotice, setChainNotice] = useState("");
+  useEffect(() => {
+    const mark = () => {
+      userActedRef.current = true;
+    };
+    window.addEventListener("pointerdown", mark, true);
+    window.addEventListener("keydown", mark, true);
+    return () => {
+      window.removeEventListener("pointerdown", mark, true);
+      window.removeEventListener("keydown", mark, true);
+    };
+  }, []);
+
   // ── gating + results ─────────────────────────────────────────────────────
   const [ticker, setTicker] = useState<TickerState>({ checking: false, perChain: [], error: null });
   const [attestation, setAttestation] = useState<{ signature: string; message: string; signer: string } | null>(null);
@@ -407,6 +449,52 @@ export default function StudioPage() {
   const [deploying, setDeploying] = useState(false);
   const [results, setResults] = useState<ChainResult[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  // Pengikut chain wallet. Aturannya di catatan `chainHoldRef` di atas.
+  useEffect(() => {
+    const prev = followSeenRef.current;
+    const cur = { connected: isConnected, wallet: walletChainId, header: chainInfo.chainId };
+    followSeenRef.current = cur;
+    // Selama deploy dan sesudah ada hasil: dicatat, tidak diikuti.
+    if (deploying || results.length > 0) return;
+
+    let target: number;
+    /** Pindah sungguhan (bukan restore/connect pertama): satu-satunya yang melepas tahanan. */
+    let moved: boolean;
+    let source: "wallet" | "header";
+    if (cur.connected) {
+      if (cur.wallet === null) return;
+      if (prev?.connected && prev.wallet === cur.wallet) return;
+      moved = Boolean(prev?.connected && prev.wallet !== null);
+      target = cur.wallet;
+      source = "wallet";
+    } else {
+      // Memutus wallet bukan alasan mengganti chain yang sedang dipilih.
+      if (prev?.connected) return;
+      if (prev && prev.header === cur.header) return;
+      moved = prev !== null && userActedRef.current;
+      target = cur.header;
+      source = "header";
+    }
+    if (chainHoldRef.current) {
+      if (!moved) return;
+      chainHoldRef.current = null;
+    }
+    const chain = liveChains.find((c) => c.chainId === target);
+    // Chain yang tidak bisa diluncurkan (mis. Ethereum 1): pilihan tetap, petunjuk di bawah radiogroup.
+    if (!chain) return;
+    if (targetChainIds.length === 1 && targetChainIds[0] === chain.chainId) return;
+    setTargetChainIds([chain.chainId]);
+    // Header yang diisi dari chain wallet saat dimuat (wallet belum tersambung) tetap chain wallet.
+    setChainNotice(
+      source === "wallet" || walletChainId === chain.chainId
+        ? `Launch chain set to ${chain.name}, the network your wallet is on.`
+        : `Launch chain set to ${chain.name}, the network picked in the header.`
+    );
+    // `targetChainIds` dibaca, bukan diikuti: efek ini bereaksi pada SUMBER, dan klik di Studio tidak boleh
+    // memicunya. `liveChains` berasal dari konstanta modul.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, walletChainId, chainInfo.chainId, deploying, results.length]);
 
   /**
    * Express = nama, ticker, gambar, lalu satu tombol. Advanced = formulir lima langkah.
@@ -459,7 +547,11 @@ export default function StudioPage() {
       setTokenTicker(p.symbol);
       setCustomSubdomain(p.symbol.toLowerCase());
     }
-    if (p.chainId) setTargetChainIds([p.chainId]);
+    if (p.chainId) {
+      setTargetChainIds([p.chainId]);
+      // Tautan launch menang saat dimuat: chain wallet baru diikuti lagi sesudah ia benar-benar pindah.
+      chainHoldRef.current = "prefill";
+    }
     // Sekali saja: prefill adalah titik awal, bukan sinkronisasi dua arah dengan URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -732,7 +824,13 @@ export default function StudioPage() {
    * pernah kosong. Sekarang ia mengganti isi daftar, jadi keadaan "tidak ada chain
    * terpilih" tidak mungkin terjadi dan penjaga itu tidak lagi diperlukan.
    */
-  const selectChain = (chainId: number) => setTargetChainIds([chainId]);
+  const selectChain = (chainId: number) => {
+    setTargetChainIds([chainId]);
+    // Klik menang sampai chain wallet pindah lagi (U2.3a). Tidak ada panggilan wallet di sini.
+    chainHoldRef.current = "click";
+    // Pengumuman lama tidak berlaku lagi; perubahan oleh klik sendiri tidak diumumkan.
+    setChainNotice("");
+  };
 
   /** Selecting a tier must move all three numbers together, or the split desyncs. */
   const applyFeeTier = (tier: FeeTier) => {
@@ -1414,6 +1512,25 @@ export default function StudioPage() {
   const blockedChainIds = new Set(ticker.perChain.filter((p) => !p.available).map((p) => p.chainId));
   const launchTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && !blockedChainIds.has(c.chainId));
   const skippedTargets = liveChains.filter((c) => targetChainIds.includes(c.chainId) && blockedChainIds.has(c.chainId));
+  /**
+   * Petunjuk di bawah pilihan chain bila wallet tersambung di chain LAIN: chain yang tidak didukung
+   * (Ethereum 1, testnet), atau chain launchable lain sesudah klik manual atau tautan `?chain=`. Tanpa
+   * kalimat ini, tombol Launch yang tiba-tiba meminta wallet pindah chain terasa seperti galat. Tidak
+   * tampil selama deploy, karena di sana wallet memang dipindah chain demi chain.
+   */
+  const chainHint = (() => {
+    if (!isConnected || walletChainId === null || deploying || results.length > 0) return "";
+    const selected = liveChains.find((c) => targetChainIds.includes(c.chainId));
+    if (!selected || selected.chainId === walletChainId) return "";
+    const walletName = CHAIN_LIST.find((c) => c.chainId === walletChainId)?.name ?? `chain ${walletChainId}`;
+    return `Your wallet is on ${walletName}. Launching will ask it to switch to ${selected.name}.`;
+  })();
+  const chainHintLine = chainHint ? (
+    <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-snug text-ink-soft" data-chain-hint>
+      <Info className="mt-0.5 h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
+      <span>{chainHint}</span>
+    </p>
+  ) : null;
 
   // No seed to validate any more: a launch needs supply, a signed attestation and
   // at least one chain that is not already using this ticker.
@@ -1746,6 +1863,7 @@ export default function StudioPage() {
               );
             })}
           </div>
+          {chainHintLine}
         </div>
       </div>
 
@@ -2057,6 +2175,11 @@ export default function StudioPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
         {/* Left: launch control */}
         <div className="flex min-h-[520px] flex-col rounded-card border border-line bg-surface p-3 shadow-[var(--shadow-panel)] sm:p-5 lg:col-span-8">
+          {/* Satu wilayah `aria-live` untuk kedua mode, selalu terpasang: wilayah yang baru dipasang
+              bersamaan dengan isinya sering tidak diumumkan. Hanya perubahan chain OTOMATIS yang masuk. */}
+          <p className="sr-only" aria-live="polite" data-chain-live>
+            {chainNotice}
+          </p>
           {finished ? (
             <DeployReport
               results={results}
@@ -2166,6 +2289,7 @@ export default function StudioPage() {
                     );
                   })}
                 </div>
+                {chainHintLine}
 
                 {offlineChains.length > 0 && (
                   <p className="text-[10px] text-ink-faint flex items-start gap-1.5">
