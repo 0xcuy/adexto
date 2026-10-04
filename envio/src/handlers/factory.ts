@@ -1,5 +1,6 @@
 /**
- * AdextoFactory 0.11.0 di Monad mainnet.
+ * AdextoFactory 0.11.0 di Monad mainnet dan AdextoFactory 1.0.0 di Robinhood Chain. Event yang
+ * diindeks bertanda tangan sama di kedua generasi.
  *
  * Dua tanggung jawab, dan urutan di antaranya penting:
  *
@@ -60,6 +61,7 @@ indexer.onEvent(
       creatorFeeBps: event.params.creatorFeeBps,
       treasuryBuybackBps: event.params.treasuryBuybackBps,
       blockNumber: meta.blockNumber,
+      chainId: meta.chainId,
     });
 
     await applyProject(context, {

@@ -1,7 +1,14 @@
-# Adexto on Monad — Envio HyperIndex
+# Adexto on Monad and Robinhood Chain — Envio HyperIndex
 
 Indexes `AdextoFactory` 0.11.0 and every bonding curve it deploys on Monad mainnet
-(chain 143): launches, swaps, buyback burns, fee claims, and ERC-8004 agent bindings.
+(chain 143), and `AdextoFactory` 1.0.0 and its curves on Robinhood Chain (chain 4663):
+launches, swaps, buyback burns, fee claims, and ERC-8004 agent bindings.
+
+Robinhood Chain is here for the same reason as Monad: `graphprotocol/networks-registry`
+v0.8.6 lists `robinhood` (eip155:4663) with no Subgraphs service, only Firehose and
+Substreams, while `https://robinhood.hypersync.xyz/height` answers with the chain head.
+`GlobalStats` has one row per chain (`global` for Monad, `global-4663` for Robinhood
+Chain), because native volume is MON on one and ETH on the other.
 
 ## Why this exists as its own indexer
 

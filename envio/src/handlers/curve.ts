@@ -1,5 +1,5 @@
 /**
- * AdextoCurve 0.11.0. Kontraknya didaftarkan dinamis oleh `factory.ts`, jadi tidak ada satu
+ * AdextoCurve 0.11.0 (Monad) dan 1.0.0 (Robinhood), event yang sama. Kontraknya didaftarkan dinamis oleh `factory.ts`, jadi tidak ada satu
  * pun alamat kurva di `config.yaml`.
  *
  * Perhatikan bahwa setiap field dibongkar memakai NAMA, bukan posisi. Di kurva 0.10.0 kedua
@@ -32,6 +32,7 @@ indexer.onEvent(
       // `event.params.openingPrice` SENGAJA tidak dipakai: ia wei per 1e18-token, satuan
       // yang berbeda 1e18 dari field harga di skema. Nilainya diturunkan di `shared.ts`.
       blockNumber: BigInt(event.block.number),
+      chainId: event.chainId,
     });
   },
 );

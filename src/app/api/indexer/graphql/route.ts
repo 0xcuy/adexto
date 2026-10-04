@@ -1,5 +1,5 @@
 /**
- * Endpoint GraphQL publik dan read-only untuk indexer Envio (Monad, chain 143).
+ * Endpoint GraphQL publik dan read-only untuk indexer Envio (Monad 143 dan Robinhood Chain 4663).
  *
  * KENAPA SEBUAH PROXY, DAN BUKAN HASURA YANG DITERBITKAN LANGSUNG
  *
@@ -65,7 +65,11 @@ const CORS = {
   "Access-Control-Max-Age": "86400",
 };
 
-const CHAIN_ID = 143;
+/** Harus sama dengan `chains:` di `envio/config.yaml` dan `ENVIO_CHAIN_IDS`. */
+const CHAINS = [
+  { chainId: 143, chain: "Monad mainnet" },
+  { chainId: 4663, chain: "Robinhood Chain" },
+] as const;
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
@@ -86,9 +90,9 @@ export async function GET() {
       method: "POST",
       auth: "none — anonymous, read-only",
       indexer: "Envio HyperIndex",
-      chainId: CHAIN_ID,
-      chain: "Monad mainnet",
-      indexes: "AdextoFactory 0.11.0 and every bonding curve it deploys, from its deploy block. The ADEXTO v1 factory (1.0.0) is not indexed here yet — its markets are read by the RPC scan path in src/lib/onchain-trades.ts until the indexer config adds it.",
+      chains: CHAINS,
+      indexes:
+        "Monad: AdextoFactory 0.11.0 and every bonding curve it deploys, from its deploy block. The ADEXTO v1 factory (1.0.0) on Monad is not indexed here yet; its markets are read by the RPC scan path in src/lib/onchain-trades.ts. Robinhood Chain: AdextoFactory 1.0.0 and every bonding curve it deploys, from its deploy block. Curve addresses are unique across chains; GlobalStats has one row per chain ('global' for Monad, 'global-4663' for Robinhood Chain) because native volume is in different units.",
       entities: [
         "Project",
         "Curve",
@@ -152,13 +156,17 @@ async function probeUncached(): Promise<Record<string, unknown>> {
     });
     if (!res.ok) return { reachable: false, reason: `Indexer answered HTTP ${res.status}.` };
     const body = await res.json();
-    const row = (body?.data?.chain_metadata ?? []).find(
-      (m: any) => Number(m.chain_id) === CHAIN_ID
-    );
+    const rows: any[] = body?.data?.chain_metadata ?? [];
     return {
       reachable: true,
-      latestProcessedBlock: row?.latest_processed_block ?? null,
-      source: row?.is_hyper_sync ? "HyperSync" : "RPC",
+      chains: CHAINS.map(({ chainId }) => {
+        const row = rows.find((m: any) => Number(m.chain_id) === chainId);
+        return {
+          chainId,
+          latestProcessedBlock: row?.latest_processed_block ?? null,
+          source: row ? (row.is_hyper_sync ? "HyperSync" : "RPC") : null,
+        };
+      }),
     };
   } catch {
     return { reachable: false, reason: "Indexer did not answer in time." };

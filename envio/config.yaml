@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 #
-# Envio HyperIndex — AdextoFactory 0.11.0 dan kurvanya di Monad mainnet.
+# Envio HyperIndex — AdextoFactory 0.11.0 dan kurvanya di Monad mainnet, plus AdextoFactory
+# 1.0.0 dan kurvanya di Robinhood Chain (4663).
 #
 # KENAPA INDEXER TERPISAH, BUKAN MENAMBAH JARINGAN KE SUBGRAPH
 #
@@ -22,7 +23,7 @@
 # cocok dengan kepala rantai. Karena itu `rpc` di bawah hanya FALLBACK. Menaruh RPC sebagai
 # sumber utama akan mengembalikan justru batas yang indexer ini ada untuk menghapus.
 name: adexto-monad
-description: Bonding-curve launches, swaps, buyback burns and ERC-8004 bindings on Monad mainnet.
+description: Bonding-curve launches, swaps, buyback burns and ERC-8004 bindings on Monad mainnet and Robinhood Chain.
 
 # `Bytes` sebagai string hex 0x, dan alamat huruf kecil di mana pun.
 #
@@ -100,3 +101,24 @@ chains:
         # `totalProjectsCount()` di sana nol, jadi tidak ada satu pun kurva untuk diindeks,
         # dan `Swap`-nya bertanda tangan berbeda sehingga menambahkannya berarti ABI dan
         # handler kedua yang menjaga nol baris data.
+
+  # Robinhood Chain. The Graph juga tidak melayaninya: di `networks-registry` v0.8.6
+  # `robinhood` (eip155:4663) terdaftar dengan daftar `subgraphs` KOSONG, hanya Substreams
+  # dan Firehose. HyperSync melayaninya: `GET https://robinhood.hypersync.xyz/height`
+  # menjawab 200 dengan tinggi yang cocok dengan `eth_blockNumber` (5 Okt 2026).
+  #
+  # Tanpa indexer, setiap permintaan chart memindai `eth_getLogs` ke RPC publik Robinhood dari
+  # VPS: terukur 7,1 dtk dingin untuk pasar yang baru punya satu swap.
+  - id: 4663
+    # Blok deployment AdextoFactory 1.0.0, dari `build/deployments.json` (`robinhood.blockNumber`).
+    start_block: 76864198
+    rpc:
+      - url: https://rpc.mainnet.chain.robinhood.com
+        for: fallback
+    contracts:
+      - name: AdextoFactory
+        # AdextoFactory 1.0.0, generasi pertama dan satu-satunya di chain ini. ABI-nya sama
+        # dengan 0.11.0 untuk setiap event yang diindeks: topic0 `TrinityProjectDeployed`,
+        # `AgentBound`, `CurveInitialized` dan `Swap` dicocokkan dengan log nyata $SAI.
+        address: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D"
+      - name: AdextoCurve

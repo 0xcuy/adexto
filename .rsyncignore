@@ -7,6 +7,10 @@ data/
 # Backups of .env.local carry the same secrets, and without this pattern a local backup was copied
 # into the VPS build context by the next deploy. Keep backups out of the tree being shipped.
 .env.local.*
+# Env indexer Envio di VPS (ENVIO_API_TOKEN, password Postgres, admin secret Hasura). Tidak ada di
+# checkout mana pun, jadi tanpa baris ini `rsync --delete` menghapusnya pada setiap deploy situs,
+# dan `docker compose up` berikutnya di /root/adexto/envio gagal "ENVIO_API_TOKEN wajib diset".
+/envio/.env
 devchain/cache/
 devchain/artifacts/
 devchain/node_modules/

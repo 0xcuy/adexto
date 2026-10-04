@@ -90,9 +90,9 @@ type Curve {
   spotPriceNative: BigDecimal!
 
   """
-  VERSION kontrak kurva ini. Selalu "0.11.0" di indexer ini, karena generasi 0.10.0 di
-  Monad tidak punya satu pun peluncuran. Field-nya dipertahankan supaya skema tetap cocok
-  dengan subgraph yang melayani chain lain.
+  VERSION kontrak kurva ini: "0.11.0" di Monad (generasi 0.10.0 di sana tidak punya satu
+  pun peluncuran) dan "1.0.0" di Robinhood Chain. Field-nya dipertahankan supaya skema tetap
+  cocok dengan subgraph yang melayani chain lain.
   """
   curveVersion: String!
 
@@ -237,7 +237,7 @@ type CurveDayData {
 }
 
 type GlobalStats {
-  "Selalu 'global'."
+  "Satu baris per chain, karena volume native berbeda satuan: 'global' untuk Monad (143), 'global-4663' untuk Robinhood Chain."
   id: ID!
   totalProjects: BigInt!
   totalCurves: BigInt!

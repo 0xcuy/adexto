@@ -42,8 +42,14 @@ import type { TradeEvent } from "@/lib/telemetry";
 const ENDPOINT = process.env.ENVIO_GRAPHQL_URL ?? "";
 const ADMIN_SECRET = process.env.ENVIO_HASURA_SECRET ?? "";
 
-/** Chain yang benar-benar diindeks. Menanyakan chain lain ke indexer ini akan bohong. */
-export const ENVIO_CHAIN_IDS = new Set<number>([143]);
+/**
+ * Chain yang benar-benar diindeks. Menanyakan chain lain ke indexer ini akan bohong.
+ *
+ * Harus sama dengan `chains:` di `envio/config.yaml`. 4663 (Robinhood) ditambahkan karena The
+ * Graph tidak melayaninya, dan tanpa indexer setiap permintaan chart memindai `eth_getLogs` ke
+ * RPC publik Robinhood (terukur 7,1 dtk dingin).
+ */
+export const ENVIO_CHAIN_IDS = new Set<number>([143, 4663]);
 
 export function envioServes(chainId: number | null | undefined): boolean {
   return Boolean(ENDPOINT) && chainId != null && ENVIO_CHAIN_IDS.has(chainId);

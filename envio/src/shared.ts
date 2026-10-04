@@ -37,10 +37,24 @@ export const ZERO_DEC = new BigDecimal(0);
 export const DAY = 86400n;
 
 /**
- * VERSION kurva yang diindeks. Selalu 0.11.0: generasi 0.10.0 di Monad
- * (0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) tidak pernah punya satu peluncuran pun.
+ * VERSION kurva yang diindeks, per chain. Setiap chain di `config.yaml` memuat tepat SATU
+ * factory, jadi chain sudah menentukan generasinya:
+ *
+ *   Monad     143   AdextoFactory 0.11.0 (generasi 0.10.0 di
+ *                   0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39 tidak pernah punya peluncuran)
+ *   Robinhood 4663  AdextoFactory 1.0.0, generasi pertama di sana
+ *
+ * Chain baru WAJIB ditambahkan di sini; chain yang tidak dikenal menghentikan indexer alih-alih
+ * menerbitkan versi tebakan.
  */
 export const V_0_11_0 = "0.11.0";
+export const V_1_0_0 = "1.0.0";
+const CURVE_VERSION_BY_CHAIN: Record<number, string> = { 143: V_0_11_0, 4663: V_1_0_0 };
+export function curveVersionFor(chainId: number): string {
+  const v = CURVE_VERSION_BY_CHAIN[chainId];
+  if (v === undefined) throw new Error(`No curve version is configured for chain ${chainId}.`);
+  return v;
+}
 
 /**
  * `PROTOCOL_FEE_BPS` di AdextoFactory 0.11.0.
@@ -59,6 +73,7 @@ export type Ctx = EvmOnEventContext;
 
 /** Field event yang dipakai setiap entity, dibongkar sekali supaya tipenya tidak menular. */
 export type EventMeta = {
+  readonly chainId: number;
   readonly blockNumber: bigint;
   readonly timestamp: bigint;
   readonly txHash: string;
@@ -71,6 +86,7 @@ export type EventMeta = {
  * codegen, supaya satu fungsi melayani keenam event tanpa generic.
  */
 type RawEvent = {
+  readonly chainId: number;
   readonly block: { readonly number: number; readonly timestamp: number };
   readonly transaction: { readonly hash: string; readonly from: string | undefined };
   readonly logIndex: number;
@@ -87,6 +103,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function metaOf(event: RawEvent): EventMeta {
   return {
+    chainId: event.chainId,
     // `block.number` dan `block.timestamp` datang sebagai `number` dari Envio, sedangkan
     // skema menyimpannya `BigInt`. Konversinya di sini, satu kali.
     blockNumber: BigInt(event.block.number),
@@ -133,12 +150,24 @@ export function floorPrice(
   );
 }
 
-/** Baris agregat tunggal, dibuat saat pertama kali disentuh. */
-export async function getGlobalStats(context: Ctx): Promise<GlobalStats> {
-  const existing = await context.GlobalStats.get("global");
+/**
+ * Id baris agregat per chain.
+ *
+ * SATU baris per chain, bukan satu untuk semua: `totalVolumeNative` di Monad dalam MON dan di
+ * Robinhood dalam ETH, dan menjumlahkan keduanya menghasilkan angka tanpa satuan. Monad tetap
+ * `"global"` supaya kueri yang sudah ada tidak berubah artinya.
+ */
+export function globalStatsId(chainId: number): string {
+  return chainId === 143 ? "global" : `global-${chainId}`;
+}
+
+/** Baris agregat sebuah chain, dibuat saat pertama kali disentuh. */
+export async function getGlobalStats(context: Ctx, chainId: number): Promise<GlobalStats> {
+  const id = globalStatsId(chainId);
+  const existing = await context.GlobalStats.get(id);
   if (existing !== undefined) return existing;
   return {
-    id: "global",
+    id,
     totalProjects: ZERO,
     totalCurves: ZERO,
     totalSwaps: ZERO,
@@ -215,6 +244,7 @@ export async function applyLaunch(
     creatorFeeBps: bigint;
     treasuryBuybackBps: bigint;
     blockNumber: bigint;
+    chainId: number;
   },
 ): Promise<void> {
   const openingPrice = priceFrom(args.virtualNative, args.curveTokens);
@@ -222,7 +252,7 @@ export async function applyLaunch(
   const curve: Curve = {
     id: args.curveId,
     project_id: args.tokenId,
-    curveVersion: V_0_11_0,
+    curveVersion: curveVersionFor(args.chainId),
     virtualNative: args.virtualNative,
     curveTokens: args.curveTokens,
     /**
@@ -384,7 +414,7 @@ export async function applySwap(
     protocolFees: day.protocolFees + args.protocolFee,
   });
 
-  const g = await getGlobalStats(context);
+  const g = await getGlobalStats(context, args.meta.chainId);
   context.GlobalStats.set({
     ...g,
     totalSwaps: g.totalSwaps + ONE,
@@ -447,7 +477,7 @@ export async function applyBuyback(
     swapCount: curve.swapCount + ONE,
   });
 
-  const g = await getGlobalStats(context);
+  const g = await getGlobalStats(context, args.meta.chainId);
   context.GlobalStats.set({
     ...g,
     totalTokensBurned: g.totalTokensBurned + args.tokensBurned,
@@ -544,7 +574,7 @@ export async function applyProtocolClaim(
  */
 export async function applyCurveInitialized(
   context: Ctx,
-  args: { curveId: string; virtualNative: bigint; curveTokens: bigint; blockNumber: bigint },
+  args: { curveId: string; virtualNative: bigint; curveTokens: bigint; blockNumber: bigint; chainId: number },
 ): Promise<void> {
   const existing = await context.Curve.get(args.curveId);
 
@@ -558,7 +588,7 @@ export async function applyCurveInitialized(
   const base: Curve = existing ?? {
     id: args.curveId,
     project_id: undefined,
-    curveVersion: V_0_11_0,
+    curveVersion: curveVersionFor(args.chainId),
     virtualNative: ZERO,
     curveTokens: ZERO,
     openingPriceNative: ZERO_DEC,
@@ -660,7 +690,7 @@ export async function applyProject(
   // peluncuran yang sama, dan angkanya tidak akan pernah bisa dikoreksi turun.
   if (existing !== undefined) return;
 
-  const g = await getGlobalStats(context);
+  const g = await getGlobalStats(context, args.meta.chainId);
   context.GlobalStats.set({
     ...g,
     totalProjects: g.totalProjects + ONE,
