@@ -11,7 +11,7 @@ import {
 import { EMPTY_BODY, EMPTY_TITLE } from "@/lib/launch-state";
 import WatchStar from "@/components/WatchStar";
 import { useWatchlist } from "@/lib/watchlist";
-import ChainChip from "./ChainChip";
+import ChainChip from "@/components/ui/ChainChip";
 
 /**
  * Live market index.
@@ -72,8 +72,12 @@ const CHIP =
 const CHIP_ON = "border-accent/40 bg-accent-soft text-accent";
 const CHIP_OFF = "border-line bg-cream-2 text-ink-soft hover:text-ink";
 
-/** Jumlah baris kerangka saat memuat: setinggi baris asli, supaya daftar tidak melompat begitu data datang. */
-const SKELETON_ROWS = 6;
+/**
+ * Jumlah baris kerangka saat memuat, setinggi baris asli. Sepuluh, bukan enam: dengan enam baris footer sudah
+ * terlihat di 1440×900 lalu terdorong turun saat 11 pasar datang (CLS 0,06). Sepuluh baris mengisi layar pertama
+ * di semua viewport audit, jadi yang bergeser hanya isi di bawah lipatan.
+ */
+const SKELETON_ROWS = 10;
 
 /**
  * Satu grid untuk baris asli dan kerangkanya.
