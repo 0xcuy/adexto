@@ -1,9 +1,9 @@
 /**
  * Satu-satunya daftar tujuan navigasi situs (UI-POLISH §6, Plan UI-1).
  *
- * Dibaca header (mega menu desktop + tombol Launch terbelah), tab bar bawah + lembar More, dan
- * footer. Sebelumnya ketiganya punya daftar sendiri-sendiri dan sudah berbeda: header "Explorer",
- * footer "Explorer" + "Studio" + dua tautan ke /docs, lembar More urutan lain lagi.
+ * Dibaca header (mega menu desktop + tombol Launch terbelah) dan tab bar bawah + lembar More.
+ * Footer TIDAK membaca berkas ini: atas permintaan owner (4 Okt 14:30) footer kembali ke susunan lamanya
+ * sendiri (Protocol & Apps / Architecture & Trust / Company / EVM chains).
  *
  * ATURAN
  * - Semua teks di sini (label DAN description) adalah teks publik: English, tanpa klaim yang belum
@@ -18,10 +18,8 @@
  *   HEADER_MENUS   panel desktop di kiri: Markets, Build (Build memuat kolom Verify)
  *   LAUNCH_MENU    panel dari ▾ di tombol Launch; `featured` = dua kartu besar
  *   MOBILE_TABS    empat tab bawah (Markets · Swap · Launch · Compute); slot kelima = tombol More
- *   MORE_GROUPS    isi lembar More, dikelompokkan sama dengan panel desktop
- *   FOOTER_COLUMNS kolom footer: Markets · Launch · Build (+ Verify) · Company
- *   SOCIAL_LINKS   X, GitHub, Telegram
- *   isNavActive()  pencocokan rute aktif yang dipakai ketiga tempat
+ *   MORE_ITEMS     isi lembar More: hanya yang tidak ada di tab, footer, atau landing (keputusan owner 4 Okt)
+ *   isNavActive()  pencocokan rute aktif yang dipakai header dan tab bar
  */
 import type { LucideIcon } from "lucide-react";
 import {
@@ -36,18 +34,15 @@ import {
   CreditCard,
   FileText,
   Gift,
-  Github,
   Info,
   Lock,
   Mail,
   Plug,
   Rocket,
   Scale,
-  Send,
   ShieldCheck,
   TriangleAlert,
   Trophy,
-  Twitter,
 } from "lucide-react";
 
 export type NavGroupKey = "markets" | "launch" | "build" | "verify" | "company";
@@ -197,35 +192,14 @@ export const MOBILE_TABS: readonly MobileTab[] = [
   { href: "/agent-compute", label: "Compute", icon: Cpu, match: ["/agent-compute"] },
 ];
 
-/** Lembar More: tujuan yang tidak punya tab sendiri, dikelompokkan seperti panel desktop. */
-export const MORE_GROUPS: readonly NavGroup[] = [
-  { key: "markets", label: "Markets", items: [LEADERBOARD] },
-  { key: "launch", label: "Launch", items: [LAUNCH_AGENT, AGENTS, CREATOR, REWARDS] },
-  { key: "build", label: "Build", items: [MCP, X402, DOCS, DEMO] },
-  { key: "verify", label: "Verify", items: [SECURITY, WHITEPAPER] },
-];
-
-/** Kolom footer. Verify ikut kolom Build, seperti panel Build di header. */
-export const FOOTER_COLUMNS: readonly NavGroup[] = [
-  NAV.markets,
-  NAV.launch,
-  { key: "build", label: "Build", items: [...NAV.build.items, ...NAV.verify.items] },
-  NAV.company,
-];
-
-export interface SocialLink {
-  href: string;
-  label: string;
-  /** Nama untuk pembaca layar bila hanya ikon yang tampil. */
-  name: string;
-  icon: LucideIcon;
-}
-
-export const SOCIAL_LINKS: readonly SocialLink[] = [
-  { href: "https://x.com/adexto_", label: "@adexto_", name: "ADEXTO on X", icon: Twitter },
-  { href: "https://github.com/0xcuy/adexto", label: "GitHub", name: "ADEXTO on GitHub", icon: Github },
-  { href: "https://t.me/adexto", label: "Telegram", name: "ADEXTO on Telegram", icon: Send },
-];
+/**
+ * Lembar More di ponsel: HANYA tujuan yang tidak bisa dicapai dari tab bawah, footer, atau landing.
+ *
+ * Keputusan owner 4 Okt 14:30 ("yang ada di landing page dan footer link ga usah ada di More, udah kaya menu
+ * restoran"). Versi berkelompok sebelumnya memuat 11 tujuan; semuanya kecuali tiga ini sudah ada di footer
+ * setiap halaman (Docs, x402, MCP, Agent demo, Security, Whitepaper, Creator earnings) atau di tab bawah.
+ */
+export const MORE_ITEMS: readonly NavItem[] = [LEADERBOARD, AGENTS, REWARDS];
 
 /**
  * True bila `pathname` berada di bawah tujuan ini. Item dengan `match: []` (anchor seksi) tidak
