@@ -223,7 +223,10 @@ function factoriesFor(slug: ChainSlug, chain: ChainInfo): FactoryRef[] {
 export function adapterChain(param: string | null | undefined): AdapterChain | null {
   const raw = String(param ?? "").trim().toLowerCase();
   let slug: ChainSlug | null = null;
-  if (raw in CHAIN_SLUGS) slug = raw as ChainSlug;
+  // `hasOwnProperty`, bukan `in`: `in` menelusuri prototipe, jadi `/api/dextools/constructor/block`
+  // lolos sebagai chain, lalu `KNOWN_FACTORIES["constructor"]` melempar "not iterable" SEBELUM
+  // batas laju dihitung — 500 dan log galat tanpa batas untuk siapa pun yang memintanya.
+  if (Object.prototype.hasOwnProperty.call(CHAIN_SLUGS, raw)) slug = raw as ChainSlug;
   else if (/^\d+$/.test(raw)) {
     slug = CHAIN_ORDER.find((s) => CHAINS[CHAIN_SLUGS[s].key].chainId === Number(raw)) ?? null;
   }
@@ -422,7 +425,16 @@ export async function blockTime(rt: Runtime, blockNumber: number): Promise<numbe
   if (hit !== undefined) return hit;
   const block = await rpc(rt, "eth_getBlockByNumber", () => rt.logs.getBlock(blockNumber));
   if (!block) throw new AdapterError(503, `Block ${blockNumber} is not available from the RPC yet. Retry shortly.`, 5);
-  if (rt.blockTimes.size >= BLOCK_TIME_CACHE_MAX) rt.blockTimes.clear();
+  // Sepersepuluh tertua dibuang, bukan seluruh cache. `clear()` memberi siapa pun tombol untuk
+  // mengosongkan cache: cukup minta 20.000 blok berbeda lewat `/block?timestamp=`, dan setiap
+  // pembaca sesudahnya membayar ulang semua `eth_getBlockByNumber`-nya.
+  if (rt.blockTimes.size >= BLOCK_TIME_CACHE_MAX) {
+    let drop = Math.max(1, Math.floor(BLOCK_TIME_CACHE_MAX / 10));
+    for (const k of rt.blockTimes.keys()) {
+      rt.blockTimes.delete(k);
+      if (--drop <= 0) break;
+    }
+  }
   rt.blockTimes.set(blockNumber, Number(block.timestamp));
   return Number(block.timestamp);
 }
@@ -712,11 +724,26 @@ export async function rangeEntries(
 export async function cachedRange<T>(rt: Runtime, key: string, build: () => Promise<T[]>): Promise<T[]> {
   const hit = rt.events.get(key);
   if (hit && Date.now() - hit.at < EVENTS_TTL_MS) return hit.events as T[];
-  const events = await build();
-  if (rt.events.size >= EVENTS_CACHE_MAX) rt.events.delete(rt.events.keys().next().value!);
-  rt.events.set(key, { at: Date.now(), events });
-  return events;
+
+  // Permintaan identik yang datang bersamaan berbagi SATU pembacaan. Tanpa ini, N permintaan
+  // untuk rentang yang sama berarti N kali seluruh `eth_getLogs`-nya, masing-masing memakan
+  // slot `gate()` yang dipakai bersama semua pemanggil chain ini.
+  const flightKey = `${rt.cfg.chain.chainId}:${key}`;
+  const pending = rangeInflight.get(flightKey);
+  if (pending) return (await pending) as T[];
+
+  const job = build()
+    .then((events) => {
+      if (rt.events.size >= EVENTS_CACHE_MAX) rt.events.delete(rt.events.keys().next().value!);
+      rt.events.set(key, { at: Date.now(), events });
+      return events;
+    })
+    .finally(() => rangeInflight.delete(flightKey));
+  rangeInflight.set(flightKey, job);
+  return job;
 }
+
+const rangeInflight = new Map<string, Promise<unknown[]>>();
 
 export async function eventsBetween(rt: Runtime, fromBlock: number, toBlock: number): Promise<AdapterSwapEvent[]> {
   return cachedRange(rt, `dexscreener:${fromBlock}:${toBlock}`, async () =>

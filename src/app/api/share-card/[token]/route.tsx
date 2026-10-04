@@ -8,6 +8,7 @@ import { STABLE_PRICES, assetPriceUsd, formatUsd, type AssetPrices } from "@/lib
 import { cardNative, cardUsd } from "@/lib/share-card-format";
 import { brandMark, chainMarkImage, publicOrigin, robotImage, tokenLogoSrc } from "@/lib/share-card-assets";
 import { CARD_COLORS, ShareCard, chainChipLabel } from "@/lib/share-card-layout";
+import { serveCard } from "@/lib/share-card-cache";
 
 /**
  * Kartu bagikan: gambar 1200x630 untuk sebuah pasar.
@@ -57,6 +58,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     return new Response("Market not found.", { status: 404 });
   }
 
+  // Dirender lewat penjaga bersama: cache per pasar, anggaran render, antrean. Alasannya di
+  // `src/lib/share-card-cache.ts`. Kuncinya dari pasar yang sudah diresolusi, bukan dari URL.
+  return serveCard(req, `market:${project.slug}:${project.chainId}`, () => renderMarketCard(project));
+}
+
+async function renderMarketCard(project: NonNullable<ReturnType<typeof findProject>>): Promise<Response> {
   const chain = resolveChainOrDefault(project.chainId);
 
   /**

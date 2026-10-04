@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { readCreatorEarnings } from "@/lib/creator-earnings";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 /**
  * GET /api/creator/earnings?address=0x…
@@ -16,6 +17,14 @@ import { readCreatorEarnings } from "@/lib/creator-earnings";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  // Setiap panggilan membaca kurva milik creator itu dari RPC publik, tanpa autentikasi. Dasbor
+  // creator memanggilnya sekali per kunjungan; 30 per menit per alamat menutup loop tanpa
+  // menyentuh pemakaian itu.
+  const gate = rateLimit(`creator-earnings:${clientIp(req)}`, 30, 60_000);
+  if (!gate.ok) {
+    return NextResponse.json({ success: false, error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(gate) });
+  }
+
   const address = new URL(req.url).searchParams.get("address") ?? "";
   if (!ethers.isAddress(address)) {
     return NextResponse.json({ success: false, error: "A valid 0x address is required." }, { status: 400 });

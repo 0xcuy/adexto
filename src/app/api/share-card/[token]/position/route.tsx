@@ -11,6 +11,7 @@ import { brandMark, chainMarkImage, publicOrigin, robotImage, tokenLogoSrc } fro
 import { CARD_COLORS, ShareCard, chainChipLabel } from "@/lib/share-card-layout";
 import { readPosition } from "@/lib/position-server";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { serveCard } from "@/lib/share-card-cache";
 
 /**
  * Kartu posisi: "i just bought $X", dengan jumlah yang DIBACA DARI CHAIN.
@@ -143,40 +144,45 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const pnlTone = (pnlUsd ?? pnlNative ?? 0) >= 0 ? ("up" as const) : ("down" as const);
 
   const marketUrl = `${publicOrigin()}/token/${project.slug}?chain=${project.chainId}`;
-  const qr = await QRCode.toDataURL(marketUrl, {
-    margin: 1,
-    width: 280,
-    color: { dark: "#141110", light: CARD_COLORS.cream },
-  });
 
-  return new ImageResponse(
-    (
-      <ShareCard
-        mark={brandMark(44)}
-        logoSrc={tokenLogoSrc(project.image)}
-        symbol={project.symbol}
-        title={`I hold $${project.symbol}`}
-        subtitle={project.name}
-        chainLabel={chainChipLabel(chain.name)}
-        chainMark={chainMarkImage(chain, 24)}
-        stats={[
-          {
-            label: "value now",
-            value: valueUsd > 0 ? cardUsd(valueUsd) : cardNative(valueNative, chain.nativeSymbol),
-          },
-          { label: "position", value: `${formatTokenAmount(amount)} ${project.symbol}` },
-          ...(pnlText ? [{ label: "pnl", value: pnlText, tone: pnlTone }] : []),
-        ]}
-        note={{ text: "Read from the chain, not typed in.", color: CARD_COLORS.ok }}
-        marketUrl={marketUrl}
-        qr={qr}
-        robot={robotImage(300)}
-      />
-    ),
-    {
-      width: 1200,
-      height: 630,
-      headers: { ...rateLimitHeaders(verdict), "cache-control": CACHE_CONTROL },
-    }
-  );
+  // Tidak di-cache (kuncinya null: kartu ini memuat saldo seseorang), tetapi render-nya tetap
+  // lewat anggaran dan antrean bersama di `src/lib/share-card-cache.ts`.
+  return serveCard(req, null, async () => {
+    const qr = await QRCode.toDataURL(marketUrl, {
+      margin: 1,
+      width: 280,
+      color: { dark: "#141110", light: CARD_COLORS.cream },
+    });
+
+    return new ImageResponse(
+      (
+        <ShareCard
+          mark={brandMark(44)}
+          logoSrc={tokenLogoSrc(project.image)}
+          symbol={project.symbol}
+          title={`I hold $${project.symbol}`}
+          subtitle={project.name}
+          chainLabel={chainChipLabel(chain.name)}
+          chainMark={chainMarkImage(chain, 24)}
+          stats={[
+            {
+              label: "value now",
+              value: valueUsd > 0 ? cardUsd(valueUsd) : cardNative(valueNative, chain.nativeSymbol),
+            },
+            { label: "position", value: `${formatTokenAmount(amount)} ${project.symbol}` },
+            ...(pnlText ? [{ label: "pnl", value: pnlText, tone: pnlTone }] : []),
+          ]}
+          note={{ text: "Read from the chain, not typed in.", color: CARD_COLORS.ok }}
+          marketUrl={marketUrl}
+          qr={qr}
+          robot={robotImage(300)}
+        />
+      ),
+      {
+        width: 1200,
+        height: 630,
+        headers: { ...rateLimitHeaders(verdict), "cache-control": CACHE_CONTROL },
+      }
+    );
+  });
 }

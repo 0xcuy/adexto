@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { findProject } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readPoolState } from "@/lib/dex";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * Read-only pool state for a market.
@@ -15,6 +16,42 @@ import { readPoolState } from "@/lib/dex";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * Satu `readPoolState` adalah 15 `eth_call`, masing-masing permintaan HTTP sendiri ke RPC publik.
+ *
+ * Rute ini dulu menjalankannya pada SETIAP permintaan, tanpa cache dan tanpa batas laju —
+ * padahal setiap order book yang terbuka memanggilnya tiap 15 detik. N penonton berarti N×15
+ * panggilan per siklus, dan satu loop anonim cukup untuk membuat RPC publik membatasi IP origin,
+ * yang lalu menggagalkan pembacaan di seluruh situs. Hasilnya sekarang dibagi 5 detik per kurva
+ * (termasuk yang sedang berjalan); kuncinya alamat kurva dari registry, jadi jumlahnya terbatas.
+ */
+const POOL_TTL_MS = 5_000;
+const poolCache = new Map<string, { at: number; value: ReturnType<typeof readPoolState> }>();
+
+function cachedPoolState(chain: ReturnType<typeof resolveChainOrDefault>, poolAddress: string): ReturnType<typeof readPoolState> {
+  const key = `${chain.chainId}:${poolAddress.toLowerCase()}`;
+  const now = Date.now();
+  const hit = poolCache.get(key);
+  if (hit && now - hit.at < POOL_TTL_MS) return hit.value;
+  const value = readPoolState(chain, poolAddress);
+  poolCache.set(key, { at: now, value });
+  // Kegagalan tidak disimpan: permintaan berikutnya mencoba lagi alih-alih mewarisi galat.
+  value.catch(() => {
+    if (poolCache.get(key)?.value === value) poolCache.delete(key);
+  });
+  return value;
+}
+
+/**
+ * SENGAJA tanpa batas laju per IP, dan cache di atas yang menggantikannya.
+ *
+ * Pemanggil terbesar rute ini adalah Worker x402: `resolveMarket` memanggilnya untuk setiap
+ * kutipan dan setiap pembelian. Subrequest Worker tiba di origin dengan SATU `cf-connecting-ip`
+ * milik Cloudflare, jadi batas per IP di sini menjadi batas GLOBAL untuk seluruh gerbang x402 —
+ * dan siapa pun yang membanjiri kutipan di Worker akan menghabiskannya untuk pembeli sungguhan.
+ * Biaya RPC rute ini sudah dibatasi cache (paling banyak satu pembacaan per kurva per 5 detik,
+ * berapa pun permintaannya), jadi batas laju tidak menambah perlindungan yang berarti.
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -62,7 +99,7 @@ export async function GET(req: Request) {
       });
     }
 
-    const state = await readPoolState(chain, project.poolAddress);
+    const state = await cachedPoolState(chain, project.poolAddress);
     if (!state || !state.initialized) {
       return NextResponse.json({
         ...base,
@@ -99,6 +136,6 @@ export async function GET(req: Request) {
       totalFeeBps: Number(state.totalFeeBps),
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 500 });
   }
 }

@@ -30,6 +30,17 @@
  * justru supaya angka kami bisa diperiksa tanpa meminta izin siapa pun.
  */
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, readTextBody } from "@/lib/body-limit";
+import { analyzeQuery } from "@/lib/graphql-guard";
+
+/**
+ * Batas laju per IP. Endpoint ini publik dan sengaja tanpa autentikasi, tetapi setiap kueri
+ * adalah kerja Postgres di VPS yang sama dengan situs. 60 per menit lebih dari cukup untuk
+ * orang yang memeriksa angka kami, dan menutup loop yang membanjiri basis datanya.
+ */
+const QUERY_LIMIT = 60;
+const QUERY_WINDOW_MS = 60_000;
 
 /** Hasura hanya bisa dihubungi dari dalam jaringan Docker; ini nama layanannya. */
 const UPSTREAM = process.env.ENVIO_GRAPHQL_URL ?? "";
@@ -37,9 +48,10 @@ const UPSTREAM = process.env.ENVIO_GRAPHQL_URL ?? "";
 /**
  * Batas ukuran badan permintaan.
  *
- * Bukan rate limit — ini hanya menutup kueri raksasa yang dikirim sekali. Batas baris untuk
- * role `public` sudah dipasang di sisi Hasura (`ENVIO_HASURA_RESPONSE_LIMIT`), jadi yang
- * belum tertutup adalah biaya PARSING, dan itu ditentukan panjang teks kueri.
+ * Ini hanya menutup kueri raksasa yang dikirim sekali; laju dibatasi `QUERY_LIMIT` di atas, dan
+ * bentuk kueri (kedalaman, alias, daftar bertingkat) dinilai `analyzeQuery`. Batas baris untuk
+ * role `public` dipasang di sisi Hasura (`ENVIO_HASURA_RESPONSE_LIMIT`), tetapi itu per seleksi,
+ * bukan per kueri — alasan `analyzeQuery` ada.
  */
 const MAX_BODY_BYTES = 16_000;
 
@@ -109,8 +121,24 @@ export async function GET() {
   );
 }
 
-/** Kesegaran indexer, supaya `GET` menyatakan keadaan alih-alih hanya menjanjikannya. */
+/**
+ * Hasil probe disimpan 15 detik, termasuk yang sedang berjalan.
+ *
+ * `GET` tanpa autentikasi dan tanpa batas laju; tanpa cache, setiap permintaan menjadi satu
+ * kueri ke Hasura. Kesegaran indexer tidak berubah berarti dalam 15 detik.
+ */
+const PROBE_TTL_MS = 15_000;
+let probeCache: { at: number; value: Promise<Record<string, unknown>> } | null = null;
+
 async function probe(): Promise<Record<string, unknown>> {
+  const now = Date.now();
+  if (probeCache && now - probeCache.at < PROBE_TTL_MS) return probeCache.value;
+  probeCache = { at: now, value: probeUncached() };
+  return probeCache.value;
+}
+
+/** Kesegaran indexer, supaya `GET` menyatakan keadaan alih-alih hanya menjanjikannya. */
+async function probeUncached(): Promise<Record<string, unknown>> {
   if (!UPSTREAM) return { reachable: false, reason: "Indexer endpoint is not configured." };
   try {
     const res = await fetch(UPSTREAM, {
@@ -145,8 +173,26 @@ export async function POST(req: Request) {
     );
   }
 
-  const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  const gate = rateLimit(`indexer-graphql:${clientIp(req)}`, QUERY_LIMIT, QUERY_WINDOW_MS);
+  if (!gate.ok) {
+    return NextResponse.json(
+      { errors: [{ message: `Rate limited: at most ${QUERY_LIMIT} queries per minute from one address. Retry after ${gate.retryAfter} s.` }] },
+      { status: 429, headers: { ...CORS, ...rateLimitHeaders(gate) } }
+    );
+  }
+
+  /**
+   * Batasnya ditegakkan SAAT MEMBACA, bukan sesudahnya.
+   *
+   * Versi sebelumnya memanggil `req.text()` lalu memeriksa panjangnya — jadi badan sebesar apa pun
+   * sudah utuh di memori sebelum ditolak, dan pemeriksaan 16 KB tidak melindungi apa pun dari
+   * badan 100 MB. Sekarang aliran dihentikan begitu melewati batas.
+   */
+  let raw: string;
+  try {
+    raw = await readTextBody(req, MAX_BODY_BYTES);
+  } catch (e) {
+    if (!(e instanceof BodyTooLargeError)) throw e;
     return NextResponse.json(
       { errors: [{ message: `Query too large; the limit is ${MAX_BODY_BYTES} bytes.` }] },
       { status: 413, headers: CORS }
@@ -192,6 +238,12 @@ export async function POST(req: Request) {
       },
       { status: 405, headers: CORS }
     );
+  }
+
+  // Biaya kueri, sebelum Postgres melihatnya. Alasan dan batasnya di `src/lib/graphql-guard.ts`.
+  const shape = analyzeQuery(query);
+  if (!shape.ok) {
+    return NextResponse.json({ errors: [{ message: shape.reason }] }, { status: 400, headers: CORS });
   }
 
   try {

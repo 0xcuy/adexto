@@ -60,16 +60,22 @@ declare global {
   var __ADEXTO_TG_ME__: { at: number; username: string } | undefined;
 }
 
+let botUsernameFailedAt = 0;
+
 /** Username bot (tanpa @), dari `getMe`, di-cache satu jam. Null bila bot belum dikonfigurasi. */
 export async function botUsername(): Promise<string | null> {
   if (!telegramConfigured()) return null;
   const hit = globalThis.__ADEXTO_TG_ME__;
   if (hit && Date.now() - hit.at < 3_600_000) return hit.username;
+  // Kegagalan diingat satu menit. Tanpa ini, selama Telegram tidak menjawab, setiap
+  // `GET /api/telegram/info` (anonim, tanpa batas laju) memanggil API bot dengan token kami lagi.
+  if (Date.now() - botUsernameFailedAt < 60_000) return hit?.username ?? null;
   try {
     const me = await tg<{ username: string }>("getMe");
     globalThis.__ADEXTO_TG_ME__ = { at: Date.now(), username: me.username };
     return me.username;
   } catch {
+    botUsernameFailedAt = Date.now();
     return hit?.username ?? null;
   }
 }

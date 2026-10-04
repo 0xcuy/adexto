@@ -188,10 +188,28 @@ async function readBybit(symbols: string[]): Promise<Record<string, number>> {
   return out;
 }
 
+/**
+ * Penyegaran yang sedang berjalan, dibagi semua pemanggil.
+ *
+ * Cache di atas baru terisi SESUDAH CoinGecko (8 s) dan Bybit (8 s) menjawab. Tanpa ini, setiap
+ * permintaan yang datang di jendela itu — `/api/prices`, `/api/launch-cost`, setiap kartu bagikan —
+ * memicu pembacaannya sendiri, dan banjir kecil saja cukup untuk membuat CoinGecko menjawab 429
+ * dan mengunci kita ke backoff sepuluh menit.
+ */
+let refreshing: Promise<NativePrices> | null = null;
+
 export async function nativePrices(): Promise<NativePrices> {
   const hit = globalThis.__ADEXTO_PRICE_CACHE__;
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { ...hit.value, source: "cache" };
+  if (!refreshing) {
+    refreshing = nativePricesUncached().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
 
+async function nativePricesUncached(): Promise<NativePrices> {
   const prices: Record<string, number> = { USDC: 1, USDT: 1 };
   const live: Record<string, boolean> = { USDC: true, USDT: true };
   const wanted = Object.keys(COINGECKO_IDS);

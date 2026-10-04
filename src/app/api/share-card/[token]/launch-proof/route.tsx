@@ -6,6 +6,7 @@ import { getLaunchProof, type LaunchProof } from "@/lib/launch-proof";
 import { brandMark, chainMarkImage, publicOrigin, robotImage, tokenLogoSrc } from "@/lib/share-card-assets";
 import { CARD_COLORS, ShareCard, chainChipLabel } from "@/lib/share-card-layout";
 import { launchProofUrlFor } from "@/lib/launch-kit";
+import { serveCard } from "@/lib/share-card-cache";
 
 /**
  * Kartu bagikan bukti launch bersih, 1200x630: gambar `og:image` untuk `/token/<slug>?chain=&proof=1`.
@@ -36,6 +37,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const chainId = chainParam && Number.isFinite(Number(chainParam)) ? Number(chainParam) : null;
   const project = findProject(token, chainId) ?? (chainId !== null ? findProject(token) : null);
   if (!project) return new Response("Market not found.", { status: 404 });
+
+  // Penjaga render bersama; alasannya di `src/lib/share-card-cache.ts`.
+  return serveCard(req, `proof:${project.slug}:${project.chainId}`, () => renderProofCard(project));
+}
+
+async function renderProofCard(project: NonNullable<ReturnType<typeof findProject>>): Promise<Response> {
   const chain = resolveChainOrDefault(project.chainId);
 
   let proof;

@@ -59,7 +59,8 @@ export async function handle(
   api: Api = "dexscreener"
 ): Promise<NextResponse> {
   const cfg = adapterChain(chainParam);
-  const verdict = rateLimit(`${api}:${endpoint}:${cfg?.slug ?? "unknown"}:${clientIp(req)}`, LIMITS[endpoint], 60_000);
+  const ip = clientIp(req);
+  const verdict = rateLimit(`${api}:${endpoint}:${cfg?.slug ?? "unknown"}:${ip}`, LIMITS[endpoint], 60_000);
   const base = { ...CORS_HEADERS, ...rateLimitHeaders(verdict) };
   const fail = (status: number, message: string, retryAfter?: number) =>
     NextResponse.json(errorBody(api, status, message), {
@@ -70,6 +71,25 @@ export async function handle(
   if (!verdict.ok) return fail(429, "Too many requests from this address. Slow down and retry.");
   if (!cfg) return fail(404, "Unsupported chain. Use base, arbitrum, monad or robinhood.");
 
+  /**
+   * Batas permintaan BERSAMAAN per pemanggil, untuk endpoint yang memakai antrean bersama.
+   *
+   * Antrean pembacaan log per chain (`gate()` di adapter) hanya 2 aktif + 20 menunggu, dipakai
+   * bersama SEMUA pemanggil. Batas laju per menit tidak mencegah satu IP menahan 22 permintaan
+   * `/events` sekaligus — jauh di bawah 240/menit — dan selama itu indexer DEX Screener dan
+   * DEXTools yang sungguhan hanya menerima 503 "Adapter is busy". Batas ini membuat satu pemanggil
+   * tidak bisa memonopoli antrean itu; indexer sungguhan meminta secara berurutan.
+   */
+  const heavy = HEAVY_ENDPOINTS.has(endpoint);
+  const flightKey = `${api}:${endpoint}:${cfg.slug}:${ip}`;
+  if (heavy) {
+    const n = inflight.get(flightKey) ?? 0;
+    if (n >= MAX_INFLIGHT_PER_CALLER) {
+      return fail(429, "Too many concurrent requests from this address. Wait for the previous ones to finish.", 1);
+    }
+    inflight.set(flightKey, n + 1);
+  }
+
   try {
     const body = await work(cfg, new URL(req.url));
     return NextResponse.json(body, { headers: { ...base, "cache-control": cacheControl } });
@@ -77,5 +97,16 @@ export async function handle(
     if (error instanceof AdapterError) return fail(error.status, error.message, error.retryAfter);
     console.error(`[${api}] ${endpoint} ${cfg.slug}:`, error);
     return fail(500, "Internal adapter error.");
+  } finally {
+    if (heavy) {
+      const left = (inflight.get(flightKey) ?? 1) - 1;
+      if (left <= 0) inflight.delete(flightKey);
+      else inflight.set(flightKey, left);
+    }
   }
 }
+
+/** Endpoint yang membaca rentang log atau mencari blok, jadi memakai antrean bersama. */
+const HEAVY_ENDPOINTS: ReadonlySet<Endpoint> = new Set<Endpoint>(["events", "block"]);
+const MAX_INFLIGHT_PER_CALLER = 3;
+const inflight = new Map<string, number>();

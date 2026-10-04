@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { programTotals, referrerStats } from "@/lib/referral";
 import { REFERRAL_TERMS } from "@/config/growth-programs";
+import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 /**
  * `GET /api/referral/stats?address=` — angka referral satu perujuk untuk `/rewards`. Tanpa `address`,
@@ -11,6 +12,10 @@ import { REFERRAL_TERMS } from "@/config/growth-programs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  // Sama seperti `/api/referral/resolve`: seluruh berkas di-parse per panggilan, tanpa autentikasi.
+  const gate = rateLimit(`referral-stats:${clientIp(req)}`, 60, 60_000);
+  if (!gate.ok) return NextResponse.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(gate) });
+
   const address = new URL(req.url).searchParams.get("address");
   const totals = programTotals();
   if (!address) return NextResponse.json({ program: totals, termsConfirmed: REFERRAL_TERMS.confirmed });

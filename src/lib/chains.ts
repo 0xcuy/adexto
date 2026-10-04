@@ -378,7 +378,10 @@ export function resolveChain(input: string | number | null | undefined): ChainIn
   const raw = String(input).trim();
   if (!raw) return null;
 
-  if (CHAINS[raw as ChainKey]) return CHAINS[raw as ChainKey];
+  // `hasOwnProperty`, bukan `CHAINS[raw]` saja: masukan ini datang dari permintaan, dan
+  // `"constructor"`, `"toString"` atau `"__proto__"` menemukan properti prototipe yang truthy
+  // — lalu sebuah fungsi diperlakukan sebagai ChainInfo dan rute jatuh ke 500.
+  if (Object.prototype.hasOwnProperty.call(CHAINS, raw)) return CHAINS[raw as ChainKey];
 
   // 1. explicit chain id in the label, e.g. "0G Mainnet (16661)"
   const idMatch = raw.match(/\((\d{2,7})\)/);

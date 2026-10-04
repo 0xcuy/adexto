@@ -91,9 +91,36 @@ declare global {
   var __ADEXTO_TEE_CACHE__: { at: number; value: AttestationReport } | undefined;
 }
 
+/**
+ * Kegagalan juga diingat, tetapi sebentar.
+ *
+ * Hanya jawaban sukses yang dulu disimpan, jadi selama router mati SETIAP `GET /api/tee` —
+ * rute anonim tanpa batas laju — memanggil router lagi dengan kunci kami dan menunggu sampai
+ * 12 detik. Satu menit cukup untuk meredam banjir itu dan cukup singkat untuk pulih sendiri.
+ */
+const FAILURE_TTL_MS = 60_000;
+let lastFailureAt = 0;
+
 export async function agentAttestation(): Promise<AttestationReport> {
   const hit = globalThis.__ADEXTO_TEE_CACHE__;
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { ...hit.value, source: "cache" };
+  if (Date.now() - lastFailureAt < FAILURE_TTL_MS) return unreachableReport();
+  const report = await agentAttestationUncached();
+  if (!report.live) lastFailureAt = Date.now();
+  return report;
+}
+
+function unreachableReport(): AttestationReport {
+  return {
+    allAttested: false,
+    models: AGENT_MODEL_IDS.map((id) => ({ id, attested: null, tier: null, teeType: null, verifier: null })),
+    live: false,
+    fetchedAt: new Date().toISOString(),
+    source: "unreachable",
+  };
+}
+
+async function agentAttestationUncached(): Promise<AttestationReport> {
 
   const key = (process.env.OG_ROUTER_API_KEY || "").trim();
   const empty: AttestationReport = {
