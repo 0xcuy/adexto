@@ -120,9 +120,12 @@ const MODELS = [
  * adalah seluruh maksud panel ini. Sekarang garisnya utuh, latarnya putih di atas
  * kartu cream, tingginya cukup untuk disentuh, dan fokusnya punya ring supaya
  * kolom aktif terlihat tanpa bergantung pada outline bawaan peramban yang dibuang.
+ *
+ * Huruf 16 px di bawah lg (U2.3): Safari iOS memperbesar halaman setiap kali kolom berhuruf < 16 px
+ * disentuh, dan `text-sm` di situs ini hanya 12,25 px (rem 14 px). Desktop tetap `text-sm`.
  */
 const FIELD_CLASS =
-  "w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink transition-colors " +
+  "w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-[16px] text-ink transition-colors lg:text-sm " +
   "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 /**
@@ -1695,6 +1698,20 @@ export default function StudioPage() {
 
   const expressPanel = (
     <div className="space-y-3" data-testid="express-launch">
+      {/* Pintu "Agents di dalam Launch" dari sisi halaman ini (UI-POLISH §6): agen bisa meluncurkan lewat MCP
+          tanpa formulir ini. Satu baris di ponsel (11 px di bawah 640 px supaya muat di 320 px), area ketuk
+          44 px. Anchor `#launch` milik `/agents` (UI-1). */}
+      <Link
+        href="/agents#launch"
+        data-testid="studio-agent-launch"
+        className="group flex min-h-[44px] items-center gap-2 rounded-xl border border-line bg-surface px-2.5 py-2 text-[11px] font-semibold text-ink transition-colors hover:border-accent/40 hover:text-accent sm:gap-2.5 sm:px-3 sm:text-[12px]"
+      >
+        <Bot className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">Let your agent launch it over MCP</span>
+        <span aria-hidden="true" className="shrink-0 text-accent transition-transform group-hover:translate-x-0.5">
+          →
+        </span>
+      </Link>
       <div className="space-y-3 rounded-xl border border-accent/30 bg-accent-soft p-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">Launch in one step</h2>
@@ -1798,7 +1815,7 @@ export default function StudioPage() {
               <button
                 type="button"
                 onClick={clearUploadedLogo}
-                className="flex items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 py-1.5 text-xs font-bold text-ink-soft"
+                className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 text-xs font-bold text-ink-soft lg:min-h-0 lg:py-1.5"
               >
                 <XCircle className="h-3 w-3" /> Remove
               </button>
@@ -1807,7 +1824,7 @@ export default function StudioPage() {
               type="button"
               onClick={() => logoFileRef.current?.click()}
               disabled={isReadingLogo}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 text-xs font-bold text-ink disabled:opacity-50 lg:min-h-0 lg:py-1.5"
             >
               {isReadingLogo ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
               {logoSource === "uploaded" ? "Replace" : "Upload"}
@@ -1823,7 +1840,7 @@ export default function StudioPage() {
                   ? "Enter a name first: the image is drawn from it."
                   : undefined
               }
-              className="flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent-soft px-3 py-1.5 text-xs font-bold text-accent disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-accent/30 bg-accent-soft px-3 text-xs font-bold text-accent disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-0 lg:py-1.5"
             >
               {isGeneratingLogo ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
               {isGeneratingLogo ? "Rendering…" : "Generate"}
@@ -1870,7 +1887,12 @@ export default function StudioPage() {
       <div className="overflow-hidden rounded-xl border border-line bg-surface" data-testid="express-settings">
         <div className="flex items-center justify-between gap-2 border-b border-line bg-cream-2 px-3 py-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-ink">Settings used</span>
-          <button type="button" onClick={() => enterMode("advanced")} className="text-[10px] font-semibold text-accent hover:underline">
+          {/* -my supaya area ketuk 32 px di bawah lg tidak menambah tinggi baris judulnya. */}
+          <button
+            type="button"
+            onClick={() => enterMode("advanced")}
+            className="-my-2 inline-flex min-h-[32px] items-center text-[10px] font-semibold text-accent hover:underline lg:my-0 lg:min-h-0"
+          >
             Change in Advanced
           </button>
         </div>
@@ -1889,7 +1911,8 @@ export default function StudioPage() {
           </div>
           <div className="bg-surface px-3 py-2">
             <dt className="text-[9px] uppercase tracking-wider text-ink-faint">Market agent</dt>
-            <dd className="mt-0.5 truncate font-medium text-ink" title={agentPersona}>
+            {/* Dua baris di bawah 640 px (dulu satu baris terpotong ±48 huruf), satu baris mulai 640 px. */}
+            <dd className="mt-0.5 font-medium text-ink max-sm:line-clamp-2 sm:truncate" title={agentPersona}>
               {agentPersona || "none"}
             </dd>
           </div>
@@ -1924,7 +1947,8 @@ export default function StudioPage() {
         onClick={handleExpressLaunch}
         disabled={deploying || attesting || (isConnected && !expressReady)}
         data-testid="express-launch-button"
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft disabled:shadow-none"
+        // Minimal 48 px (dulu 42 px karena rem situs 14 px): tombol inilah yang meluncurkan.
+        className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft disabled:shadow-none"
       >
         {deploying || attesting ? (
           <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -1951,7 +1975,7 @@ export default function StudioPage() {
           type="button"
           onClick={copyPrefillLink}
           data-testid="express-copy-link"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-ink hover:border-accent/40"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[11px] font-semibold text-ink hover:border-accent/40 lg:min-h-0 lg:py-1.5"
         >
           {linkCopied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Link2 className="h-3.5 w-3.5" />}
           {linkCopied ? "Link copied" : "Copy launch link"}
@@ -2040,7 +2064,8 @@ export default function StudioPage() {
             <button
               onClick={() => connectWallet()}
               disabled={isConnecting}
-              className="text-warn hover:text-warn text-xs font-medium flex items-center gap-1.5 bg-warn/10 border border-warn/30 px-2 py-0.5 rounded"
+              // 36 px di bawah lg (dulu 20 px), ukuran lama di desktop.
+              className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-warn/30 bg-warn/10 px-2.5 text-xs font-medium text-warn hover:text-warn lg:min-h-0 lg:rounded lg:px-2 lg:py-0.5"
             >
               <Lock className="w-3 h-3 text-warn" /> {isConnecting ? "Connecting…" : "Connect wallet"}
             </button>
@@ -2068,7 +2093,7 @@ export default function StudioPage() {
                 key={key}
                 onClick={() => applyPreset(key)}
                 title={`Fill the whole form with the ${label} template`}
-                className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink"
+                className="inline-flex min-h-[32px] items-center whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold text-ink-soft transition-colors hover:bg-cream-3 hover:text-ink lg:min-h-0 lg:py-1"
               >
                 {label}
               </button>
@@ -2116,7 +2141,7 @@ export default function StudioPage() {
                */
               aria-label="0G model"
               title="Pick the 0G model this token's agent runs on"
-              className="flex items-center gap-1.5 bg-surface rounded-lg px-2.5 py-1.5 text-accent font-bold text-xs hover:bg-cream-3 transition-colors"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-surface px-2.5 text-xs font-bold text-accent transition-colors hover:bg-cream-3 lg:min-h-0 lg:py-1.5"
             >
               <Cpu className="w-3.5 h-3.5 shrink-0" />
               <span className="max-w-[150px] truncate">
@@ -2155,7 +2180,7 @@ export default function StudioPage() {
                           setSelectedModel(m.id);
                           setModelOpen(false);
                         }}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors ${
+                        className={`flex min-h-[40px] w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors lg:min-h-0 ${
                           active ? "bg-accent-soft text-accent" : "text-ink-soft hover:bg-cream-3 hover:text-ink"
                         }`}
                       >
@@ -2174,7 +2199,9 @@ export default function StudioPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
         {/* Left: launch control */}
-        <div className="flex min-h-[520px] flex-col rounded-card border border-line bg-surface p-3 shadow-[var(--shadow-panel)] sm:p-5 lg:col-span-8">
+        {/* `min-w-0`: rel langkah Advanced di ponsel adalah penggulir tanpa bungkus, dan tanpa ini lebar
+            isinya (±384 px) melebarkan kolom grid sehingga seluruh halaman bisa digeser ke samping. */}
+        <div className="flex min-h-[520px] min-w-0 flex-col rounded-card border border-line bg-surface p-3 shadow-[var(--shadow-panel)] sm:p-5 lg:col-span-8">
           {/* Satu wilayah `aria-live` untuk kedua mode, selalu terpasang: wilayah yang baru dipasang
               bersamaan dengan isinya sering tidak diumumkan. Hanya perubahan chain OTOMATIS yang masuk. */}
           <p className="sr-only" aria-live="polite" data-chain-live>
@@ -2532,7 +2559,7 @@ export default function StudioPage() {
                         <button
                           type="button"
                           onClick={clearUploadedLogo}
-                          className="px-3 py-1.5 rounded-lg bg-cream-2 hover:bg-cream-2 text-ink-soft border border-line text-xs font-bold flex items-center gap-1.5"
+                          className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 text-xs font-bold text-ink-soft hover:bg-cream-2 lg:min-h-0 lg:py-1.5"
                         >
                           <XCircle className="w-3 h-3" /> Remove
                         </button>
@@ -2541,7 +2568,7 @@ export default function StudioPage() {
                         type="button"
                         onClick={() => logoFileRef.current?.click()}
                         disabled={isReadingLogo}
-                        className="px-3 py-1.5 rounded-lg bg-cream-2 hover:bg-cream-2 text-ink border border-line text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                        className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-cream-2 px-3 text-xs font-bold text-ink hover:bg-cream-2 disabled:opacity-50 lg:min-h-0 lg:py-1.5"
                       >
                         {isReadingLogo ? (
                           <>
@@ -2565,7 +2592,7 @@ export default function StudioPage() {
                             ? "Your own image is in use. Remove it to generate one instead."
                             : undefined
                         }
-                        className="px-3 py-1.5 rounded-lg bg-accent-soft hover:bg-accent-soft text-accent border border-accent/30 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-accent/30 bg-accent-soft px-3 text-xs font-bold text-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-0 lg:py-1.5"
                       >
                         {isGeneratingLogo ? (
                           <>
@@ -2585,7 +2612,7 @@ export default function StudioPage() {
                         type="button"
                         onClick={() => setPresetsOpen((v) => !v)}
                         aria-expanded={presetsOpen}
-                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                        className={`flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors lg:min-h-0 lg:py-1.5 ${
                           presetsOpen || logoSource === "preset"
                             ? "border-accent/60 bg-surface text-ink"
                             : "border-line bg-cream-2 text-ink"
@@ -2917,7 +2944,7 @@ export default function StudioPage() {
                       karena di sana angkanya dibaca langsung dari router. */}
                   <a
                     href="/docs"
-                    className="px-2 py-0.5 rounded bg-accent-soft text-accent border border-accent/30 hover:underline"
+                    className="inline-flex min-h-[32px] items-center rounded border border-accent/30 bg-accent-soft px-2 text-accent hover:underline lg:min-h-0 lg:py-0.5"
                     title="0G router reports Intel TDX attestation via dstack for this model. ADEXTO reads that declaration but does not verify the raw quote."
                   >
                     0G TeeML · TDX reported
@@ -2981,7 +3008,8 @@ export default function StudioPage() {
                       type="button"
                       onClick={handleAttest}
                       disabled={attesting}
-                      className="px-3 py-1.5 rounded-lg bg-cream-3 hover:bg-cream-3 text-ink text-[11px] font-bold border border-line flex items-center gap-1 shrink-0"
+                      // 48 px di bawah lg (plan U2.3): tombol ini membuka tanda tangan wallet.
+                      className="flex min-h-[48px] shrink-0 items-center gap-1 rounded-lg border border-line bg-cream-3 px-3.5 text-[11px] font-bold text-ink hover:bg-cream-3 lg:min-h-0 lg:px-3 lg:py-1.5"
                     >
                       {attesting ? (
                         <>
@@ -3049,7 +3077,7 @@ export default function StudioPage() {
                    rasio kontras di bawah 2:1 — dan justru di keadaan inilah
                    tombolnya WAJIB terbaca, karena tulisannya adalah satu-satunya
                    tempat yang memberi tahu apa yang masih kurang. */
-                className="w-full py-3.5 rounded-xl font-bold text-sm bg-accent hover:bg-accent-strong text-white transition-colors flex items-center justify-center gap-2 shadow-lg shadow-accent/20 disabled:shadow-none disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft"
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:border disabled:border-line-strong disabled:bg-cream-3 disabled:text-ink-soft disabled:shadow-none"
               >
                 {deploying ? (
                   <>
@@ -3249,8 +3277,10 @@ export default function StudioPage() {
             </div>
             <button
               onClick={() => setMessages((prev) => prev.slice(0, 1))}
-              className="p-1 text-ink-faint hover:text-ink"
+              // Area ketuk 36 px di bawah lg (ikonnya tetap 12 px); dulu 18×18 tanpa nama aksesibel.
+              className="-my-2 inline-flex h-[36px] w-[36px] items-center justify-center rounded-lg text-ink-faint hover:text-ink lg:my-0 lg:h-auto lg:w-auto lg:p-1"
               title="Reset chat"
+              aria-label="Reset chat"
             >
               <RefreshCw className="w-3 h-3" />
             </button>
@@ -3348,7 +3378,8 @@ export default function StudioPage() {
             <button
               type="submit"
               disabled={chatLoading || !inputMessage.trim()}
-              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-accent hover:bg-accent-strong text-white disabled:opacity-50"
+              aria-label="Send"
+              className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 lg:min-h-0 lg:min-w-0 lg:py-1.5"
             >
               <Send className="w-3 h-3" />
             </button>
@@ -3461,12 +3492,19 @@ function StepRail({
 }) {
   return (
     <nav aria-label="Launch steps" className="sticky top-16 z-10 -mx-3 mb-1 bg-surface/95 px-3 pb-2 pt-1 backdrop-blur sm:-mx-4 sm:px-4">
-      <ol className="flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[10px]">
+      {/* Di bawah 640 px satu rel yang bisa digeser, bukan dua baris yang menempel di atas formulir; tautan
+          langkah 32 px di bawah lg (dulu 25 px). `relative` WAJIB: teks sr-only " — done" di tiap tautan
+          berposisi absolut, dan tanpa ini blok penampungnya adalah <nav> yang sticky, di luar penggulir.
+          Teks yang tergulir keluar lalu tidak terpotong dan melebarkan body sampai 384 px di 320 px. */}
+      {/* Pudar 24 px di tepi kanan rel ponsel: di 390 px langkah 5 (Verify) ada di luar layar, dan tanpa tanda
+          apa pun rel terlihat seperti hanya punya empat langkah (dicek dengan tangkapan layar 390 px). Padding
+          kanan yang sama membuat langkah terakhir tidak ikut pudar saat rel digeser sampai ujung. */}
+      <ol className="relative flex items-center gap-x-1 gap-y-1.5 overflow-x-auto text-[10px] [scrollbar-width:none] max-sm:flex-nowrap max-sm:pr-[24px] max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
         {steps.map((step, i) => (
-          <li key={step.id} className="flex items-center gap-1">
+          <li key={step.id} className="flex shrink-0 items-center gap-1">
             <a
               href={`#${step.id}`}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors ${
+              className={`flex min-h-[32px] items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 transition-colors lg:min-h-0 lg:py-1 ${
                 step.done
                   ? "border-ok/30 bg-ok/10 text-ok"
                   : "border-line bg-cream-2 text-ink-soft hover:text-ink"
@@ -3509,9 +3547,11 @@ function Field({
   const hintColor = hintTone === "ok" ? "text-ok" : hintTone === "error" ? "text-danger" : "text-ink-faint";
   return (
     <div className="space-y-0.5">
-      <div className="flex items-center justify-between gap-2">
+      {/* Di bawah 640 px petunjuk yang panjang turun ke barisnya sendiri dan terbaca utuh; dulu ia dipotong
+          sampai ±35 huruf di 320 px. Mulai 640 px tetap satu baris dengan ellipsis. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 sm:flex-nowrap">
         <span className="text-[11px] font-medium text-ink-soft">{label}</span>
-        {hint && <span className={`text-[10px] ${hintColor} truncate`}>{hint}</span>}
+        {hint && <span className={`text-[10px] ${hintColor} sm:truncate`}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -3675,10 +3715,12 @@ function DeployReport({
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  // Di bawah 640 px nilainya boleh turun baris (rata kanan) alih-alih dipotong: "0 — you earn from
+  // fees" dulu tinggal 14 huruf di 320 px. Mulai 640 px satu baris dengan ellipsis seperti dulu.
   return (
     <div className="flex justify-between gap-2">
       <span className="text-ink-soft shrink-0">{label}:</span>
-      <span className="text-accent font-bold truncate">{value}</span>
+      <span className="min-w-0 text-right font-bold text-accent sm:truncate">{value}</span>
     </div>
   );
 }

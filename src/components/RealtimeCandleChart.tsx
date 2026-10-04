@@ -1651,11 +1651,15 @@ export default function RealtimeCandleChart({
             (ERROR tap<24 di 360 px). Sekarang di sana satu rel yang bisa digeser, tombol 36 px, dengan
             "Indicators" di LUAR rel: popovernya akan terpotong oleh overflow rel kalau ikut di dalam. Mulai
             640 px rel menjadi `contents`, jadi semua tombol membungkus seperti sebelumnya; mulai lg ukurannya
-            kembali ke ukuran desktop lama. */}
+            kembali ke ukuran desktop lama.
+            Di rel ponsel lebar bar (1m…1d) dan rentang (1y, All) tampil PERTAMA lewat `max-sm:order-1` pada tiga
+            kelompok sakelar dan Marks: itu kontrol yang paling sering dipakai, dan di 390 px ia dulu berada di
+            luar layar, di balik USD/ETH, bentuk dan Price/MCAP (dicek dengan tangkapan layar 390 px). Urutan DOM
+            tidak berubah; sakelar-sakelar ini berdiri sendiri, jadi urutan fokus tidak mengubah artinya. */}
         <div className="flex w-full min-w-0 items-center gap-1 text-[11px] sm:w-auto sm:flex-wrap">
           <div className="-ml-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 pl-1 pr-6 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] sm:contents [&::-webkit-scrollbar]:hidden">
           {/* Satuan sumbu: dolar, atau aset native chain. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1 max-sm:ml-1">
             {(
               [
                 ["USD", "usd"],
@@ -1690,7 +1694,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Bentuk: candle, atau garis penutupan. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1">
             {(
               [
                 ["Candles", "candles", ChartCandlestick],
@@ -1714,7 +1718,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Sumbu: harga per token, atau kapitalisasi. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line">
+          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1">
             {[
               { label: "Price", on: !showMcap, set: false },
               { label: "MCAP", on: showMcap, set: true },
@@ -1858,7 +1862,7 @@ export default function RealtimeCandleChart({
                 ? "Mark your trades (B/S) and the creator's trades (D) on the chart"
                 : "Mark the creator's trades (D) on the chart. Connect a wallet to mark yours too"
             }
-            className={`${TB} ml-1 rounded font-bold border transition-colors ${
+            className={`${TB} ml-1 rounded font-bold border transition-colors max-sm:order-1 ${
               showMarks
                 ? "bg-accent-soft text-accent border-accent/30"
                 : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
