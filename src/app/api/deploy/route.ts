@@ -5,10 +5,26 @@ import { uploadMetadataTo0G } from "@/lib/upload-metadata-0g";
 import { validateProjectImage } from "@/lib/logo-image";
 import { normalizeCategory } from "@/lib/categories";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
 
 /** Satu peluncuran memanggil `prepare` sekali; lihat catatan di POST. */
 const PREPARE_LIMIT = 6;
 const PREPARE_WINDOW_MS = 10 * 60 * 1000;
+
+/** Batas field yang ditambatkan ke 0G DA dan disimpan di registry; alasannya di `handlePrepare`. */
+const MAX_NAME_CHARS = 64;
+const MAX_MODEL_CHARS = 64;
+const MAX_PERSONA_CHARS = 1_000;
+/** Label model tersimpan, mis. "0G Router (glm-5.3 · Intel TDX attested)". */
+const MAX_AGENT_MODEL_LABEL_CHARS = 96;
+/** Lebih dari jumlah chain yang ada; satu peluncuran menyebut tiap chain paling banyak sekali. */
+const MAX_TARGET_CHAINS = 16;
+
+/** Id agent ERC-8004 sebagai teks desimal uint256, atau kosong. */
+function agentIdText(value: unknown): string {
+  const text = String(value ?? "").trim();
+  return /^\d{1,78}$/.test(text) ? text : "";
+}
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { resolveChain, resolveChainOrDefault, CHAIN_LIST, readProvider } from "@/lib/chains";
 import {
@@ -27,6 +43,7 @@ import {
   readFactoryGeneration,
 } from "@/lib/dex";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
+import { publicErrorMessage } from "@/lib/public-error";
 
 /**
  * Two-stage launch API.
@@ -139,9 +156,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   let body: any;
   try {
-    body = await req.json();
-  } catch {
+    // Dibatasi: `confirm` membawa logo data URI (paling banyak 200.000 karakter), tidak lebih.
+    body = await readJsonBody(req, IMAGE_JSON_BODY_BYTES);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(e.limit);
     return NextResponse.json({ error: "Body must be valid JSON." }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
   }
 
   const stage = String(body.stage || "prepare").toLowerCase();
@@ -193,7 +215,8 @@ export async function POST(req: Request) {
     if (stage === "confirm") return await handleConfirm(body);
     return NextResponse.json({ error: `Unknown stage "${stage}". Use "prepare" or "confirm".` }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Unexpected error" }, { status: 500 });
+    console.error("[deploy]", error);
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -206,6 +229,33 @@ async function handlePrepare(body: any) {
 
   if (!name) return NextResponse.json({ error: "Token name is required." }, { status: 400 });
   if (supply <= 0) return NextResponse.json({ error: "Supply must be greater than zero." }, { status: 400 });
+
+  /**
+   * Panjang field yang ikut ditambatkan ke 0G DA DIBATASI, dan ditolak — bukan dipotong.
+   *
+   * Semuanya masuk ke dokumen metadata yang diunggah `uploadMetadataTo0G` dengan kunci dan
+   * gas KAMI, permanen. Tanpa batas, satu permintaan dengan `persona` 50 MB berarti berkas
+   * sementara 50 MB, unggahan berbayar 50 MB, dan dokumen permanen berisi teks pilihan
+   * penyerang di bawah nama kami. Ditolak, bukan dipotong, karena isinya permanen: creator
+   * harus tahu apa yang tertambat, bukan menemukannya terpotong nanti.
+   *
+   * Angkanya mengikuti antarmuka yang ada: nama 64 (`maxLength` Studio dan skema MCP),
+   * model 64 (id model terpanjang 19 karakter), mandat 1.000 (yang terpanjang di registry
+   * hari ini 175 karakter).
+   */
+  const tooLong = (
+    [
+      ["name", name, MAX_NAME_CHARS],
+      ["model", String(body.model ?? ""), MAX_MODEL_CHARS],
+      ["persona", String(body.persona ?? ""), MAX_PERSONA_CHARS],
+    ] as const
+  ).find(([, value, max]) => value.length > max);
+  if (tooLong) {
+    return NextResponse.json(
+      { error: `${tooLong[0]} is longer than ${tooLong[2]} characters.`, code: "FIELD_TOO_LONG" },
+      { status: 400 }
+    );
+  }
 
   // Tanda tangan wallet, terikat ke deployer yang diklaim, dan diverifikasi di
   // sini — bukan boolean di sisi klien. Inilah satu-satunya gerbang endpoint ini.
@@ -224,9 +274,30 @@ async function handlePrepare(body: any) {
     ? body.targetChains
     : [body.chain || "0G"];
 
+  /**
+   * Daftar chain dibatasi panjangnya dan DIDEDUPLIKASI per chainId.
+   *
+   * Sebelumnya duplikat lolos utuh ke `Promise.all` pembacaan factory di bawah, jadi
+   * `targetChains: Array(50000).fill("0G")` dari satu alamat segar menjadi ~150.000 eth_call
+   * dan 50.000 provider sekaligus — cukup untuk menghabiskan soket proses dan membuat RPC
+   * publik memblokir IP origin. Duplikat tidak pernah berarti apa-apa: satu peluncuran sekali
+   * per chain.
+   */
+  if (requested.length > MAX_TARGET_CHAINS) {
+    return NextResponse.json(
+      { error: `At most ${MAX_TARGET_CHAINS} target chains per launch.`, code: "TOO_MANY_CHAINS" },
+      { status: 400 }
+    );
+  }
+  const seenChainIds = new Set<number>();
   const chains = requested
     .map((c: string) => resolveChain(c))
-    .filter((c): c is NonNullable<typeof c> => Boolean(c));
+    .filter((c): c is NonNullable<typeof c> => Boolean(c))
+    .filter((c) => {
+      if (seenChainIds.has(c.chainId)) return false;
+      seenChainIds.add(c.chainId);
+      return true;
+    });
 
   if (chains.length === 0) {
     return NextResponse.json({ error: "No recognised target chain." }, { status: 400 });
@@ -575,7 +646,9 @@ async function handlePrepare(body: any) {
                 chains.map((c) => [
                   String(c.chainId),
                   {
-                    agentId: String((body.agentIds ?? {})[c.chainId] ?? body.agentId ?? ""),
+                    // Hanya angka desimal (uint256), seperti skema MCP. Nilai lain menjadi
+                    // kosong alih-alih teks bebas di dokumen permanen.
+                    agentId: agentIdText((body.agentIds ?? {})[c.chainId] ?? body.agentId),
                     agentRegistry: `eip155:${c.chainId}:${ADEXTO_CONTRACTS.agentRegistry.toLowerCase()}`,
                   },
                 ])
@@ -738,7 +811,38 @@ function verifyLaunchAttestation(body: any): AttestationResult {
   if (!/^0x[a-fA-F0-9]{40}$/.test(claimed)) {
     return { ok: false, error: "A valid deployer address is required." };
   }
-  if (!message.includes(claimed)) {
+  if (message.length > 400) {
+    return { ok: false, error: "The attestation message is too long." };
+  }
+
+  /**
+   * Pesannya harus pesan PELUNCURAN, bukan sembarang teks yang memuat alamat.
+   *
+   * Sebelumnya cukup `message.includes(address)` ditambah `Timestamp:`. Itu menerima tanda
+   * tangan yang dibuat untuk keperluan lain — misalnya pesan akses `ask_agent` (memuat
+   * `Address: 0x…` dan `Timestamp:`), yang dikirim sebagai argumen alat MCP dan bisa berakhir
+   * di transkrip. Dengan pesan seperti itu siapa pun bisa menjalankan `prepare` atas nama
+   * korban, dan kami membayar penambatan metadata permanen yang menyebut korban sebagai
+   * deployer dengan nama dan mandat pilihan penyerang.
+   *
+   * Templatnya satu, dipakai Studio (`signAttestation`), `launchAttestationMessage` di
+   * `src/lib/agent-launch.ts` (MCP dan agent-kit) dan skrip peluncuran di repo:
+   *
+   *   ADEXTO launch attestation
+   *   Deployer: 0x…
+   *   Ticker: SYMBOL
+   *   Timestamp: <ms>
+   *
+   * Baris `Ticker:` SENGAJA tidak dicocokkan dengan ticker permintaan. Studio menyimpan
+   * attestation yang sudah ditandatangani dan hanya membuangnya saat akun berganti, jadi creator
+   * yang menyunting ticker sesudah menandatangani akan terkunci tanpa tombol tanda tangan ulang.
+   * Awalan dan baris `Deployer:` sudah cukup untuk menolak tanda tangan dari keperluan lain.
+   */
+  if (!message.startsWith("ADEXTO launch attestation\n")) {
+    return { ok: false, error: 'The attestation message must start with "ADEXTO launch attestation".' };
+  }
+  const deployerLine = /^Deployer: (0x[a-fA-F0-9]{40})$/m.exec(message);
+  if (!deployerLine || deployerLine[1].toLowerCase() !== claimed.toLowerCase()) {
     return { ok: false, error: "The attestation message must bind the deployer address." };
   }
 
@@ -819,11 +923,49 @@ async function handleConfirm(body: any) {
   let poolNative = 0;
   let poolTokens = 0;
 
+  /**
+   * Event hanya dipercaya kalau DIPANCARKAN OLEH FACTORY ADEXTO di chain ini.
+   *
+   * Sebelumnya setiap log yang cocok dengan tanda tangan `TrinityProjectDeployed` diterima,
+   * dari kontrak mana pun. Tanda tangan event bukan rahasia: siapa saja bisa men-deploy
+   * kontrak yang memancarkan event yang sama dengan `token`, `curve` dan `creator` pilihannya
+   * sendiri. Itu membatalkan seluruh alasan identitas dibaca "dari chain":
+   *
+   *   - `creator` palsu = deployer kami atau creator proyek yang sudah terdaftar, sehingga
+   *     ticker yang direservasi (`ADEXTO`) atau ticker proyek orang lain di chain baru lolos
+   *     `checkSymbolAvailable`;
+   *   - `curve` palsu = kontrak penyerang yang terdaftar sebagai pasar di /explorer dan di
+   *     terminal token. Tombol Buy situs ini lalu mengirim native pengunjung ke kontrak itu.
+   *
+   * Hanya alamat log yang tidak bisa dipalsukan, karena EVM yang menuliskannya. Factory saat ini
+   * dan pendahulunya di chain itu sama-sama ADEXTO (token dan kurvanya dibuat factory dengan
+   * `new`), jadi keduanya diterima — sama dengan `registerLaunch` di `src/lib/agent-launch.ts`,
+   * yang sejak awal memeriksa ini.
+   */
+  const trustedFactories = new Set(
+    [chain.curveFactoryAddress, chain.supersededCurveFactoryAddress]
+      .filter((a): a is string => typeof a === "string" && /^0x[a-fA-F0-9]{40}$/.test(a))
+      .map((a) => a.toLowerCase())
+  );
+  if (trustedFactories.size === 0) {
+    return NextResponse.json({ error: `No ADEXTO factory is configured on ${chain.name}.` }, { status: 400 });
+  }
+
+  let eventName: string | null = null;
+  let eventSupply: bigint | null = null;
+  let eventDepthFeeBps: bigint | null = null;
+  let eventBuybackBps: bigint | null = null;
+
   for (const log of receipt.logs) {
+    if (!trustedFactories.has(String(log.address).toLowerCase())) continue;
     try {
       const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
       if (parsed?.name === "TrinityProjectDeployed") {
         tokenAddress = parsed.args.token;
+        eventName = String(parsed.args.name);
+        eventSupply = BigInt(parsed.args.initialSupply ?? 0);
+        eventDepthFeeBps = BigInt(parsed.args.depthFeeBps ?? 0);
+        eventBuybackBps = BigInt(parsed.args.treasuryBuybackBps ?? 0);
         // `creator` di event ini adalah `msg.sender` dari `deployTrinity`
         // (AdextoCurveFactory.sol:336). Ia datang dari chain, jadi pemanggil tidak bisa
         // memilihnya — itulah sebabnya identitas dibaca dari sini dan bukan dari body.
@@ -919,9 +1061,19 @@ async function handleConfirm(body: any) {
     }
   }
 
-  const targetChainIds = Array.isArray(body.targetChainIds) && body.targetChainIds.length > 0
-    ? body.targetChainIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id))
+  // Hanya chain yang dikenal, sekali masing-masing: daftar ini disimpan di registry dan dibaca
+  // ulang di setiap permintaan, jadi badan permintaan tidak boleh menentukan ukurannya.
+  const targetChainIds: number[] = Array.isArray(body.targetChainIds) && body.targetChainIds.length > 0
+    ? [
+        ...new Set<number>(
+          body.targetChainIds
+            .slice(0, MAX_TARGET_CHAINS)
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && Boolean(resolveChain(id)))
+        ),
+      ]
     : [chain.chainId];
+  if (targetChainIds.length === 0) targetChainIds.push(chain.chainId);
 
   /**
    * Pengikatan ERC-8004 DIBACA DARI TOKEN, bukan dari badan permintaan.
@@ -1009,17 +1161,33 @@ async function handleConfirm(body: any) {
     // hanya jatuh ke `receipt.from` bila formatnya salah — jadi alamat berformat benar milik
     // orang lain selalu menang. Temuan 2 di GHSA-g589-wjqq-86f2.
     creator,
-    name: String(body.name || symbol),
+    /**
+     * Nama, supply dan fee DARI EVENT FACTORY, bukan dari badan permintaan.
+     *
+     * Ketiganya dulu `body.name`, `body.supply`, `body.lpFeeBps` dan `body.treasuryBuybackBps`,
+     * dan `FEE_BOUNDS` hanya diperiksa di `prepare`. Jadi pasar yang diluncurkan langsung lewat
+     * factory dengan pembagian fee bermusuhan (mis. 4,9% ke creator, di bawah batas kontrak
+     * 5%) bisa didaftarkan dengan `lpFeeBps: 20` dan tampil di /explorer dan `get_market`
+     * dengan fee yang bohong. Factory memancarkan nilai yang benar-benar di-deploy, dan event
+     * itu sekarang terbukti dari factory (lihat pemeriksaan pemancar di atas). `registerLaunch`
+     * di MCP sudah lama mengirim nilai event; Studio mengirim nilai yang sama dari calldata-nya.
+     */
+    name: (eventName ?? String(body.name || symbol)).slice(0, MAX_NAME_CHARS) || symbol,
     symbol,
     chainId: chain.chainId,
     chainLabel,
     targetChainIds,
     priceNative,
-    supply: Number(String(body.supply ?? "1000000000").replace(/[^0-9]/g, "")) || 1_000_000_000,
-    lpFeeBps: Number(body.lpFeeBps ?? 20),
-    treasuryBuybackBps: Number(body.treasuryBuybackBps ?? 10),
-    agentModel: body.agentModel || AGENT_MODEL,
-    agentPersona: body.persona || undefined,
+    supply:
+      eventSupply !== null && eventSupply > 0n
+        ? Number(eventSupply)
+        : Number(String(body.supply ?? "1000000000").replace(/[^0-9]/g, "")) || 1_000_000_000,
+    lpFeeBps: eventDepthFeeBps !== null ? Number(eventDepthFeeBps) : Number(body.lpFeeBps ?? 20),
+    treasuryBuybackBps: eventBuybackBps !== null ? Number(eventBuybackBps) : Number(body.treasuryBuybackBps ?? 10),
+    // Dipotong, bukan ditolak: di titik ini pasarnya SUDAH hidup di chain, dan yang dipotong
+    // hanya teks listing. `prepare` sudah menolak nilai yang lebih panjang untuk jalur Studio.
+    agentModel: String(body.agentModel || AGENT_MODEL).slice(0, MAX_AGENT_MODEL_LABEL_CHARS),
+    agentPersona: body.persona ? String(body.persona).slice(0, MAX_PERSONA_CHARS) : undefined,
     // Dinormalkan, bukan diterima apa adanya: nilai ini menjadi tab yang terlihat publik di
     // /explorer, jadi ejaan bebas memecah satu kategori menjadi beberapa tab berisi satu
     // pasar. Yang tidak dikenal turun ke bawaan alih-alih menolak peluncuran — alasannya ada
@@ -1041,7 +1209,8 @@ async function handleConfirm(body: any) {
     txHash,
     blockNumber: receipt.blockNumber,
     teeRoot: /^0x[a-fA-F0-9]{64}$/.test(String(body.attestationRoot || "")) ? String(body.attestationRoot) : null,
-    daStorageTx: body.daStorageTx || null,
+    // Hash transaksi 0G DA, atau tidak sama sekali — bukan teks bebas di registry publik.
+    daStorageTx: /^0x[a-fA-F0-9]{64}$/.test(String(body.daStorageTx || "")) ? String(body.daStorageTx) : null,
     poolLive,
     agentIdentity,
     });

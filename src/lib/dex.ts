@@ -607,7 +607,41 @@ export function protocolLegIsCarvedOut(version: string | null): boolean {
   return major > 0 || minor >= 12;
 }
 
+/**
+ * Hasil `readFactoryGeneration` di-cache per factory, termasuk yang sedang berjalan.
+ *
+ * KENAPA BOLEH DI-CACHE: `VERSION`, `PROTOCOL_FEE_BPS` dan `protocolTreasury` adalah konstanta
+ * factory — tidak ada setter, jadi nilainya tidak berubah selama alamatnya sama. Kuncinya
+ * memuat alamat factory, sehingga mengganti factory di env otomatis membaca ulang.
+ *
+ * KENAPA PERLU: `GET /api/deploy` tanpa parameter membaca ketiganya untuk SETIAP chain pada
+ * setiap permintaan, tanpa batas laju, masing-masing dengan provider baru — satu permintaan
+ * anonim menjadi belasan eth_call ke RPC publik. Dan `prepare` membacanya per chain tujuan.
+ *
+ * Jawaban tanpa `version` (RPC gagal, atau factory 0.10.0 yang memang tidak punya `VERSION`)
+ * hanya disimpan 30 detik: cukup untuk meredam banjir, cukup singkat untuk pulih sendiri.
+ */
+const FACTORY_GEN_TTL_MS = 10 * 60_000;
+const FACTORY_GEN_MISS_TTL_MS = 30_000;
+const factoryGenCache = new Map<string, { at: number; ttl: number; value: Promise<FactoryGeneration> }>();
+
 export async function readFactoryGeneration(chain: ChainInfo): Promise<FactoryGeneration> {
+  if (!chain.curveFactoryAddress) return { version: null, protocolFeeBps: 0, protocolTreasury: null };
+  const key = `${chain.chainId}:${chain.curveFactoryAddress.toLowerCase()}`;
+  const now = Date.now();
+  const hit = factoryGenCache.get(key);
+  if (hit && now - hit.at < hit.ttl) return hit.value;
+
+  const entry = { at: now, ttl: FACTORY_GEN_MISS_TTL_MS, value: readFactoryGenerationUncached(chain) };
+  factoryGenCache.set(key, entry);
+  void entry.value.then((gen) => {
+    if (gen.version !== null) entry.ttl = FACTORY_GEN_TTL_MS;
+  });
+  return entry.value;
+}
+
+/** Tidak pernah melempar: setiap kegagalan menjadi generasi kosong. Cache di atas bergantung pada itu. */
+async function readFactoryGenerationUncached(chain: ChainInfo): Promise<FactoryGeneration> {
   const empty: FactoryGeneration = { version: null, protocolFeeBps: 0, protocolTreasury: null };
   if (!chain.curveFactoryAddress) return empty;
   try {
