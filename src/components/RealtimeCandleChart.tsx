@@ -10,15 +10,11 @@ import {
   LineStyle,
   PriceScaleMode,
   IChartApi,
-  createSeriesMarkers,
-  type ISeriesMarkersPluginApi,
-  type SeriesMarker,
   type Time,
 } from "lightweight-charts";
 import { ChartCandlestick, LineChart } from "lucide-react";
 import { formatSmallNumber } from "@/lib/pricing";
-import { tradeWallet } from "@/lib/market-stats";
-import { continuousNative, flatSinceLaunch, toUsdCandles } from "@/lib/usd-series";
+import { continuousNative, flatSinceLaunch, toUsdCandles, tradeCandles, type TradePoint } from "@/lib/usd-series";
 import { computeIndicators, toLineData, WARMUP, type Ohlc } from "@/lib/indicators";
 import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
 
@@ -153,22 +149,14 @@ interface Props {
    * MCAP dan FDV bernilai sama, dan menyebutnya "market cap" tidak melebihkan apa pun.
    */
   supply: number;
-  /** Dompet yang tersambung. Perdagangannya ditandai B/S di chart. */
+  /**
+   * Tidak dipakai lagi. Tanda B/S (dompet sendiri) dan D (peluncur) dihapus dari chart atas
+   * permintaan owner (5 Okt: "tanda buy sell belum waktunya, hapus saja"). Prop-nya tetap ada
+   * supaya pemanggil tidak perlu berubah.
+   */
   me?: string | null;
-  /** Alamat peluncur pasar. Perdagangannya ditandai DEV, supaya penjualan dev terlihat. */
   creator?: string | null;
 }
-
-/**
- * Warna tanda perdagangan. Milik sendiri memakai hijau/merah candle; milik dev memakai
- * violet/jingga supaya tidak tertukar dengan milik sendiri di bar yang sama.
- */
-const MARK_COLORS = {
-  meBuy: "#10b981",
-  meSell: "#f43f5e",
-  devBuy: "#b193ff",
-  devSell: "#f59e0b",
-} as const;
 
 /**
  * Interval sub-menit ada karena kurva yang baru lahir diperdagangkan per detik, bukan
@@ -225,10 +213,12 @@ const INTERVALS = [
  * "1y" = 365 hari terakhir, atau sejak peluncuran kalau pasarnya lebih muda. Untuk semua pasar hari
  * ini keduanya sama, dan itu jujur: riwayat pasar-pasar itu memang lebih pendek dari setahun.
  */
-const RANGES = [
-  { label: "1y", seconds: 365 * 86400 },
-  { label: "All", seconds: Number.POSITIVE_INFINITY },
-] as const;
+/**
+ * "1y" DIHAPUS (owner, 5 Okt). Pasar tertua berumur beberapa minggu, jadi 1Y selalu sama dengan
+ * All dan hanya memunculkan catatan "No data before …" yang terbaca seperti galat. Tautan lama
+ * `?range=1y` dibuka sebagai All.
+ */
+const RANGES = [{ label: "All", seconds: Number.POSITIVE_INFINITY }] as const;
 type RangeLabel = (typeof RANGES)[number]["label"];
 /**
  * Ukuran tombol toolbar. Di bawah lg 36 px (target sentuh; px karena rem situs 14 px, jadi `h-9` hanya
@@ -262,6 +252,89 @@ function autoBucket(spanSeconds: number): number {
  * berubah perilakunya.
  */
 const DATE_ONLY_FROM_SECONDS = 86400;
+
+/**
+ * Rentang harga tergambar PALING SEDIKIT 0,5% dari harga, supaya gerakan kecil tetap terlihat kecil.
+ *
+ * Autoscale murni melebarkan rentang data menjadi tinggi pane. Pada pasar yang jarang
+ * diperdagangkan, satu fill yang menggeser harga 0,06% tergambar sebagai candle raksasa yang
+ * mengisi 30–40% pane (terukur 5 Okt, PARCEL/SAI/ADEXTO; owner: "jangan segede gede gaban").
+ * Dengan lantai 0,5%, gerakan 0,06% mengisi sekitar seperdelapan rentang: terlihat, tapi kecil.
+ * Lantai 2% sempat dicoba dan meratakannya jadi garis (0,3–1,3% pane). Gerakan yang memang besar
+ * (price impact 40%, kurs dolar beberapa persen) tetap melebarkan rentangnya sendiri. Rentangnya
+ * dilebarkan simetris di sekitar tengah data.
+ */
+const MIN_PRICE_SPAN = 0.005;
+
+/** Bar paling banyak per seri, dipotong dari ujung terbaru. Lihat penjelasannya di `load()`. */
+const MAX_BARS = 100_000;
+
+/** Riwayat kurs per aset native, dipakai ulang 60 detik oleh semua chart di halaman. */
+const FX_CACHE = new Map<string, { at: number; points: Array<[number, number]> }>();
+function withMinSpan(res: any) {
+  const r = res?.priceRange;
+  if (!r) return res;
+  const mid = (r.minValue + r.maxValue) / 2;
+  if (!Number.isFinite(mid) || mid <= 0) return res;
+  const half = (mid * MIN_PRICE_SPAN) / 2;
+  if (r.maxValue - r.minValue >= half * 2) return res;
+  return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+}
+
+/**
+ * Label waktu memakai ZONA WAKTU KOMPUTER pengunjung, bukan UTC.
+ *
+ * lightweight-charts mencetak cap waktu apa adanya, yaitu dalam UTC. Owner di WIB melihat
+ * "18:28" untuk pembelian pukul 01:28 di jamnya sendiri (5 Okt). Datanya tetap UTC (bucket
+ * server, penanda trade); yang berubah hanya labelnya, lewat `Intl` di zona browser.
+ *
+ * Bar harian ke atas adalah hari UTC (bucket `floor(t / 86400)`), jadi tanggalnya dicetak
+ * dalam UTC. Kalau tidak, pengunjung di zona negatif (mis. UTC-5) melihat tiap bar harian
+ * berlabel tanggal kemarin.
+ */
+type TimeLabels = {
+  tick: (time: Time, tickMarkType: number) => string;
+  crosshair: (time: Time) => string;
+};
+function timeLabels(intervalSeconds: number): TimeLabels {
+  const daily = intervalSeconds >= DATE_ONLY_FROM_SECONDS;
+  const zone = daily ? { timeZone: "UTC" } : {};
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...o, ...zone });
+  const year = f({ year: "numeric" });
+  const month = f({ month: "short" });
+  const day = f({ day: "numeric", month: "short" });
+  const hm = f({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const hms = f({ hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  const full = daily
+    ? f({ day: "numeric", month: "short", year: "numeric" })
+    : f({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", ...(intervalSeconds < 60 ? { second: "2-digit" } : {}) });
+  const date = (t: Time) => new Date(Number(t) * 1000);
+  return {
+    // TickMarkType: 0 Year, 1 Month, 2 DayOfMonth, 3 Time, 4 TimeWithSeconds.
+    tick: (t, type) => {
+      const d = date(t);
+      if (type === 0) return year.format(d);
+      if (type === 1) return month.format(d);
+      if (!daily && (type === 2 || type === 3)) {
+        // Tanda "hari baru" dari lightweight-charts jatuh di tengah malam UTC (07:00 WIB). Di
+        // sumbu jam, tanggal dicetak di tengah malam LOKAL, dan tanda UTC itu jadi jam biasa.
+        return d.getHours() === 0 && d.getMinutes() === 0 ? day.format(d) : hm.format(d);
+      }
+      return (type === 2 ? day : type === 4 ? hms : hm).format(d);
+    },
+    crosshair: (t) => full.format(date(t)),
+  };
+}
+
+/** "UTC+7", "UTC-5", "UTC+5:30": the browser's offset now, for the label under the chart. */
+function utcOffsetLabel(): string {
+  const minutes = -new Date().getTimezoneOffset();
+  if (minutes === 0) return "UTC";
+  const sign = minutes >= 0 ? "+" : "-";
+  const h = Math.floor(Math.abs(minutes) / 60);
+  const m = Math.abs(minutes) % 60;
+  return `UTC${sign}${h}${m ? `:${String(m).padStart(2, "0")}` : ""}`;
+}
 
 /**
  * Lebar satu bar dalam PIKSEL, sama untuk setiap token dan setiap timeframe.
@@ -334,17 +407,8 @@ export default function RealtimeCandleChart({
   refreshKey,
   supply,
   launchedAt,
-  me,
-  creator,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  /** Plugin tanda perdagangan untuk seri candle dan seri garis (v5: `createSeriesMarkers`). */
-  const candleMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const lineMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  /** Tanda perdagangan menyala secara bawaan; bisa dimatikan dari toolbar. */
-  const [showMarks, setShowMarks] = useState(true);
-  /** Ringkasan tanda yang sedang tergambar, dipasang sebagai atribut data untuk pemeriksaan. */
-  const [markSummary, setMarkSummary] = useState({ me: 0, dev: 0, bars: 0 });
   /**
    * Kontainer dan chart TERPISAH untuk osilator (RSI, MACD).
    *
@@ -382,6 +446,14 @@ export default function RealtimeCandleChart({
   const overlayRefs = useRef<Partial<Record<string, any>>>({});
   const paneRefs = useRef<Partial<Record<string, any>>>({});
   const candlesRef = useRef<Candle[]>([]);
+  /** Tanda tangan data yang sedang tergambar; lihat penjelasannya di `load()`. */
+  const drawnSigRef = useRef("");
+  /**
+   * Ringkasan seri yang tergambar, dipasang sebagai atribut data di kontainer chart untuk
+   * pemeriksaan otomatis: bar pertama/terakhir, jumlah, bucket yang bolong, bar bervolume, dan
+   * satuan yang benar-benar digambar.
+   */
+  const [drawStats, setDrawStats] = useState<{ first: number; last: number; count: number; gaps: number; volBars: number; unit: string } | null>(null);
   /**
    * Whether the visible range has been fitted for the current symbol/timeframe.
    *
@@ -470,7 +542,8 @@ export default function RealtimeCandleChart({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get("tf");
-    const rawRange = params.get("range");
+    // Tautan lama `?range=1y` dibuka sebagai All (1y sudah dihapus).
+    const rawRange = params.get("range") === "1y" ? "all" : params.get("range");
     const pickedRange = RANGES.find((r) => r.label.toLowerCase() === rawRange);
     if (pickedRange) {
       // Lebar bar rentang dihitung ulang dari umur sekarang, bukan dipercaya dari `tf` di URL:
@@ -513,8 +586,17 @@ export default function RealtimeCandleChart({
    * bawahnya menyiratkan sesuatu terjadi pada jam itu.
    */
   useEffect(() => {
-    chartRef.current?.timeScale().applyOptions({ timeVisible: interval < DATE_ONLY_FROM_SECONDS });
+    const chart = chartRef.current;
+    if (!chart) return;
+    const labels = timeLabels(interval);
+    chart.applyOptions({
+      timeScale: { timeVisible: interval < DATE_ONLY_FROM_SECONDS, tickMarkFormatter: labels.tick },
+      localization: { timeFormatter: labels.crosshair },
+    });
   }, [interval]);
+  // Dibaca sesudah mount: di server zona waktunya UTC, dan label itu akan berbeda saat hidrasi.
+  const [utcOffset, setUtcOffset] = useState<string | null>(null);
+  useEffect(() => setUtcOffset(utcOffsetLabel()), []);
   const [priceNative, setPriceNative] = useState(fallbackPriceNative);
   const [changePct, setChangePct] = useState(0);
   const [source, setSource] = useState<string>("");
@@ -571,20 +653,6 @@ export default function RealtimeCandleChart({
   const oscillators = PANES.filter((p) => enabled[p.key] && candleCount >= (WARMUP[p.warmupKey] ?? 1));
   const hasOscillator = oscillators.length > 0;
 
-  /**
-   * Rentang yang lebih panjang daripada umur pasar dinyatakan apa adanya: tidak ada data
-   * sebelum peluncuran. Chart-nya sendiri dimulai di peluncuran (atau di perdagangan pertama),
-   * dan catatan ini menyebut tanggalnya supaya "1Y" tidak terbaca sebagai setahun riwayat.
-   * Tanggal memakai zona waktu pembaca; `range` baru terisi di browser, jadi tidak ada selisih
-   * render server dan klien.
-   */
-  const noDataBefore = (() => {
-    if (range !== "1y" || !launchedAt || !(launchedAt > 0)) return null;
-    const span = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
-    if (Math.floor(Date.now() / 1000) - launchedAt >= span) return null;
-    return new Date(launchedAt * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  })();
-
   // Ikut berganti saat tema diganti, tanpa membuat ulang chart (data dan zoom tetap).
   useEffect(() => {
     const onTheme = (e: Event) => {
@@ -619,7 +687,11 @@ export default function RealtimeCandleChart({
         secondsVisible: false,
         fixLeftEdge: true,
         rightOffset: 0,
+        // Jam komputer pengunjung sejak lukisan pertama. Efek `interval` di atas memasangnya
+        // ulang saat interval berganti, tapi ia berjalan SEBELUM chart ini ada.
+        tickMarkFormatter: timeLabels(interval).tick,
       },
+      localization: { timeFormatter: timeLabels(interval).crosshair },
       /**
        * `minimumWidth` DIPATOK, dan angkanya harus sama dengan chart osilator.
        *
@@ -731,13 +803,9 @@ export default function RealtimeCandleChart({
         if (!Number.isFinite(mid) || mid <= 0) return res;
         const span = range.maxValue - range.minValue;
 
-        // Kasus degenerat: seluruh seri satu harga, jadi rentangnya nol lebar. Diberi
-        // bantalan tipis supaya pustaka chart tidak membagi dengan nol. Garis datarnya
-        // memang jujur — tidak ada yang trading.
-        if (span <= 0) {
-          const half = mid * 0.0005;
-          return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
-        }
+        // Kasus degenerat (seluruh seri satu harga) dan gerakan yang sangat kecil: rentang
+        // tergambar paling sedikit `MIN_PRICE_SPAN` dari harga. Lihat `withMinSpan`.
+        if (span < mid * MIN_PRICE_SPAN) return withMinSpan(res);
 
         /**
          * Badan candle TERBESAR dibatasi porsinya terhadap rentang yang tergambar.
@@ -786,19 +854,21 @@ export default function RealtimeCandleChart({
         if (maxBody > 0 && maxBody > span * MAX_BODY_SHARE) {
           const wanted = maxBody / MAX_BODY_SHARE;
           const half = Math.min(wanted, span * MAX_RANGE_GROWTH) / 2;
-          return { ...res, priceRange: { minValue: mid - half, maxValue: mid + half } };
+          return withMinSpan({ ...res, priceRange: { minValue: mid - half, maxValue: mid + half } });
         }
-        return res;
+        return withMinSpan(res);
       },
     });
 
-    // Seri garis: penutupan saja. Dibuat sekarang, ditampilkan hanya saat diminta.
+    // Seri garis: penutupan saja. Dibuat sekarang, ditampilkan hanya saat diminta. Rentang
+    // minimumnya sama dengan seri candle, kalau tidak gerakan kecil membesar lagi di mode garis.
     const lineSeries = chart.addSeries(LineSeries, {
       color: "#b193ff",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
       visible: false,
+      autoscaleInfoProvider: (original: () => any) => withMinSpan(original()),
       priceFormat: {
         type: "custom",
         formatter: (p: number) => formatSmallNumber(p, sigDigitsRef.current),
@@ -836,10 +906,6 @@ export default function RealtimeCandleChart({
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
-    // Satu plugin per seri: tanda di seri yang sedang disembunyikan ikut tersembunyi, jadi
-    // keduanya diisi sama dan yang tampil mengikuti bentuk chart.
-    candleMarksRef.current = createSeriesMarkers(candleSeries, []);
-    lineMarksRef.current = createSeriesMarkers(lineSeries, []);
 
     /**
      * ResizeObserver, bukan hanya event `resize` window.
@@ -868,8 +934,6 @@ export default function RealtimeCandleChart({
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
-      candleMarksRef.current = null;
-      lineMarksRef.current = null;
       overlayRefs.current = {};
       paneRefs.current = {};
     };
@@ -1119,40 +1183,60 @@ export default function RealtimeCandleChart({
         const data = await res.json();
         if (cancelled) return null;
 
-        let candles: Candle[] = Array.isArray(data.candles) ? data.candles : [];
         /**
-         * Rentang menyesuaikan lebar barnya dengan riwayat yang BENAR-BENAR ada.
-         *
-         * Lebar awal dipilih dari umur sejak peluncuran, karena itu satu-satunya yang diketahui
-         * sebelum data datang. Tapi riwayat harga dimulai di perdagangan pertama, dan keduanya
-         * bisa berjarak jauh: $ADEXTO berumur 23 hari, perdagangan pertamanya 5,5 hari lalu. Bar
-         * 4 jam untuk 5,5 hari hanya 33 candle gemuk; bar 1 jam memberi 132 yang terbaca.
-         *
-         * Hanya BOLEH menyempit (`want < interval`), jadi ini selalu berhenti setelah satu
-         * langkah: perdagangan pertama tidak bergeser karena lebar bar berubah.
+         * Candle dibangun DI SINI dari seluruh perdagangan sejak peluncuran (`data.trades`), untuk
+         * lebar bar yang dipilih. `data.candles` dari server tidak dipakai lagi: jendelanya 600
+         * bucket, jadi 1m berhenti 10 jam ke belakang dan 5m dua hari. Lihat `tradeCandles`.
          */
-        if (range && candles.length > 0) {
-          const spanDef = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
-          const firstT = Math.min(...candles.map((c) => c.time));
-          const dataSpan = Math.max(3600, Math.floor(Date.now() / 1000) - firstT);
-          const want = autoBucket(Math.min(spanDef, dataSpan));
-          if (want < interval) {
-            // Efek ini dibangun ulang dengan lebar baru dan memuat sendiri; hitungan trade
-            // tetap dikembalikan supaya pengejar pasca-trade punya syarat berhenti.
-            setIntervalSeconds(want);
-            return Number(data.totalTrades || 0);
+        const trades: TradePoint[] = Array.isArray(data.trades) ? data.trades : [];
+        const totalTrades = Number(data.totalTrades || 0);
+
+        // Kurs dolar (sumbu USD), disimpan 60 detik: polling 15 detik tidak perlu mengambilnya lagi.
+        let fxPoints: Array<[number, number]> = [];
+        if (unit === "usd") {
+          const hit = FX_CACHE.get(nativeSymbol);
+          if (hit && Date.now() - hit.at < 60_000) fxPoints = hit.points;
+          else {
+            try {
+              const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
+              const fx = fxRes.ok ? await fxRes.json() : null;
+              fxPoints = Array.isArray(fx?.points) ? fx.points : [];
+              if (fxPoints.length) FX_CACHE.set(nativeSymbol, { at: Date.now(), points: fxPoints });
+            } catch {
+              // Riwayat kurs tidak terbaca: sumbu jatuh ke native di bawah.
+            }
+            if (cancelled) return null;
           }
         }
-        // Rentang "1y" memotong apa pun yang lebih tua dari setahun.
-        let rangeFrom = 0;
-        if (range) {
-          const spanDef = RANGES.find((r) => r.label === range)?.seconds ?? Number.POSITIVE_INFINITY;
-          if (Number.isFinite(spanDef)) {
-            const from = Math.floor(Date.now() / 1000) - spanDef;
-            rangeFrom = from;
-            candles = candles.filter((c) => c.time >= from);
+
+        /**
+         * Tidak ada yang berubah sejak gambar terakhir: lewati. Seri dari peluncuran bisa puluhan
+         * ribu bar pada 1m, dan membangunnya ulang tiap 15 detik membebani ponsel. Yang membuat
+         * gambar berubah hanyalah perdagangan baru, bucket baru (jam maju), kurs baru, atau
+         * pilihan tampilan, dan semuanya ada di tanda tangan ini.
+         */
+        const sig = [
+          symbol,
+          chainId,
+          totalTrades,
+          (trades[0] as { id?: string } | undefined)?.id ?? "",
+          interval,
+          range ?? "",
+          unit,
+          showMcap,
+          chartKind,
+          Math.floor(Date.now() / 1000 / interval),
+          fxPoints.length ? fxPoints[fxPoints.length - 1][0] : 0,
+        ].join(":");
+        if (sig === drawnSigRef.current && candlesRef.current.length > 0) {
+          if (Number.isFinite(data.priceNative) && data.priceNative > 0) {
+            setPriceNative(data.priceNative);
+            setChangePct(Number(data.changePct) || 0);
           }
+          return totalTrades;
         }
+
+        let candles: Candle[] = tradeCandles(trades, interval, fallbackPriceNative);
         /**
          * Tidak ada bar sebelum peluncuran, dari sumber mana pun.
          *
@@ -1163,72 +1247,41 @@ export default function RealtimeCandleChart({
           const launchBucket = Math.floor(launchedAt / interval) * interval;
           candles = candles.filter((c) => c.time >= launchBucket);
         }
-        const totalTrades = Number(data.totalTrades || 0);
 
         /**
-         * Konversi ke dolar memakai kurs yang DIREKAM, bukan kurs sekarang.
+         * Dari LAHIRNYA token sampai sekarang, di setiap lebar bar dan kedua sumbu, satu bar per
+         * bucket (owner, 5 Okt: "token lahir berarti history harus ada"). Bucket tanpa perdagangan
+         * datar pada harga yang berlaku, bervolume nol.
          *
-         * Alasannya ada di `src/lib/usd-series.ts`. Yang penting di sini: kalau rekamannya
-         * belum cukup untuk menutupi seri ini, tampilannya JATUH ke native dan mengatakan
-         * kenapa — bukan menggambar dolar dari kurs yang salah zaman.
-         */
-        /**
-         * Chart dimulai di awal jendelanya, BUKAN di fill pertama di dalamnya.
+         * `MAX_BARS` memotong dari ujung TERBARU dan hanya tercapai pada interval detik (1s ≈ 28
+         * jam, 15s ≈ 17 hari) atau pada pasar yang jauh lebih tua dari pasar mana pun hari ini
+         * (1m ≈ 69 hari). Tampilan awal tetap bar terbaru; riwayat sampai peluncuran ada di kiri.
          *
-         * Server hanya mengirim candle mulai fill pertama di jendela 600 bucket-nya. Dulu chart
-         * dimulai di candle itu, jadi pembelian baru membuat chart seolah mulai dari nol: SAI/42161
-         * 26 bar sesudah dibeli pukul 18:28, sementara pasar yang sepi tampil 600 bar kontinu
-         * (terukur 5 Okt). Waktu sebelum fill pertama diisi dengan harga yang berlaku saat itu.
-         * Lihat `windowStartSeconds` di `src/lib/usd-series.ts`.
+         * Sumbu USD memakai kurs yang DIREKAM per bucket (`toUsdCandles`). Rekamannya dimulai
+         * 30 Agu 2026, sebelum pasar mana pun lahir. Kalau kurs tidak terbaca, sumbu jatuh ke native.
          */
-        const CHART_BARS = 600;
-        const windowStart = Math.max(
-          Math.floor(Date.now() / 1000) - (CHART_BARS - 1) * interval,
-          rangeFrom,
-          launchedAt && launchedAt > 0 ? launchedAt : 0
-        );
+        const windowStart = launchedAt && launchedAt > 0 ? launchedAt : candles[0]?.time ?? 0;
         let inUsd = false;
-        // Tidak lagi mensyaratkan `candles.length > 0`: syarat itulah yang membuat pasar tanpa
-        // fill menampilkan pane kosong, dan itu berlaku untuk SEMUA pasar baru, bukan satu.
-        if (unit === "usd") {
-          try {
-            const fxRes = await fetch(`/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`);
-            const fx = fxRes.ok ? await fxRes.json() : null;
-            const points: Array<[number, number]> = Array.isArray(fx?.points) ? fx.points : [];
-            const converted = toUsdCandles(
-              candles,
-              points,
-              interval,
-              undefined,
-              CHART_BARS,
-              fallbackPriceNative,
-              launchedAt ?? 0,
-              windowStart
-            );
-            if (converted.candles.length === 0) {
-              // Tidak ada kurs terekam untuk rentang ini: sumbu tetap native. Tidak ada
-              // kalimat di layar — satuan yang tampil sudah menyatakannya.
-            } else {
-              candles = converted.candles;
-              inUsd = true;
-            }
-          } catch {
-            // Riwayat kurs tidak terbaca: sumbu tetap native, tanpa kalimat tambahan.
+        if (unit === "usd" && fxPoints.length > 0) {
+          const converted = toUsdCandles(
+            candles,
+            fxPoints,
+            interval,
+            undefined,
+            MAX_BARS,
+            fallbackPriceNative,
+            launchedAt ?? 0,
+            windowStart
+          );
+          if (converted.candles.length > 0) {
+            candles = converted.candles;
+            inUsd = true;
           }
         }
-        // Sumbu native (dipilih, atau kurs tidak terbaca): satu bar per bucket sampai sekarang,
-        // datar bila tidak ada perdagangan. Lihat `continuousNative`.
-        if (!inUsd) candles = continuousNative(candles, interval, windowStart, undefined, CHART_BARS);
-
-        /**
-         * Pasar yang belum pernah ditradingkan tetap punya chart sejak ia lahir.
-         *
-         * Kurva memberi harga sejak transaksi peluncuran, jadi yang digambar adalah harga itu,
-         * datar dan bervolume nol, dari peluncuran sampai sekarang. Sumbu USD sudah melakukannya
-         * lewat `toUsdCandles`; ini menutup sumbu native dan kasus kurs tidak terbaca.
-         */
+        if (!inUsd) candles = continuousNative(candles, interval, windowStart, undefined, MAX_BARS);
+        // Belum pernah ditradingkan (dan sumbu native): harga kurva, datar, sejak peluncuran.
         if (candles.length === 0 && launchedAt && launchedAt > 0) {
-          candles = flatSinceLaunch(launchedAt, fallbackPriceNative, interval);
+          candles = flatSinceLaunch(launchedAt, fallbackPriceNative, interval, undefined, MAX_BARS);
         }
 
         setSource(String(data.source || ""));
@@ -1266,8 +1319,13 @@ export default function RealtimeCandleChart({
            * 4..12: di bawah 4 tidak informatif, di atas 12 sudah melewati presisi ganda
            * dan hanya memanjangkan label.
            */
-          const lo = Math.min(...sorted.map((c) => c.low));
-          const hi = Math.max(...sorted.map((c) => c.high));
+          // Perulangan, bukan `Math.min(...arr)`: puluhan ribu argumen melampaui batas tumpukan.
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (const c of sorted) {
+            if (c.low < lo) lo = c.low;
+            if (c.high > hi) hi = c.high;
+          }
           const relSpan = hi > 0 ? (hi - lo) / hi : 0;
           sigDigitsRef.current =
             relSpan > 0 ? Math.min(12, Math.max(4, Math.ceil(-Math.log10(relSpan)) + 2)) : 4;
@@ -1309,57 +1367,22 @@ export default function RealtimeCandleChart({
           );
           drawIndicators(sorted);
           setLegend(sorted[sorted.length - 1]);
-
-          /**
-           * Tanda perdagangan: milik dompet yang tersambung (B/S) dan milik peluncur (DEV).
-           *
-           * Satu tanda per bar per jenis per arah, dengan hitungan bila lebih dari satu —
-           * sepuluh panah bertumpuk di satu bar tidak terbaca. Hanya bar yang ADA di seri yang
-           * ditandai: tanda untuk waktu tanpa bar akan ditaruh pustaka di bar terdekat dan
-           * menyatakan perdagangan terjadi pada waktu yang salah.
-           *
-           * Dompet sebuah perdagangan adalah penerima token untuk beli dan penjual untuk jual
-           * (`tradeWallet`), jadi pembelian lewat relai x402 ditandai milik pembelinya.
-           */
-          const meL = (me || "").toLowerCase();
-          const devL = (creator || "").toLowerCase();
-          const barTimes = new Set(sorted.map((c) => c.time));
-          const groups = new Map<string, { time: number; kind: "me" | "dev"; buy: boolean; n: number }>();
-          if (showMarks && (meL || devL) && Array.isArray(data.trades)) {
-            for (const t of data.trades as Array<{ type: string; timestamp: string; trader: string; recipient?: string | null }>) {
-              if (t.type !== "BUY" && t.type !== "SELL") continue;
-              const wallet = tradeWallet(t);
-              const kind = meL && wallet === meL ? "me" : devL && wallet === devL ? "dev" : null;
-              if (!kind) continue;
-              const seconds = Math.floor(Date.parse(t.timestamp) / 1000);
-              if (!Number.isFinite(seconds)) continue;
-              const time = Math.floor(seconds / interval) * interval;
-              if (!barTimes.has(time)) continue;
-              const buy = t.type === "BUY";
-              const key = `${time}:${kind}:${buy}`;
-              const g = groups.get(key);
-              if (g) g.n += 1;
-              else groups.set(key, { time, kind, buy, n: 1 });
-            }
+          // Tanda B/S/D tidak digambar lagi (owner, 5 Okt). Gambar ini selesai: catat tanda
+          // tangannya supaya polling berikutnya tidak membangunnya ulang tanpa perubahan.
+          drawnSigRef.current = sig;
+          let gaps = 0;
+          let volBars = 0;
+          for (let i = 0; i < sorted.length; i++) {
+            if (i > 0 && sorted[i].time - sorted[i - 1].time !== interval) gaps += 1;
+            if (sorted[i].volume > 0) volBars += 1;
           }
-          const marks: SeriesMarker<Time>[] = [...groups.values()]
-            .sort((a, b) => a.time - b.time)
-            .map((g) => ({
-              time: g.time as Time,
-              position: g.buy ? "belowBar" : "aboveBar",
-              shape: g.buy ? "arrowUp" : "arrowDown",
-              color: g.kind === "me" ? (g.buy ? MARK_COLORS.meBuy : MARK_COLORS.meSell) : g.buy ? MARK_COLORS.devBuy : MARK_COLORS.devSell,
-              // Label satu huruf: pada bar yang berdekatan label panjang ("DEV B ×4") saling
-              // menimpa dan tidak terbaca. Arah panah dan warna sudah menyatakan beli/jual dan
-              // milik siapa; "D" = peluncur.
-              text: g.kind === "me" ? (g.buy ? "B" : "S") : "D",
-            }));
-          candleMarksRef.current?.setMarkers(marks);
-          lineMarksRef.current?.setMarkers(marks);
-          setMarkSummary({
-            me: [...groups.values()].filter((g) => g.kind === "me").reduce((s, g) => s + g.n, 0),
-            dev: [...groups.values()].filter((g) => g.kind === "dev").reduce((s, g) => s + g.n, 0),
-            bars: marks.length,
+          setDrawStats({
+            first: sorted[0].time,
+            last: sorted[sorted.length - 1].time,
+            count: sorted.length,
+            gaps,
+            volBars,
+            unit: inUsd ? "usd" : "native",
           });
 
           /**
@@ -1564,7 +1587,7 @@ export default function RealtimeCandleChart({
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol, me, creator, showMarks]);
+  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -1868,11 +1891,7 @@ export default function RealtimeCandleChart({
                   setIntervalSeconds(bucket);
                 }}
                 aria-pressed={range === r.label}
-                title={
-                  r.label === "All"
-                    ? "The whole history, from the first trade (or from launch before any trade), with the candle width picked to fit"
-                    : "The last 365 days, or since launch for a younger market, with the candle width picked to fit"
-                }
+                title="The whole history since launch, with the candle width picked to fit"
                 className={`${TB} rounded font-bold border transition-colors ${
                   range === r.label
                     ? "bg-accent-soft text-accent border-accent/30"
@@ -1884,24 +1903,6 @@ export default function RealtimeCandleChart({
             );
           })}
 
-          {/* Tanda perdagangan milik sendiri (B/S) dan milik peluncur (DEV). */}
-          <button
-            type="button"
-            onClick={() => setShowMarks((v) => !v)}
-            aria-pressed={showMarks}
-            title={
-              me
-                ? "Mark your trades (B/S) and the creator's trades (D) on the chart"
-                : "Mark the creator's trades (D) on the chart. Connect a wallet to mark yours too"
-            }
-            className={`${TB} ml-1 rounded font-bold border transition-colors max-sm:order-1 ${
-              showMarks
-                ? "bg-accent-soft text-accent border-accent/30"
-                : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
-            }`}
-          >
-            Marks
-          </button>
           </div>
 
           <div className="relative shrink-0 sm:ml-1">
@@ -2003,20 +2004,15 @@ export default function RealtimeCandleChart({
           ref={containerRef}
           className="w-full flex-1 min-h-[340px] overflow-hidden rounded-xl sm:min-h-[460px] [&_#tv-attr-logo]:bottom-[3.5px] [&_#tv-attr-logo]:h-[32px] [&_#tv-attr-logo]:py-[6.5px]"
           data-testid="price-chart"
-          data-marks-me={markSummary.me}
-          data-marks-dev={markSummary.dev}
-          data-marks-bars={markSummary.bars}
+          data-launched={launchedAt ?? 0}
+          data-interval={interval}
+          data-bars-first={drawStats?.first ?? 0}
+          data-bars-last={drawStats?.last ?? 0}
+          data-bars-count={drawStats?.count ?? 0}
+          data-bars-gaps={drawStats?.gaps ?? 0}
+          data-bars-volume={drawStats?.volBars ?? 0}
+          data-bars-unit={drawStats?.unit ?? ""}
         />
-        {noDataBefore !== null && (
-          <div
-            className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%] rounded-md border border-line bg-surface/90 px-2 py-1 text-[12px] leading-snug text-ink-soft"
-            data-testid="chart-no-data"
-            role="note"
-          >
-            <span className="font-semibold text-ink">No data before {noDataBefore}.</span> This market launched on
-            that day, so {range === "1y" ? "1Y" : "this range"} shows its whole history.
-          </div>
-        )}
       </div>
 
       {/**
@@ -2073,6 +2069,11 @@ export default function RealtimeCandleChart({
           </span>
           Source: <span className={source === "onchain" ? "text-ok" : "text-warn"}>{sourceLabel}</span>
           {tradeCount > 0 ? ` · ${tradeCount} fills · ${candleCount} bars` : ""}
+          {utcOffset ? (
+            <span title={interval >= DATE_ONLY_FROM_SECONDS ? "Daily bars are UTC days." : "Times follow your computer's time zone."}>
+              {` · times ${interval >= DATE_ONLY_FROM_SECONDS ? "UTC" : utcOffset}`}
+            </span>
+          ) : null}
           {/* TIDAK ada catatan "recorded rates / no trades" di sini.
               Ia pernah ada, dan itu keliru: kalimat seperti itu menjelaskan cara kerja mesin
               kepada orang yang sedang melihat harga, dan layar ini sudah mengatakan hal yang

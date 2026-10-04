@@ -269,6 +269,58 @@ export function toUsdCandles(
   return { candles: out, droppedBefore: dropped, fxOnly };
 }
 
+/** Satu perdagangan dari `/api/agent/telemetry` (`trades`), cukup untuk membangun candle. */
+export interface TradePoint {
+  timestamp: string;
+  priceNative: number;
+  priceNativeAfter?: number | null;
+  amountNative: number;
+  blockNumber?: number | null;
+}
+
+/**
+ * Candle untuk bucket yang BERISI perdagangan, dibangun di browser dari SEMUA perdagangan sejak
+ * peluncuran, untuk lebar bar apa pun.
+ *
+ * Kenapa tidak memakai `candles` dari server: server membangunnya di jendela 600 bucket terakhir,
+ * jadi pada 1m riwayatnya berhenti 10 jam ke belakang, pada 5m dua hari (owner, 5 Okt: "kemana
+ * sebelum-sebelumnya waktunya?"). Daftar perdagangannya sendiri lengkap sejak peluncuran, jadi
+ * candle dari daftar itu menjangkau sampai lahirnya token.
+ *
+ * Aturannya sama dengan `buildCandles` di server: harga = `priceNativeAfter ?? priceNative`
+ * (harga kurva sesudah perdagangan); `open` = penutupan bucket berisi sebelumnya, atau harga
+ * peluncuran untuk bucket pertama; high/low memuat `open`; volume = jumlah native.
+ */
+export function tradeCandles(trades: TradePoint[], intervalSeconds: number, launchPrice: number): Candle[] {
+  if (!(intervalSeconds > 0)) return [];
+  const points = trades
+    .map((t) => ({
+      s: Math.floor(Date.parse(t.timestamp) / 1000),
+      p: Number(t.priceNativeAfter ?? t.priceNative),
+      v: Number(t.amountNative) || 0,
+      b: Number(t.blockNumber ?? 0),
+    }))
+    .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.p) && x.p > 0)
+    .sort((a, b) => a.s - b.s || a.b - b.b);
+  const out: Candle[] = [];
+  let prev = launchPrice > 0 ? launchPrice : 0;
+  for (const x of points) {
+    const time = Math.floor(x.s / intervalSeconds) * intervalSeconds;
+    const last = out[out.length - 1];
+    if (last && last.time === time) {
+      last.high = Math.max(last.high, x.p);
+      last.low = Math.min(last.low, x.p);
+      last.close = x.p;
+      last.volume += x.v;
+    } else {
+      const open = prev > 0 ? prev : x.p;
+      out.push({ time, open, high: Math.max(open, x.p), low: Math.min(open, x.p), close: x.p, volume: x.v });
+    }
+    prev = x.p;
+  }
+  return out;
+}
+
 /**
  * Sumbu native (0G, MON, ETH): SATU bar per bucket dari awal jendela sampai SEKARANG, untuk
  * semua pasar. Waktu selalu maju. Bucket tanpa perdagangan diisi datar pada harga yang berlaku,
