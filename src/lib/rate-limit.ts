@@ -1,4 +1,4 @@
-import { isCloudflareIp } from "@/lib/cloudflare-ips";
+import { ipBucket, isCloudflareIp } from "@/lib/cloudflare-ips";
 
 /**
  * Pembatas laju untuk endpoint publik yang membelanjakan uang.
@@ -33,25 +33,130 @@ import { isCloudflareIp } from "@/lib/cloudflare-ips";
  * diperiksa, bukan diasumsikan.
  */
 
-type Hits = number[];
+/**
+ * Satu keranjang: stempel waktu permintaan di jendelanya, ditambah jendela dan batas MILIK
+ * keranjang itu sendiri.
+ *
+ * KENAPA JENDELA DAN BATAS IKUT DISIMPAN
+ *
+ * Versi sebelumnya menyimpan stempel waktunya saja, lalu saat Map penuh menilai "basi" memakai
+ * jendela PEMANGGIL yang kebetulan sedang berjalan. Akibatnya `/api/agent/ping` (jendela 60 s)
+ * menghapus keranjang `agentkeys:post` (jendela 1 jam) yang baru diam 61 detik — termasuk
+ * keranjang yang sedang MEMBLOKIR seseorang. Dan bila Map masih penuh, kunci tertua dibuang
+ * tanpa melihat isinya. Penyerang yang bisa mencetak kunci baru (alamat segar ke `ask_agent`,
+ * atau alamat IPv6 yang diputar) bisa mengosongkan keranjang mana pun, termasuk batas global
+ * `pay_and_buy`. Dengan jendela dan batasnya tersimpan, keranjang hanya dibuang ketika ia
+ * benar-benar kedaluwarsa menurut aturannya sendiri.
+ */
+interface Bucket {
+  hits: number[];
+  windowMs: number;
+  limit: number;
+}
 
-const GLOBAL_KEY = "__adextoRateLimit" as const;
+/**
+ * Nama baru, bukan `__adextoRateLimit`. Map lama berisi `number[]`, dan `globalThis` bisa
+ * menyimpannya melewati hot-reload; nama baru berarti bentuk lama tidak pernah terbaca sebagai
+ * `Bucket`. Isinya tetap divalidasi per entri di bawah, untuk perubahan bentuk berikutnya.
+ */
+const STORE_KEY = "__adextoRateLimitV2" as const;
+const PINNED_KEY = "__adextoRateLimitPinned" as const;
 
-function store(): Map<string, Hits> {
+function mapAt(name: string): Map<string, Bucket> {
   const g = globalThis as unknown as Record<string, unknown>;
-  const existing = g[GLOBAL_KEY];
-  if (existing instanceof Map) return existing as Map<string, Hits>;
-  const fresh = new Map<string, Hits>();
-  g[GLOBAL_KEY] = fresh;
+  const existing = g[name];
+  if (existing instanceof Map) return existing as Map<string, Bucket>;
+  const fresh = new Map<string, Bucket>();
+  g[name] = fresh;
   return fresh;
+}
+
+function hitsOf(b: Bucket | undefined): number[] {
+  return b && Array.isArray(b.hits) ? b.hits : [];
 }
 
 /**
  * Jumlah kunci maksimum yang disimpan. Tanpa batas ini, satu pemindai yang memutar IP
  * palsu di header akan menumbuhkan Map sampai proses mati — mengubah pembatas laju menjadi
  * jalur denial-of-service, yang justru kebalikan dari gunanya.
+ *
+ * 10.000, naik dari 5.000: kunci sekarang per /64 untuk IPv6 sehingga lebih sedikit kunci per
+ * pengunjung, dan ruang yang lebih lebar membuat penggusuran (yang selalu kehilangan
+ * informasi) lebih jarang terjadi. Kasus terburuknya 10.000 × 240 stempel × 8 byte ≈ 19 MB.
  */
-const MAX_KEYS = 5_000;
+const MAX_KEYS = 10_000;
+
+/** Kunci global ditulis di kode, jadi jumlahnya kecil; batas ini hanya pagar pengaman. */
+const MAX_PINNED_KEYS = 256;
+
+/** Penyapuan penuh itu O(n), jadi dijalankan paling sering sekali per detik. */
+const SWEEP_EVERY_MS = 1_000;
+let lastSweepAt = 0;
+
+/** Berapa entri tertua yang diperiksa saat mencari korban penggusuran yang tidak memblokir. */
+const EVICT_SCAN = 64;
+
+function liveCount(b: Bucket, now: number): number {
+  const cutoff = now - b.windowMs;
+  let n = 0;
+  for (const t of hitsOf(b)) if (t > cutoff) n += 1;
+  return n;
+}
+
+function expired(b: Bucket | undefined, now: number): boolean {
+  const hits = hitsOf(b);
+  const last = hits[hits.length - 1];
+  return !b || last === undefined || !(b.windowMs > 0) || now - last > b.windowMs;
+}
+
+/**
+ * Sediakan satu tempat sebelum kunci BARU disisipkan.
+ *
+ * Urutan pilihannya, dari yang tidak kehilangan apa pun ke yang paling terpaksa:
+ *
+ *   1. kunci yang sudah kedaluwarsa menurut jendelanya sendiri — membuangnya tidak mengubah
+ *      satu putusan pun;
+ *   2. kunci paling lama tidak dipakai yang TIDAK sedang memblokir — membuangnya paling buruk
+ *      memberi pemiliknya hitungan baru, tetapi tidak pernah membuka blokir;
+ *   3. kunci paling lama tidak dipakai, apa pun isinya — hanya kalau semua yang diperiksa
+ *      sedang memblokir, karena Map yang tumbuh tanpa batas lebih buruk.
+ *
+ * "Paling lama tidak dipakai" murah karena `rateLimit()` menyisipkan ulang kunci pada setiap
+ * pemakaian, jadi urutan sisip Map adalah urutan LRU.
+ */
+function makeRoom(s: Map<string, Bucket>, max: number, now: number): void {
+  if (s.size < max) return;
+
+  if (now - lastSweepAt >= SWEEP_EVERY_MS) {
+    lastSweepAt = now;
+    for (const [k, b] of s) if (expired(b, now)) s.delete(k);
+    if (s.size < max) return;
+  }
+
+  let scanned = 0;
+  for (const [k, b] of s) {
+    if (scanned++ >= EVICT_SCAN) break;
+    if (expired(b, now) || liveCount(b, now) < b.limit) {
+      s.delete(k);
+      return;
+    }
+  }
+
+  const first = s.keys().next();
+  if (!first.done) s.delete(first.value);
+}
+
+export interface RateLimitOptions {
+  /**
+   * Untuk kunci GLOBAL yang tidak memuat identitas pemanggil, seperti `"pay_and_buy"`.
+   *
+   * Disimpan di Map terpisah yang tidak pernah ikut penggusuran keranjang per-IP. Tanpa ini,
+   * kunci global hanyalah satu entri di antara 10.000 dan bisa didorong keluar oleh kunci
+   * yang dicetak penyerang — persis keranjang yang membatasi berapa kali saldo USDC penanda
+   * tangan bisa dikuras. Hanya untuk kunci yang ditulis literal di kode.
+   */
+  pinned?: boolean;
+}
 
 /**
  * IP pemanggil, dan header mana yang boleh dipercaya untuk menentukannya.
@@ -86,30 +191,45 @@ const MAX_KEYS = 5_000;
  *
  * `unknown` tetap ada sebagai jalur terakhir, misalnya permintaan langsung ke port kontainer.
  * Satu keranjang bersama lebih aman daripada tanpa batas sama sekali.
+ *
+ * DUA PERUBAHAN SESUDAH ITU
+ *
+ *   - `X-Forwarded-For` diambil entri TERAKHIRNYA, bukan yang pertama. Entri pertama ditulis
+ *     siapa pun yang pertama mengirim permintaan — yaitu pemanggil — sedangkan entri terakhir
+ *     ditambahkan hop yang menyambung ke kita. Caddy versi sekarang (tanpa `trusted_proxies`)
+ *     menimpa header itu dengan peer-nya, jadi untuk jalur produksi keduanya sama; bedanya
+ *     hanya terasa di jalur yang memang bisa dipalsukan.
+ *   - Hasilnya dilewatkan `ipBucket()`: IPv6 dikunci per /64, bukan per alamat. Alasannya di
+ *     `src/lib/cloudflare-ips.ts`.
+ *
+ * Yang TIDAK bisa diselesaikan berkas ini: permintaan yang tidak melewati Caddy bisa menulis
+ * `X-Peer-IP` sendiri. Itu ditutup di jaringan — port kontainer diikat ke 127.0.0.1 di
+ * `docker-compose.yml`, sehingga satu-satunya yang bisa menyambung ke Next adalah Caddy.
  */
 export function clientIp(req: Request): string {
   const h = req.headers;
 
   // Ditulis Caddy dari `{remote_host}`. Kalau ia tidak ada, permintaannya tidak lewat proxy
   // kita dan tidak ada apa pun di sini yang boleh dipercaya sebagai identitas.
-  const peer = h.get("x-peer-ip")?.trim() || h.get("x-real-ip")?.trim() || "";
+  const peer =
+    h.get("x-peer-ip")?.trim() || h.get("x-real-ip")?.trim() || lastForwardedFor(h.get("x-forwarded-for"));
 
   if (isCloudflareIp(peer)) {
     const cf = h.get("cf-connecting-ip")?.trim();
-    if (cf) return cf;
+    if (cf) return ipBucket(cf);
   }
 
   // Peer-nya bukan Cloudflare: pemanggil menyambung langsung, jadi yang mengidentifikasinya
   // adalah peer itu sendiri. `cf-connecting-ip` DIABAIKAN di jalur ini justru karena di sinilah
   // ia bisa dipalsukan.
-  if (peer) return peer;
-
-  const fwd = h.get("x-forwarded-for");
-  if (fwd) {
-    const first = fwd.split(",")[0]?.trim();
-    if (first) return first;
-  }
+  if (peer) return ipBucket(peer);
   return "unknown";
+}
+
+function lastForwardedFor(value: string | null): string {
+  if (!value) return "";
+  const parts = value.split(",");
+  return parts[parts.length - 1]?.trim() ?? "";
 }
 
 export interface RateLimitVerdict {
@@ -130,30 +250,29 @@ export interface RateLimitVerdict {
  * pertama jendela baru. Untuk endpoint yang setiap panggilannya berbiaya uang, itu selisih
  * yang nyata.
  */
-export function rateLimit(key: string, limit: number, windowMs: number): RateLimitVerdict {
+export function rateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+  opts: RateLimitOptions = {}
+): RateLimitVerdict {
   const now = Date.now();
-  const s = store();
+  const s = mapAt(opts.pinned ? PINNED_KEY : STORE_KEY);
 
-  // Bersihkan sebelum menulis, supaya kunci mati tidak ikut dihitung ke MAX_KEYS.
-  if (s.size > MAX_KEYS) {
-    for (const [k, hits] of s) {
-      if (hits.length === 0 || now - hits[hits.length - 1] > windowMs) s.delete(k);
-      if (s.size <= MAX_KEYS) break;
-    }
-    // Masih penuh berarti lalu lintasnya memang sedang banyak, bukan kuncinya basi.
-    // Kunci tertua dibuang; membiarkan Map tumbuh tanpa batas lebih buruk.
-    if (s.size > MAX_KEYS) {
-      const first = s.keys().next();
-      if (!first.done) s.delete(first.value);
-    }
-  }
-
+  const prev = s.get(key);
   const cutoff = now - windowMs;
-  const hits = (s.get(key) ?? []).filter((t) => t > cutoff);
+  const hits = hitsOf(prev).filter((t) => t > cutoff);
+
+  if (prev) {
+    // Disisipkan ulang supaya urutan sisip Map tetap urutan LRU (lihat `makeRoom`).
+    s.delete(key);
+  } else {
+    makeRoom(s, opts.pinned ? MAX_PINNED_KEYS : MAX_KEYS, now);
+  }
+  s.set(key, { hits, windowMs, limit });
 
   if (hits.length >= limit) {
-    const oldest = hits[0];
-    s.set(key, hits);
+    const oldest = hits[0] ?? now;
     return {
       ok: false,
       remaining: 0,
@@ -164,7 +283,6 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
   }
 
   hits.push(now);
-  s.set(key, hits);
   return { ok: true, remaining: limit - hits.length, retryAfter: 0, limit, windowMs };
 }
 

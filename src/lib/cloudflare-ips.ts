@@ -158,6 +158,45 @@ function inV6Cidr(bytes: Uint8Array, cidr: string): boolean {
 }
 
 /**
+ * Kunci keranjang pembatas laju untuk sebuah alamat: IPv4 utuh, IPv6 dipotong ke /64.
+ *
+ * KENAPA /64, BUKAN ALAMAT UTUH
+ *
+ * Satu pelanggan IPv6 biasa menerima SATU /64 (ponsel) atau /56 (rumah) dari ISP-nya, dan
+ * bebas memakai alamat mana pun di dalamnya — 2^64 alamat per perangkat. Keranjang yang
+ * dikunci per /128 berarti satu mesin bisa memutar alamat sumbernya dan setiap permintaan
+ * mendapat keranjang baru, jadi setiap batas per-IP di situs ini menjadi nol. Zone Cloudflare
+ * melayani IPv6 secara bawaan (`adexto.xyz` punya AAAA), dan `cf-connecting-ip` membawa
+ * alamat IPv6 pengunjung apa adanya.
+ *
+ * /64 adalah satuan yang dipakai industri untuk ini: cukup kasar untuk menutup rotasi alamat,
+ * cukup halus untuk tidak menyatukan pelanggan yang berbeda.
+ *
+ * Bentuk yang setara dinormalkan ke satu kunci (`::ffff:1.2.3.4` menjadi `1.2.3.4`, nol di
+ * depan oktet dibuang), sebab teks berbeda untuk alamat yang sama juga keranjang yang berbeda.
+ * Nilai yang tidak bisa diurai dipotong ke 64 karakter: header bisa sebesar 16 KB, dan kunci
+ * sebesar itu dikali `MAX_KEYS` adalah jalur kehabisan memori.
+ */
+export function ipBucket(ip: string): string {
+  const addr = ip.trim();
+  const v4 = ipv4ToInt(addr);
+  if (v4 !== null) return v4ToText(v4);
+
+  const v6 = ipv6ToBytes(addr);
+  if (!v6) return addr.slice(0, 64);
+  const mapped = v6.slice(0, 12).every((b, i) => (i < 10 ? b === 0 : b === 0xff));
+  if (mapped) return v4ToText(((v6[12] << 24) | (v6[13] << 16) | (v6[14] << 8) | v6[15]) >>> 0);
+
+  const groups: string[] = [];
+  for (let i = 0; i < 8; i += 2) groups.push(((v6[i] << 8) | v6[i + 1]).toString(16));
+  return `${groups.join(":")}::/64`;
+}
+
+function v4ToText(n: number): string {
+  return [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff].join(".");
+}
+
+/**
  * Apakah alamat ini milik Cloudflare.
  *
  * Alamat yang tidak bisa diurai menjawab `false`, dan itu arah gagal yang benar: nilai yang
