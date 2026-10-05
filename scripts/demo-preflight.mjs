@@ -86,7 +86,14 @@ head("server MCP");
 try {
   const list = await mcp("tools/list", {});
   const names = (list.result?.tools ?? []).map((t) => t.name);
-  ok("tools/list menjawab", names.length === 7, `${names.length} alat`);
+  /**
+   * Jumlah alat dibaca dari kode server, bukan ditulis di sini. Syarat lamanya `=== 7`, dan
+   * ia basi diam-diam begitu alat launch, stake dan claim ditambahkan (14 sejak 2026-10-03):
+   * gerbang pra-demo ini gagal untuk server yang sehat.
+   */
+  const routeSrc = readFileSync("src/app/api/[transport]/route.ts", "utf8");
+  const expected = (routeSrc.match(/server\.registerTool\(\s*"/g) ?? []).length;
+  ok("tools/list menjawab", expected > 0 && names.length === expected, `${names.length} alat, kode mendaftarkan ${expected}`);
   for (const t of ["list_markets", "quote_buy", "pay_and_buy", "trade_history"])
     ok(`  alat ${t}`, names.includes(t));
 } catch (e) {
@@ -105,11 +112,15 @@ const markets = await tool("list_markets", {});
  * `totalProjectsCount()` di keempat chain, jadi ia satu-satunya angka yang tidak bisa
  * basi tanpa ada yang menggagalkan build.
  */
-const LISTED = JSON.parse(readFileSync("src/config/onchain-launches.json", "utf8")).listedMarkets;
+const inventory = JSON.parse(readFileSync("src/config/onchain-launches.json", "utf8"));
+const LISTED = inventory.listedMarkets;
+// Jumlah chain juga dari berkas itu: angka 4 yang lama basi sejak Robinhood Chain ikut (5).
+const LISTED_CHAINS = new Set(inventory.launches.filter((l) => l.status === "live").map((l) => l.chainId)).size;
+const servedChains = new Set(markets.markets?.map((m) => m.chainId)).size;
 ok(
-  `list_markets memuat ${LISTED} pasar di 4 chain`,
-  markets.count === LISTED && new Set(markets.markets?.map((m) => m.chainId)).size === 4,
-  `count=${markets.count} vs listedMarkets=${LISTED}`,
+  `list_markets memuat ${LISTED} pasar di ${LISTED_CHAINS} chain`,
+  markets.count === LISTED && servedChains === LISTED_CHAINS,
+  `count=${markets.count} vs listedMarkets=${LISTED}, chain ${servedChains} vs ${LISTED_CHAINS}`,
 );
 
 // Pemeriksaan keamanan: alat berbayar HARUS menolak pemanggil tanpa kunci.
