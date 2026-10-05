@@ -200,7 +200,12 @@ export interface PinResult {
  * keccak hash relabelled a "storage root", so a missing credential silently
  * produced a fabricated anchor.
  */
-export async function pinToIpfs(bytes: Buffer, filename = "agent-registration.json"): Promise<PinResult> {
+export async function pinToIpfs(
+  bytes: Buffer,
+  filename = "agent-registration.json",
+  /** MIME berkas yang di-pin. Bawaan JSON (berkas registrasi); gambar kartu identitas memakai image/*. */
+  mime = "application/json"
+): Promise<PinResult> {
   const jwt = process.env.PINATA_JWT;
   if (!jwt) {
     return { ok: false, error: "PINATA_JWT is not configured, so nothing can be pinned." };
@@ -209,7 +214,7 @@ export async function pinToIpfs(bytes: Buffer, filename = "agent-registration.js
   const expected = computeCidV1Raw(bytes);
   try {
     const form = new FormData();
-    form.append("file", new Blob([new Uint8Array(bytes)], { type: "application/json" }), filename);
+    form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), filename);
     const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}` },
