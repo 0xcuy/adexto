@@ -16,6 +16,8 @@ export async function GET(req: Request) {
     "cache-control": "public, max-age=300",
     etag,
   };
-  if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
+  // Cloudflare melemahkan ETag saat mengompresi (`W/"…"`), jadi perbandingannya lemah (RFC 9110 §13.1.2).
+  const wanted = (req.headers.get("if-none-match") ?? "").split(",").map((t) => t.trim().replace(/^W\//, ""));
+  if (wanted.includes(etag) || wanted.includes("*")) return new Response(null, { status: 304, headers });
   return new Response(body, { headers });
 }
