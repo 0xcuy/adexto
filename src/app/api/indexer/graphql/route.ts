@@ -92,7 +92,7 @@ export async function GET() {
       indexer: "Envio HyperIndex",
       chains: CHAINS,
       indexes:
-        "Monad: AdextoFactory 0.11.0 and every bonding curve it deploys, from its deploy block. The ADEXTO v1 factory (1.0.0) on Monad is not indexed here yet; its markets are read by the RPC scan path in src/lib/onchain-trades.ts. Robinhood Chain: AdextoFactory 1.0.0 and every bonding curve it deploys, from its deploy block. Curve addresses are unique across chains; GlobalStats has one row per chain ('global' for Monad, 'global-4663' for Robinhood Chain) because native volume is in different units.",
+        "Monad: AdextoFactory 0.11.0 and the ADEXTO v1 factory (1.0.0), and every bonding curve they deploy, from the 0.11.0 factory's deploy block; Curve.curveVersion names the factory generation. Robinhood Chain: AdextoFactory 1.0.0 and every bonding curve it deploys, from its deploy block. Curve addresses are unique across chains; GlobalStats has one row per chain ('global' for Monad, 'global-4663' for Robinhood Chain) because native volume is in different units.",
       entities: [
         "Project",
         "Curve",

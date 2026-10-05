@@ -90,9 +90,10 @@ type Curve {
   spotPriceNative: BigDecimal!
 
   """
-  VERSION kontrak kurva ini: "0.11.0" di Monad (generasi 0.10.0 di sana tidak punya satu
-  pun peluncuran) dan "1.0.0" di Robinhood Chain. Field-nya dipertahankan supaya skema tetap
-  cocok dengan subgraph yang melayani chain lain.
+  VERSION kontrak kurva ini, menurut factory yang meluncurkannya: "0.11.0" atau "1.0.0"
+  (ADEXTO v1) di Monad, "1.0.0" di Robinhood Chain. Generasi 0.10.0 di Monad tidak punya
+  satu pun peluncuran. Field-nya dipertahankan supaya skema tetap cocok dengan subgraph
+  yang melayani chain lain.
   """
   curveVersion: String!
 
@@ -100,8 +101,9 @@ type Curve {
   creatorFeeBps: BigInt!
   treasuryBuybackBps: BigInt!
   """
-  Kaki protokol, dipungut DI ATAS total yang dikonfigurasi creator — bukan diambil dari
-  dalamnya.
+  Kaki protokol, 10 bps di kedua generasi. Di 0.11.0 ia dipungut DI ATAS total yang
+  dikonfigurasi creator; di 1.0.0 (ADEXTO v1) ia diambil dari DALAM total itu, jadi factory
+  memancarkan `depthFeeBps` yang sudah dipotong.
   """
   protocolFeeBps: BigInt!
 

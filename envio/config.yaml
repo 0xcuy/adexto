@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 #
-# Envio HyperIndex — AdextoFactory 0.11.0 dan kurvanya di Monad mainnet, plus AdextoFactory
-# 1.0.0 dan kurvanya di Robinhood Chain (4663).
+# Envio HyperIndex — AdextoFactory 0.11.0 dan 1.0.0 (ADEXTO v1) beserta kurvanya di Monad
+# mainnet, plus AdextoFactory 1.0.0 dan kurvanya di Robinhood Chain (4663).
 #
 # KENAPA INDEXER TERPISAH, BUKAN MENAMBAH JARINGAN KE SUBGRAPH
 #
@@ -94,13 +94,23 @@ chains:
         for: fallback
     contracts:
       - name: AdextoFactory
-        address: "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3"
+        # DUA factory, keduanya permanen: bytecode tidak bisa diubah, jadi pasar yang lahir
+        # dari 0.11.0 lahir dari alamat itu selamanya. Event yang diindeks bertanda tangan
+        # sama di kedua generasi, jadi satu definisi kontrak cukup; generasinya dibaca dari
+        # alamat factory di `applyLaunch` (`CURVE_VERSION_BY_FACTORY` di `src/shared.ts`).
+        # `start_block` di atas (blok factory 0.11.0) sudah di bawah blok v1 109440540.
+        address:
+          - "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3" # AdextoFactory 0.11.0
+          - "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056" # AdextoFactory 1.0.0 (ADEXTO v1)
       - name: AdextoCurve
         # Didaftarkan dinamis. Generasi 0.10.0 di Monad
         # (0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39) DIABAIKAN dengan sengaja:
         # `totalProjectsCount()` di sana nol, jadi tidak ada satu pun kurva untuk diindeks,
         # dan `Swap`-nya bertanda tangan berbeda sehingga menambahkannya berarti ABI dan
-        # handler kedua yang menjaga nol baris data.
+        # handler kedua yang menjaga nol baris data. Factory 0.12.0
+        # (0xcA9c77f050CD1e0685b03D0236579966DA9B39B9, hidup 2026-09-29 sampai 2026-10-01)
+        # juga tidak diindeks: satu-satunya pasarnya adalah ticker uji $VOLT yang tidak
+        # terdaftar.
 
   # Robinhood Chain. The Graph juga tidak melayaninya: di `networks-registry` v0.8.6
   # `robinhood` (eip155:4663) terdaftar dengan daftar `subgraphs` KOSONG, hanya Substreams

@@ -1,8 +1,10 @@
 # Adexto on Monad and Robinhood Chain — Envio HyperIndex
 
-Indexes `AdextoFactory` 0.11.0 and every bonding curve it deploys on Monad mainnet
-(chain 143), and `AdextoFactory` 1.0.0 and its curves on Robinhood Chain (chain 4663):
-launches, swaps, buyback burns, fee claims, and ERC-8004 agent bindings.
+Indexes `AdextoFactory` 0.11.0 and 1.0.0 (ADEXTO v1) and every bonding curve they deploy on
+Monad mainnet (chain 143), and `AdextoFactory` 1.0.0 and its curves on Robinhood Chain
+(chain 4663): launches, swaps, buyback burns, fee claims, and ERC-8004 agent bindings. Both
+generations emit the same events, so one contract definition serves both Monad factories;
+`Curve.curveVersion` comes from the address of the factory that launched the curve.
 
 Robinhood Chain is here for the same reason as Monad: `graphprotocol/networks-registry`
 v0.8.6 lists `robinhood` (eip155:4663) with no Subgraphs service, only Firehose and
@@ -124,5 +126,6 @@ to get away from.
 | Item | Why |
 | --- | --- |
 | `AdextoCurveFactory` 0.10.0 on Monad (`0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39`) | `totalProjectsCount()` is 0. Its `Swap` has a different signature, so indexing it means a second ABI and handler guarding zero rows. |
+| `AdextoFactory` 0.12.0 on Monad (`0xcA9c77f050CD1e0685b03D0236579966DA9B39B9`) | Live from 2026-09-29 to 2026-10-01, and its only market is the unlisted test ticker `$VOLT`. |
 | `TrinityProjectCreated` | Emitted on the same path as `TrinityProjectDeployed` but carries only some fields. Two sources for one launch, with nothing to say about which wins. |
 | `TreasuryFeeCollected` | Its value is already carried by `Swap.treasuryFee` on the same fill, so it would double-count one slice. |

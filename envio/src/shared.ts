@@ -37,31 +37,60 @@ export const ZERO_DEC = new BigDecimal(0);
 export const DAY = 86400n;
 
 /**
- * VERSION kurva yang diindeks, per chain. Setiap chain di `config.yaml` memuat tepat SATU
- * factory, jadi chain sudah menentukan generasinya:
+ * VERSION kurva yang diindeks, ditentukan oleh FACTORY yang meluncurkannya, bukan oleh chain.
  *
- *   Monad     143   AdextoFactory 0.11.0 (generasi 0.10.0 di
- *                   0xbC72FE919F85E679e7d95e2b471AaDA3c7c3Ac39 tidak pernah punya peluncuran)
- *   Robinhood 4663  AdextoFactory 1.0.0, generasi pertama di sana
+ * Dulu setiap chain di `config.yaml` memuat tepat satu factory, jadi chain cukup untuk
+ * menentukan generasinya. Sejak ADEXTO v1 diindeks di Monad, chain itu memuat dua factory
+ * yang hidup berdampingan, dan versi per chain akan menulis "0.11.0" pada pasar v1 tanpa satu
+ * pun galat. Versinya karena itu dibaca dari `event.srcAddress` di handler
+ * `TrinityProjectDeployed`: hanya event factory yang tahu factory mana yang meluncurkan kurva.
  *
- * Chain baru WAJIB ditambahkan di sini; chain yang tidak dikenal menghentikan indexer alih-alih
- * menerbitkan versi tebakan.
+ *   Monad     143   0x5800…76A3  AdextoFactory 0.11.0
+ *                   0x3dFc…6056  AdextoFactory 1.0.0 (ADEXTO v1)
+ *                   (0.10.0 di 0xbC72…Ac39 tidak pernah punya peluncuran; 0.12.0 di 0xcA9c…39B9
+ *                   hanya meluncurkan pasar uji $VOLT, jadi keduanya tidak diindeks)
+ *   Robinhood 4663  0x8e63…7D7D  AdextoFactory 1.0.0, generasi pertama di sana
+ *
+ * Factory baru WAJIB ditambahkan di sini DAN di `config.yaml`; factory yang tidak dikenal
+ * menghentikan indexer alih-alih menerbitkan versi tebakan.
  */
 export const V_0_11_0 = "0.11.0";
 export const V_1_0_0 = "1.0.0";
-const CURVE_VERSION_BY_CHAIN: Record<number, string> = { 143: V_0_11_0, 4663: V_1_0_0 };
-export function curveVersionFor(chainId: number): string {
-  const v = CURVE_VERSION_BY_CHAIN[chainId];
+const CURVE_VERSION_BY_FACTORY: Record<string, string> = {
+  "143:0x5800e9715a47a598fce9bc3b65a95fd6bebf76a3": V_0_11_0,
+  "143:0x3dfcbed7dd889f465cc9f75c430b43ef873b6056": V_1_0_0,
+  "4663:0x8e63e117e71a80cfc10fdf375f079e2e29cd7d7d": V_1_0_0,
+};
+export function curveVersionFor(chainId: number, factory: string): string {
+  const v = CURVE_VERSION_BY_FACTORY[`${chainId}:${factory.toLowerCase()}`];
+  if (v === undefined) {
+    throw new Error(`No curve version is configured for factory ${factory} on chain ${chainId}.`);
+  }
+  return v;
+}
+
+/**
+ * Versi SEMENTARA untuk `applyCurveInitialized`, yang tidak tahu factory-nya: `srcAddress`
+ * event itu alamat kurva.
+ *
+ * Nilai ini tidak pernah bertahan. Kurva hanya bisa terdaftar lewat `TrinityProjectDeployed`,
+ * jadi `applyLaunch` selalu menyusul di transaksi yang sama dan menimpa seluruh baris,
+ * termasuk `curveVersion`, dengan versi factory yang sebenarnya. Yang dipilih generasi terbaru
+ * di chain itu, supaya baris setengah jadi pun tidak menyebut generasi lama.
+ */
+const PROVISIONAL_VERSION_BY_CHAIN: Record<number, string> = { 143: V_1_0_0, 4663: V_1_0_0 };
+export function provisionalCurveVersion(chainId: number): string {
+  const v = PROVISIONAL_VERSION_BY_CHAIN[chainId];
   if (v === undefined) throw new Error(`No curve version is configured for chain ${chainId}.`);
   return v;
 }
 
 /**
- * `PROTOCOL_FEE_BPS` di AdextoFactory 0.11.0.
+ * `PROTOCOL_FEE_BPS` di AdextoFactory 0.11.0 dan 1.0.0, sama-sama 10.
  *
  * Konstanta, bukan hasil `eth_call`. Ia `public constant` di kontrak, jadi tidak ada
- * keadaan yang bisa membuatnya berbeda antar kurva, dan `scripts/verify-subgraph.ts`
- * sudah membandingkan angka ini dengan chain.
+ * keadaan yang bisa membuatnya berbeda antar kurva, dan `scripts/verify-subgraph.mts`
+ * sudah membandingkan angka ini dengan factory kedua generasi di chain.
  *
  * Kaki protokol TIDAK ikut di event factory: menambahkannya akan mengubah tanda tangan
  * `TrinityProjectDeployed` dan membuat setiap mapping yang sudah ada berhenti cocok,
@@ -245,6 +274,8 @@ export async function applyLaunch(
     treasuryBuybackBps: bigint;
     blockNumber: bigint;
     chainId: number;
+    /** Alamat factory yang memancarkan `TrinityProjectDeployed` (`event.srcAddress`). */
+    factory: string;
   },
 ): Promise<void> {
   const openingPrice = priceFrom(args.virtualNative, args.curveTokens);
@@ -252,7 +283,7 @@ export async function applyLaunch(
   const curve: Curve = {
     id: args.curveId,
     project_id: args.tokenId,
-    curveVersion: curveVersionFor(args.chainId),
+    curveVersion: curveVersionFor(args.chainId, args.factory),
     virtualNative: args.virtualNative,
     curveTokens: args.curveTokens,
     /**
@@ -588,7 +619,7 @@ export async function applyCurveInitialized(
   const base: Curve = existing ?? {
     id: args.curveId,
     project_id: undefined,
-    curveVersion: curveVersionFor(args.chainId),
+    curveVersion: provisionalCurveVersion(args.chainId),
     virtualNative: ZERO,
     curveTokens: ZERO,
     openingPriceNative: ZERO_DEC,

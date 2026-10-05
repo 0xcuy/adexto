@@ -1,6 +1,7 @@
 /**
- * AdextoFactory 0.11.0 di Monad mainnet dan AdextoFactory 1.0.0 di Robinhood Chain. Event yang
- * diindeks bertanda tangan sama di kedua generasi.
+ * AdextoFactory 0.11.0 dan 1.0.0 di Monad mainnet, dan AdextoFactory 1.0.0 di Robinhood Chain.
+ * Event yang diindeks bertanda tangan sama di kedua generasi, jadi satu kontrak `AdextoFactory`
+ * di `config.yaml` melayani keduanya; generasinya dibaca dari alamat factory di `applyLaunch`.
  *
  * Dua tanggung jawab, dan urutan di antaranya penting:
  *
@@ -62,6 +63,8 @@ indexer.onEvent(
       treasuryBuybackBps: event.params.treasuryBuybackBps,
       blockNumber: meta.blockNumber,
       chainId: meta.chainId,
+      // Monad memuat dua factory (0.11.0 dan 1.0.0); generasinya ditentukan alamat factory.
+      factory: event.srcAddress,
     });
 
     await applyProject(context, {
