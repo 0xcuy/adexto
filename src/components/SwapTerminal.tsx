@@ -546,7 +546,8 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
             ) : !selected ? (
               "Select a market"
             ) : !swap.tradable ? (
-              "Trading unavailable"
+              // Sebelum pool pertama terbaca, belum ada yang "unavailable"; lihat `loadPool`.
+              swap.poolChecked ? "Trading unavailable" : "Reading market…"
             ) : swap.limit ? (
               swap.limit.label
             ) : !onCorrectChain ? (

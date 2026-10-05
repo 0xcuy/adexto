@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import { readProvider, resolveChainOrDefault, type ChainInfo } from "@/lib/chains";
 import {
   ERC20_ABI, applySlippage, describeTxError, executeBuy, executeSell,
-  poolIsTradable, quoteBuyLocal, quoteSellLocal, readPoolState,
+  poolIsTradable, quoteBuyLocal, quoteSellLocal, readPoolStateStrict,
   solveBuyForTokensOut, solveSellForNativeOut, type PoolState, type Quote,
 } from "@/lib/dex";
 import { getActiveEip1193 } from "@/lib/wallet-provider";
@@ -197,24 +197,74 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
   const [txHash, setTxHash] = useState<string | null>(null);
 
   // ── pool state ───────────────────────────────────────────────────────────
+  /**
+   * Baca pool yang GAGAL (jaringan, batas laju) dibedakan dari pool yang memang tidak ada.
+   *
+   * Dulu keduanya null: satu baca gagal membuat tombol "Trading unavailable" dan pesan "does not
+   * expose a tradable swap interface" sampai polling 20 detik berikutnya, juga di tengah sesi
+   * sesudah pool sudah terbaca (terukur 5 Okt di Monad, 8–18 dtk). Sekarang:
+   * - pool terakhir yang terbaca TETAP dipakai; satu polling gagal tidak mengubah apa pun;
+   * - sebelum pernah terbaca, dicoba ulang cepat (1,5 / 3 / 4,5 / 6 dtk) sambil menampilkan
+   *   "Reading market…", dan baru sesudah itu dinyatakan gagal, dengan pesan yang benar.
+   */
+  const [poolReadFailed, setPoolReadFailed] = useState(false);
+  const poolRetry = useRef<{ key: string | null; attempts: number; timer: ReturnType<typeof setTimeout> | null }>({
+    key: null,
+    attempts: 0,
+    timer: null,
+  });
+  const loadPoolRef = useRef<() => void>(() => {});
   const loadPool = useCallback(async () => {
+    const key = market?.poolAddress ? `${chain.chainId}:${market.poolAddress.toLowerCase()}` : null;
+    if (poolRetry.current.key !== key) {
+      if (poolRetry.current.timer) clearTimeout(poolRetry.current.timer);
+      poolRetry.current = { key, attempts: 0, timer: null };
+    }
     if (!market?.poolAddress) {
       setPool(null);
       setPoolChecked(true);
       return;
     }
-    const state = await readPoolState(chain, market.poolAddress);
-    setPool(state);
-    if (state) setTokenDecimals(state.tokenDecimals);
-    setPoolChecked(true);
+    try {
+      const state = await readPoolStateStrict(chain, market.poolAddress);
+      if (poolRetry.current.key !== key) return;
+      poolRetry.current.attempts = 0;
+      setPool(state);
+      if (state) setTokenDecimals(state.tokenDecimals);
+      setPoolReadFailed(false);
+      setPoolChecked(true);
+    } catch {
+      const retry = poolRetry.current;
+      if (retry.key !== key) return;
+      if (retry.attempts < 4) {
+        if (!retry.timer) {
+          retry.attempts += 1;
+          retry.timer = setTimeout(() => {
+            retry.timer = null;
+            loadPoolRef.current();
+          }, 1500 * retry.attempts);
+        }
+        return;
+      }
+      // Ulangan cepat habis. Pool yang pernah terbaca tetap berlaku; kalau belum pernah, katakan.
+      setPoolReadFailed(true);
+      setPoolChecked(true);
+    }
   }, [chain, market?.poolAddress]);
+  loadPoolRef.current = loadPool;
 
   useEffect(() => {
     setPoolChecked(false);
     setPool(null);
+    setPoolReadFailed(false);
     loadPool();
     const timer = setInterval(loadPool, 20000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (poolRetry.current.timer) clearTimeout(poolRetry.current.timer);
+      // Baca yang masih berjalan untuk pool ini tidak lagi menulis apa pun.
+      poolRetry.current = { key: null, attempts: 0, timer: null };
+    };
   }, [loadPool]);
 
   // ── balances ─────────────────────────────────────────────────────────────
@@ -407,12 +457,15 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         : `Trading is disabled: no launch factory is deployed on ${chain.name} yet, so ${market.symbol} has no executable market. The legacy showcase entry has no swap entrypoint and would revert.`;
     }
     if (!poolChecked) return "Reading market state…";
+    if (!pool && poolReadFailed) {
+      return `${chain.name} did not answer when this market was read. Trying again every 20 seconds.`;
+    }
     if (!pool) return `The address recorded for ${market.symbol} does not expose a tradable swap interface.`;
     // Kurva sudah bisa diperdagangkan sejak blok pertama tanpa setoran apa pun, jadi
     // "belum di-seed" bukan lagi penjelasan yang benar untuk keadaan ini.
     if (!pool.initialized) return "The market exists but has not been initialised yet.";
     return "Pool is live.";
-  }, [market, chain, pool, poolChecked]);
+  }, [market, chain, pool, poolChecked, poolReadFailed]);
 
   // ── actions ──────────────────────────────────────────────────────────────
   const setMode = useCallback(

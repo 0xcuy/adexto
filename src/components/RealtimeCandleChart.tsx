@@ -280,6 +280,19 @@ const MIN_PRICE_SPAN = 0.005;
 
 /** Bar paling banyak per seri, dipotong dari ujung terbaru. Lihat penjelasannya di `load()`. */
 const MAX_BARS = 100_000;
+/**
+ * Interval DETIK mulai dengan 20.000 bar terbaru, dan riwayat yang lebih tua dimuat per 20.000
+ * saat chart digeser ke tepi kiri, sampai `MAX_BARS`.
+ *
+ * Biaya lightweight-charts naik lurus dengan jumlah bar, termasuk untuk `update()` dan setiap
+ * gambar sesudah data berubah. Terukur 5 Okt di emulasi Pixel 7 dengan CPU 4× lebih lambat:
+ * 100.000 bar = setData 295 ms + gambar 173 ms, 15 bar tambahan 160 ms + 164 ms; 20.000 bar =
+ * 78 + 72 ms dan 28 + 48 ms. Pada 1s polling 15 detik selalu menambah 15 bar, jadi 100.000 bar
+ * berarti utas utama macet ±0,3–0,7 detik setiap 15 detik. Interval menit ke atas tidak berubah:
+ * seri dari peluncuran tetap tergambar utuh.
+ */
+const SUBMINUTE_INITIAL_BARS = 20_000;
+const OLDER_CHUNK_BARS = 20_000;
 
 /**
  * Riwayat kurs per aset native, dipakai ulang oleh semua chart di halaman. `seenUsd` adalah kurs
@@ -483,6 +496,21 @@ export default function RealtimeCandleChart({
   const candlesRef = useRef<Candle[]>([]);
   /** Tanda tangan data yang sedang tergambar; lihat penjelasannya di `load()`. */
   const drawnSigRef = useRef("");
+  /** Tanda tangan yang sama TANPA bucket waktu: sama berarti hanya jam yang maju (lihat `load()`). */
+  const drawnBaseSigRef = useRef("");
+  /**
+   * Berapa bar riwayat yang digambar untuk tampilan ini (`SUBMINUTE_INITIAL_BARS`), dan apakah
+   * masih ada yang lebih tua untuk dimuat saat chart digeser ke tepi kiri. `olderTick` memicu
+   * pemuatan ulang dengan jendela yang lebih lebar.
+   */
+  const historyRef = useRef({ key: "", bars: 0 });
+  /** Jendela riwayat yang terakhir BENAR-BENAR tergambar, untuk mengenali pemuatan riwayat lama. */
+  const drawnHistoryRef = useRef({ key: "", bars: 0 });
+  const canLoadOlderRef = useRef(false);
+  const loadingOlderRef = useRef(false);
+  const [olderTick, setOlderTick] = useState(0);
+  /** `refreshKey` (trade) yang sudah dikejar; lihat pengejar pasca-trade di efek data. */
+  const chasedKeyRef = useRef<string | null>(null);
   /**
    * Bahan "tick langsung" bar terakhir di sumbu USD (lihat `applyLiveTick`). Ref, karena dibaca
    * dari efek `nativeUsd` dan dari `load()` tanpa membuat ulang keduanya.
@@ -671,6 +699,15 @@ export default function RealtimeCandleChart({
   });
   /** OHLC values under the crosshair, like the legend GeckoTerminal shows. */
   const [legend, setLegend] = useState<Candle | null>(null);
+  /**
+   * Pilihan indikator TERKINI, untuk `drawIndicators` yang dipanggil dari `load()`.
+   *
+   * `load()` hidup di dalam efek yang tidak ikut dibuat ulang saat indikator diubah, jadi
+   * `drawIndicators` yang ia pegang membaca `enabled` dari render lama. Akibatnya EMA yang baru
+   * dinyalakan hilang lagi pada gambar ulang penuh berikutnya. Lewat ref ini selalu yang terkini.
+   */
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   const enabledKey = JSON.stringify(enabled);
   /**
@@ -940,13 +977,40 @@ export default function RealtimeCandleChart({
         setLegend(list.length ? list[list.length - 1] : null);
         return;
       }
-      const hit = list.find((c) => c.time === (param.time as unknown as number));
+      // Pencarian biner, bukan `find`: seri terurut menurut waktu, dan pada 1s ia 100.000 bar
+      // yang dulu disisir satu per satu pada SETIAP gerakan crosshair.
+      const want = param.time as unknown as number;
+      let lo = 0;
+      let hi = list.length - 1;
+      let hit: Candle | null = null;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const t = list[mid].time;
+        if (t === want) {
+          hit = list[mid];
+          break;
+        }
+        if (t < want) lo = mid + 1;
+        else hi = mid - 1;
+      }
       setLegend(hit ?? (list.length ? list[list.length - 1] : null));
     });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+
+    // Digeser sampai dekat tepi kiri dan masih ada riwayat lebih tua: lebarkan jendelanya
+    // (lihat `SUBMINUTE_INITIAL_BARS`). Satu pemuatan sekaligus.
+    chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+      if (!r || r.from > 30 || !canLoadOlderRef.current || loadingOlderRef.current) return;
+      loadingOlderRef.current = true;
+      historyRef.current = {
+        ...historyRef.current,
+        bars: Math.min(MAX_BARS, historyRef.current.bars + OLDER_CHUNK_BARS),
+      };
+      setOlderTick((n) => n + 1);
+    });
 
     /**
      * ResizeObserver, bukan hanya event `resize` window.
@@ -1091,6 +1155,10 @@ export default function RealtimeCandleChart({
       }
     }
     if (candles.length === 0) return;
+    const enabled = enabledRef.current;
+    // Semua mati (bawaan): tidak ada yang perlu dihitung. Dulu EMA, SMA, Bollinger, VWAP, RSI dan
+    // MACD tetap dihitung atas seluruh seri pada setiap gambar ulang, termasuk 100.000 bar 1s.
+    if (!Object.values(enabled).some(Boolean)) return;
 
     const ohlc: Ohlc[] = candles;
     const ind = computeIndicators(ohlc);
@@ -1282,7 +1350,13 @@ export default function RealtimeCandleChart({
          * gambar berubah hanyalah perdagangan baru, bucket baru (jam maju), kurs baru, atau
          * pilihan tampilan, dan semuanya ada di tanda tangan ini.
          */
-        const sig = [
+        // Jendela riwayat tampilan ini: interval detik mulai sempit, lalu melebar saat digeser ke kiri.
+        const viewKey = `${symbol}:${chainId}:${interval}:${range ?? ""}:${unit}`;
+        if (historyRef.current.key !== viewKey) {
+          historyRef.current = { key: viewKey, bars: interval < 60 ? SUBMINUTE_INITIAL_BARS : MAX_BARS };
+        }
+        const maxBars = historyRef.current.bars;
+        const baseSig = [
           symbol,
           chainId,
           totalTrades,
@@ -1292,17 +1366,50 @@ export default function RealtimeCandleChart({
           unit,
           showMcap,
           chartKind,
-          Math.floor(Date.now() / 1000 / interval),
           fxPoints.length ? fxPoints[fxPoints.length - 1][0] : 0,
+          maxBars,
         ].join(":");
-        if (sig === drawnSigRef.current && candlesRef.current.length > 0) {
+        const sig = `${baseSig}:${Math.floor(Date.now() / 1000 / interval)}`;
+        const keepPrice = () => {
           if (Number.isFinite(data.priceNative) && data.priceNative > 0) {
             setPriceNative(data.priceNative);
             setChangePct(Number(data.changePct) || 0);
             liveRef.current.priceNative = data.priceNative;
           }
+        };
+        if (sig === drawnSigRef.current && candlesRef.current.length > 0) {
+          keepPrice();
           applyLiveTick();
           return totalTrades;
+        }
+        /**
+         * Hanya JAM yang maju (perdagangan, kurs, dan pilihan tampilan sama): bucket baru
+         * ditambahkan datar lewat `update()`, tanpa membangun ulang seri.
+         *
+         * Pada 1s setiap polling 15 detik melahirkan 15 bucket, dan dulu itu berarti menggambar
+         * ulang 100.000 bar tiap 15 detik: ±1 detik utas utama macet di emulasi Pixel 7 dengan CPU
+         * 4× lebih lambat (terukur 5 Okt). Bar yang ditambahkan sama dengan hasil gambar ulang
+         * penuh: datar pada penutupan terakhir, bervolume nol. Gambar ulang penuh tetap terjadi
+         * saat ada perdagangan, kurs baru (sumbu USD, semenit sekali), indikator menyala, riwayat
+         * lama dimuat, atau seri sudah tumbuh 10% di atas `maxBars`.
+         */
+        const list = candlesRef.current;
+        if (
+          baseSig === drawnBaseSigRef.current &&
+          list.length > 0 &&
+          list.length < maxBars * 1.1 &&
+          !Object.values(enabledRef.current).some(Boolean)
+        ) {
+          const prevLastTime = list[list.length - 1].time;
+          const added = appendFlatBars(interval, 600);
+          if (added >= 0) {
+            keepPrice();
+            applyLiveTick();
+            const newest = list[list.length - 1];
+            setLegend((cur) => (!cur || cur.time >= prevLastTime ? newest : cur));
+            drawnSigRef.current = sig;
+            return totalTrades;
+          }
         }
 
         let candles: Candle[] = tradeCandles(trades, interval, fallbackPriceNative);
@@ -1322,9 +1429,11 @@ export default function RealtimeCandleChart({
          * bucket (owner, 5 Okt: "token lahir berarti history harus ada"). Bucket tanpa perdagangan
          * datar pada harga yang berlaku, bervolume nol.
          *
-         * `MAX_BARS` memotong dari ujung TERBARU dan hanya tercapai pada interval detik (1s ≈ 28
-         * jam, 15s ≈ 17 hari) atau pada pasar yang jauh lebih tua dari pasar mana pun hari ini
-         * (1m ≈ 69 hari). Tampilan awal tetap bar terbaru; riwayat sampai peluncuran ada di kiri.
+         * `maxBars` memotong dari ujung TERBARU. Di interval menit ke atas ia `MAX_BARS` dan hanya
+         * tercapai pada pasar yang jauh lebih tua dari pasar mana pun hari ini (1m ≈ 69 hari). Di
+         * interval detik ia mulai `SUBMINUTE_INITIAL_BARS` (1s ≈ 5,5 jam) dan melebar per
+         * `OLDER_CHUNK_BARS` saat chart digeser ke tepi kiri, sampai `MAX_BARS` (1s ≈ 28 jam).
+         * Tampilan awal tetap bar terbaru; riwayat yang lebih tua ada di kiri.
          *
          * Sumbu USD memakai kurs yang DIREKAM per bucket (`toUsdCandles`). Rekamannya dimulai
          * 30 Agu 2026, sebelum pasar mana pun lahir. Kalau kurs tidak terbaca, sumbu jatuh ke native.
@@ -1337,7 +1446,7 @@ export default function RealtimeCandleChart({
             fxPoints,
             interval,
             undefined,
-            MAX_BARS,
+            maxBars,
             fallbackPriceNative,
             launchedAt ?? 0,
             windowStart
@@ -1347,10 +1456,10 @@ export default function RealtimeCandleChart({
             inUsd = true;
           }
         }
-        if (!inUsd) candles = continuousNative(candles, interval, windowStart, undefined, MAX_BARS);
+        if (!inUsd) candles = continuousNative(candles, interval, windowStart, undefined, maxBars);
         // Belum pernah ditradingkan (dan sumbu native): harga kurva, datar, sejak peluncuran.
         if (candles.length === 0 && launchedAt && launchedAt > 0) {
-          candles = flatSinceLaunch(launchedAt, fallbackPriceNative, interval, undefined, MAX_BARS);
+          candles = flatSinceLaunch(launchedAt, fallbackPriceNative, interval, undefined, maxBars);
         }
 
         setSource(String(data.source || ""));
@@ -1411,12 +1520,35 @@ export default function RealtimeCandleChart({
               minMove: showMcap ? 0.01 : 1e-12,
             },
           });
+          /**
+           * Hanya seri yang TAMPIL yang diisi; yang tersembunyi dikosongkan.
+           *
+           * Dulu candle dan garis sama-sama diisi seluruh seri, padahal salah satunya selalu
+           * `visible: false`. Pada 100.000 bar 1s itu sepertiga waktu gambar (terukur 5 Okt di
+           * emulasi Pixel 7, CPU 4× lebih lambat: candle 288 ms, garis 135 ms, volume 137 ms).
+           * Berganti bentuk mengubah tanda tangan gambar, jadi seri yang baru tampil diisi saat itu.
+           */
+          const asCandles = chartKind === "candles";
+          /**
+           * Riwayat lama baru saja dimuat (jendela tampilan yang sama, `maxBars` lebih lebar): jendela
+           * WAKTU yang sedang dilihat dipertahankan. Tanpa ini lightweight-charts kadang menjaga
+           * indeks logisnya, dan karena bar baru masuk di kiri, layar melompat 20.000 bar ke belakang
+           * (terukur 5 Okt pada PARCEL 1s, sekali dari empat pemuatan).
+           */
+          const keepView =
+            // `viewKey` dan kunci `fittedFor` disusun sama persis (lihat `fitKey` di bawah).
+            fittedFor.current === viewKey &&
+            drawnHistoryRef.current.key === viewKey &&
+            maxBars > drawnHistoryRef.current.bars
+              ? chartRef.current?.timeScale().getVisibleRange() ?? null
+              : null;
+          drawnHistoryRef.current = { key: viewKey, bars: maxBars };
           candleSeriesRef.current.setData(
-            sorted.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close }))
+            asCandles
+              ? sorted.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close }))
+              : []
           );
-          lineSeriesRef.current?.setData(
-            sorted.map((c) => ({ time: c.time as any, value: c.close }))
-          );
+          lineSeriesRef.current?.setData(asCandles ? [] : sorted.map((c) => ({ time: c.time as any, value: c.close })));
           lineSeriesRef.current?.applyOptions({
             visible: chartKind === "line",
             priceFormat: {
@@ -1434,11 +1566,22 @@ export default function RealtimeCandleChart({
               color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(244,63,94,0.35)",
             }))
           );
+          if (keepView) chartRef.current?.timeScale().setVisibleRange(keepView);
           drawIndicators(sorted);
           setLegend(sorted[sorted.length - 1]);
           // Tanda B/S/D tidak digambar lagi (owner, 5 Okt). Gambar ini selesai: catat tanda
           // tangannya supaya polling berikutnya tidak membangunnya ulang tanpa perubahan.
           drawnSigRef.current = sig;
+          drawnBaseSigRef.current = baseSig;
+          /**
+           * Masih ada riwayat yang lebih tua bila seri terpotong `maxBars` dan jendela belum
+           * selebar `MAX_BARS`. Bar paling awal yang mungkin: peluncuran, dan di sumbu USD juga
+           * sampel kurs pertama (tidak ada dolar sebelum kurs terekam).
+           */
+          const earliestBucket =
+            Math.floor(Math.max(launchedAt ?? 0, inUsd && fxPoints.length ? fxPoints[0][0] : 0) / interval) * interval;
+          canLoadOlderRef.current = maxBars < MAX_BARS && sorted[0].time > earliestBucket + interval;
+          loadingOlderRef.current = false;
           let gaps = 0;
           let volBars = 0;
           for (let i = 0; i < sorted.length; i++) {
@@ -1639,7 +1782,10 @@ export default function RealtimeCandleChart({
      * hanya satu atau dua permintaan tambahan yang terjadi.
      */
     let chase: ReturnType<typeof setInterval> | null = null;
-    if (refreshKey) {
+    // Sekali per trade: efek ini juga berjalan ulang saat riwayat lama dimuat (`olderTick`), dan
+    // itu bukan alasan untuk mengejar trade yang sama lagi.
+    if (refreshKey && chasedKeyRef.current !== refreshKey) {
+      chasedKeyRef.current = refreshKey;
       const baseline = tradeCountRef.current;
       let tries = 0;
       chase = setInterval(async () => {
@@ -1655,14 +1801,18 @@ export default function RealtimeCandleChart({
     return () => {
       cancelled = true;
       clearInterval(timer);
-      if (chase) clearInterval(chase);
+      if (chase) {
+        clearInterval(chase);
+        // Pengejaran terputus sebelum selesai (misalnya interval diganti): jalan berikutnya meneruskannya.
+        chasedKeyRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // `showMcap` ikut di sini karena mengubahnya mengubah SATUAN data, jadi seri harus
     // dipasang ulang. Tanpa itu, sumbu berganti label sementara candle-nya masih memakai
     // satuan lama — kesalahan yang tidak akan terlihat sebagai error, hanya sebagai angka
     // yang salah.
-  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol]);
+  }, [tfResolved, symbol, chainId, interval, range, refreshKey, showMcap, unit, chartKind, nativeSymbol, olderTick]);
 
   // Redraw on a toggle without waiting for the next poll.
   useEffect(() => {
@@ -1687,35 +1837,60 @@ export default function RealtimeCandleChart({
   function applyLiveTick() {
     const live = liveRef.current;
     const list = candlesRef.current;
-    const series = candleSeriesRef.current;
-    if (!series || list.length === 0 || live.unit !== "usd") return;
+    if (!candleSeriesRef.current || list.length === 0 || live.unit !== "usd") return;
     if (!(live.nativeUsd > 0) || !(live.priceNative > 0)) return;
     const price = live.priceNative * live.nativeUsd * live.multiplier;
     const step = live.interval;
-    const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
-    const touched: Candle[] = [];
-    let last = list[list.length - 1];
+    const prevLastTime = list[list.length - 1].time;
     // Bucket yang lahir sejak gambar terakhir: datar pada penutupan sebelumnya (paling banyak 60).
-    for (let t = last.time + step, n = 0; t <= nowBucket && n < 60; t += step, n++) {
-      last = { time: t, open: last.close, high: last.close, low: last.close, close: last.close, volume: 0 };
-      list.push(last);
-      touched.push(last);
-    }
+    appendFlatBars(step, 60);
+    const last = list[list.length - 1];
     const bar = { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
     list[list.length - 1] = bar;
-    if (touched.length) touched[touched.length - 1] = bar;
-    else touched.push(bar);
-    for (const c of touched) {
-      series.update({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close });
-      lineSeriesRef.current?.update({ time: c.time as any, value: c.close });
+    updateBars([bar]);
+    // Legenda yang sedang menampilkan bar terakhir ikut diperbarui; yang sedang ditunjuk crosshair tidak.
+    setLegend((cur) => (!cur || cur.time >= prevLastTime ? bar : cur));
+  }
+
+  /**
+   * Tambahkan bar DATAR (bervolume nol, pada penutupan terakhir) untuk setiap bucket yang lahir
+   * sejak bar terakhir, sampai bucket sekarang. Mengembalikan jumlah yang ditambahkan, atau -1
+   * bila yang dibutuhkan lebih dari `max` (pemanggil lalu menggambar ulang penuh).
+   */
+  function appendFlatBars(step: number, max: number): number {
+    const list = candlesRef.current;
+    if (list.length === 0) return 0;
+    const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
+    let last = list[list.length - 1];
+    const missing = Math.floor((nowBucket - last.time) / step);
+    if (missing <= 0) return 0;
+    if (missing > max) return -1;
+    const added: Candle[] = [];
+    for (let t = last.time + step; t <= nowBucket; t += step) {
+      last = { time: t, open: last.close, high: last.close, low: last.close, close: last.close, volume: 0 };
+      list.push(last);
+      added.push(last);
+    }
+    updateBars(added);
+    const lastTime = last.time;
+    setDrawStats((s) => (s ? { ...s, last: lastTime, count: s.count + added.length } : s));
+    return added.length;
+  }
+
+  /** `update()` untuk bar terakhir atau bar baru di seri yang TAMPIL (candle atau garis) dan volume. */
+  function updateBars(bars: Candle[]) {
+    const candleSeries = candleSeriesRef.current;
+    const lineSeries = lineSeriesRef.current;
+    const showCandles = candleSeries?.options().visible !== false;
+    for (const c of bars) {
+      if (showCandles) candleSeries?.update({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close });
+      else lineSeries?.update({ time: c.time as any, value: c.close });
       volumeSeriesRef.current?.update({
         time: c.time as any,
         value: c.volume,
         color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(244,63,94,0.35)",
       });
     }
-    // Legenda yang sedang menampilkan bar terakhir ikut diperbarui; yang sedang ditunjuk crosshair tidak.
-    setLegend((cur) => (!cur || cur.time >= bar.time - step * touched.length ? bar : cur));
   }
 
   const priceUsd = priceNative * (nativeUsd || 0);

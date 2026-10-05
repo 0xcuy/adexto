@@ -318,9 +318,172 @@ export interface Quote {
 
 /**
  * Read pool state. Returns null when the address is not a v2 SovereignHook
- * (e.g. the legacy hook), which the UI must surface as "DEX not live".
+ * (e.g. the legacy hook), which the UI must surface as "DEX not live", and also
+ * when the chain could not be read at all. Callers that need to tell those two
+ * apart use `readPoolStateStrict`.
  */
 export async function readPoolState(chain: ChainInfo, poolAddress: string): Promise<PoolState | null> {
+  try {
+    return await readPoolStateStrict(chain, poolAddress);
+  } catch {
+    return null;
+  }
+}
+
+/** The chain could not be read (network, rate limit). Says nothing about the contract. */
+export class PoolReadError extends Error {
+  constructor(
+    message: string,
+    readonly detail?: unknown
+  ) {
+    super(message);
+    this.name = "PoolReadError";
+  }
+}
+
+/**
+ * Chains whose canonical Multicall3 was checked to exist (eth_getCode, 3,808 bytes on all
+ * five, 5 Oct 2026). Anything else, e.g. a local devchain, reads call by call.
+ */
+const POOL_MULTICALL_CHAIN_IDS = new Set([16661, 42161, 8453, 143, 4663]);
+
+/**
+ * Every getter `readPoolState` needs, in one Multicall3 `aggregate3` with `allowFailure: true`.
+ *
+ * Why one call instead of fifteen. Reading call by call, one pool read was 15 eth_calls, and
+ * the Monad public endpoint started answering 429 at about 15 parallel requests (measured
+ * 5 Oct 2026). Two things went wrong under that limit. The core read failed, so the pool came
+ * back null and the trade button said "Trading unavailable" until the next 20 s poll. Worse,
+ * when only a PROBE failed, the curve and protocol legs silently fell back to zero, so a
+ * healthy 0.11.0 curve was quoted as if it charged no protocol fee: a quote larger than the
+ * curve pays, which the on-chain slippage check rejects.
+ *
+ * In one aggregate3 call a getter that does not exist on an older generation reverts on its
+ * own (`success: false`), exactly like the old per-call probe, while a network failure fails
+ * the whole read. A half-read pool can no longer exist.
+ */
+const POOL_GETTERS = new ethers.Interface([
+  "function initialized() view returns (bool)",
+  "function targetToken() view returns (address)",
+  "function getReserves() view returns (uint256 reserveNative, uint256 reserveToken)",
+  "function lpFeeBps() view returns (uint256)",
+  "function treasuryBuybackBps() view returns (uint256)",
+  "function creatorFeeBps() view returns (uint256)",
+  "function virtualNative() view returns (uint256)",
+  "function realNative() view returns (uint256)",
+  "function creatorOwed() view returns (uint256)",
+  "function creator() view returns (address)",
+  "function floorPriceNativePerToken() view returns (uint256)",
+  "function protocolFeeBps() view returns (uint256)",
+  "function protocolOwed() view returns (uint256)",
+  "function protocolTreasury() view returns (address)",
+]);
+const POOL_CORE = ["initialized", "targetToken", "getReserves", "lpFeeBps", "treasuryBuybackBps"] as const;
+const POOL_CURVE = ["creatorFeeBps", "virtualNative", "realNative", "creatorOwed", "creator", "floorPriceNativePerToken"] as const;
+const POOL_PROTOCOL = ["protocolFeeBps", "protocolOwed", "protocolTreasury"] as const;
+const POOL_READ_ORDER = [...POOL_CORE, ...POOL_CURVE, ...POOL_PROTOCOL];
+const AGGREGATE3_VIEW = new ethers.Interface([
+  "function aggregate3((address target, bool allowFailure, bytes callData)[] calls) view returns ((bool success, bytes returnData)[] returnData)",
+]);
+/** Token decimals never change, so they are read once per chain and token. */
+const TOKEN_DECIMALS_CACHE = new Map<string, number>();
+
+/**
+ * Like `readPoolState`, but THROWS `PoolReadError` when the chain could not be read, and
+ * returns null only when the address answered and is not a v2 pool.
+ */
+export async function readPoolStateStrict(chain: ChainInfo, poolAddress: string): Promise<PoolState | null> {
+  if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return null;
+  if (!POOL_MULTICALL_CHAIN_IDS.has(chain.chainId)) return readPoolStateDirect(chain, poolAddress);
+
+  const provider = readProvider(chain);
+  const calls = POOL_READ_ORDER.map((name) => ({
+    target: poolAddress,
+    allowFailure: true,
+    callData: POOL_GETTERS.encodeFunctionData(name),
+  }));
+  let raw: string;
+  try {
+    raw = await provider.call({ to: MULTICALL3_ADDRESS, data: AGGREGATE3_VIEW.encodeFunctionData("aggregate3", [calls]) });
+  } catch (error) {
+    throw new PoolReadError(`Could not read ${chain.name}.`, error);
+  }
+  // "0x" would mean no Multicall3 at the canonical address after all: read call by call.
+  if (!raw || raw === "0x") return readPoolStateDirect(chain, poolAddress);
+  const [entries] = AGGREGATE3_VIEW.decodeFunctionResult("aggregate3", raw);
+  const results = new Map<string, ethers.Result | null>();
+  POOL_READ_ORDER.forEach((name, i) => {
+    const entry = (entries as any[])[i];
+    // A call to an address without code "succeeds" with empty data; that is not an answer either.
+    if (!entry?.success || !entry.returnData || entry.returnData === "0x") return results.set(name, null);
+    try {
+      results.set(name, POOL_GETTERS.decodeFunctionResult(name, entry.returnData));
+    } catch {
+      results.set(name, null);
+    }
+  });
+  const all = (names: readonly string[]) => names.every((n) => results.get(n) != null);
+  const first = (name: string) => results.get(name)![0];
+
+  // Same verdicts as the per-call path: a core getter that does not answer means no v2 pool.
+  if (!all(POOL_CORE)) return null;
+  const tokenAddress = String(first("targetToken"));
+  if (!tokenAddress || tokenAddress === ethers.ZeroAddress) return null;
+
+  const isCurve = all(POOL_CURVE);
+  const hasProtocolLeg = all(POOL_PROTOCOL);
+  const reserves = results.get("getReserves")!;
+  const lpFeeBps = BigInt(first("lpFeeBps"));
+  const treasuryBuybackBps = BigInt(first("treasuryBuybackBps"));
+  const creatorFeeBps = isCurve ? BigInt(first("creatorFeeBps")) : 0n;
+  const protocolFeeBps = hasProtocolLeg ? BigInt(first("protocolFeeBps")) : 0n;
+
+  const decimalsKey = `${chain.chainId}:${tokenAddress.toLowerCase()}`;
+  let tokenDecimals = TOKEN_DECIMALS_CACHE.get(decimalsKey);
+  if (tokenDecimals === undefined) {
+    try {
+      tokenDecimals = Number(await new ethers.Contract(tokenAddress, ERC20_ABI, provider).decimals());
+      TOKEN_DECIMALS_CACHE.set(decimalsKey, tokenDecimals);
+    } catch {
+      // Same fallback as the per-call path, but not cached: the next read asks again.
+      tokenDecimals = 18;
+    }
+  }
+
+  const reserveNative = BigInt(reserves[0]);
+  const reserveToken = BigInt(reserves[1]);
+  const spotPriceNative =
+    reserveToken > 0n ? Number(ethers.formatEther(reserveNative)) / Number(ethers.formatUnits(reserveToken, tokenDecimals)) : 0;
+
+  return {
+    poolAddress,
+    tokenAddress,
+    initialized: Boolean(first("initialized")),
+    reserveNative,
+    reserveToken,
+    lpFeeBps,
+    treasuryBuybackBps,
+    tokenDecimals,
+    spotPriceNative,
+    isCurve,
+    creatorFeeBps,
+    virtualNative: isCurve ? BigInt(first("virtualNative")) : 0n,
+    realNative: isCurve ? BigInt(first("realNative")) : 0n,
+    creatorOwed: isCurve ? BigInt(first("creatorOwed")) : 0n,
+    creator: isCurve ? String(first("creator")) : null,
+    floorPriceNative: isCurve ? Number(ethers.formatEther(BigInt(first("floorPriceNativePerToken")))) : 0,
+    protocolFeeBps,
+    protocolOwed: hasProtocolLeg ? BigInt(first("protocolOwed")) : 0n,
+    protocolTreasury: hasProtocolLeg ? String(first("protocolTreasury")) : null,
+    totalFeeBps: lpFeeBps + creatorFeeBps + treasuryBuybackBps + protocolFeeBps,
+  };
+}
+
+/**
+ * The per-call read, one eth_call per getter. Used where Multicall3 is not known to exist.
+ * Returns null on any failure, transport included.
+ */
+export async function readPoolStateDirect(chain: ChainInfo, poolAddress: string): Promise<PoolState | null> {
   if (!poolAddress || !/^0x[a-fA-F0-9]{40}$/.test(poolAddress)) return null;
   try {
     const provider = readProvider(chain);

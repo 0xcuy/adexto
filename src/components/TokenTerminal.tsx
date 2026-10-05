@@ -1077,7 +1077,8 @@ export default function TokenTerminal({
                 ) : !isConnected ? (
                   "Connect wallet to trade"
                 ) : !swap.tradable ? (
-                  "Trading unavailable"
+                  // Sebelum pool pertama terbaca, belum ada yang "unavailable"; lihat `loadPool`.
+                  swap.poolChecked ? "Trading unavailable" : "Reading market…"
                 ) : swap.limit ? (
                   // Sebelum ganti chain: tidak ada gunanya pindah jaringan untuk trade yang tidak terjangkau.
                   swap.limit.label

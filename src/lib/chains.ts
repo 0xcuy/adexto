@@ -559,10 +559,34 @@ export function toHexChainId(chainId: number): string {
  */
 export function rpcUrlFor(chain: Pick<ChainInfo, "key" | "rpcUrl" | "browserRpcPath">): string {
   if (typeof window !== "undefined") {
-    return chain.browserRpcPath ? `${window.location.origin}${chain.browserRpcPath}` : chain.rpcUrl;
+    if (chain.browserRpcPath) return `${window.location.origin}${chain.browserRpcPath}`;
+    return BROWSER_READ_RPC[chain.key] ?? chain.rpcUrl;
   }
   return SERVER_READ_RPC[chain.key] ?? chain.rpcUrl;
 }
+
+/**
+ * Endpoint baca PERAMBAN yang berbeda dari `rpcUrl`, per chain. Peramban hanya membaca
+ * `eth_call`/saldo/harga gas; tidak ada baca log di sisi klien.
+ *
+ * Monad: `rpc1.monad.xyz` (Alchemy) dipilih untuk baca LOG server (rentang >=1.000.000 blok),
+ * tetapi untuk peramban ia menolak burst. Terukur 5 Okt 2026 dari Indonesia, eth_call paralel:
+ *
+ *   rpc1.monad.xyz  Alchemy    20 → 6 ditolak, 40 → 24 ditolak   HTTP 429 HTML TANPA CORS
+ *   rpc.monad.xyz   QuickNode  50/detik, sisanya 429             JSON + header CORS
+ *   rpc2.monad.xyz  Goldsky    150/150 lolos                     median 228 ms
+ *   rpc3.monad.xyz  Ankr       80 → 28 ditolak
+ *
+ * Satu `readPoolState` dulu 15 panggilan (sekarang satu Multicall3, lihat `readPoolStateStrict`),
+ * jadi halaman token Monad rutin melewati batas rpc1, dan karena 429-nya tanpa header CORS peramban
+ * hanya melihat "network error": ethers tidak bisa mengulang, pool terbaca null, tombol jadi
+ * "Trading unavailable" sampai polling 20 detik berikutnya.
+ * QuickNode menjawab 429 dengan CORS, jadi pengulangan bawaan ethers untuk 429 berjalan, dan
+ * latensinya paling rendah (median 27 ms, rpc1 38 ms).
+ */
+const BROWSER_READ_RPC: Partial<Record<ChainKey, string>> = {
+  Monad: "https://rpc.monad.xyz",
+};
 
 /**
  * Endpoint `eth_call` sisi SERVER yang berbeda dari `rpcUrl`, per chain.
