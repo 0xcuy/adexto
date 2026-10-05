@@ -35,7 +35,8 @@ interface Trade {
 }
 
 const fmtToken = (v: number) =>
-  v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1000 ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : v.toFixed(2);
+  // "en-US": server dan peramban harus merender teks yang sama (lihat `formatUsd`).
+  v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v.toFixed(2);
 
 /**
  * Umur relatif. Berlanjut melewati hari, karena sekarang riwayatnya bisa sampai sana.

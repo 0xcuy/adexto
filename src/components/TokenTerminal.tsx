@@ -545,7 +545,7 @@ export default function TokenTerminal({
             label={`Supply (${project.symbol}) · ${chain.key}`}
             value={formatTokenAmount(project.supply)}
             tone="accent"
-            title={`${project.supply.toLocaleString()} ${project.symbol} minted on ${chain.name}. Each chain this ticker launched on has its own separate supply of this size — it is not one supply split across chains.`}
+            title={`${project.supply.toLocaleString("en-US")} ${project.symbol} minted on ${chain.name}. Each chain this ticker launched on has its own separate supply of this size — it is not one supply split across chains.`}
           />
           <Stat
             label={`Price (${chain.nativeSymbol})`}
@@ -1060,7 +1060,7 @@ export default function TokenTerminal({
 
               <button
                 onClick={() => (isConnected ? swap.execute(address) : connectWallet())}
-                disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n : isConnecting}
+                disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n || Boolean(swap.limit) : isConnecting}
                 /* Beli/jual adalah ARAH, jadi di sini hijau dan merah memang tepat.
                    Sebelumnya keduanya gradien dua warna yang berakhir di ungu, jadi
                    tombol beli dan tombol jual berbagi separuh warna yang sama — pada
@@ -1078,6 +1078,9 @@ export default function TokenTerminal({
                   "Connect wallet to trade"
                 ) : !swap.tradable ? (
                   "Trading unavailable"
+                ) : swap.limit ? (
+                  // Sebelum ganti chain: tidak ada gunanya pindah jaringan untuk trade yang tidak terjangkau.
+                  swap.limit.label
                 ) : !onCorrectChain ? (
                   `Switch to ${chain.name} first`
                 ) : swap.mode === "buy" ? (

@@ -5,6 +5,7 @@ import { ArrowDownUp, ChevronDown } from "lucide-react";
 
 import { nativeAssetLogo } from "@/lib/chains";
 import { formatSmallNumber, formatTokenAmount, formatUsd, plainDecimal } from "@/lib/pricing";
+import { normalizeAmountInput, plainTokenAmount } from "@/lib/amount-input";
 import type { SovereignSwap } from "@/lib/use-sovereign-swap";
 
 /**
@@ -159,15 +160,24 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </div>
 
         <div className="flex items-center gap-3">
+          {/* `type="text"` + `inputMode="decimal"`, sama dengan kolom terima. Sebagai `type="number"`
+              koma dari keyboard Android Indonesia ("0,001") dibuang atau mengosongkan nilai,
+              tergantung peramban. Lihat `normalizeAmountInput`. */}
           <input
-            type="number"
-            min="0"
-            step="any"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
             value={swap.amountInput}
-            onChange={(e) => swap.setAmountInput(e.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-[28px] font-semibold leading-[1.25] tracking-tight text-ink placeholder:text-ink-faint/60 focus:outline-none"
+            onChange={(e) =>
+              swap.setAmountInput(normalizeAmountInput(e.target.value, swap.mode === "buy" ? 18 : swap.tokenDecimals))
+            }
+            className={`min-w-0 flex-1 bg-transparent text-[28px] font-semibold leading-[1.25] tracking-tight placeholder:text-ink-faint/60 focus:outline-none ${
+              swap.limit?.kind === "balance" ? "text-danger" : "text-ink"
+            }`}
             placeholder="0"
             aria-label={`Amount of ${paySymbol} to pay`}
+            aria-invalid={swap.limit?.kind === "balance" || undefined}
+            aria-describedby={swap.limit?.kind === "balance" ? "swap-pay-limit" : undefined}
             data-numeric
           />
           <AssetPill symbol={paySymbol} logo={payLogo} />
@@ -175,12 +185,21 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
 
         <div className="mt-2 flex items-center justify-between gap-2 text-[12px]/snug text-ink-faint">
           <span data-numeric>{formatUsd(inputUsd)}</span>
-          <span data-numeric>
+          <span
+            data-numeric
+            data-testid="swap-pay-balance"
+            className={swap.limit?.kind === "balance" ? "font-semibold text-danger" : undefined}
+          >
             {swap.mode === "buy"
               ? `${swap.nativeBalanceFormatted} ${chain.nativeSymbol}`
               : `${swap.tokenBalanceFormatted} ${tokenSymbol}`}
           </span>
         </div>
+        {swap.limit?.kind === "balance" && (
+          <p id="swap-pay-limit" className="mt-2 text-[12px]/snug text-danger" role="status">
+            {swap.limit.detail}
+          </p>
+        )}
       </div>
 
       {/* Bundar, putih, berbayang, menindih celah antar panel. Yang lama kotak
@@ -213,29 +232,24 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </div>
 
         <div className="flex items-center gap-3">
-          {/* `type="text"` dengan `inputMode="decimal"`, BUKAN `type="number"`, dan itu bukan
-              kelalaian. Saat sisi ini menampilkan estimasi ia memakai pemisah ribuan —
-              "9,887.12" — dan input number menolak nilai berkoma sebagai tidak sah, sehingga
-              peramban merendernya KOSONG. Terlihat dari uji interaksi, bukan dari kode: mengetik
-              di kolom atas membuat kolom bawah blank. Teks menyimpan pemisahnya, dan koma
-              dibersihkan saat pengguna mengetik. */}
+          {/* `type="text"` dengan `inputMode="decimal"`, BUKAN `type="number"`, sama dengan kolom
+              bayar: koma desimal dari keyboard ("0,5") dibaca sebagai titik. Estimasinya TANPA
+              pemisah ribuan (`plainTokenAmount`): "2,850" dulu jadi "2,85" begitu satu digitnya
+              dihapus, dan itu terbaca 2.85. Lihat `normalizeAmountInput`. */}
           <input
             type="text"
             inputMode="decimal"
+            autoComplete="off"
             value={
               swap.lastEdited === "out"
                 ? swap.outputInput
                 : swap.outputAmount > 0
-                  ? formatTokenAmount(swap.outputAmount)
+                  ? plainTokenAmount(swap.outputAmount)
                   : ""
             }
-            onChange={(e) => {
-              // Hanya angka dan satu titik desimal yang lolos, jadi menempel "5,000" atau
-              // "1 000" tetap menghasilkan jumlah yang bisa diparse.
-              const cleaned = e.target.value.replace(/[^\d.]/g, "");
-              const parts = cleaned.split(".");
-              swap.setOutputInput(parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned);
-            }}
+            onChange={(e) =>
+              swap.setOutputInput(normalizeAmountInput(e.target.value, swap.mode === "buy" ? swap.tokenDecimals : 18))
+            }
             className="min-w-0 flex-1 bg-transparent text-[28px] font-semibold leading-[1.25] tracking-tight text-accent placeholder:text-ink-faint/60 focus:outline-none"
             placeholder="0"
             aria-label={`Amount of ${getSymbol} to receive`}
@@ -245,8 +259,8 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
         </div>
 
         {swap.outputUnreachable && (
-          <p className="mt-2 text-[12px]/snug text-warn">
-            The curve cannot deliver that much in one trade. Ask for less.
+          <p className="mt-2 text-[12px]/snug text-warn" role="status">
+            {swap.limit?.kind === "stock" ? swap.limit.detail : "The curve cannot deliver that much in one trade. Ask for less."}
           </p>
         )}
 

@@ -532,7 +532,7 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
 
           <button
             onClick={() => (isConnected ? swap.execute(address) : connectWallet())}
-            disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n : isConnecting}
+            disabled={isConnected ? swap.busy || !swap.tradable || swap.parsedAmount <= 0n || Boolean(swap.limit) : isConnecting}
             /* Sama seperti tombol launch di studio: keadaan nonaktif diberi warna
                sendiri alih-alih diredupkan, supaya alasan terkuncinya tetap terbaca. */
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 text-[16px] font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-cream-3 disabled:text-ink-soft"
@@ -547,6 +547,8 @@ export default function SwapTerminal({ embedded = false }: { embedded?: boolean 
               "Select a market"
             ) : !swap.tradable ? (
               "Trading unavailable"
+            ) : swap.limit ? (
+              swap.limit.label
             ) : !onCorrectChain ? (
               `Switch to ${chain.name} first`
             ) : swap.mode === "buy" ? (

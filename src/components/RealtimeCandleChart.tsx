@@ -281,8 +281,11 @@ const MIN_PRICE_SPAN = 0.005;
 /** Bar paling banyak per seri, dipotong dari ujung terbaru. Lihat penjelasannya di `load()`. */
 const MAX_BARS = 100_000;
 
-/** Riwayat kurs per aset native, dipakai ulang 60 detik oleh semua chart di halaman. */
-const FX_CACHE = new Map<string, { at: number; points: Array<[number, number]> }>();
+/**
+ * Riwayat kurs per aset native, dipakai ulang oleh semua chart di halaman. `seenUsd` adalah kurs
+ * halaman saat riwayatnya diambil; lihat `fxFresh` di `load()`.
+ */
+const FX_CACHE = new Map<string, { at: number; points: Array<[number, number]>; seenUsd: number }>();
 function withMinSpan(res: any) {
   const r = res?.priceRange;
   if (!r) return res;
@@ -480,6 +483,12 @@ export default function RealtimeCandleChart({
   const candlesRef = useRef<Candle[]>([]);
   /** Tanda tangan data yang sedang tergambar; lihat penjelasannya di `load()`. */
   const drawnSigRef = useRef("");
+  /**
+   * Bahan "tick langsung" bar terakhir di sumbu USD (lihat `applyLiveTick`). Ref, karena dibaca
+   * dari efek `nativeUsd` dan dari `load()` tanpa membuat ulang keduanya.
+   */
+  const liveRef = useRef({ unit: "", priceNative: 0, nativeUsd: 0, multiplier: 1, interval: 60 });
+  liveRef.current.nativeUsd = nativeUsd;
   /**
    * Ringkasan seri yang tergambar, dipasang sebagai atribut data di kontainer chart untuk
    * pemeriksaan otomatis: bar pertama/terakhir, jumlah, bucket yang bolong, bar bervolume, dan
@@ -1212,7 +1221,20 @@ export default function RealtimeCandleChart({
       // Kurs yang masih segar di `FX_CACHE` tidak diambil lagi.
       const fxUrl = `/api/fx-history?symbol=${encodeURIComponent(nativeSymbol)}`;
       const fxHit = unit === "usd" ? FX_CACHE.get(nativeSymbol) : undefined;
-      const fxFresh = Boolean(fxHit && Date.now() - fxHit.at < 60_000);
+      /**
+       * Segar = umurnya di bawah 60 detik DAN kurs halaman (`nativeUsd`) belum berubah sejak
+       * riwayatnya diambil.
+       *
+       * Kurs halaman berubah paling sering semenit sekali, dan sampel riwayatnya direkam pada
+       * permintaan yang sama. Begitu kurs halaman berubah, riwayat diambil ulang pada polling
+       * berikutnya, jadi bar yang baru ditutup memakai kurs yang tadi ditampilkan tick langsung
+       * (`applyLiveTick`), tidak melompat balik ke kurs lama. Mengambilnya tiap polling tidak
+       * dipilih: riwayatnya ~30 KB terkompresi, ~7 MB per jam per tab di HP.
+       */
+      const pageUsd = liveRef.current.nativeUsd;
+      const fxFresh = Boolean(
+        fxHit && Date.now() - fxHit.at < 60_000 && (!(pageUsd > 0) || pageUsd === fxHit.seenUsd)
+      );
       const fxPending: Promise<any> | null =
         unit === "usd" && !fxFresh
           ? (takePrefetched(fxUrl) ??
@@ -1240,7 +1262,7 @@ export default function RealtimeCandleChart({
         const trades: TradePoint[] = Array.isArray(data.trades) ? data.trades : [];
         const totalTrades = Number(data.totalTrades || 0);
 
-        // Kurs dolar (sumbu USD), disimpan 60 detik: polling 15 detik tidak perlu mengambilnya lagi.
+        // Kurs dolar (sumbu USD), disimpan sampai kurs halaman berubah atau 60 detik (lihat `fxFresh`).
         let fxPoints: Array<[number, number]> = [];
         if (unit === "usd") {
           if (fxFresh && fxHit) fxPoints = fxHit.points;
@@ -1249,7 +1271,7 @@ export default function RealtimeCandleChart({
             // dan sumbu jatuh ke native di bawah.
             const fx = await fxPending;
             fxPoints = Array.isArray(fx?.points) ? fx.points : [];
-            if (fxPoints.length) FX_CACHE.set(nativeSymbol, { at: Date.now(), points: fxPoints });
+            if (fxPoints.length) FX_CACHE.set(nativeSymbol, { at: Date.now(), points: fxPoints, seenUsd: pageUsd });
             if (cancelled) return null;
           }
         }
@@ -1277,7 +1299,9 @@ export default function RealtimeCandleChart({
           if (Number.isFinite(data.priceNative) && data.priceNative > 0) {
             setPriceNative(data.priceNative);
             setChangePct(Number(data.changePct) || 0);
+            liveRef.current.priceNative = data.priceNative;
           }
+          applyLiveTick();
           return totalTrades;
         }
 
@@ -1429,6 +1453,12 @@ export default function RealtimeCandleChart({
             volBars,
             unit: inUsd ? "usd" : "native",
           });
+          // Bar terakhir langsung memakai kurs terkini (lihat `applyLiveTick`).
+          liveRef.current.unit = inUsd ? "usd" : "native";
+          liveRef.current.multiplier = mul;
+          liveRef.current.interval = interval;
+          if (Number.isFinite(data.priceNative) && data.priceNative > 0) liveRef.current.priceNative = data.priceNative;
+          applyLiveTick();
 
           /**
            * `unit` WAJIB ikut di kunci ini.
@@ -1640,6 +1670,54 @@ export default function RealtimeCandleChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabledKey]);
 
+  /**
+   * Bar terakhir di sumbu USD ikut kurs TERKINI, tanpa membangun ulang seri.
+   *
+   * Kurs dolar aset native datang lewat `nativeUsd` (halaman memintanya tiap ~15 detik) dan
+   * direkam server tiap menit. Sesudah seri dari peluncuran (puluhan ribu bar) berhenti dibangun
+   * ulang tiap polling, bar terakhir baru bergerak 45–75 detik sesudah kurs berubah (terukur 5 Okt,
+   * owner: "harga ga streaming, kaya mati"). Sekarang `update()` pada bar terakhir: harganya
+   * `priceNative × nativeUsd`, high/low melebar bila perlu, volume tetap. Bucket baru yang lahir di
+   * antara dua polling ditambahkan datar lebih dulu, supaya waktu tetap maju tanpa celah.
+   */
+  useEffect(() => {
+    applyLiveTick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeUsd]);
+  function applyLiveTick() {
+    const live = liveRef.current;
+    const list = candlesRef.current;
+    const series = candleSeriesRef.current;
+    if (!series || list.length === 0 || live.unit !== "usd") return;
+    if (!(live.nativeUsd > 0) || !(live.priceNative > 0)) return;
+    const price = live.priceNative * live.nativeUsd * live.multiplier;
+    const step = live.interval;
+    const nowBucket = Math.floor(Date.now() / 1000 / step) * step;
+    const touched: Candle[] = [];
+    let last = list[list.length - 1];
+    // Bucket yang lahir sejak gambar terakhir: datar pada penutupan sebelumnya (paling banyak 60).
+    for (let t = last.time + step, n = 0; t <= nowBucket && n < 60; t += step, n++) {
+      last = { time: t, open: last.close, high: last.close, low: last.close, close: last.close, volume: 0 };
+      list.push(last);
+      touched.push(last);
+    }
+    const bar = { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+    list[list.length - 1] = bar;
+    if (touched.length) touched[touched.length - 1] = bar;
+    else touched.push(bar);
+    for (const c of touched) {
+      series.update({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close });
+      lineSeriesRef.current?.update({ time: c.time as any, value: c.close });
+      volumeSeriesRef.current?.update({
+        time: c.time as any,
+        value: c.volume,
+        color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(244,63,94,0.35)",
+      });
+    }
+    // Legenda yang sedang menampilkan bar terakhir ikut diperbarui; yang sedang ditunjuk crosshair tidak.
+    setLegend((cur) => (!cur || cur.time >= bar.time - step * touched.length ? bar : cur));
+  }
+
   const priceUsd = priceNative * (nativeUsd || 0);
   /** Apakah interval terpilih berada di bawah satu menit, supaya tombolnya bisa menyebutnya. */
   const subMinuteActive = INTERVALS.some((i) => i.sub && i.seconds === interval);
@@ -1726,7 +1804,9 @@ export default function RealtimeCandleChart({
             aria-hidden={priceUsd > 0 ? undefined : true}
             data-numeric
           >
-            ≈ ${priceUsd > 0 ? (priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)) : "0.000000"}
+            {/* Digit signifikan, bukan 6 desimal tetap: $0.0000058831 dulu tercetak "$0.000006" dan
+                tidak pernah berubah walaupun harganya bergerak (owner, 5 Okt: "harga ga streaming"). */}
+            ≈ ${priceUsd > 0 ? (priceUsd < 0.01 ? formatSmallNumber(priceUsd, 4) : priceUsd.toFixed(4)) : "0.0₅0000"}
           </span>
           {/* Kurs yang dipakai untuk angka USD di sebelahnya, dinyatakan.
               Candle-nya digambar dalam satuan native, jadi harga USD di atas bergerak dua

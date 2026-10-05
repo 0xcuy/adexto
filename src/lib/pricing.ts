@@ -168,7 +168,10 @@ export function formatUsd(value: number, opts: { compact?: boolean } = {}): stri
   // subscript supaya terbaca sebagai harga, bukan sebagai galat.
   if (abs < 0.01) return `$${formatSmallNumber(value)}`;
   if (abs < 1) return `$${value.toFixed(4)}`;
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // "en-US", bukan locale peramban: server merender en-US, dan peramban id-ID dulu merender
+  // "$1.234,56" di atas HTML "$1,234.56". React menganggapnya hidrasi gagal (#418) dan merender
+  // ulang halaman token dari nol. Situsnya berbahasa Inggris, angkanya juga.
+  return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatNative(value: number, symbol: string): string {
@@ -185,9 +188,11 @@ export function formatPriceNative(value: number, symbol: string): string {
 export function formatTokenAmount(value: number): string {
   if (!Number.isFinite(value) || value === 0) return "0";
   const abs = Math.abs(value);
-  if (abs >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (abs >= 1) return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  return value.toLocaleString(undefined, { maximumFractionDigits: 8 });
+  // "en-US" (lihat `formatUsd`): stat Supply di halaman token dirender server, dan di peramban
+  // id-ID "1.000.000.000" tidak cocok dengan "1,000,000,000" dari server (#418).
+  if (abs >= 1000) return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (abs >= 1) return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return value.toLocaleString("en-US", { maximumFractionDigits: 8 });
 }
 
 /** Market cap in USD from whole-token supply and native price. */

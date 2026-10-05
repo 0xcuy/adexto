@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { readProvider, resolveChainOrDefault, type ChainInfo } from "@/lib/chains";
 import {
@@ -91,6 +91,20 @@ export interface SovereignSwap {
   setMaxAmount: () => void;
   /** Persen tombol porsi yang menghasilkan jumlah sekarang (100 = Max), null bila diketik/diubah. */
   activeFraction: number | null;
+  /**
+   * Alasan jumlah ini TIDAK BISA dikirim, atau null. Dipakai tombol utama untuk menolak lebih
+   * dulu, sebelum dompet dibuka: `label` jadi teks tombol, `detail` kalimat di bawah kolom.
+   *
+   * - `balance`: lebih dari saldo dompet di chain pasar. Arah beli menyisakan sisa gas yang SAMA
+   *   dengan tombol Max (`gasHeadroomFor`), jadi Max selalu lolos. Dulu kolom bayar menerima
+   *   9.000.000.000.000.000.000 MON dengan saldo 24,9 MON, dan galatnya baru muncul sesudah Buy
+   *   ditekan (owner, 5 Okt).
+   * - `stock`: kolom terima meminta lebih banyak dari yang bisa diberikan kurva dalam satu trade.
+   *
+   * Saldo hanya dibandingkan sesudah terbaca untuk alamat ini, jadi tidak ada "Not enough" palsu
+   * selama saldo masih dimuat.
+   */
+  limit: { kind: "balance" | "stock"; label: string; detail: string } | null;
 
   busy: boolean;
   statusLine: string | null;
@@ -122,6 +136,17 @@ const GAS_HEADROOM_FALLBACK: Record<string, bigint> = {
   MON: ethers.parseEther("0.2"),
   "0G": ethers.parseEther("0.01"),
 };
+/**
+ * Jumlah untuk kalimat `limit`: 4 desimal di atas 1, tiga digit signifikan di bawahnya. Saldo ETH
+ * di chain L2 biasanya 0,0004 dan sisa gasnya 0,00002; dengan 4 desimal tetap keduanya jadi
+ * "0.0004" dan "0". en-US, seperti angka lain di formulir ini.
+ */
+function amountText(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  return value >= 1
+    ? value.toLocaleString("en-US", { maximumFractionDigits: 4 })
+    : value.toLocaleString("en-US", { maximumSignificantDigits: 3 });
+}
 function gasHeadroomFor(nativeSymbol: string, gasPrice: bigint | null): bigint {
   if (gasPrice === null || gasPrice <= 0n) return GAS_HEADROOM_FALLBACK[nativeSymbol] ?? ethers.parseEther("0.002");
   const need = gasPrice * GAS_UNITS_RESERVED * GAS_PRICE_SAFETY;
@@ -193,38 +218,87 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
   }, [loadPool]);
 
   // ── balances ─────────────────────────────────────────────────────────────
+  /**
+   * Untuk alamat/pasar mana saldo native dan saldo token terakhir terbaca. Lihat `limit`.
+   *
+   * Terpisah, karena RPC publik bisa menjawab yang satu dan menolak yang lain: terukur 5 Okt di
+   * halaman token Monad, `getBalance` dijawab dan `balanceOf` gagal (batas laju rpc1.monad.xyz).
+   * Arah beli hanya butuh saldo native.
+   */
+  const balanceKey =
+    address && market ? `${address.toLowerCase()}:${market.chainId}:${market.tokenAddress.toLowerCase()}` : null;
+  const [nativeFor, setNativeFor] = useState<string | null>(null);
+  const [tokenFor, setTokenFor] = useState<string | null>(null);
+  const balanceRetry = useRef<{ key: string | null; attempts: number; timer: ReturnType<typeof setTimeout> | null }>({
+    key: null,
+    attempts: 0,
+    timer: null,
+  });
+  const loadBalancesRef = useRef<() => void>(() => {});
   const loadBalances = useCallback(async () => {
-    if (!address || !market) {
+    if (balanceRetry.current.key !== balanceKey) {
+      // Alamat atau pasar lain: saldo yang tampil bukan miliknya lagi.
+      if (balanceRetry.current.timer) clearTimeout(balanceRetry.current.timer);
+      balanceRetry.current = { key: balanceKey, attempts: 0, timer: null };
       setNativeBalance(0n);
       setTokenBalance(0n);
+      setNativeFor(null);
+      setTokenFor(null);
+      setGasPrice(null);
+    }
+    if (!address || !market || !balanceKey) return;
+    const key = balanceKey;
+    const provider = readProvider(chain);
+    // Harga gas dibaca bersama saldo; gagal membacanya tidak menggagalkan saldo (sisa gas jatuh ke
+    // cadangan per aset, lihat `gasHeadroomFor`).
+    provider
+      .send("eth_gasPrice", [])
+      .then((hex: string) => {
+        if (balanceRetry.current.key === key) setGasPrice(BigInt(hex));
+      })
+      .catch(() => {});
+    const erc20 = new ethers.Contract(market.tokenAddress, ERC20_ABI, provider);
+    const [native, token] = await Promise.allSettled([
+      provider.getBalance(address),
+      Promise.all([erc20.balanceOf(address), erc20.decimals()]),
+    ]);
+    const state = balanceRetry.current;
+    if (state.key !== key) return;
+    if (native.status === "fulfilled") {
+      setNativeBalance(BigInt(native.value));
+      setNativeFor(key);
+    }
+    if (token.status === "fulfilled") {
+      setTokenBalance(BigInt(token.value[0]));
+      setTokenDecimals(Number(token.value[1]));
+      setTokenFor(key);
+    }
+    if (native.status === "fulfilled" && token.status === "fulfilled") {
+      state.attempts = 0;
       return;
     }
-    try {
-      const provider = readProvider(chain);
-      // Harga gas dibaca bersama saldo; gagal membacanya tidak menggagalkan saldo.
-      provider
-        .send("eth_gasPrice", [])
-        .then((hex: string) => setGasPrice(BigInt(hex)))
-        .catch(() => setGasPrice(null));
-      const native = await provider.getBalance(address);
-      setNativeBalance(BigInt(native));
-      try {
-        const erc20 = new ethers.Contract(market.tokenAddress, ERC20_ABI, provider);
-        const [balance, decimals] = await Promise.all([erc20.balanceOf(address), erc20.decimals()]);
-        setTokenBalance(BigInt(balance));
-        setTokenDecimals(Number(decimals));
-      } catch {
-        setTokenBalance(0n);
-      }
-    } catch {
-      setNativeBalance(0n);
-      setTokenBalance(0n);
-    }
-  }, [address, chain.rpcUrl, market]);
+    // Dulu bacaan yang gagal tidak diulang: saldo tetap 0 sampai halaman dimuat ulang, dan batas
+    // saldo tidak pernah berlaku. Sekarang diulang dengan jeda 2, 4, 6 … detik, paling banyak 8 kali.
+    if (state.attempts >= 8 || state.timer) return;
+    state.attempts += 1;
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      loadBalancesRef.current();
+    }, 2000 * state.attempts);
+  }, [address, balanceKey, chain, market]);
+  loadBalancesRef.current = loadBalances;
 
   useEffect(() => {
     loadBalances();
   }, [loadBalances]);
+  useEffect(
+    () => () => {
+      if (balanceRetry.current.timer) clearTimeout(balanceRetry.current.timer);
+      // Bacaan yang masih berjalan tidak lagi menulis saldo atau menjadwalkan ulangan.
+      balanceRetry.current = { key: null, attempts: 0, timer: null };
+    },
+    []
+  );
 
   // ── quoting ──────────────────────────────────────────────────────────────
   const parsedAmount = useMemo(() => {
@@ -377,6 +451,40 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
 
   const setMaxAmount = useCallback(() => setAmountFraction(100), [setAmountFraction]);
 
+  const nativeReady = balanceKey !== null && nativeFor === balanceKey;
+  const tokenReady = balanceKey !== null && tokenFor === balanceKey;
+  const limit = useMemo((): SovereignSwap["limit"] => {
+    if (!market) return null;
+    const symbol = mode === "buy" ? chain.nativeSymbol : market.symbol;
+    if (mode === "buy" && lastEdited === "out" && outputUnreachable && pool) {
+      const left = Number(ethers.formatUnits(pool.reserveToken, tokenDecimals));
+      return {
+        kind: "stock",
+        label: "More than the curve holds",
+        detail: `The curve holds ${left.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${market.symbol}, and one trade cannot take all of it. Ask for less.`,
+      };
+    }
+    if (parsedAmount <= 0n || !(mode === "buy" ? nativeReady : tokenReady)) return null;
+    if (mode === "buy") {
+      // Sisa gas yang sama dengan tombol Max, jadi jumlah dari Max tidak pernah ditolak di sini.
+      const headroom = gasHeadroomFor(chain.nativeSymbol, gasPrice);
+      const usable = nativeBalance > headroom ? nativeBalance - headroom : 0n;
+      if (parsedAmount > usable) {
+        const have = amountText(Number(ethers.formatEther(nativeBalance)));
+        const keep = amountText(Number(ethers.formatEther(headroom)));
+        return {
+          kind: "balance",
+          label: `Not enough ${symbol}`,
+          detail: `This wallet holds ${have} ${symbol} on ${chain.name}. Keep about ${keep} ${symbol} for gas.`,
+        };
+      }
+    } else if (parsedAmount > tokenBalance) {
+      const have = amountText(Number(ethers.formatUnits(tokenBalance, tokenDecimals)));
+      return { kind: "balance", label: `Not enough ${symbol}`, detail: `This wallet holds ${have} ${symbol}.` };
+    }
+    return null;
+  }, [market, mode, chain, lastEdited, outputUnreachable, pool, tokenDecimals, nativeReady, tokenReady, parsedAmount, nativeBalance, tokenBalance, gasPrice]);
+
   const execute = useCallback(
     async (walletAddress: string | null) => {
       setErrorLine(null);
@@ -401,6 +509,11 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
       }
       if (!quote || quote.amountOut <= 0n) {
         setErrorLine("The pool cannot quote this size. Try a smaller amount.");
+        return;
+      }
+      // Tombol sudah menolak keadaan ini; penjaga ini untuk pemanggil lain.
+      if (limit) {
+        setErrorLine(limit.detail);
         return;
       }
 
@@ -436,7 +549,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
           setTxHash(result.txHash);
           if (referral) reportReferredTrade({ txHash: result.txHash, chainId: chain.chainId, code: referral.code });
           setStatusLine(
-            `Received ${Number(ethers.formatUnits(result.amountOut, tokenDecimals)).toLocaleString(undefined, {
+            `Received ${Number(ethers.formatUnits(result.amountOut, tokenDecimals)).toLocaleString("en-US", {
               maximumFractionDigits: 4,
             })} ${market.symbol}.`
           );
@@ -466,7 +579,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         setBusy(false);
       }
     },
-    [market, mode, chain, parsedAmount, quote, minReceived, tradable, poolStatusMessage, tokenDecimals, loadBalances, loadPool]
+    [market, mode, chain, parsedAmount, quote, minReceived, tradable, poolStatusMessage, tokenDecimals, loadBalances, loadPool, limit]
   );
 
   const refresh = useCallback(async () => {
@@ -501,12 +614,14 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     nativeBalance,
     tokenBalance,
     nativeBalanceFormatted: Number(ethers.formatEther(nativeBalance)).toFixed(4),
-    tokenBalanceFormatted: Number(ethers.formatUnits(tokenBalance, tokenDecimals)).toLocaleString(undefined, {
+    // "en-US" seperti `formatTokenAmount`: angka di formulir ini memakai titik desimal di semua locale.
+    tokenBalanceFormatted: Number(ethers.formatUnits(tokenBalance, tokenDecimals)).toLocaleString("en-US", {
       maximumFractionDigits: 4,
     }),
     setAmountFraction,
     setMaxAmount,
     activeFraction,
+    limit,
 
     busy,
     statusLine,
