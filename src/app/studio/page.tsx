@@ -1379,7 +1379,7 @@ export default function StudioPage() {
         // Keep the raw error in the console: the human-readable mapping is for the
         // UI, but diagnosing a chain-specific failure needs the original payload.
         console.error(`[adexto] launch failed on ${chain.name} (${chain.chainId}):`, error);
-        updateResult(chain.chainId, { status: "failed", message: describeTxError(error) });
+        updateResult(chain.chainId, { status: "failed", message: describeTxError(error, chain) });
       }
     }
 

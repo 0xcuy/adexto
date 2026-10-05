@@ -1,37 +1,47 @@
+import { keccak256 } from "ethers";
 import { clientIp, rateLimit, rateLimitHeaders, type RateLimitVerdict } from "@/lib/rate-limit";
-import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-limit";
+import { BodyTooLargeError, payloadTooLarge, readTextBody } from "@/lib/body-limit";
 
 /**
- * RPC publik BACA-SAJA untuk peramban, per chain. Dipakai lewat `/api/public-rpc/[chain]`.
+ * RPC publik untuk peramban DAN wallet, per chain. Dipakai lewat `/api/public-rpc/[chain]`.
  *
  * KENAPA INI ADA
  *
  * ISP Indonesia memblokir `*.robinhood.com`. Peramban membaca Robinhood Chain langsung ke
  * `rpc.mainnet.chain.robinhood.com`, jadi pengunjung tanpa VPN melihat "You receive" kosong dan
  * Fee $0.00 di setiap pasar 4663 (terukur 5 Okt 2026, Pixel 7 id-ID dengan host itu diblokir).
- * Server tidak terkena karena VPS berada di luar Indonesia, jadi peramban membaca lewat sini.
+ * Server tidak terkena karena VPS berada di luar Indonesia, jadi peramban membaca lewat sini (L1).
+ *
+ * Wallet punya masalah yang sama: transaksi yang sudah ditandatangani dikirim ke RPC jaringan di
+ * wallet, dan RPC itu robinhood.com. Jadi wallet yang menambahkan Robinhood Chain lewat situs ini
+ * mendapat endpoint ini sebagai RPC-nya (`ensureWalletChain` di dex.ts), dan endpoint ini juga
+ * menyiarkan transaksi bertanda tangan (L2, `eth_sendRawTransaction`).
  *
  * PUBLIK TANPA AUTENTIKASI, DAN ITU DISENGAJA
  *
  * Isinya data chain publik yang juga dilayani gratis oleh RPC publik Robinhood sendiri. Tidak
  * ada kunci yang bisa dibocorkan dan tidak ada uang yang bisa dibelanjakan lewat sini:
  *
- *   - daftar izin metode yang hanya membaca; `eth_sendRawTransaction`, `eth_sign*`,
- *     `personal_*`, `debug_*`, `trace_*`, `txpool_*`, `admin_*`, filter dan subscribe tidak
- *     pernah lolos;
+ *   - siaran hanya untuk transaksi yang SUDAH ditandatangani pengirimnya: endpoint ini tidak
+ *     memegang kunci apa pun dan tidak bisa mengubah isi transaksi, jadi ia tidak lebih berkuasa
+ *     daripada RPC publik mana pun. Batasnya sendiri: ≤ 128 KB per transaksi (batas txpool geth)
+ *     dan 20 siaran per 5 menit per IP;
+ *   - `eth_sign*`, `personal_*`, `debug_*`, `trace_*`, `txpool_*`, `admin_*`, filter dan
+ *     subscribe tidak pernah lolos;
  *   - satu objek JSON-RPC per permintaan (batch ditolak, karena batch bisa menyelundupkan
- *     banyak panggilan di bawah satu hitungan batas laju), body ≤ 16 KB;
+ *     banyak panggilan di bawah satu hitungan batas laju), body ≤ 16 KB kecuali siaran;
  *   - params dibangun ulang dari field yang dikenal, bukan diteruskan apa adanya;
  *   - batas laju per IP dan batas bersama untuk panggilan ke upstream, plus cache singkat.
  *
  * Tujuan batas bersama dan cache: upstream publik Robinhood juga melayani pembacaan SERVER kita
  * dari IP VPS yang sama. Lalu lintas pengunjung tidak boleh membuat pembacaan server kena batas.
  *
- * BUKAN relai berkunci `src/app/api/rpc/[chain]/route.ts`. Relai itu milik Worker x402, berkunci
- * `X-Relay-Key`, dan mengizinkan siaran transaksi. Kuncinya tidak boleh sampai ke peramban, jadi
- * kedua jalur sengaja terpisah dan tidak berbagi kode. URL upstream di bawah disalin, bukan diimpor.
+ * BUKAN relai berkunci `src/app/api/rpc/[chain]/route.ts`. Relai itu milik Worker x402 dan
+ * berkunci `X-Relay-Key`. Kuncinya tidak boleh sampai ke peramban, jadi kedua jalur sengaja
+ * terpisah dan tidak berbagi kode. URL upstream di bawah disalin, bukan diimpor.
  *
- * Tanpa header CORS: endpoint ini untuk origin sendiri. Peramban di origin lain tidak bisa
+ * Tanpa header CORS: endpoint ini untuk origin sendiri dan untuk wallet. Wallet tidak terkena CORS
+ * (ekstensi dan aplikasi HP memanggilnya dari luar halaman). Peramban di origin lain tidak bisa
  * membaca jawabannya; klien non-peramban bisa, dan itu sama saja dengan memakai RPC publiknya.
  */
 
@@ -75,6 +85,16 @@ const UPSTREAM_TIMEOUT_MS = 8_000;
  * upstream. Jawaban dari cache tidak membebani siapa pun, jadi tidak ikut dihitung.
  */
 export const PUBLIC_RPC_LIMITS = { perIp: 240, shared: 4_000, windowMs: 60_000 } as const;
+
+/**
+ * Siaran transaksi (L2). Satu orang yang berdagang mengirim beberapa transaksi per menit paling
+ * banyak (approve + jual = 2), jadi 20 per 5 menit per IP longgar untuk manusia dan sempit untuk
+ * spam. Transaksi ≤ 128 KB, sama dengan batas txpool geth: yang lebih besar ditolak node juga.
+ * Badan siaran karena itu boleh sampai 128 KB × 2 karakter hex + amplop JSON.
+ */
+export const PUBLIC_RPC_SEND_LIMITS = { perIp: 20, windowMs: 5 * 60_000 } as const;
+const MAX_RAW_TX_BYTES = 128 * 1024;
+export const PUBLIC_RPC_MAX_SEND_BODY_BYTES = MAX_RAW_TX_BYTES * 2 + 4 * 1024;
 
 /** Metode yang boleh lewat, dengan validator params-nya. Isinya dari R1.0, bukan dari daftar relai. */
 type Params = unknown[];
@@ -140,9 +160,42 @@ const addressAtBlock: Validator = (p) => {
 
 const txHash: Validator = (p) => (p.length === 1 && typeof p[0] === "string" && HEX_HASH.test(p[0]) ? [p[0]] : null);
 
+/** Transaksi bertanda tangan (RLP atau envelope tipe 1/2), hex, ≤ `MAX_RAW_TX_BYTES`. */
+const rawTx: Validator = (p) =>
+  p.length === 1 && typeof p[0] === "string" && p[0].length > 2 && HEX_DATA.test(p[0]) && (p[0].length - 2) / 2 <= MAX_RAW_TX_BYTES
+    ? [p[0]]
+    : null;
+
+/**
+ * `eth_feeHistory(blockCount, newestBlock, rewardPercentiles?)`: dipakai wallet untuk menaksir fee
+ * EIP-1559. Jumlah blok ≤ 1024 (batas geth), persentil ≤ 100 angka 0..100 yang naik.
+ */
+const feeHistory: Validator = (p) => {
+  if (p.length < 2 || p.length > 3) return null;
+  const count = typeof p[0] === "number" ? p[0] : isQuantity(p[0]) ? Number.parseInt(p[0], 16) : NaN;
+  if (!Number.isInteger(count) || count < 1 || count > 1024) return null;
+  const tag = blockTag(p[1]);
+  if (!tag) return null;
+  // Persentil kosong dikirim eksplisit: drpc menolak argumen ketiga yang hilang ("missing value for
+  // required argument 2"), padahal spesifikasinya opsional.
+  if (p.length === 2 || p[2] === undefined) return [`0x${count.toString(16)}`, tag, []];
+  const pct = p[2];
+  if (!Array.isArray(pct) || pct.length > 100) return null;
+  for (let i = 0; i < pct.length; i++) {
+    const v = pct[i];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100 || (i > 0 && v < pct[i - 1])) return null;
+  }
+  return [`0x${count.toString(16)}`, tag, pct];
+};
+
 const ALLOWED: Record<string, Validator> = {
   eth_chainId: noParams,
+  // Dijawab dari config seperti `eth_chainId`; sebagian wallet masih menanyakannya.
+  net_version: noParams,
   eth_blockNumber: noParams,
+  eth_feeHistory: feeHistory,
+  // L2: siaran transaksi yang sudah ditandatangani wallet. Lihat penjelasan di kepala berkas.
+  eth_sendRawTransaction: rawTx,
   eth_gasPrice: noParams,
   eth_maxPriorityFeePerGas: noParams,
   eth_call: callLike,
@@ -228,6 +281,7 @@ function upstreamsFor(chain: PublicRpcChain): readonly string[] {
 async function callUpstream(chain: PublicRpcChain, method: string, params: Params): Promise<UpstreamReply> {
   // Header dan cookie klien TIDAK diteruskan; badan dibangun ulang dengan id kita sendiri.
   const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
+  const send = method === "eth_sendRawTransaction";
   for (const url of upstreamsFor(chain)) {
     try {
       const res = await fetch(url, {
@@ -244,9 +298,26 @@ async function callUpstream(chain: PublicRpcChain, method: string, params: Param
       }
       if (json?.error && typeof json.error === "object") {
         const e = json.error;
-        // Galat PENYEDIA (batas laju, kuota, timeout) bukan jawaban chain: coba upstream berikutnya.
         const msg = typeof e.message === "string" ? e.message : "";
-        if (!/revert/i.test(msg) && /rate|limit|too many|quota|timeout|unavailable|capacity/i.test(msg)) continue;
+        if (send) {
+          /**
+           * Siaran: galat chain diteruskan APA ADANYA ("nonce too low", "insufficient funds",
+           * "exceeds block gas limit"), karena wallet menampilkannya ke orang yang menandatangani.
+           * Pola kata "limit" di bawah tidak dipakai di sini: "gas limit" adalah galat chain.
+           * Hanya batas laju penyedia yang pindah ke upstream berikutnya.
+           *
+           * "already known": upstream sebelumnya sudah menerima transaksi ini (misalnya jawabannya
+           * habis waktu di jalan), jadi transaksinya ada di mempool. Jawabannya hash-nya, seperti
+           * siaran yang berhasil; galat di sini membuat wallet mengira transaksinya gagal.
+           */
+          if (/already known|known transaction|already imported|already exists/i.test(msg)) {
+            return { kind: "result", result: keccak256(String(params[0])) };
+          }
+          if (/rate limit|too many requests|quota|capacity/i.test(msg)) continue;
+        } else if (!/revert/i.test(msg) && /rate|limit|too many|quota|timeout|unavailable|capacity/i.test(msg)) {
+          // Galat PENYEDIA (batas laju, kuota, timeout) bukan jawaban chain: coba upstream berikutnya.
+          continue;
+        }
         // Galat chain (mis. "execution reverted" beserta data revert-nya) diteruskan: ethers butuh
         // data itu untuk menjelaskan revert. Bentuknya dibatasi, isinya tidak diubah.
         const error: { code: number; message: string; data?: string } = {
@@ -290,13 +361,22 @@ export async function handlePublicRpc(req: Request, segment: string): Promise<Re
   const perIp = rateLimit(`public-rpc:${segment}:${clientIp(req)}`, PUBLIC_RPC_LIMITS.perIp, PUBLIC_RPC_LIMITS.windowMs);
   if (!perIp.ok) return limited(perIp);
 
+  /**
+   * Badan dibaca sampai batas SIARAN, lalu batas baca 16 KB ditegakkan sesudah metodenya diketahui.
+   * Wallet memakai satu URL untuk baca dan siaran, jadi keduanya tidak bisa dipisah per jalur.
+   */
+  let text: string;
   let body: unknown;
   try {
-    body = await readJsonBody(req, PUBLIC_RPC_MAX_BODY_BYTES);
+    text = await readTextBody(req, PUBLIC_RPC_MAX_SEND_BODY_BYTES);
+    body = JSON.parse(text);
   } catch (e) {
-    if (e instanceof BodyTooLargeError) return payloadTooLarge(PUBLIC_RPC_MAX_BODY_BYTES);
+    if (e instanceof BodyTooLargeError) return payloadTooLarge(PUBLIC_RPC_MAX_SEND_BODY_BYTES);
     return rpcError(null, -32700, "Parse error.", 400);
   }
+  const sendShaped =
+    !!body && typeof body === "object" && !Array.isArray(body) && (body as { method?: unknown }).method === "eth_sendRawTransaction";
+  if (!sendShaped && Buffer.byteLength(text, "utf8") > PUBLIC_RPC_MAX_BODY_BYTES) return payloadTooLarge(PUBLIC_RPC_MAX_BODY_BYTES);
 
   if (Array.isArray(body)) return rpcError(null, -32600, "Batch requests are not supported. Send one call per request.", 400);
   if (!body || typeof body !== "object") return rpcError(null, -32600, "Invalid request.", 400);
@@ -315,13 +395,23 @@ export async function handlePublicRpc(req: Request, segment: string): Promise<Re
 
   const method = msg.method;
   const validate = Object.prototype.hasOwnProperty.call(ALLOWED, method) ? ALLOWED[method] : null;
-  if (!validate) return rpcError(id, -32601, `Method ${method.slice(0, 64)} is not available on this read-only endpoint.`, 400);
+  if (!validate) return rpcError(id, -32601, `Method ${method.slice(0, 64)} is not available on this endpoint.`, 400);
 
   const rawParams = msg.params === undefined ? [] : msg.params;
   const params = Array.isArray(rawParams) ? validate(rawParams) : null;
   if (!params) return rpcError(id, -32602, `Invalid params for ${method}.`, 400);
 
   if (method === "eth_chainId") return reply({ jsonrpc: "2.0", id, result: `0x${chain.chainId.toString(16)}` }, 200);
+  if (method === "net_version") return reply({ jsonrpc: "2.0", id, result: String(chain.chainId) }, 200);
+  if (method === "eth_sendRawTransaction") {
+    // Batas siaran sendiri, DI ATAS batas baca per IP yang sudah dihitung di awal.
+    const sends = rateLimit(
+      `public-rpc:${segment}:send:${clientIp(req)}`,
+      PUBLIC_RPC_SEND_LIMITS.perIp,
+      PUBLIC_RPC_SEND_LIMITS.windowMs
+    );
+    if (!sends.ok) return limited(sends);
+  }
 
   const now = Date.now();
   const ttl = cacheTtlMs(method, params);

@@ -928,6 +928,26 @@ export class ChainMismatchError extends Error {
 }
 
 /**
+ * RPC URL that a wallet should use for `chain`, as an absolute https URL.
+ *
+ * Chains with a `browserRpcPath` are unreachable from part of our audience: Indonesian ISPs block
+ * `*.robinhood.com`, so a wallet that sends through `rpc.mainnet.chain.robinhood.com` cannot get a
+ * signed buy onto Robinhood Chain without a VPN. Those chains get adexto.xyz's public RPC first,
+ * which also broadcasts signed transactions (`src/lib/public-rpc.ts`), and the chain's own RPC as
+ * the fallback. On localhost the production URL is used: wallets reject plain-http RPC URLs.
+ */
+export function walletRpcUrl(chain: Pick<ChainInfo, "rpcUrl" | "browserRpcPath">): string | null {
+  if (!chain.browserRpcPath) return null;
+  const origin =
+    typeof window !== "undefined" && window.location.protocol === "https:" ? window.location.origin : "https://adexto.xyz";
+  return `${origin}${chain.browserRpcPath}`;
+}
+function walletRpcUrls(chain: ChainInfo): string[] {
+  const ours = walletRpcUrl(chain);
+  return ours ? [ours, chain.rpcUrl] : [chain.rpcUrl];
+}
+
+/**
  * Make sure the injected wallet is on `chain` before any transaction is built.
  * Requests a switch, and registers the network if the wallet does not know it.
  */
@@ -951,7 +971,7 @@ export async function ensureWalletChain(ethereum: any, chain: ChainInfo): Promis
           {
             chainId: toHexChainId(chain.chainId),
             chainName: chain.name,
-            rpcUrls: [chain.rpcUrl],
+            rpcUrls: walletRpcUrls(chain),
             blockExplorerUrls: [chain.blockExplorer],
             nativeCurrency: { name: chain.nativeCurrencyName, symbol: chain.nativeSymbol, decimals: 18 },
           },
@@ -1194,8 +1214,15 @@ function parseSwapOut(receipt: ethers.TransactionReceipt | null, iface?: ethers.
   return null;
 }
 
-/** Turn provider/contract errors into something a trader can act on. */
-export function describeTxError(error: any): string {
+/**
+ * Turn provider/contract errors into something a trader can act on.
+ *
+ * `chain`, when given, adds the one hint that depends on the network: on a chain that part of our
+ * audience cannot reach directly (`browserRpcPath`), a wallet that never reached its RPC is told to
+ * point that network at adexto.xyz. A wallet that added the chain before L2 keeps the chain's own
+ * RPC, because `wallet_addEthereumChain` does not overwrite an existing network.
+ */
+export function describeTxError(error: any, chain?: Pick<ChainInfo, "name" | "rpcUrl" | "browserRpcPath">): string {
   if (!error) return "Unknown error";
   if (error.code === 4001 || /user rejected|user denied/i.test(error.message || "")) {
     return "Rejected in wallet.";
@@ -1211,6 +1238,14 @@ export function describeTxError(error: any): string {
     String(error);
 
   const cleaned = String(raw).replace(/^execution reverted:?\s*/i, "").trim();
+
+  const rpc = chain ? walletRpcUrl(chain) : null;
+  if (rpc && looksLikeUnreachableRpc(error, cleaned)) {
+    return (
+      `Your wallet could not reach ${chain!.name}. If your network blocks ${new URL(chain!.rpcUrl).hostname.split(".").slice(-2).join(".")}, ` +
+      `set this network's RPC in your wallet to ${rpc}.`
+    );
+  }
 
   if (/SovereignHook: pool not initialized/i.test(cleaned)) {
     return "This pool has no liquidity yet, so it cannot quote or settle a trade.";
@@ -1246,6 +1281,29 @@ export function describeTxError(error: any): string {
     );
   }
   return cleaned.slice(0, 220) || "Transaction failed";
+}
+
+/**
+ * Did the wallet fail to reach its RPC, as opposed to the chain refusing the transaction?
+ *
+ * Wallets word this differently (MetaMask: "Internal JSON-RPC error." with "Failed to fetch" inside,
+ * Rabby: "Network Error", ethers: "could not coalesce error" around either), so this matches the
+ * transport words and refuses anything that names a revert, a balance or a nonce: those come from
+ * a node that WAS reached.
+ */
+function looksLikeUnreachableRpc(error: any, cleaned: string): boolean {
+  // The whole error, nested fields included: wallets bury the transport detail at different depths.
+  let text = cleaned;
+  try {
+    text += " | " + JSON.stringify(error, (_k, v) => (typeof v === "bigint" ? v.toString() : v)).slice(0, 4000);
+  } catch {
+    text += ` | ${String(error?.message ?? "")}`;
+  }
+  if (/revert|insufficient funds|nonce|underpriced|gas required exceeds|out of gas|slippage/i.test(text)) return false;
+  // A transport word is required; "Internal JSON-RPC error" on its own is also how reverts arrive.
+  return /failed to fetch|fetch failed|network ?error|load failed|timed? ?out|timeout|ECONN|ENOTFOUND|EAI_AGAIN|ERR_NAME|ERR_CONNECTION|getaddrinfo|HTTP (?:502|503|504)/i.test(
+    text
+  );
 }
 
 export function poolIsTradable(state: PoolState | null): boolean {

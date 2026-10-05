@@ -116,7 +116,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
       setLine(`Staked ${whole} ${symbol}. Unstake works at any time.`);
       await read();
     } catch (e) {
-      setError(describeTxError(e));
+      setError(describeTxError(e, chain));
       setLine(null);
     } finally {
       setBusy(null);
@@ -138,7 +138,7 @@ export default function MarketStakePanel({ chain, stake, symbol }: { chain: Chai
       setLine("Unstaked. The full position is back in your wallet.");
       await read();
     } catch (e) {
-      setError(describeTxError(e));
+      setError(describeTxError(e, chain));
       setLine(null);
     } finally {
       setBusy(null);

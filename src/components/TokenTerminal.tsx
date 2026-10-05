@@ -958,7 +958,7 @@ export default function TokenTerminal({
                             setClaimLine(`Claimed. ${hash.slice(0, 10)}…`);
                             swap.refresh();
                           } catch (e) {
-                            setClaimLine(describeTxError(e));
+                            setClaimLine(describeTxError(e, chain));
                           } finally {
                             setClaimingFees(false);
                           }

@@ -627,7 +627,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         await Promise.all([loadBalances(), loadPool()]);
       } catch (error) {
         setStatusLine(null);
-        setErrorLine(describeTxError(error));
+        setErrorLine(describeTxError(error, chain));
       } finally {
         setBusy(false);
       }
