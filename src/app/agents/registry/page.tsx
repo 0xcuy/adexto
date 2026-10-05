@@ -77,11 +77,11 @@ export default async function AgentRegistryPage() {
                     {a.owner && <div className="text-ink-faint">{a.ownedByAdexto ? "ADEXTO wallet" : "not an ADEXTO wallet"}</div>}
                   </td>
                   <td className="px-3 py-2 space-x-3">
-                    <a href={a.explorer} className="inline-flex min-h-[32px] items-center text-accent hover:underline" target="_blank" rel="noreferrer">
+                    <a href={a.explorer} className="inline-flex min-h-[36px] items-center text-accent hover:underline" target="_blank" rel="noreferrer">
                       explorer
                     </a>
                     {a.ownedByAdexto && (
-                      <a href={a.card} className="inline-flex min-h-[32px] items-center text-accent hover:underline" target="_blank" rel="noreferrer">
+                      <a href={a.card} className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center text-accent hover:underline" target="_blank" rel="noreferrer">
                         card
                       </a>
                     )}

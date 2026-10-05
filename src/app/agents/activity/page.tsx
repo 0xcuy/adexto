@@ -66,7 +66,7 @@ export default async function AgentActivityPage() {
                       {fmt(r.amountToken, 0)} ${r.symbol} · {fmt(r.amountNative, 6)} {r.nativeSymbol}
                     </td>
                     <td className="px-3 py-2">
-                      <a href={r.explorerTx} className="font-mono text-accent hover:underline" target="_blank" rel="noreferrer">
+                      <a href={r.explorerTx} className="inline-flex min-h-[32px] items-center font-mono text-accent hover:underline" target="_blank" rel="noreferrer">
                         {short(r.txHash)}
                       </a>
                     </td>

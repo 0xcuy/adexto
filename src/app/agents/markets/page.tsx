@@ -89,7 +89,7 @@ export default async function AgentMarketsPage() {
                     </td>
                     <td className="px-3 py-2 font-mono">{m.agent ? `#${m.agent.agentId}` : "—"}</td>
                     <td className="px-3 py-2">
-                      <a href={explorerAddressUrl(m.chainId, m.creator)} className="font-mono hover:text-accent" target="_blank" rel="noreferrer">
+                      <a href={explorerAddressUrl(m.chainId, m.creator)} className="inline-flex min-h-[32px] items-center font-mono hover:text-accent" target="_blank" rel="noreferrer">
                         {short(m.creator)}
                       </a>
                       {m.creatorIsAdexto && <div className="text-ink-faint">ADEXTO wallet</div>}
