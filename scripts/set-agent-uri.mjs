@@ -99,6 +99,17 @@ const dir = await (await fetch(`${BASE}/api/agents`, { signal: AbortSignal.timeo
 const prices = (await (await fetch(`${BASE}/api/prices`, { signal: AbortSignal.timeout(30_000) })).json()).prices ?? {};
 let agents = (dir.operatedAgents ?? []).map((a) => ({ chainId: Number(a.chainId), agentId: String(a.agentId), name: a.name }));
 if (only) agents = agents.filter((a) => `${a.chainId}:${a.agentId}` === only);
+// Agen yang pasarnya tersembunyi (src/config/hidden-markets.ts) tidak ada di /api/agents, tetapi kartunya
+// tetap dilayani untuk agen yang kami operasikan. Untuk `--agent` saja: kartunya yang jadi bukti, dan
+// pemilik on-chain tetap dicocokkan dengan kunci di bawah sebelum apa pun dikirim.
+if (only && agents.length === 0) {
+  const [cid, aid] = only.split(":");
+  if (NETWORKS[Number(cid)] && /^\d+$/.test(aid ?? "") && (await cardReady(BASE, Number(cid), aid)) === null) {
+    const card = await (await fetch(`${BASE}/agents/${cid}/${aid}/registration.json`, { signal: AbortSignal.timeout(30_000) })).json();
+    agents = [{ chainId: Number(cid), agentId: aid, name: String(card.name ?? "?") }];
+    console.log(`${only}: not in /api/agents (hidden market); its card serves, so it is used`);
+  }
+}
 if (agents.length === 0) {
   console.error(only ? `agent ${only} is not one ADEXTO operates` : "no agents listed");
   process.exit(1);
