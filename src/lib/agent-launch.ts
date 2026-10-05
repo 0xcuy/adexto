@@ -382,13 +382,35 @@ export async function prepareLaunch(input: PrepareLaunchInput, ipHeaders: IpHead
     gas = BigInt(LAUNCH_GAS_UNITS[chain.key] ?? 3_400_000);
     gasSource = "measured";
   }
-  const gasLimit = (gas * 12n) / 10n;
+  /**
+   * Margin gas limit di atas estimasi, PER CHAIN.
+   *
+   * Di kebanyakan chain sisa gas dikembalikan, jadi margin 20% gratis dan tetap dipakai. Monad
+   * menagih SELURUH gas limit, bukan gas terpakai: setiap receipt di sana melaporkan `gasUsed` sama
+   * dengan limit. Margin 20% di Monad karena itu biaya nyata, dan terukur: launch $LOOP
+   * (2026-10-03) membayar 666.030 gas di atas estimasinya, 0,068 MON.
+   *
+   * Monad mendapat 5%, dan hanya bila angkanya dari `estimateGas` untuk calldata ini. Untuk satu
+   * launch hampir tidak ada yang bisa berubah antara estimasi dan inklusi: semua slot yang ditulis
+   * baru (token, kurva, entri registry ticker), jadi biayanya sama di blok mana pun. 5% dari
+   * ±3,3 juta gas masih ±166.000 gas cadangan. Bila `estimateGas` gagal dan angkanya dari
+   * pengukuran (`LAUNCH_GAS_UNITS`), margin penuh tetap dipakai, karena panjang metadata ikut
+   * menentukan gas dan angka terukur itu milik calldata lain.
+   */
+  const MARGIN_PCT_BY_CHAIN: Record<number, bigint> = { 143: 5n };
+  const marginPct = gasSource === "estimateGas" ? (MARGIN_PCT_BY_CHAIN[chain.chainId] ?? 20n) : 20n;
+  const gasLimit = (gas * (100n + marginPct)) / 100n;
+  /** Chain yang menagih gas limit, bukan gas terpakai. */
+  const billsGasLimit = chain.chainId === 143;
   const [balance, feeData] = await Promise.all([
     provider.getBalance(deployer).catch(() => null),
     provider.getFeeData().catch(() => null),
   ]);
   const price = feeData?.maxFeePerGas ?? feeData?.gasPrice ?? null;
-  const estimatedCostWei = price ? gas * price : null;
+  // Di Monad yang dibayar adalah limit, jadi perkiraan biaya memakai limit juga.
+  const estimatedCostWei = price ? (billsGasLimit ? gasLimit : gas) * price : null;
+  // Node menolak transaksi bila saldo < gasLimit × harga, di chain mana pun.
+  const requiredWei = price ? gasLimit * price : null;
 
   pending().set(pendingKey(chain.chainId, symbol, deployer), {
     description: input.description?.trim() || null,
@@ -423,7 +445,7 @@ export async function prepareLaunch(input: PrepareLaunchInput, ipHeaders: IpHead
     gasPriceWei: price?.toString() ?? null,
     estimatedCostWei: estimatedCostWei?.toString() ?? null,
     deployerBalanceWei: balance?.toString() ?? null,
-    fundsSufficient: balance !== null && estimatedCostWei !== null ? balance >= estimatedCostWei : null,
+    fundsSufficient: balance !== null && requiredWei !== null ? balance >= requiredWei : null,
     nativeSymbol: chain.nativeSymbol,
     simulation,
     market: {

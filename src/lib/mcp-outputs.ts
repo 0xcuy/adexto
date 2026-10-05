@@ -274,9 +274,11 @@ export const MCP_OUTPUTS = {
     gasEstimate: s("Step two: estimated gas."),
     gasSource: s("estimateGas or measured."),
     gasPriceWei: sn("Current gas price."),
-    estimatedCostWei: sn("Estimated cost in wei."),
+    estimatedCostWei: sn(
+      "Estimated cost in wei: gas used times the gas price, or the gas limit times the price on Monad, which bills the whole limit."
+    ),
     deployerBalanceWei: sn("Deployer balance."),
-    fundsSufficient: b("Whether the balance covers the estimate."),
+    fundsSufficient: b("Whether the balance covers the transaction's gas limit at the current price, which the node requires."),
     nativeSymbol: s("Native asset that pays the gas."),
     simulation: z
       .looseObject({ ok: b("True when the simulation did not revert."), revert: sn("Revert reason, if any.") })
