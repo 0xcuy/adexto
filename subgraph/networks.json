@@ -1,5 +1,9 @@
 {
   "0g": {
+    "AdextoFactoryV1": {
+      "address": "0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D",
+      "startBlock": 45793987
+    },
     "AdextoFactory": {
       "address": "0x51c4168226463F7e5A141e1c6D30520734BC840a",
       "startBlock": 43704079
@@ -10,16 +14,24 @@
     }
   },
   "0g-testnet": {
-    "AdextoCurveFactory": {
-      "address": "0xA8Cf9AB8b8247eA96c88b7593C4199eA433a6918",
+    "AdextoFactoryV1": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 53201874
     },
     "AdextoFactory": {
       "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 53201874
+    },
+    "AdextoCurveFactory": {
+      "address": "0xA8Cf9AB8b8247eA96c88b7593C4199eA433a6918",
+      "startBlock": 53201874
     }
   },
   "monad": {
+    "AdextoFactoryV1": {
+      "address": "0x3dFcBEd7dd889F465cC9f75c430B43Ef873b6056",
+      "startBlock": 109440540
+    },
     "AdextoFactory": {
       "address": "0x5800e9715a47a598fce9bc3B65a95FD6BeBf76A3",
       "startBlock": 102583076
@@ -30,16 +42,24 @@
     }
   },
   "monad-testnet": {
-    "AdextoCurveFactory": {
-      "address": "0x213494Bff0962AbFCcD73364de7616f5a5517E47",
+    "AdextoFactoryV1": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 58419649
     },
     "AdextoFactory": {
       "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 58419649
+    },
+    "AdextoCurveFactory": {
+      "address": "0x213494Bff0962AbFCcD73364de7616f5a5517E47",
+      "startBlock": 58419649
     }
   },
   "base": {
+    "AdextoFactoryV1": {
+      "address": "0xF5f904ca7763Fc6755bbCe5466a9DBd4C15c2708",
+      "startBlock": 52008858
+    },
     "AdextoFactory": {
       "address": "0x216E7880D64D94335B583c539802d3e61958d4A2",
       "startBlock": 50971523
@@ -50,16 +70,24 @@
     }
   },
   "base-sepolia": {
-    "AdextoCurveFactory": {
-      "address": "0xe21e5b875B9F6B99a8151166EF079C1F9E1c092e",
+    "AdextoFactoryV1": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 46193936
     },
     "AdextoFactory": {
       "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 46193936
+    },
+    "AdextoCurveFactory": {
+      "address": "0xe21e5b875B9F6B99a8151166EF079C1F9E1c092e",
+      "startBlock": 46193936
     }
   },
   "arbitrum-one": {
+    "AdextoFactoryV1": {
+      "address": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "startBlock": 510474755
+    },
     "AdextoFactory": {
       "address": "0xE17f1027FC5f294327D701829baeD9d6519e922C",
       "startBlock": 502476317
@@ -70,21 +98,29 @@
     }
   },
   "arbitrum-sepolia": {
-    "AdextoCurveFactory": {
-      "address": "0x4c337FD1a65fEAaC248b138E47C0C40B84CF3f1f",
+    "AdextoFactoryV1": {
+      "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 303848988
     },
     "AdextoFactory": {
       "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 303848988
+    },
+    "AdextoCurveFactory": {
+      "address": "0x4c337FD1a65fEAaC248b138E47C0C40B84CF3f1f",
+      "startBlock": 303848988
     }
   },
   "devchain": {
-    "AdextoCurveFactory": {
+    "AdextoFactoryV1": {
       "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
       "startBlock": 1
     },
     "AdextoFactory": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "startBlock": 1
+    },
+    "AdextoCurveFactory": {
       "address": "0x0000000000000000000000000000000000000000",
       "startBlock": 1
     }

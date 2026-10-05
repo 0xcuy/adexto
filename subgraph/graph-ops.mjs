@@ -46,11 +46,16 @@ const VERSION_LABEL = `v${pkg.version}`;
 const NODE_URL = process.env.GRAPH_NODE_URL ?? 'http://127.0.0.1:8020';
 const IPFS_URL = process.env.GRAPH_IPFS_URL ?? 'http://127.0.0.1:5001';
 
-/** Networks that have both metadata and a deployed factory address. */
+/**
+ * Networks that have both metadata and a deployed factory address.
+ *
+ * `sources` is the network's whole networks.json section: one entry per factory
+ * generation (data source), zero address where that generation never existed.
+ */
 function indexable() {
   return Object.keys(networks)
     .filter((name) => chains[name])
-    .map((name) => ({ name, ...chains[name], ...networks[name].AdextoCurveFactory }));
+    .map((name) => ({ name, ...chains[name], sources: networks[name] }));
 }
 
 function run(cmd, args) {
@@ -93,9 +98,10 @@ function cmdList() {
     if (!rows.length) return console.log('  (none)');
     for (const n of rows) {
       const dest = target === 'studio' ? n.studioSlug : `adexto/${n.name}`;
-      console.log(
-        `  ${n.name.padEnd(pad)}  ${n.address}  startBlock=${String(n.startBlock).padEnd(10)}  -> ${dest}`,
-      );
+      console.log(`  ${n.name.padEnd(pad)}  -> ${dest}`);
+      for (const [dataSource, s] of Object.entries(n.sources)) {
+        console.log(`    ${dataSource.padEnd(19)} ${s.address}  startBlock=${s.startBlock}`);
+      }
     }
   };
   group('studio', 'Subgraph Studio', 'needs `graph auth <deploy key>` once; The Graph runs the infrastructure');

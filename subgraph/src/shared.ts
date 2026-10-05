@@ -77,6 +77,7 @@ export function globalStats(): GlobalStats {
 /** VERSION kontrak per generasi, supaya string-nya hanya ditulis sekali. */
 export const V_0_10_0 = "0.10.0";
 export const V_0_11_0 = "0.11.0";
+export const V_1_0_0 = "1.0.0";
 
 /**
  * Ember harian untuk satu kurva.
@@ -263,7 +264,17 @@ export function applySwap(
   // Volume dicatat dalam native di KEDUA arah: `amountIn` adalah native pada
   // pembelian tetapi token pada penjualan, jadi memakainya begitu saja akan
   // menjumlahkan dua satuan yang berbeda menjadi satu angka tak bermakna.
-  const volumeNative = isBuy ? amountIn : amountOut;
+  //
+  // Penjualan dihitung KOTOR, sama seperti `totalVolumeNative` di kurva. Ketiga
+  // generasi menulis `totalVolumeNative += leaving + depthFee` saat menjual, dengan
+  // `leaving = quotedOut + creatorFee + treasuryFee (+ protocolFee)`, sedangkan event
+  // hanya membawa `amountOut = quotedOut`. Versi sebelumnya memakai `amountOut` saja,
+  // jadi setiap penjualan tercatat lebih kecil sebesar seluruh fee-nya dan volume
+  // subgraph tidak pernah cocok dengan kurva begitu ada satu penjualan. Untuk 0.10.0
+  // adaptornya meneruskan `protocolFee` nol, jadi rumus yang sama berlaku tanpa cabang.
+  const volumeNative = isBuy
+    ? amountIn
+    : amountOut.plus(depthFee).plus(creatorFee).plus(treasuryFee).plus(protocolFee);
   curve.volumeNative = curve.volumeNative.plus(volumeNative);
   curve.swapCount = curve.swapCount.plus(ONE);
   if (isBuy) {

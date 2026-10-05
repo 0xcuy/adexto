@@ -35,26 +35,50 @@ NETWORKS_OUT = os.path.join(ROOT, "subgraph", "networks.json")
 TOML_OUT = os.path.join(ROOT, "subgraph", "graph-node.toml")
 
 """
-TWO DATA SOURCES PER NETWORK, NOT ONE
+THREE DATA SOURCES PER NETWORK, ONE PER FACTORY GENERATION
 
-The manifest carries both factory generations, so networks.json has to answer for
-both. `AdextoFactory` is the current one; `AdextoCurveFactory` is whatever it
-superseded.
+The manifest carries every factory generation that has markets, so networks.json
+has to answer for each of them:
+
+    AdextoFactoryV1     AdextoFactory 1.0.0 (ADEXTO v1, the current generation)
+    AdextoFactory       AdextoFactory 0.11.0
+    AdextoCurveFactory  AdextoCurveFactory 0.10.0
 
 This is not symmetry for its own sake. Factory bytecode cannot be changed, so a
-market created by the older factory was created by that address forever and has to
-stay indexed. Pointing one data source at the new address would silently drop every
+market created by an older factory was created by that address forever and has to
+stay indexed. Pointing one data source at a newer address would silently drop every
 market that predates it -- and a subgraph that answers with fewer markets than the
 chain has is worse than one that fails, because nothing looks broken.
 
-A network that only ever had one factory emits only the section it has. graph-cli
-requires every data source named in the manifest to be present in networks.json for
-the network being built, so `SUPERSEDED_PLACEHOLDER` fills the gap with the zero
-address and startBlock at the chain head equivalent, which matches nothing and
-indexes nothing.
+Each data source is matched by contract name AND version, never by position. The
+previous version of this file took "the current entry" for `AdextoFactory` and "the
+newest superseded entry" for `AdextoCurveFactory`. Once v1 became the current entry
+it would have written the v1 address into the 0.11.0 data source, dropping $BLOOP
+and $WOMBO while the subgraph kept reporting itself healthy. Entries written before
+deployments.json recorded `version` carry none: an `AdextoCurveFactory` without one
+is 0.10.0 and an `AdextoFactory` without one is 0.11.0. The 0.12.0 factory (live
+2026-09-29 to 2026-10-01, no listed market) is deliberately not a data source.
+
+graph-cli requires every data source named in the manifest to be present in
+networks.json for the network being built, so a generation a network never had is
+filled with the zero address, which matches nothing and indexes nothing.
+
+Before anything is written, every live market in src/config/onchain-launches.json
+on an indexed chain must come from one of the factories written for that chain. A
+market whose factory is missing would never appear in the subgraph, and nothing
+would say so, so the script refuses to write instead. startBlock needs no such
+check: it is the factory's own deployment block, which precedes every launch from
+that factory.
 """
-DATA_SOURCE_CURRENT = "AdextoFactory"
-DATA_SOURCE_SUPERSEDED = "AdextoCurveFactory"
+GENERATIONS = [
+    # (data source in subgraph.yaml, `contract` in deployments.json, VERSION)
+    ("AdextoFactoryV1", "AdextoFactory", "1.0.0"),
+    ("AdextoFactory", "AdextoFactory", "0.11.0"),
+    ("AdextoCurveFactory", "AdextoCurveFactory", "0.10.0"),
+]
+# What an entry without `version` is, by contract name. See above.
+LEGACY_VERSION = {"AdextoCurveFactory": "0.10.0", "AdextoFactory": "0.11.0"}
+LAUNCHES = os.path.join(ROOT, "src", "config", "onchain-launches.json")
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 NODE_ID = "adexto_index_0"
 
@@ -105,6 +129,54 @@ indexers = ["%s"]
 def load(path):
     with io.open(path, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def start_of(entry):
+    return entry.get("startBlock", entry.get("blockNumber", 0))
+
+
+def generation_of(entry):
+    """(contract, VERSION) of one deployments.json entry, current or superseded."""
+    contract = entry.get("contract", "AdextoCurveFactory")
+    return contract, entry.get("version") or LEGACY_VERSION.get(contract)
+
+
+def uncovered_markets(chains, networks):
+    """Live markets on an indexed chain whose factory no data source points at.
+
+    Returns (problems, number of live markets that are covered). A chain listed in
+    chains.json with no factory at all counts too: a live market there would be
+    missing from the subgraph just the same."""
+    launches = load(LAUNCHES).get("launches", [])
+    problems, covered = [], 0
+    for name, meta in chains.items():
+        if name.startswith("_"):
+            continue
+        written = {
+            s["address"].lower()
+            for s in networks.get(name, {}).values()
+            if s["address"] != ZERO_ADDRESS
+        }
+        for m in launches:
+            if m.get("status") != "live" or int(m.get("chainId", -1)) != meta["chainId"]:
+                continue
+            if str(m.get("factory", "")).lower() in written:
+                covered += 1
+            else:
+                problems.append(
+                    "%s: $%s (%s) from factory %s"
+                    % (name, m.get("symbol"), m.get("factoryVersion"), m.get("factory"))
+                )
+    return problems, covered
+
+
+def print_section(section):
+    for data_source, _contract, version in GENERATIONS:
+        s = section[data_source]
+        print(
+            "    %-19s %-7s %s  startBlock=%s"
+            % (data_source, version, s["address"], s["startBlock"])
+        )
 
 
 def toml_chain(name, meta):
@@ -158,48 +230,29 @@ def main():
             pending.append((name, meta))
             continue
 
-        start_block = entry.get("startBlock", entry.get("blockNumber", 0))
-        contract = entry.get("contract", DATA_SOURCE_SUPERSEDED)
+        start_block = start_of(entry)
+        # Oldest first and the current entry last, so the last match is the newest.
+        history = list(entry.get("supersededCurveFactories") or []) + [entry]
 
         section = {}
-        superseded = entry.get("supersededCurveFactories") or []
-
-        if contract == DATA_SOURCE_CURRENT:
-            section[DATA_SOURCE_CURRENT] = {
-                "address": address,
-                "startBlock": start_block,
-            }
-            # The most recent superseded entry is the 0.10.0 factory whose markets
-            # still trade. Older ones predate the curve generation entirely.
-            prev = None
-            for cand in reversed(superseded):
-                if cand.get("contract") == DATA_SOURCE_SUPERSEDED and cand.get("curveFactory"):
-                    prev = cand
-                    break
-            if prev:
-                section[DATA_SOURCE_SUPERSEDED] = {
-                    "address": prev["curveFactory"],
-                    "startBlock": prev.get("startBlock", prev.get("blockNumber", 0)),
+        for data_source, contract, version in GENERATIONS:
+            picked = None
+            for cand in history:
+                if cand.get("curveFactory") and generation_of(cand) == (contract, version):
+                    picked = cand
+            if picked:
+                section[data_source] = {
+                    "address": picked["curveFactory"],
+                    "startBlock": start_of(picked),
                 }
             else:
-                section[DATA_SOURCE_SUPERSEDED] = {
+                section[data_source] = {
                     "address": ZERO_ADDRESS,
                     "startBlock": start_block,
                 }
-        else:
-            # Still on the previous generation: the deployed factory IS the
-            # superseded data source's contract, and there is no current one yet.
-            section[DATA_SOURCE_SUPERSEDED] = {
-                "address": address,
-                "startBlock": start_block,
-            }
-            section[DATA_SOURCE_CURRENT] = {
-                "address": ZERO_ADDRESS,
-                "startBlock": start_block,
-            }
 
         networks[name] = section
-        row = (name, meta, address, start_block, contract)
+        row = (name, meta, section)
         (self_hosted if meta["target"] == "self-hosted" else studio).append(row)
 
     if not networks:
@@ -208,11 +261,21 @@ def main():
         )
         return 1
 
+    uncovered, covered = uncovered_markets(chains, networks)
+    if uncovered:
+        sys.stderr.write(
+            "refusing to write: these live markets come from a factory that no data "
+            "source covers, so the subgraph would never index them\n"
+        )
+        for line in uncovered:
+            sys.stderr.write("  %s\n" % line)
+        return 1
+
     with io.open(NETWORKS_OUT, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(networks, indent=2) + "\n")
 
     sections = [TOML_HEADER]
-    for name, meta, _addr, _sb, _contract in self_hosted:
+    for name, meta, _section in self_hosted:
         sections.append(toml_chain(name, meta))
     sections.append(TOML_FOOTER)
     with io.open(TOML_OUT, "w", encoding="utf-8") as fh:
@@ -220,22 +283,19 @@ def main():
 
     print("subgraph/networks.json  %d network(s)" % len(networks))
     print("subgraph/graph-node.toml  %d self-hosted chain(s)" % len(self_hosted))
+    print("live markets covered by a data source: %d" % covered)
     print()
     print("Subgraph Studio (The Graph runs the infrastructure):")
-    for name, meta, addr, sb, contract in studio:
-        print(
-            "  %-18s %s  startBlock=%-10s %-18s -> %s"
-            % (name, addr, sb, contract, meta["studioSlug"])
-        )
+    for name, meta, section in studio:
+        print("  %s -> %s" % (name, meta["studioSlug"]))
+        print_section(section)
     if not studio:
         print("  (none)")
     print()
     print("Self-hosted Graph Node (The Graph does not serve these chains):")
-    for name, meta, addr, sb, contract in self_hosted:
-        print(
-            "  %-18s %s  startBlock=%-10s %-18s getLogs<=%d"
-            % (name, addr, sb, contract, meta["maxBlockRange"])
-        )
+    for name, meta, section in self_hosted:
+        print("  %s  getLogs<=%d" % (name, meta["maxBlockRange"]))
+        print_section(section)
     if not self_hosted:
         print("  (none)")
     print()
