@@ -56,7 +56,7 @@ const MEASURED_LAUNCH_GAS: Record<Exclude<ChainKey, "Devchain">, number> = {
    * places the Robinhood v1 factory runtime (byte-identical on every chain) at the address the
    * Arc factory will occupy, 2026-10-06. Control: the same override on Robinhood returned exactly
    * the real-state estimate (3,282,862 = 3,282,862). Arc with identical arguments: 3,300,177.
-   * Re-measure against the real factory after broadcast.
+   * Confirmed against the real factory after its broadcast (block 24446119): 3,300,177 again.
    */
   Arc: 3_300_177,
 };

@@ -391,6 +391,18 @@ An Arbitrum Orbit chain. ADEXTO v1 is the first generation here, so there is no 
 > [!WARNING]
 > **An address means nothing without its chain id.** The factory here sits at the deployer's first-nonce address, and on Base and Monad that same address holds an unrelated pre-release contract.
 
+### <img src="public/brand/arc.svg" width="20" height="20" alt=""> Arc · chain ID 5042
+
+Circle's L1, where the native gas asset is USDC (18 decimals at the native level). ADEXTO v1 is the first generation here, broadcast on 2026-10-06 from commit `3b23f56`, whose factory sources are identical to `71b5adf`. Sourcify reports an exact match, creation and runtime, for both contracts below.
+
+| Contract | Address | Notes |
+|---|---|---|
+| **AdextoFactory** | [`0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D`](https://explorer.arc.io/address/0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D) | **current** · ADEXTO v1 · `VERSION` `1.0.0` · 21,806 B · block 24446119 · `PROTOCOL_FEE_BPS` 10, carved out of the total · 20 tickers reserved: the base 16, `ARC`, `EURC`, `USYC` and `CIRBTC` |
+| AdextoStakeHub | [`0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3`](https://explorer.arc.io/address/0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3) | **live** · every Arc market, from the v1 factory · `VERSION` `1.0.0` · 4,278 B · minimum 0.001% of supply · block 24446365 · no `owner()` |
+
+> [!WARNING]
+> **Same addresses, different chains.** The factory sits at the deployer's first-nonce address, as on Robinhood Chain, and the stake hub's address holds the unrelated pre-release hook on Base and Monad. Arc also enforces Circle's USDC blocklist on native transfers: a blocklisted address cannot pay into an Arc curve or be paid by one. The ADEXTO contracts have no blacklist of their own.
+
 ### <img src="public/brand/base.svg" width="20" height="20" alt=""> Base Mainnet · chain ID 8453
 
 | Contract | Address | Notes |

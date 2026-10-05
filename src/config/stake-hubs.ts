@@ -72,6 +72,20 @@ export const STAKE_HUBS: readonly StakeHub[] = [
     factories: ["0xEBbE0fB112859b57A0ad1afbeD4978e43dC96c5D", "0x51c4168226463F7e5A141e1c6D30520734BC840a"],
     ownStakeTokens: ["0xA1358C17004469C7CA5365AbafD294F9b2c11DF7"],
   },
+  /**
+   * Arc, deployed 2026-10-06 from commit 3b23f56. `contracts/` at 3b23f56 is identical to f8328ab
+   * (`git diff f8328ab 3b23f56 -- contracts/` is empty) and the runtime keccak equals the Robinhood
+   * hub's (0x88247303…). Sourcify exact match. Arc has only the v1 factory and no dedicated stake.
+   * On Base and Monad the same address holds the unrelated legacy hook: pair it with the chain id.
+   */
+  {
+    chainId: 5042,
+    address: "0xb264D861264B0e4f8fb98A61B7694BA8a3B6BBe3",
+    deployBlock: 24446365,
+    deployTx: "0xc58c068db2b94c53583872f6b31d09c315078cab365d2a1cb6ac879e3960c48c",
+    factories: ["0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D"],
+    ownStakeTokens: [],
+  },
 ];
 
 /**

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T22:37:45.080Z",
+  "generatedAt": "2026-10-05T20:37:29.932Z",
   "note": "ABI of ADEXTO v1 (AdextoFactory 1.0.0). The factory is checked against its deployed runtime on every chain, with each differing byte accounted for as an immutable. The curve and token ABIs are proven by their creation code, which appears verbatim in every deployed factory runtime.",
   "contracts": {
     "AdextoFactory": {
@@ -2104,6 +2104,19 @@
     },
     "robinhood": {
       "chainId": 4663,
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "factoryVersion": "1.0.0",
+      "protocolFeeBps": 10,
+      "protocolTreasury": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
+      "runtimeBytecodeBytes": 21806,
+      "runtimeBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4",
+      "immutableRegions": 2,
+      "immutableBytes": 40,
+      "embedsCurveCreationCode": true,
+      "embedsTokenCreationCode": true
+    },
+    "arc": {
+      "chainId": 5042,
       "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
       "factoryVersion": "1.0.0",
       "protocolFeeBps": 10,

@@ -270,14 +270,14 @@
     },
     "chains": {
       "title": "Chains and deployments",
-      "lede": "The ADEXTO v1 factory (version 1.0.0) runs on five EVM mainnets. Each deployment contains exactly 21806 bytes of runtime bytecode with an identical keccak256 hash across all five networks.",
+      "lede": "The ADEXTO v1 factory (version 1.0.0) runs on six EVM mainnets. Each deployment contains exactly 21806 bytes of runtime bytecode with an identical keccak256 hash across all six networks.",
       "sections": [
         {
           "heading": "Factory Deployments",
           "blocks": [
             {
               "type": "p",
-              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, Monad Mainnet and Robinhood Chain. Each network executes factory version 1.0.0 at a dedicated contract address."
+              "text": "The protocol maintains deployments on 0G Mainnet, Base Mainnet, Arbitrum One, Monad Mainnet, Robinhood Chain and Arc. Each network executes factory version 1.0.0."
             },
             {
               "type": "factsTable",
@@ -285,7 +285,7 @@
             },
             {
               "type": "note",
-              "text": "The factory address differs on every mainnet. Integrations must verify the chain ID alongside the contract address before submitting transactions."
+              "text": "A factory address is not unique to one mainnet: Robinhood Chain and Arc use the same one. Integrations must verify the chain ID alongside the contract address before submitting transactions."
             }
           ]
         },
@@ -294,7 +294,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The deployed factory contracts share the exact keccak256 hash of `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4` across all five mainnets. This confirms that the deployed instruction sets are identical across all targets."
+              "text": "The deployed factory contracts share the exact keccak256 hash of `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4` across all six mainnets. This confirms that the deployed instruction sets are identical across all targets."
             },
             {
               "type": "code",
@@ -618,7 +618,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "All five networks run factory version 1.0.0. The deployed bytecode is identical across each chain, measuring 21806 bytes with the keccak hash `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4`."
+              "text": "All six networks run factory version 1.0.0. The deployed bytecode is identical across each chain, measuring 21806 bytes with the keccak hash `0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4`."
             },
             {
               "type": "factsTable",
@@ -800,7 +800,7 @@
             {
               "type": "list",
               "items": [
-                "Chain: the one picked in Express, or else the first chain that can launch, in the order Monad, Arbitrum, Robinhood Chain, Base, 0G.",
+                "Chain: the one picked in Express, or else the first chain that can launch, in the order Monad, Arbitrum, Robinhood Chain, Base, Arc, 0G.",
                 "Fee: the Standard tier, 1.00% per trade, of which 0.70% goes to the creator, 0.10% stays in the curve as depth, 0.10% funds the buyback and 0.10% is the protocol leg.",
                 "Supply: 1,000,000,000 tokens, all of them in the curve and none to the creator.",
                 "Market agent: a neutral persona that answers questions about the market. No ERC-8004 identity is bound.",
@@ -818,7 +818,7 @@
           "blocks": [
             {
               "type": "p",
-              "text": "The factory contract is deployed across five EVM mainnets using identical bytecode. The deployed factory addresses and chain identifiers are provided in the table below."
+              "text": "The factory contract is deployed across six EVM mainnets using identical bytecode. The deployed factory addresses and chain identifiers are provided in the table below."
             },
             {
               "type": "factsTable",

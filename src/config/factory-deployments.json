@@ -7,8 +7,10 @@
     "rpc: the endpoint checked to answer every command in that checklist, including `cast receipt` for old transactions.",
     "",
     "sourceCommit: the commit the factory was compiled from (solc 0.8.37, EVM cancun, 200 runs, via-IR).",
-    "Recompiled from that commit, the runtime equals the on-chain code on all five chains except two 20-byte slots, which hold protocolTreasury (immutable).",
-    "With those slots zeroed, keccak(chain code) = keccak(artifact runtime) = maskedKeccak. Sourcify reports an exact match on all five."
+    "Recompiled from that commit, the runtime equals the on-chain code on every chain below except two 20-byte slots, which hold protocolTreasury (immutable).",
+    "With those slots zeroed, keccak(chain code) = keccak(artifact runtime) = maskedKeccak. Sourcify reports an exact match on every chain.",
+    "",
+    "Arc (5042) was broadcast on 2026-10-06 from commit 3b23f56 (its own sourceCommit). The factory sources there are identical to 71b5adf: `git diff 71b5adf 3b23f56 -- contracts/` only adds AdextoStakeHub.sol. Its runtime keccak equals the other chains'."
   ],
   "version": "1.0.0",
   "deployer": "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
@@ -45,6 +47,13 @@
       "block": 510474755,
       "tx": "0xf78fb444c72d5f2a150392a4ea4991e0caf0a11c060107d0a9f2d46f7b72ddf9",
       "rpc": "https://arb1.arbitrum.io/rpc"
+    },
+    "5042": {
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "block": 24446119,
+      "tx": "0x68b2688364b650b44d66f8ca365063ca9f208dfbdd9d3883e70eb46ed7a7ab87",
+      "rpc": "https://rpc.mainnet.arc.io",
+      "sourceCommit": "3b23f56e031c3a7a001b02b929cbc6881c165e42"
     }
   }
 }

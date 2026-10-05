@@ -4,7 +4,7 @@
     "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
     "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
   ],
-  "generatedAt": "2026-10-02T12:45:46.870Z",
+  "generatedAt": "2026-10-05T20:39:40.013Z",
   "site": "https://adexto.xyz",
   "chains": [
     {
@@ -61,6 +61,17 @@
       "factoryVersion": "1.0.0",
       "factoryBytecodeBytes": 21806,
       "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
+    },
+    {
+      "chainId": 5042,
+      "name": "Arc",
+      "nativeSymbol": "USDC",
+      "explorer": "https://explorer.arc.io",
+      "rpcUrl": "https://rpc.mainnet.arc.io",
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "factoryVersion": "1.0.0",
+      "factoryBytecodeBytes": 21806,
+      "factoryBytecodeKeccak": "0x1ca02ca53a3b2a2082f9e5dab6924e1339110e3037608f750981699678881fd4"
     }
   ],
   "bytecode": {
@@ -75,6 +86,32 @@
     "antiSnipeMaxWalletBps": 100
   },
   "markets": [
+    {
+      "symbol": "LOOP",
+      "name": "Loop",
+      "slug": "loop",
+      "chainId": 42161,
+      "chainKey": "Arbitrum",
+      "nativeSymbol": "ETH",
+      "token": "0x2F4Ca22703B6440d434833315505a2281011B228",
+      "curve": "0x037F55c7BE6E6537A218bD533DE5aCC3aF3C3B0C",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 511223223
+    },
+    {
+      "symbol": "LOOP",
+      "name": "Loop",
+      "slug": "loop",
+      "chainId": 143,
+      "chainKey": "Monad",
+      "nativeSymbol": "MON",
+      "token": "0x6AF1B9A42213e87B7f3b8a7Ac93447aEA7f615B2",
+      "curve": "0x55B9F98C78cf42186FB3827e0658E0d12C5A9189",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 110082161
+    },
     {
       "symbol": "SAI",
       "name": "SAi Monad",
@@ -346,15 +383,15 @@
     "gateway": "https://x402.adexto.xyz",
     "example": {
       "httpStatus": 402,
-      "wwwAuthenticate": "x402 realm=\"adexto-buy-sai\"",
+      "wwwAuthenticate": "x402 realm=\"adexto-buy-loop\"",
       "x402Version": 2,
       "accepts": [
         {
           "scheme": "exact",
           "network": "base",
           "maxAmountRequired": "100000",
-          "resource": "https://x402.adexto.xyz/v1/x402/buy/sai?chain=143",
-          "description": "Buy $SAI on Monad Mainnet with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
+          "resource": "https://x402.adexto.xyz/v1/x402/buy/loop?chain=42161",
+          "description": "Buy $LOOP on Arbitrum One with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
           "mimeType": "application/json",
           "payTo": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
           "maxTimeoutSeconds": 300,
@@ -383,12 +420,12 @@
   "nativePrices": {
     "USDC": 1,
     "USDT": 1,
-    "ETH": 2744.83,
-    "0G": 0.301567,
-    "A0GI": 0.301567,
-    "MON": 0.03420467,
-    "ARB": 0.204809,
-    "cbBTC": 86490
+    "ETH": 2713.66,
+    "0G": 0.308102,
+    "A0GI": 0.308102,
+    "MON": 0.03132975,
+    "ARB": 0.209875,
+    "cbBTC": 85790
   },
   "analysers": [
     {

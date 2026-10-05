@@ -44,7 +44,7 @@ const pick = (src, re, label) => {
 };
 
 // ── chain + factory ──────────────────────────────────────────────────────────
-const CHAIN_IDS = [16661, 8453, 42161, 143, 4663];
+const CHAIN_IDS = [16661, 8453, 42161, 143, 4663, 5042];
 
 /**
  * Alamat factory datang dari `public/abi/index.json`, BUKAN dari `src/config/contracts.ts`.
@@ -97,6 +97,7 @@ const CODE_FALLBACKS = {
   16661: [],
   143: ["https://rpc2.monad.xyz"],
   4663: [],
+  5042: ["https://arc.drpc.org"],
 };
 for (const c of chains) {
   const urls = [c.rpcUrl, ...(CODE_FALLBACKS[c.chainId] ?? [])].filter(Boolean);

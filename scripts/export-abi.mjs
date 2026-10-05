@@ -46,6 +46,7 @@ const CHAINS = {
   arbitrum: { chainId: 42161, rpc: "https://arb1.arbitrum.io/rpc", factory: envFactory("ARBITRUM") },
   monad: { chainId: 143, rpc: "https://rpc1.monad.xyz", factory: envFactory("MONAD") },
   robinhood: { chainId: 4663, rpc: "https://rpc.mainnet.chain.robinhood.com", factory: envFactory("ROBINHOOD") },
+  arc: { chainId: 5042, rpc: "https://rpc.mainnet.arc.io", factory: envFactory("ARC") },
 };
 
 const artifact = (name) => JSON.parse(readFileSync(`build/artifacts/${name}.json`, "utf8"));
