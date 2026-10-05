@@ -15,7 +15,7 @@
 import { JsonRpcProvider } from "ethers";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 
-export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Robinhood" | "Devchain";
+export type ChainKey = "0G" | "Arbitrum" | "Base" | "Monad" | "Robinhood" | "Arc" | "Devchain";
 
 /**
  * Disposable test-chain slot, enabled only when NEXT_PUBLIC_DEVCHAIN_RPC is set.
@@ -191,6 +191,9 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     Base: 1,
     Monad: 60_000,
     Robinhood: 1,
+    // Native USDC, so this is the opening market cap in dollars: OPENING_MARKET_CAP_USD exactly,
+    // and unlike the other chains it does not drift with a native price.
+    Arc: 4000,
     Devchain: 1,
   };
   // Dikunci ke `key`, bukan ke `name`. Nama chain bisa diganti lewat
@@ -201,6 +204,7 @@ function build(key: ChainKey, source: ChainSource, nativeName: string): ChainInf
     Base: "/brand/base.svg",
     Monad: "/brand/monad.svg",
     Robinhood: "/brand/robinhood.svg",
+    Arc: "/brand/arc.svg",
     Devchain: null,
   };
 
@@ -270,6 +274,10 @@ export function nativeAssetLogo(symbol: string | null | undefined): string | nul
       return "/brand/0g-token.png";
     case "MON":
       return "/brand/monad.svg";
+    case "USDC":
+      // Native gas asset on Arc. Chain and asset differ here like ETH on Base: Arc is the
+      // place, USDC the asset, so the asset badge is the USDC mark, not the Arc mark.
+      return "/brand/usdc.svg";
     default:
       return null;
   }
@@ -293,6 +301,7 @@ export const CHAINS: Record<ChainKey, ChainInfo> = {
   Base: build("Base", ADEXTO_CONTRACTS.base, "Ether"),
   Monad: build("Monad", ADEXTO_CONTRACTS.monad, "Monad"),
   Robinhood: build("Robinhood", ADEXTO_CONTRACTS.robinhood, "Ether"),
+  Arc: build("Arc", ADEXTO_CONTRACTS.arc, "USDC"),
   Devchain: {
     key: "Devchain",
     chainId: DEVCHAIN_ID,
@@ -335,9 +344,71 @@ export const CHAIN_LIST: ChainInfo[] = [
   // Robinhood Chain is an Arbitrum Orbit chain, so it sits next to Arbitrum One.
   CHAINS.Robinhood,
   CHAINS.Base,
+  /**
+   * Arc hanya ikut daftar setelah factory-nya ada (`NEXT_PUBLIC_CURVE_FACTORY_ARC`). Chain lain
+   * tetap tampil walau env-nya kosong karena mereka sudah punya pasar hidup; Arc belum punya
+   * apa pun, jadi menampilkannya lebih dulu berarti mengiklankan chain yang belum bisa dipakai.
+   * Semua hitungan "N chains" di copy membaca panjang daftar ini.
+   */
+  ...(CHAINS.Arc.dexLive ? [CHAINS.Arc] : []),
   CHAINS["0G"],
   ...(DEVCHAIN_ENABLED ? [CHAINS.Devchain] : []),
 ];
+
+/**
+ * Chain yang bisa meluncurkan di build ini, dalam urutan tampil. Devchain tidak pernah ikut: ia
+ * slot uji, dan copy publik tidak boleh menyebutnya.
+ *
+ * Semua kalimat "on Monad, Arbitrum One, … and 0G" dan "N mainnets" di copy membaca daftar ini,
+ * supaya chain keenam (Arc) muncul di copy tepat ketika factory-nya hidup, tidak lebih awal dan
+ * tidak tertinggal berhari-hari seperti "four mainnets" setelah Robinhood hidup.
+ */
+export const LAUNCH_CHAIN_LIST: ChainInfo[] = CHAIN_LIST.filter(
+  (c) => c.key !== "Devchain" && c.dexLive && Boolean(c.curveFactoryAddress)
+);
+
+/**
+ * Nama chain seperti yang diucapkan di copy. `ChainInfo.name` adalah nama resmi ("Monad Mainnet",
+ * "Base Mainnet"), yang terlalu panjang untuk kalimat. `short` dipakai di tempat yang sejak awal
+ * menulis "Arbitrum" saja (judul meta, kartu langkah di beranda).
+ */
+const SPOKEN_NAME: Record<ChainKey, string> = {
+  "0G": "0G",
+  Arbitrum: "Arbitrum One",
+  Base: "Base",
+  Monad: "Monad",
+  Robinhood: "Robinhood Chain",
+  Arc: "Arc",
+  Devchain: DEVCHAIN_NAME,
+};
+export function spokenChainName(chain: Pick<ChainInfo, "key">, opts: { short?: boolean } = {}): string {
+  if (opts.short && chain.key === "Arbitrum") return "Arbitrum";
+  return SPOKEN_NAME[chain.key];
+}
+
+/** "Monad, Arbitrum One, Robinhood Chain, Base and 0G" (atau "… or 0G"). */
+export function chainNameList(
+  chains: ReadonlyArray<Pick<ChainInfo, "key">> = LAUNCH_CHAIN_LIST,
+  conjunction: "and" | "or" = "and",
+  opts: { short?: boolean } = {}
+): string {
+  const names = chains.map((c) => spokenChainName(c, opts));
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} ${conjunction} ${names[names.length - 1]}`;
+}
+
+/** "143 Monad, 42161 Arbitrum One, …" untuk deskripsi parameter `chainId` di MCP dan A2A. */
+export function chainIdList(chains: ReadonlyArray<ChainInfo> = LAUNCH_CHAIN_LIST, separator = ", "): string {
+  return chains.map((c) => `${c.chainId} ${spokenChainName(c)}`).join(separator);
+}
+
+const COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+/** "five" untuk lima chain. Angka di atas sepuluh ditulis sebagai digit. */
+export function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+/** Jumlah chain yang bisa meluncurkan, sebagai kata: "five", lalu "six" begitu Arc hidup. */
+export const LAUNCH_CHAIN_COUNT_WORD = countWord(LAUNCH_CHAIN_LIST.length);
 
 /** Chain yang dipilih antarmuka untuk pengunjung yang belum pernah memilih sendiri. */
 export const DEFAULT_CHAIN = CHAINS.Monad;
@@ -365,11 +436,17 @@ const CHAIN_ID_ALIASES: Record<number, ChainKey> = {
   10143: "Monad",
   4663: "Robinhood",
   46630: "Robinhood",
+  // Arc mainnet and Arc Testnet.
+  5042: "Arc",
+  5042002: "Arc",
 };
 
 // Make every configured chainId resolvable, including ids injected by
 // NEXT_PUBLIC_CHAIN_OVERRIDES. Overrides win over the static aliases above.
-for (const chain of [CHAINS["0G"], CHAINS.Arbitrum, CHAINS.Base, CHAINS.Monad, CHAINS.Robinhood]) {
+//
+// Arc ikut di sini walau belum tampil di `CHAIN_LIST`: catatan atau permintaan yang menyebut 5042
+// harus terbaca sebagai Arc, bukan jatuh ke fallback 0G dan dibaca dari RPC yang salah.
+for (const chain of [CHAINS["0G"], CHAINS.Arbitrum, CHAINS.Base, CHAINS.Monad, CHAINS.Robinhood, CHAINS.Arc]) {
   CHAIN_ID_ALIASES[chain.chainId] = chain.key;
 }
 
@@ -383,6 +460,13 @@ export function chainFromId(chainId: number | bigint | null | undefined): ChainI
   const key = CHAIN_ID_ALIASES[id];
   return key ? CHAINS[key] : null;
 }
+
+/**
+ * "arc" sebagai KATA, bukan substring. Chain lain dicocokkan dengan `indexOf`, tetapi "arc" ada di
+ * dalam kata biasa — "PARCEL" (pasar hidup di Monad), "search", "March" — dan label seperti
+ * "Parcel Market" tidak boleh terbaca sebagai Arc.
+ */
+const ARC_WORD = /\barc\b/;
 
 /**
  * Parse any chain descriptor the app produces or persists.
@@ -411,17 +495,18 @@ export function resolveChain(input: string | number | null | undefined): ChainIn
   // 2. first known chain name mentioned — that is the primary chain
   const lower = raw.toLowerCase();
   const positions: Array<{ key: ChainKey; index: number }> = [];
-  const needles: Array<[ChainKey, string[]]> = [
+  const needles: Array<[ChainKey, Array<string | RegExp>]> = [
     ["0G", ["0g", "zero gravity"]],
     ["Arbitrum", ["arbitrum", "arb one"]],
     ["Base", ["base"]],
     ["Monad", ["monad"]],
     ["Robinhood", ["robinhood"]],
+    ["Arc", [ARC_WORD]],
     ...(DEVCHAIN_ENABLED ? ([["Devchain", ["devchain", "local devchain"]]] as Array<[ChainKey, string[]]>) : []),
   ];
   for (const [key, terms] of needles) {
     for (const term of terms) {
-      const index = lower.indexOf(term);
+      const index = typeof term === "string" ? lower.indexOf(term) : lower.search(term);
       if (index >= 0) {
         positions.push({ key, index });
         break;
@@ -443,7 +528,7 @@ export function resolveChainSet(input: string | null | undefined): ChainInfo[] {
   const raw = String(input).toLowerCase();
   const found: Array<{ chain: ChainInfo; index: number }> = [];
   for (const chain of CHAIN_LIST) {
-    const index = raw.indexOf(chain.key.toLowerCase());
+    const index = chain.key === "Arc" ? raw.search(ARC_WORD) : raw.indexOf(chain.key.toLowerCase());
     if (index >= 0) found.push({ chain, index });
   }
   if (found.length === 0) {
@@ -484,7 +569,10 @@ export function explorerNftUrl(
 ): string {
   const info = typeof chain === "object" && chain !== null ? chain : resolveChainOrDefault(chain as string | number);
   const host = info.blockExplorer.toLowerCase();
-  if (host.includes("blockscout")) return `${info.blockExplorer}/token/${contract}/instance/${tokenId}`;
+  // explorer.arc.io adalah Blockscout walau namanya tidak menyebutnya (diperiksa 2026-10-06).
+  if (host.includes("blockscout") || host.includes("explorer.arc.io")) {
+    return `${info.blockExplorer}/token/${contract}/instance/${tokenId}`;
+  }
   if (/arbiscan|basescan|monadscan|etherscan/.test(host)) return `${info.blockExplorer}/nft/${contract}/${tokenId}`;
   return `${info.blockExplorer}/address/${contract}`;
 }
@@ -500,6 +588,10 @@ export function inputAssetsFor(chain: ChainInfo): string[] {
       return ["MON", "USDC", "USDT"];
     case "Robinhood":
       return ["ETH"];
+    case "Arc":
+      // Native USDC only. The ERC-20 at 0x3600…0000 is the same balance seen through a
+      // 6-decimal interface, so listing it would offer a "swap" from USDC to itself.
+      return ["USDC"];
     case "Devchain":
       return [DEVCHAIN_SYMBOL];
     default:
@@ -658,6 +750,14 @@ export function readProvider(chain: ChainInfo): JsonRpcProvider {
  */
 const LOG_READ_RPC: Partial<Record<ChainKey, string>> = {
   Base: "https://mainnet.base.org",
+  /**
+   * Arc: `rpc.mainnet.arc.io` menolak `eth_getLogs` di atas 10.000 blok (-32012 "requested range
+   * too large"), sekitar 85 menit pada blok 0,5 dtk. Pinax menerima 100.000 blok dengan filter
+   * multi-alamat dan menolak 500.000 ("query exceeds max block range 100000"). Terukur 2026-10-06
+   * dari VPS. `LOG_SPAN_BY_CHAIN[5042]` di onchain-trades.ts harus sama dengan batas ini.
+   * publicnode dan blastapi tidak melayani Arc; arc.drpc.org gratis juga 10.000.
+   */
+  Arc: "https://arc.rpc.pinax.network",
 };
 
 /**

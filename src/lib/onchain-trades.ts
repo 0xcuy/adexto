@@ -153,6 +153,13 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
    * anggaran 16 panggilan.
    */
   4663: 100_000,
+  /**
+   * Arc: read through Pinax (`LOG_READ_RPC.Arc` in src/lib/chains.ts), which accepts 100,000
+   * blocks with a multi-value filter and rejects 500,000 ("query exceeds max block range
+   * 100000"), measured 2026-10-06. The official rpc.mainnet.arc.io stops at 10,000. At ~0.5 s
+   * blocks this is about 14 hours per call.
+   */
+  5042: 100_000,
 };
 const DEFAULT_LOG_SPAN = 2_000;
 

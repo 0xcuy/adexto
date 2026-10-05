@@ -49,6 +49,9 @@ const CURVE_FACTORY = {
   base: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_BASE),
   monad: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_MONAD),
   robinhood: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_ROBINHOOD),
+  // Kosong sampai factory Arc di-broadcast. Selama kosong, Arc tidak muncul di daftar chain
+  // mana pun (lihat `CHAIN_LIST` di src/lib/chains.ts).
+  arc: clean(process.env.NEXT_PUBLIC_CURVE_FACTORY_ARC),
 } as const;
 
 /**
@@ -368,6 +371,31 @@ export const ADEXTO_CONTRACTS = {
     // ADEXTO v1 is the first generation here: no legacy factory, hook or governor.
     factoryAddress: "",
     curveFactoryAddress: CURVE_FACTORY.robinhood,
+    supersededCurveFactoryAddress: null,
+    sovereignHookAddress: "",
+    governorAddress: "",
+    ccipReceiverAddress: "",
+    status: "Live On-Chain",
+  },
+  /**
+   * Arc, the Circle L1. Its native gas asset is USDC: 18 decimals at the native level, so
+   * `msg.value` arithmetic in the curve is unchanged. The ERC-20 view of the same balance lives
+   * at 0x3600…0000 with 6 decimals and is NOT a second asset (see `inputAssetsFor`).
+   *
+   * Diukur 2026-10-06 dari VPS: `rpc.mainnet.arc.io` 0,13 dtk, blok ~0,5 dtk, base fee 20 gwei.
+   * IdentityRegistry ERC-8004, Multicall3 dan CREATE2 Arachnid ada di alamat yang sama dengan
+   * chain lain (diperiksa dengan eth_getCode, bukan dipercaya dari dokumen).
+   */
+  arc: {
+    chainId: 5042,
+    chainName: "Arc",
+    nativeSymbol: "USDC",
+    rpcUrl: "https://rpc.mainnet.arc.io",
+    // Blockscout. Imports Sourcify verifications like the Robinhood explorer.
+    blockExplorer: "https://explorer.arc.io",
+    // ADEXTO v1 is the first generation here: no legacy factory, hook or governor.
+    factoryAddress: "",
+    curveFactoryAddress: CURVE_FACTORY.arc,
     supersededCurveFactoryAddress: null,
     sovereignHookAddress: "",
     governorAddress: "",

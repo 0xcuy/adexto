@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prepareLaunch, registerLaunch, type IpHeaders } from "@/lib/agent-launch";
 import { findProject, listPublicProjects, listServedProjects, type ProjectRecord } from "@/lib/registry";
-import { resolveChainOrDefault } from "@/lib/chains";
+import { chainIdList, chainNameList, resolveChainOrDefault } from "@/lib/chains";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 
 /**
@@ -178,7 +178,8 @@ const invalidParams = (detail: string) => new A2aError(-32602, `Invalid paramete
 
 const LAUNCH_SCHEMA = {
   skill: "launch_market",
-  chainId: "143 Monad | 42161 Arbitrum One | 4663 Robinhood Chain | 8453 Base | 16661 0G",
+  // From the chains that can launch in this build, so a new chain appears here once it is live.
+  chainId: chainIdList(undefined, " | "),
   name: "Market name, up to 64 bytes",
   symbol: "Ticker, 2 to 12 characters, A-Z and 0-9",
   deployer: "0x… wallet that signs and sends the launch; it becomes the creator",
@@ -192,7 +193,7 @@ export function agentCard() {
   return {
     name: "ADEXTO Launchpad",
     description:
-      "Launches a token market on a bonding curve for the calling agent, on Monad, Arbitrum One, Robinhood Chain, Base or 0G. " +
+      `Launches a token market on a bonding curve for the calling agent, on ${chainNameList(undefined, "or")}. ` +
       "The agent signs with its own key: this server returns the attestation message and the unsigned launch transaction and " +
       "never holds a key. Gas only, all supply inside the curve, no liquidity deposit, 0.70% of every trade to the creator on " +
       "the standard fee preset. Also sells any listed market for USDC on Base over x402 (the a2a-x402 extension): the " +

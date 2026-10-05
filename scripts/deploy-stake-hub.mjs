@@ -105,6 +105,20 @@ const NETWORKS = {
     factories: [{ address: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D", version: "1.0.0" }],
     ownStake: [{ symbol: "SAI", token: "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d", stake: "0x01b250a2db25561dB185f4628B93C72048D8bc1B" }],
   },
+  /**
+   * Arc: the factory address is PREDICTED (deployer nonce 0 on 5042, checked 2026-10-06), the same
+   * address as on Robinhood. It is only valid once `deploy-factory.mjs --chain arc` has broadcast at
+   * that nonce; until then the on-chain checks below refuse, which is the intended order.
+   * The broadcast sends `maxFeePerGas` from getFeeData (2 × base fee + tip, ~40 gwei), above Arc's
+   * 20 gwei mempool floor.
+   */
+  arc: {
+    chainId: 5042,
+    rpc: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io",
+    explorer: "https://explorer.arc.io",
+    factories: [{ address: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D", version: "1.0.0" }],
+    ownStake: [],
+  },
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

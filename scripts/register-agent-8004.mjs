@@ -36,6 +36,9 @@ const NETWORKS = {
   base: { chainId: 8453, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", native: "ETH" },
   arbitrum: { chainId: 42161, rpc: "https://arb1.arbitrum.io/rpc", explorer: "https://arbiscan.io", native: "ETH" },
   monad: { chainId: 143, rpc: "https://rpc.monad.xyz", explorer: "https://monadscan.com", native: "MON" },
+  robinhood: { chainId: 4663, rpc: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com", explorer: "https://robinhoodchain.blockscout.com", native: "ETH" },
+  // Arc: the IdentityRegistry above is present on 5042 (eth_getCode, 2026-10-06), same proxy and implementation as Arbitrum.
+  arc: { chainId: 5042, rpc: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io", explorer: "https://explorer.arc.io", native: "USDC" },
   devchain: { chainId: 31337, rpc: "http://127.0.0.1:8545", explorer: "", native: "ETH" },
 };
 
@@ -202,6 +205,9 @@ const receipt = await tx.wait();
 let agentId = null;
 const iface = new ethers.Interface(REGISTRY_ABI);
 for (const log of receipt.logs) {
+  // Only the registry's own mint. On Arc native value moves also emit a `Transfer` log (EIP-7708,
+  // from the system emitter 0xfff…fFfE), with the same topic0.
+  if (String(log.address).toLowerCase() !== REGISTRY.toLowerCase()) continue;
   try {
     const p = iface.parseLog({ topics: [...log.topics], data: log.data });
     if (p?.name === "Transfer" && p.args.from === ethers.ZeroAddress) agentId = p.args.tokenId;

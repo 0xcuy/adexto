@@ -6,6 +6,7 @@ import Disclosure from "@/components/ui/Disclosure";
 import DocsShell from "@/app/docs/DocsShell";
 import { DocSection, SourceNote } from "@/app/docs/DocBlocks";
 import { DOC_GROUPS, DOC_SUMMARIES } from "@/app/docs/docs-nav";
+import { chainNameList } from "@/lib/chains";
 import ComponentStatus, { ComputeAttestation } from "@/app/docs/TechnicalStatus";
 
 /**
@@ -63,8 +64,7 @@ export default function DocsHome() {
       toc={TOC}
       intro={
         <p>
-          ADEXTO is a place to launch a token and trade it on a bonding curve, on Monad, Arbitrum One, Robinhood Chain,
-          Base and 0G.
+          ADEXTO is a place to launch a token and trade it on a bonding curve, on {chainNameList()}.
         </p>
       }
     >

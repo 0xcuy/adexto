@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Flame, Rocket, Crown, Bot, Trophy, Megaphone } from "lucide-react";
 import AgentScoreBadge from "@/components/agents/AgentScoreBadge";
 import { getLeaderboard, type ContestEntry, type LeaderboardMarket } from "@/lib/leaderboard";
-import { chainFromId, chainMark } from "@/lib/chains";
+import { LAUNCH_CHAIN_COUNT_WORD, chainFromId, chainMark } from "@/lib/chains";
 import { formatUsd } from "@/lib/pricing";
 import { CONTEST_TERMS } from "@/config/growth-programs";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Leaderboard · ADEXTO",
-  description: "ADEXTO markets ranked by unique buyers in the last 24 hours, newest launches, top creators and agent-bound markets, across five chains.",
+  description: `ADEXTO markets ranked by unique buyers in the last 24 hours, newest launches, top creators and agent-bound markets, across ${LAUNCH_CHAIN_COUNT_WORD} chains.`,
 };
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;

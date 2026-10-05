@@ -14,7 +14,7 @@ import { ethers } from "ethers";
 import { esc, sendMessage, tg, botUsername, type Button } from "@/lib/telegram";
 import { getLeaderboard, type LeaderboardMarket } from "@/lib/leaderboard";
 import { addSub, dropGroup, loadSubs, removeSub } from "@/lib/telegram-store";
-import { resolveChain } from "@/lib/chains";
+import { LAUNCH_CHAIN_LIST, chainNameList, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/pricing";
 import { readCreatorEarnings } from "@/lib/creator-earnings";
 import { buildStudioPrefillUrl } from "@/lib/studio-prefill";
@@ -80,7 +80,7 @@ async function isGroupAdmin(chatId: number, userId: number | undefined): Promise
 }
 
 const HELP = [
-  "<b>ADEXTO bot</b>: markets on Base, Arbitrum, Monad, Robinhood Chain and 0G.",
+  `<b>ADEXTO bot</b>: markets on ${chainNameList(LAUNCH_CHAIN_LIST, "and", { short: true })}.`,
   "",
   "/market &lt;ticker&gt; [chain]: price, buyers, holders, creator fees",
   "/alerts: post every buy of a market in this group (group admins)",

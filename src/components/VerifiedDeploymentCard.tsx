@@ -12,6 +12,7 @@ import {
   Cpu, Layers, Sparkles 
 } from "lucide-react";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { LAUNCH_CHAIN_COUNT_WORD } from "@/lib/chains";
 
 export default function VerifiedDeploymentCard() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -37,6 +38,8 @@ export default function VerifiedDeploymentCard() {
     { key: "arbitrum", label: "Arbitrum One 42161" },
     { key: "monad", label: "Monad Mainnet 143" },
     { key: "robinhood", label: "Robinhood Chain 4663" },
+    // Only rendered once NEXT_PUBLIC_CURVE_FACTORY_ARC is set (see the filter below).
+    { key: "arc", label: "Arc 5042" },
   ] as const;
 
   const chainOf = (key: (typeof CHAINS)[number]["key"]) => ADEXTO_CONTRACTS[key];
@@ -92,7 +95,7 @@ export default function VerifiedDeploymentCard() {
      * checking our claims needs the address we actually call.
      */
     {
-      label: "ERC-8004 Identity Registry (same address on all five mainnets)",
+      label: `ERC-8004 Identity Registry (same address on all ${LAUNCH_CHAIN_COUNT_WORD} mainnets)`,
       address: ADEXTO_CONTRACTS.agentRegistry,
       explorerUrl: `https://basescan.org/address/${ADEXTO_CONTRACTS.agentRegistry}`,
       badge: "third-party · upgradeable proxy",
@@ -205,7 +208,7 @@ export default function VerifiedDeploymentCard() {
                   nothing to trade." Dua-duanya berhenti benar begitu $ADEXTO diluncurkan:
                   klausanya berubah makna, dan ada pasar yang bisa diperdagangkan.
                   `{" "}` di atas: tanpa itu JSX menempelkan dua kalimat ("trade.Launching"). */}
-              Launching is enabled on all five mainnets, and {LAUNCH_CLAUSE}.
+              Launching is enabled on all {LAUNCH_CHAIN_COUNT_WORD} mainnets, and {LAUNCH_CLAUSE}.
             </p>
           </div>
 

@@ -12,6 +12,7 @@
  * Slug di sini HARUS sama dengan kunci `docs-pages.json` dan `DOCS_SLUGS` di `src/middleware.ts`
  * (dijaga `audit_consistency.mjs`). Menambah halaman berarti menyentuh ketiganya.
  */
+import { LAUNCH_CHAIN_COUNT_WORD, chainNameList } from "@/lib/chains";
 
 export interface DocNavItem {
   /** `null` untuk halaman indeks `/docs`. */
@@ -147,8 +148,8 @@ export const DOC_SUMMARIES: Readonly<Record<string, readonly string[]>> = {
     "Anyone can trigger a fee claim or a buyback, and bought-back tokens are burned.",
   ],
   chains: [
-    "The same factory, version 1.0.0, runs on Monad, Arbitrum One, Robinhood Chain, Base and 0G.",
-    "Its runtime code is byte-for-byte identical on all five, and you can check the hash yourself.",
+    `The same factory, version 1.0.0, runs on ${chainNameList()}.`,
+    `Its runtime code is byte-for-byte identical on all ${LAUNCH_CHAIN_COUNT_WORD}, and you can check the hash yourself.`,
     "Each chain is a separate market: check the chain id as well as the address before you send anything.",
   ],
   x402: [

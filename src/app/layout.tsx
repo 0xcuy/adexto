@@ -10,6 +10,7 @@ import { WalletProvider } from "@/context/WalletContext";
 import MobileTabBar from "@/components/MobileTabBar";
 import ReferralCapture from "@/components/ReferralCapture";
 import { DEFAULT_THEME, THEME_BOOT_SCRIPT, THEME_COLOR } from "@/lib/theme";
+import { LAUNCH_CHAIN_LIST, chainNameList } from "@/lib/chains";
 
 /**
  * Display & body. Berkas woff2 (subset latin, variable) ada di src/app/fonts dan
@@ -89,7 +90,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "ADEXTO — launch an AI agent token with no liquidity deposit",
     description:
-      "Gas-only launches on Monad, Arbitrum, Robinhood Chain, Base and 0G. Creator paid 0.70% of every swap, no free token allocation.",
+      `Gas-only launches on ${chainNameList(LAUNCH_CHAIN_LIST, "and", { short: true })}. Creator paid 0.70% of every swap, no free token allocation.`,
     images: ["/og.png"],
   },
 };

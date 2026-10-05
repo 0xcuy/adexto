@@ -219,6 +219,15 @@
         "ZM",
         "ZS"
       ]
+    },
+    "arc": {
+      "source": "The chain's own name plus every Circle asset other than USDC and WETH (already in base) listed for Arc mainnet at https://docs.arc.io/arc/references/contract-addresses.md (read 2026-10-06): EURC 0xbEf5f6d5…, USYC 0x8a5D989B…, cirBTC 0x171A4217….",
+      "symbols": [
+        "ARC",
+        "EURC",
+        "USYC",
+        "CIRBTC"
+      ]
     }
   }
 }

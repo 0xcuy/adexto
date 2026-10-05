@@ -35,6 +35,7 @@ const CHAIN_NAME: Record<number, string> = {
   42161: "Arbitrum One",
   4663: "Robinhood Chain",
   8453: "Base",
+  5042: "Arc",
   16661: "0G",
 };
 

@@ -131,6 +131,16 @@ const UPSTREAMS: Record<string, { chainId: number; urls: string[]; broadcast: st
     urls: ["https://rpc.mainnet.chain.robinhood.com"],
     broadcast: "https://rpc.mainnet.chain.robinhood.com",
   },
+  /**
+   * Arc, for the x402 Worker once it serves chain 5042 (`ARC_RPC`). Unused until then. The official
+   * endpoint answered `eth_call` in 0.13 s from the VPS (2026-10-06); arc.drpc.org is the fallback
+   * for reads only. Broadcast stays on the official endpoint.
+   */
+  arc: {
+    chainId: 5042,
+    urls: ["https://rpc.mainnet.arc.io", "https://arc.drpc.org"],
+    broadcast: "https://rpc.mainnet.arc.io",
+  },
   base: {
     chainId: 8453,
     // Diukur 2026-09-21 dari VPS. Lihat tabel di atas sebelum menyusun ulang.

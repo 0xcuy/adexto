@@ -99,6 +99,7 @@ const ENDPOINT_ENV: Record<ChainKey, string> = {
   Base: "SUBGRAPH_URL_BASE",
   Monad: "SUBGRAPH_URL_MONAD",
   Robinhood: "SUBGRAPH_URL_ROBINHOOD",
+  Arc: "SUBGRAPH_URL_ARC",
   Devchain: "SUBGRAPH_URL_DEVCHAIN",
 };
 
@@ -125,6 +126,7 @@ export const SUBGRAPH_ENDPOINTS: Record<ChainKey, string | null> = {
   Base: readEndpoint("Base"),
   Monad: readEndpoint("Monad"),
   Robinhood: readEndpoint("Robinhood"),
+  Arc: readEndpoint("Arc"),
   Devchain: readEndpoint("Devchain"),
 };
 

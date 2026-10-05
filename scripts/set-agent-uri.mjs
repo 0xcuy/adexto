@@ -31,6 +31,7 @@ const NETWORKS = {
   42161: { rpc: "https://arb1.arbitrum.io/rpc", native: "ETH", explorer: "https://arbiscan.io" },
   143: { rpc: "https://rpc1.monad.xyz", native: "MON", explorer: "https://monadscan.com" },
   4663: { rpc: "https://rpc.mainnet.chain.robinhood.com", native: "ETH", explorer: "https://robinhoodchain.blockscout.com" },
+  5042: { rpc: "https://rpc.mainnet.arc.io", native: "USDC", explorer: "https://explorer.arc.io" },
 };
 const OWNERS = {
   deployer: "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",

@@ -108,6 +108,12 @@ export interface Env extends ComputeEnv, PaymentLockEnv {
   ARBITRUM_RPC?: string;
   /** RPC pengiriman untuk Robinhood Chain (4663). Opsional, lewat relai situs seperti Arbitrum. */
   ROBINHOOD_RPC?: string;
+  /**
+   * RPC pengiriman untuk Arc (5042). Opsional dan SENGAJA belum diset di wrangler.toml: Arc baru
+   * dilayani setelah factory-nya hidup dan relayer memegang USDC native di sana. Nilai yang
+   * dimaksud: relai situs `https://adexto.xyz/api/rpc/arc`.
+   */
+  ARC_RPC?: string;
   /** Asal registry dan harga. Satu asal, supaya tidak ada sumber kebenaran kedua. */
   ADEXTO_ORIGIN: string;
   /**
@@ -653,6 +659,13 @@ export default {
        * deadline)`), dan persediaan ETH relayer di chain itu sendiri.
        */
       4663: { url: env.ROBINHOOD_RPC, envVar: "ROBINHOOD_RPC" },
+      /**
+       * Arc, native USDC (18 desimal di tingkat native, jadi `parseEther` di bawah tetap benar).
+       * Harga native-nya USDC = 1 dari `/api/prices`, jadi kutipannya USDC di Base -> USDC di Arc
+       * dikurangi spread. Mempool Arc membuang transaksi dengan maxFeePerGas < 20 gwei tanpa
+       * receipt; ethers mengisi 2 × base fee + tip, yaitu ~40 gwei.
+       */
+      5042: { url: env.ARC_RPC, envVar: "ARC_RPC" },
     };
     const delivery = DELIVERY_RPC[market.chainId];
     if (!delivery?.url) {

@@ -102,7 +102,8 @@ const TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
  * cukup untuk tidak mengambil blok yang masih bisa diganti di ujung.
  */
 // Robinhood Chain: 20 blocks of ~0.1 s, about two seconds behind the tip.
-const CONFIRMATIONS: Record<number, number> = { 16661: 2, 8453: 3, 42161: 10, 143: 3, 4663: 20 };
+// Arc: deterministic finality per block (~0.5 s), so two blocks is only a margin for RPC lag.
+const CONFIRMATIONS: Record<number, number> = { 16661: 2, 8453: 3, 42161: 10, 143: 3, 4663: 20, 5042: 2 };
 const DEFAULT_CONFIRMATIONS = 5;
 
 /**

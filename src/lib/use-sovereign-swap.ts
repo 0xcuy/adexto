@@ -135,6 +135,9 @@ const GAS_HEADROOM_FALLBACK: Record<string, bigint> = {
   ETH: ethers.parseEther("0.0001"),
   MON: ethers.parseEther("0.2"),
   "0G": ethers.parseEther("0.01"),
+  // Arc: native USDC with 18 decimals at the native level. Base fee 20 gwei (6 Oct 2026), so
+  // 600k × 20 gwei × 3 = 0.036 USDC; the fallback rounds that up.
+  USDC: ethers.parseEther("0.05"),
 };
 /**
  * Jumlah untuk kalimat `limit`: 4 desimal di atas 1, tiga digit signifikan di bawahnya. Saldo ETH

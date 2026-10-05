@@ -4,6 +4,7 @@ import deployments from "@/config/factory-deployments.json";
 import { STAKE_HUB_SOURCE_COMMIT } from "@/config/stake-hubs";
 import NoGraduation from "@/components/security/NoGraduation";
 import VerifyChecklist from "@/components/security/VerifyChecklist";
+import { ARC_LIVE, ARC_USDC_NOTE } from "@/config/arc-disclosure";
 
 
 export const metadata = {
@@ -645,6 +646,11 @@ export default function SecurityPage() {
             external AMM without our permission, and we could not stop it. What the protocol guarantees is narrower: we
             never migrate the market, and nobody can withdraw the curve&apos;s reserves.
           </li>
+          {ARC_LIVE && (
+            <li>
+              <strong className="text-ink">Arc&apos;s native asset can be blocked.</strong> {ARC_USDC_NOTE}
+            </li>
+          )}
           <li>
             {/* Kalimat ini dulu berbunyi "Nothing has traded on mainnet yet." Itu sudah
                 salah SEBELUM $ADEXTO diluncurkan: kurva ticker buangan dari uji perekaman

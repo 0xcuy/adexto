@@ -41,6 +41,7 @@ const CHAIN_LOGO: Record<number, { src: string; tile?: boolean }> = {
   42161: { src: "/brand/arbitrum.svg" },
   8453: { src: "/brand/base.svg" },
   4663: { src: "/brand/robinhood.svg" },
+  5042: { src: "/brand/arc.svg" },
   16661: { src: "/brand/0g-token.png", tile: true },
 };
 

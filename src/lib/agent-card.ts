@@ -17,7 +17,7 @@
  * Hanya agen yang pemiliknya terbukti dompet kami (dibaca dari Identity Registry) yang dijawab.
  */
 import { agentOwner, agentRegistryOf, isOurAddress, OPERATED_AGENTS } from "@/lib/agent-identities";
-import { resolveChainOrDefault } from "@/lib/chains";
+import { LAUNCH_CHAIN_COUNT_WORD, resolveChainOrDefault } from "@/lib/chains";
 
 export const AGENT_CARD_ORIGIN = "https://adexto.xyz";
 
@@ -61,7 +61,7 @@ export async function agentCard(chainId: number, agentId: string): Promise<Agent
       `token contract records this ERC-8004 agent; the launch factory checked that the launcher owned it. Buy ` +
       `$${market.symbol} with USDC on Base over x402 and receive it on ${chain.name}, or use the MCP server. ` +
       `Staking $${market.symbol} opens this agent: it answers questions about the market's curve, fees and depth.`
-    : `ADEXTO's protocol agent on ${chain.name}. ADEXTO launches bonding-curve token markets on five chains. ` +
+    : `ADEXTO's protocol agent on ${chain.name}. ADEXTO launches bonding-curve token markets on ${LAUNCH_CHAIN_COUNT_WORD} chains. ` +
       `Through the MCP server an agent can launch a market with its own key, buy any market with USDC on Base ` +
       `over x402, stake a market's token, and collect creator fees.`;
 

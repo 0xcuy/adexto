@@ -17,6 +17,7 @@ services:
         NEXT_PUBLIC_CURVE_FACTORY_BASE: ${NEXT_PUBLIC_CURVE_FACTORY_BASE:-}
         NEXT_PUBLIC_CURVE_FACTORY_MONAD: ${NEXT_PUBLIC_CURVE_FACTORY_MONAD:-}
         NEXT_PUBLIC_CURVE_FACTORY_ROBINHOOD: ${NEXT_PUBLIC_CURVE_FACTORY_ROBINHOOD:-}
+        NEXT_PUBLIC_CURVE_FACTORY_ARC: ${NEXT_PUBLIC_CURVE_FACTORY_ARC:-}
         # Factory kurva yang digantikan. Kosong sampai penerusnya di-broadcast; harus
         # ada di sini juga karena nilai NEXT_PUBLIC_* ter-inline saat build di dalam image.
         NEXT_PUBLIC_CURVE_FACTORY_PREV_0G: ${NEXT_PUBLIC_CURVE_FACTORY_PREV_0G:-}

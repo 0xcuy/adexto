@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { H2, P, UL, PageTitle, Note, In } from "../_parts";
 import { UPDATED, X402_SPREAD_PERCENT } from "../_facts";
+import { ARC_LIVE, ARC_USDC_NOTE } from "@/config/arc-disclosure";
 
 export const metadata: Metadata = {
   title: "Terms — ADEXTO",
@@ -117,6 +118,7 @@ export default function TermsPage() {
         including us, can freeze a token, stop trades made directly against a curve, or move anyone&apos;s
         funds. A market removed here still exists on chain.
       </Note>
+      {ARC_LIVE && <Note>{ARC_USDC_NOTE}</Note>}
 
       <H2>Agents</H2>
       <UL>

@@ -58,7 +58,7 @@ import { ethers } from "ethers";
 import { z } from "zod-v4";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 import { listPublicProjects, listServedProjects, type ProjectRecord } from "@/lib/registry";
-import { resolveChainOrDefault } from "@/lib/chains";
+import { chainIdList, resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { clientIp, rateLimit, rateLimitHeaders, secretEquals } from "@/lib/rate-limit";
@@ -1371,7 +1371,7 @@ const mcp = createMcpHandler(
             .number()
             .int()
             .positive()
-            .describe("Chain to launch on: 143 Monad, 42161 Arbitrum One, 4663 Robinhood Chain, 8453 Base, 16661 0G."),
+            .describe(`Chain to launch on: ${chainIdList()}.`),
           name: z.string().min(1).max(64).describe("Token name, up to 64 bytes."),
           symbol: z.string().min(2).max(12).describe("Ticker, 2 to 12 letters A-Z or digits. Permanent on chain."),
           deployer: ADDRESS.describe(

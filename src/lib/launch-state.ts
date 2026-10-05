@@ -1,3 +1,5 @@
+import { LAUNCH_CHAIN_COUNT_WORD, LAUNCH_CHAIN_LIST } from "@/lib/chains";
+
 /**
  * Satu tempat untuk satu kenyataan: factory hidup di empat mainnet, dan $ADEXTO sendiri
  * sudah diluncurkan di 0G.
@@ -55,7 +57,8 @@
  */
 
 /** Ringkas, untuk lencana dan label sempit. */
-export const LAUNCH_BADGE = "broadcast to 5 mainnets";
+// Hitungannya dari `LAUNCH_CHAIN_LIST`, jadi Arc ikut terhitung tepat saat factory-nya hidup.
+export const LAUNCH_BADGE = `broadcast to ${LAUNCH_CHAIN_LIST.length} mainnets`;
 
 /**
  * Satu klausa, untuk disisipkan di akhir kalimat lain.
@@ -83,8 +86,7 @@ export const LAUNCH_CLAUSE = "$ADEXTO is live on 0G with its entire supply in th
  * /docs dan `VerifiedDeploymentCard`, tempat pembaca memang datang untuk memeriksa satu
  * penerbitan tertentu.
  */
-export const LAUNCH_SENTENCE =
-  "The launch factory is live on five mainnets, and markets launched through ADEXTO are already trading — 100% of each supply inside the curve, with no liquidity deposit anywhere.";
+export const LAUNCH_SENTENCE = `The launch factory is live on ${LAUNCH_CHAIN_COUNT_WORD} mainnets, and markets launched through ADEXTO are already trading — 100% of each supply inside the curve, with no liquidity deposit anywhere.`;
 
 /**
  * Judul dan penjelasan untuk keadaan kosong (registry, daftar market, pemilih).

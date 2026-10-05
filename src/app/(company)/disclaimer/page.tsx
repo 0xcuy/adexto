@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { H2, P, UL, PageTitle, Note, In } from "../_parts";
 import { UPDATED } from "../_facts";
+import { ARC_LIVE, ARC_USDC_NOTE } from "@/config/arc-disclosure";
 
 export const metadata: Metadata = {
   title: "Disclaimer — ADEXTO",
@@ -40,6 +41,12 @@ export default function DisclaimerPage() {
         built on, and it cuts both ways: nobody can seize your tokens, and nobody can help you if you buy the wrong
         market, mistype an amount or send tokens to a wrong address.
       </P>
+      {ARC_LIVE && (
+        <>
+          <H2>On Arc, USDC rules apply</H2>
+          <P>{ARC_USDC_NOTE}</P>
+        </>
+      )}
 
       <H2>Anyone can create a market, including to deceive you</H2>
       <UL>

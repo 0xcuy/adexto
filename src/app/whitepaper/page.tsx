@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookOpen, ShieldCheck, Cpu, Layers, Zap, ArrowRight, Lock, CheckCircle2 } from "lucide-react";
+import { LAUNCH_CHAIN_COUNT_WORD } from "@/lib/chains";
 
 export default function WhitepaperPage() {
   return (
@@ -191,7 +192,7 @@ export default function WhitepaperPage() {
           </p>
           <p className="text-ink">
             The 0.10% protocol fee is live, not planned. ADEXTO v1 (factory{" "}
-            <code className="text-accent font-mono text-xs">1.0.0</code>) is deployed on five mainnets with{" "}
+            <code className="text-accent font-mono text-xs">1.0.0</code>) is deployed on {LAUNCH_CHAIN_COUNT_WORD} mainnets with{" "}
             <code className="text-accent font-mono text-xs">PROTOCOL_FEE_BPS = 10</code> and an immutable{" "}
             <code className="text-accent font-mono text-xs">protocolTreasury</code>, and the earlier markets have already
             paid it — 0.0000372 0G from $ADEXTO and 0.00001 0G from $ADT. In v1 it is carved out of the configured swap

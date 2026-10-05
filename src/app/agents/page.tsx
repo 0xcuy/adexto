@@ -18,7 +18,7 @@ import CopyField from "@/components/ui/CopyField";
 import { listPublicProjects } from "@/lib/registry";
 import { agentLaunchVia } from "@/config/agent-launches";
 import { isOurAddress } from "@/lib/agent-identities";
-import { explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
+import { chainNameList, explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { buttonClass } from "@/components/ui/Button";
 import AgentsNav from "@/components/agents/AgentsNav";
 import LaunchConsole from "@/components/agents/LaunchConsole";
@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Launch with your agent — ADEXTO",
   description:
-    "Your agent launches a token market on ADEXTO over MCP and signs with its own key. Gas only, all supply in the curve, no liquidity deposit, on Monad, Arbitrum One, Robinhood Chain, Base or 0G.",
+    `Your agent launches a token market on ADEXTO over MCP and signs with its own key. Gas only, all supply in the curve, no liquidity deposit, on ${chainNameList(undefined, "or")}.`,
 };
 
 const STEPS = [
@@ -68,7 +68,7 @@ export default function AgentsPage() {
         kicker="Agents"
         kickerIcon={Bot}
         title="Launch a market from your agent"
-        subtitle="Your agent talks to the ADEXTO MCP server and signs with its own key. The market opens on a bonding curve with no liquidity deposit, on Monad, Arbitrum One, Robinhood Chain, Base or 0G."
+        subtitle={`Your agent talks to the ADEXTO MCP server and signs with its own key. The market opens on a bonding curve with no liquidity deposit, on ${chainNameList(undefined, "or")}.`}
         actions={
           <>
             <a href="#launch" className={buttonClass({ variant: "primary", size: "lg" })}>

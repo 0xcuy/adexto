@@ -22,6 +22,7 @@
  *   isNavActive()  pencocokan rute aktif yang dipakai header dan tab bar
  */
 import type { LucideIcon } from "lucide-react";
+import { LAUNCH_CHAIN_COUNT_WORD } from "@/lib/chains";
 import {
   ArrowDownUp,
   BookOpen,
@@ -71,7 +72,7 @@ export interface NavGroup {
 const EXPLORE: NavItem = {
   href: "/explorer",
   label: "Explore markets",
-  description: "Browse markets on all five chains",
+  description: `Browse markets on all ${LAUNCH_CHAIN_COUNT_WORD} chains`,
   icon: Compass,
   match: ["/explorer", "/token"],
 };

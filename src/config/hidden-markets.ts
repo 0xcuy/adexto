@@ -19,6 +19,9 @@
 export const HIDDEN_MARKETS: ReadonlySet<string> = new Set([
   // Pasar uji end-to-end 5 Okt 2026: Agent A meluncurkan lewat MCP, Agent B membeli lewat A2A x402.
   "42161:ARBTTEST",
+  // Pasar uji Arc, disembunyikan sebelum diluncurkan: alur yang sama (MCP launch, A2A x402 buy)
+  // direkam bersama video demo setelah factory Arc di-broadcast.
+  "5042:ARCTEST",
 ]);
 
 /** True bila pasar ini tidak boleh muncul di daftar publik. */

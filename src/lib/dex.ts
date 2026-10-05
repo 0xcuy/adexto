@@ -343,9 +343,10 @@ export class PoolReadError extends Error {
 
 /**
  * Chains whose canonical Multicall3 was checked to exist (eth_getCode, 3,808 bytes on all
- * five, 5 Oct 2026). Anything else, e.g. a local devchain, reads call by call.
+ * five, 5 Oct 2026; Arc 5042 checked 6 Oct 2026, identical to Arbitrum). Anything else, e.g. a
+ * local devchain, reads call by call.
  */
-const POOL_MULTICALL_CHAIN_IDS = new Set([16661, 42161, 8453, 143, 4663]);
+const POOL_MULTICALL_CHAIN_IDS = new Set([16661, 42161, 8453, 143, 4663, 5042]);
 
 /**
  * Every getter `readPoolState` needs, in one Multicall3 `aggregate3` with `allowFailure: true`.

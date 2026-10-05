@@ -26,12 +26,13 @@ import CommandBlock from "./CommandBlock";
  * Teks yang dirender WAJIB bahasa Inggris.
  */
 
-const KEY_BY_CHAIN: Record<number, "og" | "base" | "arbitrum" | "monad" | "robinhood"> = {
+const KEY_BY_CHAIN: Record<number, "og" | "base" | "arbitrum" | "monad" | "robinhood" | "arc"> = {
   16661: "og",
   8453: "base",
   42161: "arbitrum",
   143: "monad",
   4663: "robinhood",
+  5042: "arc",
 };
 
 /**

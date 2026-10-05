@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ShieldCheck, Cpu, Terminal, Layers, CloudLightning, Award, Network, Globe, CheckCircle2, AlertCircle } from "lucide-react";
 import { agentAttestation } from "@/lib/og-attestation";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
+import { LAUNCH_CHAIN_COUNT_WORD, chainNameList } from "@/lib/chains";
 import { STUDIO_VERSION } from "@/config/subgraph";
 import { DataTable, TD, TD_MONO } from "@/app/docs/DocBlocks";
 
@@ -50,7 +51,7 @@ export default function ComponentStatus() {
             owner, tanpa setter, tarif immutable — adalah JAMINAN, dan itulah alasan tidak
             ada yang bisa mengalihkan atau menguras apa pun. Ditulis sebagai kekuatan ia
             memberi tahu hal yang sama tanpa terbaca seperti fitur yang gagal dibangun. */}
-        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: ADEXTO v1, the launch factory <code className="text-accent">1.0.0</code>, on five mainnets (0G, Base, Arbitrum One, Monad and Robinhood Chain) with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, a 180-second per-wallet launch window, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
+        <p className="text-sm text-ink mt-2 font-medium">What is deployed, and what each piece does. Live today: ADEXTO v1, the launch factory <code className="text-accent">1.0.0</code>, on {LAUNCH_CHAIN_COUNT_WORD} mainnets ({chainNameList()}) with launching enabled, a 1.00% trading fee split four ways with the 0.10% protocol leg carved out of it rather than added on top, a 180-second per-wallet launch window, ERC-8004 identity binding, native price feeds, and x402 cross-chain buys — a caller pays USDC on Base and the curve delivers on 0G, done with real funds and documented at <Link href="/x402" className="text-accent hover:underline">/x402</Link>. Every fee rate is <code className="text-accent">immutable</code> and nothing on the launch path has an owner or a setter, so no rate can be redirected and no reserve can be drained after launch. {LAUNCH_CLAUSE}.</p>
       </div>
 
       {/* Enterprise Architecture Stack */}

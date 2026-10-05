@@ -51,6 +51,14 @@ const MEASURED_LAUNCH_GAS: Record<Exclude<ChainKey, "Devchain">, number> = {
   Arbitrum: 3_301_628,
   Monad: 3_295_824,
   Robinhood: 3_300_657,
+  /**
+   * Arc has no factory yet, so this was measured with an `eth_estimateGas` state override that
+   * places the Robinhood v1 factory runtime (byte-identical on every chain) at the address the
+   * Arc factory will occupy, 2026-10-06. Control: the same override on Robinhood returned exactly
+   * the real-state estimate (3,282,862 = 3,282,862). Arc with identical arguments: 3,300,177.
+   * Re-measure against the real factory after broadcast.
+   */
+  Arc: 3_300_177,
 };
 export const LAUNCH_GAS_UNITS: Partial<Record<ChainKey, number>> = MEASURED_LAUNCH_GAS;
 

@@ -8,6 +8,7 @@ import { IdCard } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentsNav from "@/components/agents/AgentsNav";
 import IdentityStudio from "@/components/agents/IdentityStudio";
+import { LAUNCH_CHAIN_COUNT_WORD } from "@/lib/chains";
 
 export const metadata: Metadata = {
   title: "Create an agent ID — ADEXTO",
@@ -35,7 +36,8 @@ export default function AgentIdentityPage() {
             in Studio or through MCP. The factory checks that your wallet owns the agent, then records it in the token for good.
           </li>
           <li className="rounded-card border border-line bg-cream-2 p-4">
-            <span className="font-semibold text-ink">One ID per chain.</span> The Identity Registry has the same address on all five chains
+            <span className="font-semibold text-ink">One ID per chain.</span> The Identity Registry has the same address on all{" "}
+            {LAUNCH_CHAIN_COUNT_WORD} chains
             but separate records, so the same agent gets a different id on each chain.
           </li>
           <li className="rounded-card border border-line bg-cream-2 p-4">

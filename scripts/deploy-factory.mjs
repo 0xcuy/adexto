@@ -98,6 +98,18 @@ const NETWORKS = {
     explorer: "https://robinhoodchain.blockscout.com",
     native: "ETH",
   },
+  /**
+   * Arc (Circle L1). Native USDC, 18 decimals at the native level. The mempool silently drops
+   * transactions with maxFeePerGas under 20 gwei (no receipt, never mined), so `minMaxFeeGwei`
+   * refuses before broadcasting instead of waiting ten minutes for a receipt that cannot come.
+   */
+  arc: {
+    chainId: 5042,
+    rpc: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io",
+    explorer: "https://explorer.arc.io",
+    native: "USDC",
+    minMaxFeeGwei: 20,
+  },
 
   // Testnets: prove the flow on a real remote EVM before spending mainnet gas.
   "0g-testnet": {
@@ -434,6 +446,14 @@ const PREDICTED_ADDRESS = ethers.getCreateAddress({ from: wallet.address, nonce:
 
 const gasPrice = feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
 const maxFeePerGas = feeData.maxFeePerGas ?? gasPrice;
+// The broadcast below lets ethers fill the fee from the same getFeeData(), so checking it here
+// checks what will be sent.
+if (net.minMaxFeeGwei && maxFeePerGas < ethers.parseUnits(String(net.minMaxFeeGwei), "gwei")) {
+  fail(
+    `maxFeePerGas ${ethers.formatUnits(maxFeePerGas, "gwei")} gwei is under the ${net.minMaxFeeGwei} gwei floor on ` +
+      `${chainKey}; the mempool would drop the transaction without a receipt. Nothing was sent.`,
+  );
+}
 
 let l1Fee = 0n;
 if (net.opStack) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, Github, Send, Twitter } from "lucide-react";
 import { LAUNCH_SENTENCE } from "@/lib/launch-state";
+import { LAUNCH_CHAIN_LIST, chainNameList } from "@/lib/chains";
 import { COMPANY_LINKS } from "@/app/(company)/_parts";
 
 /**
@@ -42,8 +43,9 @@ export default function Footer() {
                 kami verifikasi. Diganti dengan apa yang benar-benar dilakukan produk. Urutan
                 chain mengikuti CHAIN_LIST: Monad, Arbitrum, Base, 0G. */}
             <p className="text-ink-soft leading-relaxed text-xs">
-              Launch an agent token on a bonding curve that needs no liquidity deposit, on Monad, Arbitrum,
-              Robinhood Chain, Base or 0G. The creator is paid out of every swap instead of holding an allocation.
+              Launch an agent token on a bonding curve that needs no liquidity deposit, on{" "}
+              {chainNameList(LAUNCH_CHAIN_LIST, "or", { short: true })}. The creator is paid out of every swap instead of
+              holding an allocation.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-2">
               {/* Dulu "● 0G TEE Mainnet Ready" dengan titik hijau — dan titik hijau
@@ -161,15 +163,10 @@ export default function Footer() {
                 chain didukung oleh aplikasi ini, tetapi belum ada satu pun yang
                 bisa meluncurkan token. Judul kolomnya juga diubah dari "Supported"
                 — kata itu tidak menjanjikan apa-apa — menjadi pernyataan status. */}
-            {/* Urutan sama dengan CHAIN_LIST (Monad, Arbitrum, Base, 0G). */}
+            {/* Dibaca dari LAUNCH_CHAIN_LIST, bukan diketik: daftar tangan ini tertinggal setiap
+                kali chain baru hidup. Nama resmi (`ChainInfo.name`), seperti daftar sebelumnya. */}
             <ul className="divide-y divide-line text-xs">
-              {[
-                { name: "Monad Mainnet", id: "143" },
-                { name: "Arbitrum One", id: "42161" },
-                { name: "Robinhood Chain", id: "4663" },
-                { name: "Base Mainnet", id: "8453" },
-                { name: "0G Mainnet", id: "16661" },
-              ].map((c) => (
+              {LAUNCH_CHAIN_LIST.map((c) => ({ name: c.name, id: String(c.chainId) })).map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="text-ink-soft">{c.name}</span>
                   <span className="font-mono text-[11px] text-ink-faint">{c.id}</span>

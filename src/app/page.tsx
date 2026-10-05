@@ -44,7 +44,7 @@ import TiltStage from "@/components/landing/TiltStage";
 import TerminalShowcase from "@/components/landing/TerminalShowcase";
 import { launchCosts, launchCostRange, formatUsd } from "@/lib/launch-cost";
 import { CURVE_FACTORY_GENERATION } from "@/config/contracts";
-import { CHAIN_LIST, chainMark } from "@/lib/chains";
+import { CHAIN_LIST, LAUNCH_CHAIN_LIST, chainMark, chainNameList } from "@/lib/chains";
 
 /**
  * Baris logo di bawah pintu hero: chain yang factory peluncurannya benar-benar ada
@@ -120,7 +120,7 @@ const STEPS = [
   {
     icon: Wallet,
     title: "Connect a wallet",
-    body: "Pick Monad, Arbitrum, Robinhood Chain, Base or 0G. Each chain is its own market with its own price.",
+    body: `Pick ${chainNameList(LAUNCH_CHAIN_LIST, "or", { short: true })}. Each chain is its own market with its own price.`,
   },
   {
     icon: PenLine,
