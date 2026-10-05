@@ -57,7 +57,7 @@ import { ethers } from "ethers";
  */
 import { z } from "zod-v4";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
-import { listProjects, listPublicProjects, type ProjectRecord } from "@/lib/registry";
+import { listPublicProjects, listServedProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
@@ -273,7 +273,8 @@ async function passthrough(
  * saja terjadi pada URL gateway. `listProjects()` sinkron, jadi tidak ada yang hilang.
  */
 function registryProjects(): ProjectRecord[] {
-  return listProjects();
+  // Pasar yang dicabut (src/config/delisted-markets.ts) tidak dilayani alat mana pun.
+  return listServedProjects();
 }
 
 /**

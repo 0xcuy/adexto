@@ -16,6 +16,7 @@
 import { CHAINS, DEFAULT_CHAIN, resolveChainOrDefault, type ChainKey } from "@/lib/chains";
 import { readJson, writeJson } from "@/lib/server-store";
 import { isHiddenMarket } from "@/config/hidden-markets";
+import { delistedEntry, isDelistedMarket } from "@/config/delisted-markets";
 
 const STORE_FILE = "projects.json";
 
@@ -571,13 +572,42 @@ export function listProjects(): ProjectRecord[] {
 }
 
 /**
- * `listProjects()` tanpa pasar tersembunyi (`src/config/hidden-markets.ts`): sumber setiap DAFTAR
- * publik. Pencarian satu pasar (`findProject`, halaman token, `/api/pool`, beli x402) dan pemeriksaan
- * ticker tetap memakai `listProjects()`, supaya pasar tersembunyi tetap bisa dibuka, dibeli, dan
- * tickernya tidak terlihat bebas.
+ * Pasar yang masih DILAYANI: `listProjects()` tanpa pasar yang dicabut (`src/config/delisted-markets.ts`).
+ * Sumber setiap pencarian satu pasar — `findProject`, halaman token, `/api/pool` (dan karena itu gerbang
+ * x402), alat MCP dan A2A. Pemeriksaan ticker TIDAK memakainya: ticker pasar yang dicabut tetap terpakai.
+ */
+export function listServedProjects(): ProjectRecord[] {
+  return listProjects().filter((p) => !isDelistedMarket(p.chainId, p.symbol));
+}
+
+/**
+ * Pasar yang dilayani tanpa pasar tersembunyi (`src/config/hidden-markets.ts`): sumber setiap DAFTAR
+ * publik. Pasar tersembunyi tetap bisa dibuka dan dibeli lewat `findProject`; pasar yang dicabut tidak.
  */
 export function listPublicProjects(): ProjectRecord[] {
-  return listProjects().filter((p) => !isHiddenMarket(p.chainId, p.symbol));
+  return listServedProjects().filter((p) => !isHiddenMarket(p.chainId, p.symbol));
+}
+
+/**
+ * Catatan pasar yang dicabut untuk sebuah alamat/slug, supaya halaman token bisa menyatakan alasannya
+ * alih-alih 404 biasa. Null kalau pasarnya tidak dicabut atau tidak dikenal.
+ */
+export function findDelisted(
+  slugOrAddress: string,
+  chainId?: number | null
+): { project: ProjectRecord; reason: string; decidedAt: string } | null {
+  if (!slugOrAddress) return null;
+  const needle = slugOrAddress.toLowerCase();
+  const rows = listProjects().filter(
+    (p) =>
+      (p.tokenAddress.toLowerCase() === needle || p.slug === needle || p.symbol.toLowerCase() === needle) &&
+      (chainId === undefined || chainId === null || p.chainId === Number(chainId))
+  );
+  for (const p of rows) {
+    const d = delistedEntry(p.chainId, p.symbol);
+    if (d) return { project: p, reason: d.reason, decidedAt: d.decidedAt };
+  }
+  return null;
 }
 
 /**
@@ -608,7 +638,7 @@ export function creatorQuota(creator?: string | null): { used: number; max: numb
 export function findProjectGroup(symbol: string): ProjectRecord[] {
   if (!symbol) return [];
   const needle = symbol.toLowerCase();
-  return listProjects()
+  return listServedProjects()
     .filter((p) => p.slug === needle || p.symbol.toLowerCase() === needle)
     .sort((a, b) => a.deployedAt - b.deployedAt);
 }
@@ -622,7 +652,7 @@ export function findProject(slugOrAddress: string, chainId?: number | null): Pro
   if (!slugOrAddress) return null;
   const needle = slugOrAddress.toLowerCase();
 
-  const byAddress = listProjects().find((p) => p.tokenAddress.toLowerCase() === needle);
+  const byAddress = listServedProjects().find((p) => p.tokenAddress.toLowerCase() === needle);
   if (byAddress) return byAddress;
 
   const group = findProjectGroup(needle);
@@ -828,6 +858,9 @@ export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPa
   const at = custom.findIndex((p) => marketKey(p.chainId, p.symbol) === want);
   if (at < 0) throw new Error("No market with that ticker on that chain is listed here.");
   if (custom[at].curated) throw new Error("Curated showcase entries cannot be edited.");
+  // Pasar yang dicabut tidak bisa disunting lagi: pitch dan tautannya tidak dipajang di mana pun, dan
+  // menyuntingnya hanya membuka jalan memasang konten baru di catatan yang sedang ditolak.
+  if (isDelistedMarket(custom[at].chainId, custom[at].symbol)) throw new Error("This market was removed from this site.");
 
   const current = custom[at];
   const next: ProjectRecord = {

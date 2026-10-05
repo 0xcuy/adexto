@@ -27,7 +27,7 @@ import {
 import { hubMinStake, hubRefuses, stakeHubFor } from "@/config/stake-hubs";
 import { CHAIN_LIST } from "@/lib/chains";
 import { nativePrices } from "@/lib/native-price";
-import { listProjects } from "@/lib/registry";
+import { listServedProjects } from "@/lib/registry";
 
 /** The short chain names the Agent Compute page already uses for the four tiered sources. */
 const CHAIN_NAME: Record<number, string> = {
@@ -42,7 +42,8 @@ const CHAIN_NAME: Record<number, string> = {
 export function hubComputeSources(): ComputeStake[] {
   const out: ComputeStake[] = [];
   const seen = new Set<string>();
-  for (const p of listProjects()) {
+  // Pasar yang dicabut tidak lagi menjadi sumber compute baru.
+  for (const p of listServedProjects()) {
     if (!p.poolLive || !p.poolAddress || !p.tokenAddress) continue;
     const hub = stakeHubFor(p.chainId);
     if (!hub || hubRefuses(p.chainId, p.tokenAddress)) continue;

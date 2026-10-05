@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prepareLaunch, registerLaunch, type IpHeaders } from "@/lib/agent-launch";
-import { findProject, listProjects, listPublicProjects, type ProjectRecord } from "@/lib/registry";
+import { findProject, listPublicProjects, listServedProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
 
@@ -720,7 +720,7 @@ export async function sendMessage(params: any, ipHeaders: IpHeaders): Promise<{ 
     const sym = str(d.symbol, 12)?.toUpperCase();
     if (!sym) throw invalidParams("get_market needs symbol.");
     const chainId = d.chainId === undefined ? null : Number(d.chainId);
-    const p = chainId ? findProject(sym.toLowerCase(), chainId) : listProjects().find((x) => x.symbol === sym) ?? null;
+    const p = chainId ? findProject(sym.toLowerCase(), chainId) : listServedProjects().find((x) => x.symbol === sym) ?? null;
     if (!p) return { message: agentMessage([text(`No market $${sym}${chainId ? ` on chain ${chainId}` : ""} is listed.`), data({ error: "unknown_market", symbol: sym })], { contextId }) };
     return { message: agentMessage([text(`$${p.symbol} on ${resolveChainOrDefault(p.chainId).name}.`), data({ market: marketView(p) })], { contextId }) };
   }

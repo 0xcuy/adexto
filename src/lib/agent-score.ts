@@ -21,7 +21,7 @@
  * sampai itu ada, faktor `launch` dibaca langsung dari event peluncuran (adapter di sini).
  */
 import { ethers } from "ethers";
-import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { listServedProjects, type ProjectRecord } from "@/lib/registry";
 import { ensureMarketIndex, indexable, swapsWithTimes, type IndexStatus, type MarketIndex } from "@/lib/market-index";
 import { computeHolders } from "@/lib/holders";
 import { nativePrices } from "@/lib/native-price";
@@ -325,7 +325,7 @@ async function computeUncached(p: ProjectRecord): Promise<AgentScore> {
 /** Pasar dari registry dengan chain + token, untuk API skor. */
 export function findMarket(chainId: number, token: string): ProjectRecord | null {
   const t = token.toLowerCase();
-  return listProjects().find((p) => p.chainId === Number(chainId) && p.tokenAddress.toLowerCase() === t) ?? null;
+  return listServedProjects().find((p) => p.chainId === Number(chainId) && p.tokenAddress.toLowerCase() === t) ?? null;
 }
 
 export interface ActivityRow {

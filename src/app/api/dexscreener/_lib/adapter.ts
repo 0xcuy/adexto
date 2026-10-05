@@ -41,6 +41,7 @@ import { confirmationsFor } from "@/lib/market-index";
 import { logSpanFor } from "@/lib/onchain-trades";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
 import { isHiddenMarket } from "@/config/hidden-markets";
+import { isDelistedMarket } from "@/config/delisted-markets";
 import { readJson, writeJson } from "@/lib/server-store";
 import launchRecord from "@/config/onchain-launches.json";
 import v1Deployments from "@/config/factory-deployments.json";
@@ -412,6 +413,8 @@ function exclusion(rt: Runtime, m: StoredMarket): string | null {
   // Pasar tersembunyi (src/config/hidden-markets.ts) tidak dilayani ke agregator, meski terdaftar.
   // Diperiksa dari simbol on-chain juga, supaya tetap tersaring sebelum masuk registry.
   if (isHiddenMarket(rt.cfg.chain.chainId, m.symbol)) return "hidden market";
+  // Pasar yang dicabut (src/config/delisted-markets.ts) juga tidak disajikan ke agregator.
+  if (isDelistedMarket(rt.cfg.chain.chainId, m.symbol)) return "delisted market";
   if (registryRecord(rt, m.pairId)) return null;
   const row = LAUNCHES.find(
     (l) => l.chainId === rt.cfg.chain.chainId && l.curve.toLowerCase() === m.pairId.toLowerCase()
