@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { A2aError, cancelTask, getTask, listTasks, sendMessage, to03 } from "@/lib/a2a";
+import { A2aError, X402_EXTENSION_URI, cancelTask, getTask, listTasks, sendMessage, to03 } from "@/lib/a2a";
 import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, readTextBody } from "@/lib/body-limit";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { ipHeadersOf } from "@/lib/agent-launch-http";
@@ -84,6 +84,16 @@ export async function POST(req: Request) {
     return rpc(id, { error: { code: -32603, message: `Rate limit exceeded: at most ${limit} calls per 5 minutes. Retry after ${gate.retryAfter} s.` } }, 429, rateLimitHeaders(gate));
   }
 
+  // Ekstensi yang diminta klien (A2A 1.0: `A2A-Extensions`; 0.3: `X-A2A-Extensions`). Yang kami dukung
+  // digaungkan kembali sebagai tanda aktif. Tidak wajib, jadi permintaan tanpanya tetap dilayani.
+  const requested = `${req.headers.get("a2a-extensions") ?? ""},${req.headers.get("x-a2a-extensions") ?? ""}`
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const extHeaders: Record<string, string> = requested.includes(X402_EXTENSION_URI)
+    ? { "A2A-Extensions": X402_EXTENSION_URI, "X-A2A-Extensions": X402_EXTENSION_URI }
+    : {};
+
   try {
     let result: unknown;
     if (op === "send") result = await sendMessage(msg.params, ipHeadersOf(req));
@@ -93,7 +103,12 @@ export async function POST(req: Request) {
     else if (op === "stream") throw new A2aError(-32004, "Streaming is not supported by this agent. Use SendMessage and GetTask.", "UNSUPPORTED_OPERATION");
     else if (op === "push") throw new A2aError(-32003, "Push notifications are not supported by this agent.", "PUSH_NOTIFICATION_NOT_SUPPORTED");
     else throw new A2aError(-32004, "This agent has no extended agent card.", "UNSUPPORTED_OPERATION");
-    return rpc(id, { result: version === "0.3" ? to03(result, op === "send" ? "message/send" : op === "get" ? "tasks/get" : op === "cancel" ? "tasks/cancel" : "") : result });
+    return rpc(
+      id,
+      { result: version === "0.3" ? to03(result, op === "send" ? "message/send" : op === "get" ? "tasks/get" : op === "cancel" ? "tasks/cancel" : "") : result },
+      200,
+      extHeaders
+    );
   } catch (e) {
     if (e instanceof A2aError) return rpc(id, { error: e.toJsonRpc() });
     return rpc(id, { error: { code: -32603, message: "Internal error" } }, 500);
