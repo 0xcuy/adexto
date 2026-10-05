@@ -21,18 +21,19 @@ export default function CopyBlock({ label, code }: { label: string; code: string
     // Dengan min-w-0 kotaknya mengikuti lebar kolom dan <pre> menggulir di dalamnya.
     <div className="min-w-0 rounded-lg border border-line bg-surface">
       <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{label}</span>
+        <span className="text-[12px] font-semibold uppercase tracking-wider text-ink-faint">{label}</span>
+        {/* 40 px di ponsel (target sentuh), 28 px mulai lg. */}
         <button
           type="button"
           onClick={copy}
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-ink-soft hover:bg-cream-3 hover:text-ink"
+          className="inline-flex min-h-[40px] items-center gap-1 rounded-md px-2.5 text-[12px] font-semibold text-ink-soft hover:bg-cream-3 hover:text-ink lg:min-h-[28px]"
           aria-label={`Copy ${label}`}
         >
           {copied ? <Check className="h-3 w-3" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-ink-soft sm:text-xs">{code}</pre>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-relaxed text-ink-soft">{code}</pre>
     </div>
   );
 }

@@ -69,7 +69,7 @@ export default function AgentScoreBadge({
   const breakdown = data.factors.map((f) => `${f.label}: ${f.points}/${f.max} (${f.value})`).join("; ");
   return (
     <Link
-      href="/agents#score"
+      href="/agents/markets#score"
       className={`${base} hover:text-ink hover:border-line-strong transition-colors ${className}`}
       title={`${breakdown}${data.complete ? "" : ". Index still catching up."}`}
       aria-label={`Agent Score ${data.score} out of ${data.max}. ${breakdown}`}

@@ -346,8 +346,8 @@ export default async function LeaderboardPage() {
             )}
             <p className="border-t border-line px-4 py-2 text-[12px] text-ink-faint">
               The full agent directory is on{" "}
-              <Link href="/agents" className="font-semibold text-accent hover:underline">
-                Agents
+              <Link href="/agents/markets" className="font-semibold text-accent hover:underline">
+                Agent markets
               </Link>
               .
             </p>

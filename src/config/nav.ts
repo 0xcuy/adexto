@@ -90,7 +90,7 @@ const LAUNCH_AGENT: NavItem = {
   // Anchor ke seksi /agents: tidak pernah ditandai aktif, supaya "Agents" yang menandai halaman itu.
   match: [],
 };
-const AGENTS: NavItem = { href: "/agents", label: "Agents", description: "Agent-bound markets and their Agent Score", icon: Bot };
+const AGENTS: NavItem = { href: "/agents", label: "Agents", description: "Launch with your agent, and agent markets", icon: Bot };
 const CREATOR: NavItem = {
   href: "/creator",
   label: "Creator earnings",

@@ -1,354 +1,128 @@
 /**
- * /agents — ekonomi agen di ADEXTO dalam satu halaman, lima chain sekaligus.
+ * /agents — PELUNCURAN saja: bagaimana agen meluncurkan pasar lewat MCP dengan kuncinya sendiri.
  *
- * Direktori pasar yang terikat ke agen ERC-8004 beserta Agent Score-nya, cara meluncurkan dengan
- * agen sendiri lewat MCP, agen yang kami operasikan, dan aktivitas terbaru. Semua angka dibaca dari
- * `agentDirectory()` (chain dan indeks pasar) saat halaman dirender; tidak ada angka yang ditulis
- * tangan di sini. Teks halaman sengaja English (aturan bahasa repo).
+ * Arahan owner 5 Okt 2026: halaman ini harus terasa seperti tempat meluncurkan, bukan dokumentasi.
+ * Data (direktori + Agent Score) pindah ke `/agents/markets`, feed ke `/agents/activity`, bahan teknis
+ * (identitas yang kami operasikan, URL discovery) ke `/agents/registry`, referensi tool ke `/mcp`.
+ * Halaman ini statis kecuali preflight di launch console. Teks English (aturan bahasa repo).
+ *
+ * Klaim yang dipakai, semuanya sudah jalan: `prepare_launch` → tanda tangan deployer → kirim →
+ * `register_launch` (diuji di mainnet: $LOOP Monad dan Arbitrum), server tidak memegang kunci, gas saja,
+ * seluruh supply di kurva, creator 0,70% per trade pada preset standar, dibeli agen lain lewat x402.
  */
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Activity, Bot, Compass, ListChecks, Plug, Rocket } from "lucide-react";
-import { agentDirectory } from "@/lib/agent-directory";
-import { OUR_ADDRESSES } from "@/lib/agent-identities";
-import { explorerAddressUrl } from "@/lib/chains";
-import CopyBlock from "@/components/agents/CopyBlock";
-
-export const dynamic = "force-dynamic";
+import { ArrowRight, Bot, Coins, Plug, Rocket, ShieldCheck, Sparkles } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import CopyField from "@/components/ui/CopyField";
+import { buttonClass } from "@/components/ui/Button";
+import AgentsNav from "@/components/agents/AgentsNav";
+import LaunchConsole from "@/components/agents/LaunchConsole";
+import { MCP_URL } from "@/components/agents/format";
 
 export const metadata: Metadata = {
-  title: "Agents — ADEXTO",
+  title: "Launch with your agent — ADEXTO",
   description:
-    "Every ADEXTO market bound to an ERC-8004 agent, with an Agent Score read from the chain, and how an agent launches, buys, stakes and claims with its own key over MCP and x402.",
+    "Your agent launches a token market on ADEXTO over MCP and signs with its own key. Gas only, all supply in the curve, no liquidity deposit, on Monad, Arbitrum One, Robinhood Chain, Base or 0G.",
 };
 
-const MCP_URL = "https://adexto.xyz/api/mcp";
-
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-const fmt = (v: number, digits = 2) => v.toLocaleString("en-US", { maximumFractionDigits: digits });
-const when = (t: number) => new Date(t * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
-
-const WEIGHTS: Array<[string, number, string]> = [
-  ["Outside traders", 30, "6 per wallet outside ADEXTO that traded, up to 5 wallets"],
-  ["Outside volume", 20, "linear up to $200 traded by outside wallets, at the live native price"],
-  ["Outside holders", 15, "3 per outside holder, up to 5"],
-  ["Launch", 10, "5 if 100% of supply went into the curve at launch (factory event), 5 if the creator now holds at most 5%"],
-  ["ERC-8004 identity", 10, "5 if the token is bound to an ERC-8004 agent, 5 if the creator owns that agent"],
-  ["x402 deliveries", 10, "2 per x402 delivery to an outside wallet, up to 5"],
-  ["Age", 5, "1 per 6 days since launch, up to 5"],
+const STEPS = [
+  { icon: Plug, title: "Connect", text: "Add the ADEXTO MCP server to your agent. One URL, no account." },
+  { icon: Rocket, title: "Launch", text: "Your agent calls prepare_launch, signs, and sends the transaction. Gas only." },
+  { icon: Sparkles, title: "Live", text: "register_launch lists it. People and other agents can trade it right away." },
 ];
 
-export default async function AgentsPage() {
-  const dir = await agentDirectory();
-  const outsideTraders = dir.markets.reduce((s, m) => s + m.evidence.outsideTraders, 0);
-  const outsideDeliveries = dir.markets.reduce((s, m) => s + m.evidence.x402DeliveriesOutside, 0);
-  const operated = dir.operatedAgents.filter((a) => a.ownedByAdexto).length;
+const GETS = [
+  { icon: Coins, title: "0.70% of every trade", text: "Paid to the creator wallet on the standard fee preset. Collect it with prepare_claim." },
+  { icon: ShieldCheck, title: "No liquidity deposit", text: "All 1,000,000,000 tokens start inside the curve. The creator gets no allocation." },
+  { icon: Bot, title: "Bought by other agents", text: "Any agent can buy it with USDC on Base over x402, without gas on your chain." },
+];
 
-  const claudeCode = `claude mcp add --transport http adexto ${MCP_URL}`;
-  const jsonConfig = JSON.stringify({ mcpServers: { adexto: { url: MCP_URL } } }, null, 2);
-  const openaiAgents = `from agents import Agent, Runner
-from agents.mcp import MCPServerStreamableHttp
+const MORE: Array<{ href: string; title: string; text: string }> = [
+  { href: "/agents/markets", title: "Agent markets", text: "Every agent-bound market and its Agent Score." },
+  { href: "/agents/activity", title: "Activity", text: "Latest swaps on agent-bound markets." },
+  { href: "/agents/registry", title: "Identities & discovery", text: "Our ERC-8004 identities and machine-readable files." },
+  { href: "/mcp", title: "MCP tool reference", text: "All tools, inputs and outputs." },
+];
 
-async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
-    agent = Agent(name="launcher", mcp_servers=[adexto])
-    await Runner.run(agent, "Launch a market called Signal Desk, ticker SIGDSK, on Monad from 0xYourAddress")`;
-  const launchFlow = `1. prepare_launch { chainId, name, symbol, deployer }      -> attestationMessage
-2. sign it with personal_sign from the deployer
-3. prepare_launch { ...same, attestationMessage, attestationSignature } -> unsigned transaction
-4. send it from the deployer (value 0, gas only)
-5. register_launch { chainId, txHash }                     -> listed on adexto.xyz, list_markets and x402`;
-
+export default function AgentsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-      <div className="border-b-2 border-line pb-6 mb-10">
-        <div className="kicker mb-3">
-          <Bot className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>AGENTS</span>
-        </div>
-        <h1 className="font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">
-          A launchpad an agent can use end to end with its own key
-        </h1>
-        <p className="text-sm text-ink mt-3 font-medium leading-relaxed max-w-3xl">
-          Through the MCP server an agent launches a market (the server prepares the transaction, the agent signs it),
-          gets bought with USDC on Base over x402 on any of five chains, earns the creator&apos;s 0.70% of every trade on
-          the standard fee preset, and stakes a market&apos;s token to ask that market&apos;s agent.
-        </p>
-        <p className="text-xs text-ink-soft mt-3 leading-relaxed max-w-3xl">
-          Every number below is read from the chain or from the market index built from chain logs when this page
-          loads. ADEXTO&apos;s own wallets are excluded from every outside count, so our tests never raise a score.
-        </p>
-      </div>
+      <AgentsNav current="/agents" />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-10" data-testid="agents-stats">
-        {[
-          ["Markets bound to an agent", String(dir.markets.length)],
-          ["Outside traders on them", String(outsideTraders)],
-          ["x402 deliveries to outside wallets", String(outsideDeliveries)],
-          ["Agents ADEXTO operates", String(operated)],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-card border border-line bg-cream-2 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-ink-faint">{label}</div>
-            <div className="mt-1 text-2xl font-semibold text-ink" data-numeric>
-              {value}
+      <PageHeader
+        kicker="Agents"
+        kickerIcon={Bot}
+        title="Launch a market from your agent"
+        subtitle="Your agent talks to the ADEXTO MCP server and signs with its own key. The market opens on a bonding curve with no liquidity deposit, on Monad, Arbitrum One, Robinhood Chain, Base or 0G."
+        actions={
+          <>
+            <a href="#launch" className={buttonClass({ variant: "primary", size: "lg" })}>
+              Start a launch
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </a>
+          </>
+        }
+        className="mb-6"
+      />
+      <CopyField value={MCP_URL} label="MCP server" copyLabel="Copy MCP URL" className="mb-10 max-w-xl" />
+
+      <ol className="mb-12 grid gap-3 sm:grid-cols-3">
+        {STEPS.map((s, i) => (
+          <li key={s.title} className="glass-panel rounded-card p-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <s.icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-[13px] font-semibold text-ink-faint">Step {i + 1}</span>
             </div>
-          </div>
+            <div className="mt-3 text-[16px] font-semibold text-ink">{s.title}</div>
+            <p className="mt-1 text-[13px] leading-snug text-ink-soft">{s.text}</p>
+          </li>
         ))}
-      </div>
+      </ol>
 
-      <section className="section-block mb-4 space-y-4" id="directory">
-        <div className="kicker">
-          <Compass className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>DIRECTORY</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Markets bound to an ERC-8004 agent</h2>
-        <p className="text-sm text-ink-soft leading-relaxed">
-          The binding is read from each token contract, where it is immutable. A market anyone launches with an agent
-          appears here as soon as it is listed.
+      <section id="launch" className="mb-12 scroll-mt-24">
+        <h2 className="mb-1 text-[20px] font-semibold tracking-tight text-ink">Set up your launch</h2>
+        <p className="mb-5 text-[14px] text-ink-soft">
+          Fill in the market once. You get the MCP setup, the exact instruction for your agent, and a free check of the
+          ticker and wallet before anything is signed.
         </p>
-        {dir.markets.length === 0 ? (
-          <p className="text-sm text-ink-soft">No listed market is bound to an agent yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-card border border-line">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-ink-faint">
-                <tr>
-                  <th scope="col" className="px-3 py-2">Market</th>
-                  <th scope="col" className="px-3 py-2">Agent</th>
-                  <th scope="col" className="px-3 py-2">Creator</th>
-                  <th scope="col" className="px-3 py-2">Agent Score</th>
-                  <th scope="col" className="px-3 py-2">Outside traders</th>
-                  <th scope="col" className="px-3 py-2">x402 deliveries</th>
-                  <th scope="col" className="px-3 py-2">Swaps indexed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dir.markets.map((m) => (
-                  <tr key={`${m.chainId}:${m.token}`} className="border-t border-line align-top">
-                    <td className="px-3 py-2">
-                      <Link href={`/token/${m.symbol.toLowerCase()}?chain=${m.chainId}`} className="font-semibold text-ink hover:text-accent">
-                        ${m.symbol}
-                      </Link>
-                      <div className="text-ink-faint">{m.chain}</div>
-                    </td>
-                    <td className="px-3 py-2 font-mono">{m.agent ? `#${m.agent.agentId}` : "—"}</td>
-                    <td className="px-3 py-2">
-                      <a href={explorerAddressUrl(m.chainId, m.creator)} className="font-mono hover:text-accent" target="_blank" rel="noreferrer">
-                        {short(m.creator)}
-                      </a>
-                      {m.creatorIsAdexto && <div className="text-ink-faint">ADEXTO wallet</div>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="text-sm font-semibold text-ink" data-numeric>{m.score}</span>
-                      <span className="text-ink-faint">/100</span>
-                      <div className="text-ink-faint">
-                        {m.factors.filter((f) => f.points > 0).map((f) => `${f.label} ${f.points}`).join(" · ") || "no points yet"}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2" data-numeric>{m.evidence.outsideTraders}</td>
-                    <td className="px-3 py-2">
-                      <span data-numeric>{m.evidence.x402DeliveriesOutside}</span>
-                      <span className="text-ink-faint"> outside / {m.evidence.x402Deliveries} total</span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span data-numeric>{m.evidence.swaps}</span>
-                      {!m.complete && <div className="text-ink-faint">index catching up</div>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {dir.unreadable.length > 0 && (
-          <p className="text-[11px] text-ink-faint">
-            Binding not readable right now for {dir.unreadable.map((u) => `$${u.symbol} (${u.chainId})`).join(", ")}; they are
-            left out rather than guessed.
-          </p>
-        )}
+        <LaunchConsole />
       </section>
 
-      <section className="section-block mb-4 space-y-4" id="score">
-        <div className="kicker">
-          <ListChecks className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>AGENT SCORE</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">How the score is computed</h2>
-        <p className="text-sm text-ink-soft leading-relaxed">
-          0 to 100, from on-chain evidence only. It measures adoption and launch facts, not quality, and it is not
-          investment advice. The same numbers are at{" "}
-          <code className="text-accent">GET /api/agents/score?chainId=&lt;id&gt;&amp;token=&lt;address&gt;</code>.
-        </p>
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {WEIGHTS.map(([label, max, rule]) => (
-            <li key={label} className="rounded-lg border border-line bg-cream-2 p-3 text-xs text-ink-soft">
-              <span className="font-semibold text-ink">{label}</span> <span className="text-ink-faint">up to {max}</span>
-              <div className="mt-0.5">{rule}</div>
+      <section className="mb-12" aria-labelledby="gets-title">
+        <h2 id="gets-title" className="mb-4 text-[20px] font-semibold tracking-tight text-ink">What your market gets</h2>
+        <ul className="grid gap-3 sm:grid-cols-3">
+          {GETS.map((g) => (
+            <li key={g.title} className="rounded-card border border-line bg-cream-2 p-4">
+              <g.icon className="h-5 w-5 text-accent" aria-hidden="true" />
+              <div className="mt-2 text-[14px] font-semibold text-ink">{g.title}</div>
+              <p className="mt-1 text-[13px] leading-snug text-ink-soft">{g.text}</p>
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-ink-faint">
-          Excluded as ADEXTO wallets: deployer {short(OUR_ADDRESSES.deployer)}, demo creator {short(OUR_ADDRESSES.agentA)}, demo
-          buyer {short(OUR_ADDRESSES.agentB)}, x402 relayer {short(OUR_ADDRESSES.relayer)}, treasury {short(OUR_ADDRESSES.treasury)}.
+        <p className="mt-3 text-[12px] text-ink-faint">
+          Optional: pass an ERC-8004 agent id the wallet owns, and the factory binds it to the token for good. The Agent
+          Score of every agent-bound market is on Agent markets.
         </p>
       </section>
 
-      <section className="section-block mb-4 space-y-4" id="launch">
-        <div className="kicker">
-          <Rocket className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>LAUNCH WITH YOUR AGENT</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Point any MCP client at one URL</h2>
-        <p className="text-sm text-ink-soft leading-relaxed">
-          Streamable HTTP, no account and no API key. The server never holds a key: launch, stake and claim come back
-          as unsigned transactions for the agent&apos;s own wallet to sign. It speaks the 2026-07-28 MCP revision and
-          the 2025 revisions.
-        </p>
-        {/* minmax(0,1fr): trek grid tidak boleh melebar mengikuti baris kode terpanjang. */}
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
-          <CopyBlock label="Claude Code" code={claudeCode} />
-          <CopyBlock label="Cursor, Windsurf and other JSON configs" code={jsonConfig} />
-        </div>
-        <CopyBlock label="OpenAI Agents SDK (Python)" code={openaiAgents} />
-        <CopyBlock label="Launch flow" code={launchFlow} />
-        <p className="text-xs text-ink-soft leading-relaxed">
-          Fee preset: 1.00% per trade, 0.70% to the creator, 0.10% buyback and burn, 0.10% protocol, 0.10% kept as
-          curve depth. All supply goes into the curve; the creator gets no allocation. Optional: pass an ERC-8004{" "}
-          <code className="text-accent">agentId</code> the deployer owns and the factory binds it to the token. After
-          launch, <code className="text-accent">prepare_stake</code> and <code className="text-accent">prepare_claim</code>{" "}
-          return the transactions to stake a market and to collect the creator fee.
-        </p>
-      </section>
-
-      <section className="section-block mb-4 space-y-4" id="operated">
-        <div className="kicker">
-          <Bot className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>AGENTS ADEXTO OPERATES</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Our own identities, checked on every load</h2>
-        <p className="text-sm text-ink-soft leading-relaxed">
-          Owners are read from the ERC-8004 Identity Registry. The same list, filtered to agents our wallets still own,
-          is published at <code className="text-accent">/.well-known/agent-registration.json</code> as the domain proof
-          ERC-8004 describes. Each agent&apos;s on-chain agentURI points to its registration file on this site, and
-          the card link opens that file. Whoever controls adexto.xyz can update the file; the market a token is bound
-          to cannot change.
-        </p>
-        <div className="overflow-x-auto rounded-card border border-line">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-ink-faint">
-              <tr>
-                <th scope="col" className="px-3 py-2">Agent</th>
-                <th scope="col" className="px-3 py-2">Chain</th>
-                <th scope="col" className="px-3 py-2">Bound market</th>
-                <th scope="col" className="px-3 py-2">Owner</th>
-                <th scope="col" className="px-3 py-2">Links</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dir.operatedAgents.map((a) => (
-                <tr key={`${a.chainId}:${a.agentId}`} className="border-t border-line">
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-ink">#{a.agentId}</span>
-                    <div className="text-ink-faint">{a.name}</div>
-                  </td>
-                  <td className="px-3 py-2">{a.chain}</td>
-                  <td className="px-3 py-2">{a.market ? `$${a.market.symbol}` : "—"}</td>
-                  <td className="px-3 py-2">
-                    {a.owner ? <span className="font-mono">{short(a.owner)}</span> : <span className="text-ink-faint">not readable</span>}
-                    {a.owner && <div className="text-ink-faint">{a.ownedByAdexto ? "ADEXTO wallet" : "not an ADEXTO wallet"}</div>}
-                  </td>
-                  <td className="px-3 py-2 space-x-3">
-                    <a href={a.explorer} className="text-accent hover:underline" target="_blank" rel="noreferrer">
-                      explorer
-                    </a>
-                    {a.ownedByAdexto && (
-                      <a href={a.card} className="text-accent hover:underline" target="_blank" rel="noreferrer">
-                        card
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="section-block mb-4 space-y-4" id="activity">
-        <div className="kicker">
-          <Activity className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>RECENT ACTIVITY</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Latest swaps on agent-bound markets</h2>
-        {dir.activity.length === 0 ? (
-          <p className="text-sm text-ink-soft">No swaps indexed yet on these markets.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-card border border-line">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-ink-faint">
-                <tr>
-                  <th scope="col" className="px-3 py-2">Time</th>
-                  <th scope="col" className="px-3 py-2">Market</th>
-                  <th scope="col" className="px-3 py-2">Side</th>
-                  <th scope="col" className="px-3 py-2">Route</th>
-                  <th scope="col" className="px-3 py-2">Wallet</th>
-                  <th scope="col" className="px-3 py-2">Amount</th>
-                  <th scope="col" className="px-3 py-2">Tx</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dir.activity.map((r) => (
-                  <tr key={`${r.chainId}:${r.txHash}:${r.side}`} className="border-t border-line">
-                    <td className="px-3 py-2 whitespace-nowrap text-ink-faint">{when(r.time)}</td>
-                    <td className="px-3 py-2">
-                      ${r.symbol} <span className="text-ink-faint">{r.chain}</span>
-                    </td>
-                    <td className="px-3 py-2">{r.side}</td>
-                    <td className="px-3 py-2">{r.via === "x402" ? "x402 delivery" : "direct"}</td>
-                    <td className="px-3 py-2">
-                      <span className="font-mono">{short(r.wallet)}</span>
-                      {r.walletIsAdexto && <span className="text-ink-faint"> · ADEXTO wallet</span>}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap" data-numeric>
-                      {fmt(r.amountToken, 0)} ${r.symbol} · {fmt(r.amountNative, 6)} {r.nativeSymbol}
-                    </td>
-                    <td className="px-3 py-2">
-                      <a href={r.explorerTx} className="font-mono text-accent hover:underline" target="_blank" rel="noreferrer">
-                        {short(r.txHash)}
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="section-block space-y-4" id="discovery">
-        <div className="kicker">
-          <Plug className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>MACHINE-READABLE</span>
-        </div>
-        <h2 className="text-2xl font-semibold text-ink tracking-tight">Where agents and indexers find this</h2>
-        <ul className="space-y-1.5 text-xs text-ink-soft">
-          {[
-            ["MCP endpoint (Streamable HTTP)", MCP_URL],
-            ["MCP server card", "https://adexto.xyz/.well-known/mcp/server-card.json"],
-            ["MCP Registry entry (server.json)", "https://github.com/0xcuy/adexto/blob/main/server.json"],
-            ["x402 OpenAPI", "https://x402.adexto.xyz/openapi.json"],
-            ["x402 resources", "https://x402.adexto.xyz/.well-known/x402"],
-            ["ERC-8004 domain file", "https://adexto.xyz/.well-known/agent-registration.json"],
-            ["Directory as JSON", "https://adexto.xyz/api/agents"],
-          ].map(([label, href]) => (
-            <li key={label}>
-              <span className="text-ink">{label}:</span>{" "}
-              <a href={href} className="font-mono text-accent hover:underline break-all">
-                {href}
-              </a>
+      <section aria-labelledby="more-title">
+        <h2 id="more-title" className="mb-4 text-[16px] font-semibold text-ink">More about agents on ADEXTO</h2>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {MORE.map((m) => (
+            <li key={m.href}>
+              <Link href={m.href} className="group flex h-full flex-col rounded-card border border-line bg-surface p-4 transition-colors hover:border-line-strong">
+                <span className="flex items-center justify-between text-[14px] font-semibold text-ink">
+                  {m.title}
+                  <ArrowRight className="h-4 w-4 text-ink-faint transition-colors group-hover:text-accent" aria-hidden="true" />
+                </span>
+                <span className="mt-1 text-[13px] leading-snug text-ink-soft">{m.text}</span>
+              </Link>
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-ink-faint">Directory generated {dir.generatedAt.slice(0, 19).replace("T", " ")} UTC.</p>
       </section>
     </div>
   );
