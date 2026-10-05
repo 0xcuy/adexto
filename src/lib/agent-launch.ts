@@ -17,9 +17,20 @@ import { ethers } from "ethers";
 import { POST as deployPOST } from "@/app/api/deploy/route";
 import { CHAIN_LIST, resolveChain, readProvider, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership } from "@/lib/dex";
-import { checkSymbolAvailable, creatorQuota, creatorTickers, findProject, markLaunchedVia, type LaunchVia } from "@/lib/registry";
+import {
+  checkSymbolAvailable,
+  creatorQuota,
+  creatorTickers,
+  findProject,
+  isOfficialCreator,
+  markLaunchedVia,
+  type LaunchVia,
+} from "@/lib/registry";
+import { checkLaunchContent } from "@/lib/launch-content";
 import { sanitizeName, sanitizeSymbol } from "@/lib/studio-prefill";
 import { LAUNCH_GAS_UNITS } from "@/lib/launch-cost";
+import { TERMS_ACCEPTANCE_LINE, TERMS_VERSION } from "@/config/terms";
+import { launchAttestationMessage } from "@/lib/launch-attestation";
 
 /**
  * Tier "Standard" Studio, persis: total 1,00%, creator 0,70%, buyback 0,10%. Kaki protokol
@@ -44,9 +55,7 @@ const PENDING_TTL_MS = 6 * 60 * 60_000;
 export type IpHeaders = Record<string, string>;
 
 /** Template yang SAMA dengan `signAttestation` di Studio, baris demi baris. */
-export function launchAttestationMessage(deployer: string, symbol: string, timestamp = Date.now()): string {
-  return `ADEXTO launch attestation\nDeployer: ${deployer}\nTicker: ${symbol}\nTimestamp: ${timestamp}`;
-}
+export { launchAttestationMessage };
 
 function launchableChains() {
   return CHAIN_LIST.filter((c) => c.dexLive && c.curveFactoryAddress).map((c) => ({ chainId: c.chainId, chain: c.name }));
@@ -185,6 +194,18 @@ export async function prepareLaunch(input: PrepareLaunchInput, ipHeaders: IpHead
   const registryCheck = checkSymbolAvailable(symbol, chain.chainId, deployer);
   if (!registryCheck.available) return { error: "symbol_unavailable", detail: registryCheck.reason };
 
+  // /acceptable-use, di langkah pertama: agen tahu sebelum menandatangani apa pun.
+  const content = checkLaunchContent(
+    {
+      name,
+      symbol,
+      description: input.description ?? null,
+      links: { website: input.website ?? null, github: input.github ?? null, docs: input.docs ?? null },
+    },
+    isOfficialCreator(deployer)
+  );
+  if (!content.ok) return { error: "content_refused", detail: content.reason, rule: content.rule };
+
   const quota = creatorQuota(deployer);
   if (!creatorTickers(deployer).has(symbol) && quota.remaining === 0) {
     return {
@@ -244,6 +265,12 @@ export async function prepareLaunch(input: PrepareLaunchInput, ipHeaders: IpHead
       signWith: "personal_sign (EIP-191) from the deployer address",
       validForSeconds: ATTESTATION_MAX_AGE_MS / 1000,
       checks,
+      terms: {
+        version: TERMS_VERSION,
+        url: "https://adexto.xyz/terms",
+        acceptableUse: "https://adexto.xyz/acceptable-use",
+        note: "The last line of attestationMessage accepts these terms. Signing it is the deployer's acceptance.",
+      },
       next:
         "Sign attestationMessage exactly as given, then call prepare_launch again with the same arguments plus " +
         "attestationMessage and attestationSignature. That call returns the unsigned launch transaction.",
@@ -257,6 +284,12 @@ export async function prepareLaunch(input: PrepareLaunchInput, ipHeaders: IpHead
     return {
       error: "attestation_mismatch",
       detail: `attestationMessage must contain the line "Deployer: ${deployer}" exactly (checksummed). Use the message prepare_launch returned.`,
+    };
+  }
+  if (!message.split("\n").includes(TERMS_ACCEPTANCE_LINE)) {
+    return {
+      error: "attestation_mismatch",
+      detail: `attestationMessage must end with the line "${TERMS_ACCEPTANCE_LINE}". Call prepare_launch without a signature for a current message.`,
     };
   }
   const ticker = /Ticker:\s*([A-Z0-9]+)/.exec(message)?.[1];

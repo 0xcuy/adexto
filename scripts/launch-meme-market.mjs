@@ -139,7 +139,9 @@ const message =
   `ADEXTO launch attestation\n` +
   `Deployer: ${wallet.address}\n` +
   `Ticker: ${M.symbol}\n` +
-  `Timestamp: ${Date.now()}`;
+  `Timestamp: ${Date.now()}\n` +
+  // Sama persis dengan TERMS_ACCEPTANCE_LINE di src/config/terms.ts; /api/deploy menolak pesan tanpanya.
+  `I accept the ADEXTO Terms and Acceptable Use Policy (version 2026-10-05): https://adexto.xyz/terms`;
 const signature = await wallet.signMessage(message);
 console.log(`  2) attestation ditandatangani (${signature.slice(0, 14)}…)`);
 

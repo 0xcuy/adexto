@@ -461,7 +461,9 @@ if ((afterBounce.registered ?? []).map((s) => String(s).toUpperCase()).includes(
 // ══ 4. PREPARE ══════════════════════════════════════════════════════════════
 step('4) PREPARE — anchor metadata lewat situs produksi');
 const attestationMessage =
-  `ADEXTO launch attestation\n` + `Deployer: ${ME}\n` + `Ticker: ${SYMBOL}\n` + `Timestamp: ${Date.now()}`;
+  `ADEXTO launch attestation\n` + `Deployer: ${ME}\n` + `Ticker: ${SYMBOL}\n` + `Timestamp: ${Date.now()}\n` +
+  // Sama persis dengan TERMS_ACCEPTANCE_LINE di src/config/terms.ts; /api/deploy menolak pesan tanpanya.
+  `I accept the ADEXTO Terms and Acceptable Use Policy (version 2026-10-05): https://adexto.xyz/terms`;
 const attestationSignature = await new ethers.Wallet(PK).signMessage(attestationMessage);
 
 const prepare = await post({

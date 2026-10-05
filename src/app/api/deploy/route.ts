@@ -34,6 +34,7 @@ import {
   findProjectGroup,
   registerProject,
   listPublicProjects,
+  isOfficialCreator,
   RegistryLimitError,
 } from "@/lib/registry";
 import {
@@ -44,6 +45,8 @@ import {
 } from "@/lib/dex";
 import { OPENING_MARKET_CAP_USD, nativePrices, openingVirtualNative } from "@/lib/native-price";
 import { publicErrorMessage } from "@/lib/public-error";
+import { TERMS_ACCEPTANCE_LINE } from "@/config/terms";
+import { checkLaunchContent } from "@/lib/launch-content";
 
 /**
  * Two-stage launch API.
@@ -255,6 +258,21 @@ async function handlePrepare(body: any) {
       { error: `${tooLong[0]} is longer than ${tooLong[2]} characters.`, code: "FIELD_TOO_LONG" },
       { status: 400 }
     );
+  }
+
+  // Isi peluncuran terhadap /acceptable-use, SEBELUM tanda tangan diperiksa dan sebelum apa pun
+  // ditambatkan: penolakan di sini tidak membuat creator membayar gas untuk pasar yang tidak akan terdaftar.
+  const content = checkLaunchContent(
+    {
+      name,
+      symbol,
+      description: typeof body.description === "string" ? body.description : null,
+      links: body.links && typeof body.links === "object" ? body.links : null,
+    },
+    isOfficialCreator(body.deployer)
+  );
+  if (!content.ok) {
+    return NextResponse.json({ error: content.reason, code: "CONTENT_REFUSED", rule: content.rule }, { status: 400 });
   }
 
   // Tanda tangan wallet, terikat ke deployer yang diklaim, dan diverifikasi di
@@ -844,6 +862,14 @@ function verifyLaunchAttestation(body: any): AttestationResult {
   const deployerLine = /^Deployer: (0x[a-fA-F0-9]{40})$/m.exec(message);
   if (!deployerLine || deployerLine[1].toLowerCase() !== claimed.toLowerCase()) {
     return { ok: false, error: "The attestation message must bind the deployer address." };
+  }
+  // Persetujuan Terms yang BERLAKU, ditandatangani di pesan yang sama (src/config/terms.ts). Baris
+  // utuh, bukan awalan, supaya versi lama tidak lolos.
+  if (!message.split("\n").includes(TERMS_ACCEPTANCE_LINE)) {
+    return {
+      ok: false,
+      error: `The attestation must accept the current Terms and Acceptable Use Policy. Sign again; the message must include the line: ${TERMS_ACCEPTANCE_LINE}`,
+    };
   }
 
   const timestampMatch = message.match(/Timestamp:\s*(\d+)/);

@@ -108,6 +108,7 @@ export default function LaunchConsole() {
     return (
       `Use the adexto MCP server to launch a market called "${n}", ticker ${t}, on ${chain?.name ?? "<chain>"} ` +
       `(chainId ${chain?.chainId ?? "<id>"}), from my wallet ${d}${agent}. ` +
+      `I accept the ADEXTO Terms and Acceptable Use Policy (adexto.xyz/terms) for this launch. ` +
       `Call prepare_launch, sign the attestationMessage it returns with personal_sign from that wallet, call ` +
       `prepare_launch again with the signature, send the unsigned transaction it returns from the same wallet ` +
       `(value 0, gas only), then call register_launch with the transaction hash.`

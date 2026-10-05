@@ -1363,7 +1363,9 @@ const mcp = createMcpHandler(
           "attestationSignature: it anchors the launch metadata and returns the unsigned deployTrinity transaction " +
           "(value 0, gas only), simulated from your address, with a gas estimate. Fee preset: 1.00% per trade, 0.70% " +
           "to the creator. All supply goes into the curve; the creator gets no allocation. After the transaction is " +
-          "mined, call register_launch.",
+          "mined, call register_launch. The attestation message ends with an acceptance of the ADEXTO Terms and " +
+          "Acceptable Use Policy (adexto.xyz/terms): signing it is the deployer's acceptance, and markets that break " +
+          "the policy are removed from ADEXTO.",
         inputSchema: {
           chainId: z
             .number()

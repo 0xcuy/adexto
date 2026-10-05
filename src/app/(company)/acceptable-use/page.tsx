@@ -93,6 +93,12 @@ export default function AcceptableUsePage() {
       <H2>What happens to a market that breaks these rules</H2>
       <UL>
         <li>
+          Some patterns are refused automatically before a launch is prepared: names that pose as official, as a
+          giveaway, as ADEXTO or as a well-known exchange or issuer, descriptions that ask for a recovery phrase or
+          promise guaranteed returns, and links through URL shorteners, to bare IP addresses or to lookalike
+          domains. Passing these checks does not mean a market is allowed.
+        </li>
+        <li>
           We refuse to list it, or remove it from this site, the x402 gateway, the MCP and A2A tools, the Telegram
           feed and the feeds we serve to aggregators. Its page then says it was removed and why, and the removal is
           recorded with its reason in the public repository.

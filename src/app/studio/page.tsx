@@ -32,6 +32,7 @@ import {
 } from "@/lib/logo-image";
 import { DEFAULT_CATEGORY, MARKET_CATEGORIES, type MarketCategory } from "@/lib/categories";
 import { streamChat, type ChatReasoningProgress } from "@/lib/chat-stream";
+import { launchAttestationMessage } from "@/lib/launch-attestation";
 
 /**
  * Launch console.
@@ -449,6 +450,8 @@ export default function StudioPage() {
   // ── gating + results ─────────────────────────────────────────────────────
   const [ticker, setTicker] = useState<TickerState>({ checking: false, perChain: [], error: null });
   const [attestation, setAttestation] = useState<{ signature: string; message: string; signer: string } | null>(null);
+  /** Kotak centang Terms. Tidak disimpan: setiap peluncuran menyetujuinya lagi di tanda tangannya sendiri. */
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [attesting, setAttesting] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [results, setResults] = useState<ChainResult[]>([]);
@@ -980,15 +983,14 @@ export default function StudioPage() {
    * pengguna menolak, dan pemanggil yang memutuskan pesan galatnya.
    */
   const signAttestation = async () => {
+    // Persetujuan Terms ikut ditandatangani (baris terakhir pesan), dan server menolak pesan tanpanya.
+    // Kotak centang ini memastikan creator membacanya sebagai keputusan, bukan menemukannya di dompet.
+    if (!termsAccepted) throw new Error("Accept the Terms and the Acceptable Use Policy first.");
     const ethereum = getActiveEip1193();
     const provider = new ethers.BrowserProvider(ethereum);
     const signer = await provider.getSigner();
     const signerAddress = await signer.getAddress();
-    const message =
-      `ADEXTO launch attestation\n` +
-      `Deployer: ${signerAddress}\n` +
-      `Ticker: ${tokenTicker.trim().toUpperCase()}\n` +
-      `Timestamp: ${Date.now()}`;
+    const message = launchAttestationMessage(signerAddress, tokenTicker.trim().toUpperCase());
     const signature = await signer.signMessage(message);
     const signed = { signature, message, signer: signerAddress };
     setAttestation(signed);
@@ -1200,6 +1202,13 @@ export default function StudioPage() {
           agentIds: agentBinding.enabled ? agentBinding.agentIds : null,
           deployer: address,
           targetChains: chains.map((c) => c.chainId),
+          // Hanya untuk pemeriksaan isi (`checkLaunchContent`) SEBELUM gas dibelanjakan; tidak ditambatkan.
+          description: description.trim() || null,
+          links: {
+            website: linkWebsite.trim() || null,
+            github: linkGithub.trim() || null,
+            docs: linkDocs.trim() || null,
+          },
           attestationSignature: att.signature,
           attestationMessage: att.message,
         }),
@@ -1624,6 +1633,7 @@ export default function StudioPage() {
    * akan melihat bahwa tickernya ternyata terpakai.
    */
   const expressReady =
+    termsAccepted &&
     Boolean(tokenName.trim()) &&
     Boolean(tokenTicker.trim()) &&
     !ticker.checking &&
@@ -1652,7 +1662,40 @@ export default function StudioPage() {
     ? "Agent id needed, see Advanced"
     : supplyNumber <= 0
     ? "Set a supply in Advanced"
+    : !termsAccepted
+    ? "Accept the terms to launch"
     : `Launch on ${launchTargets[0]?.key ?? "—"} · gas only`;
+
+  /**
+   * Persetujuan Terms, dipakai Express dan Advanced. Kalimatnya sama dengan baris yang ikut
+   * ditandatangani (`TERMS_ACCEPTANCE_LINE`), supaya yang dicentang dan yang ditandatangani satu hal.
+   * 24 px area sentuh minimum (WCAG 2.5.8): label membungkus kotaknya, jadi seluruh baris bisa diklik.
+   */
+  const termsConsent = (
+    <label className="flex min-h-[44px] cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-surface p-3 text-[12px] leading-relaxed text-ink-soft lg:min-h-0">
+      <input
+        type="checkbox"
+        checked={termsAccepted}
+        onChange={(e) => setTermsAccepted(e.target.checked)}
+        data-testid="terms-consent"
+        // 24 px: kotaknya sendiri juga target sentuh (WCAG 2.5.8), bukan hanya labelnya.
+        // Piksel, bukan rem: rem situs 14 px, jadi h-6 hanya 21 px.
+        className="h-[24px] w-[24px] shrink-0 accent-[var(--accent)]"
+      />
+      <span>
+        I accept the{" "}
+        <Link href="/terms" target="_blank" className="font-semibold text-accent hover:underline">
+          Terms
+        </Link>{" "}
+        and the{" "}
+        <Link href="/acceptable-use" target="_blank" className="font-semibold text-accent hover:underline">
+          Acceptable Use Policy
+        </Link>
+        . I am responsible for this market, and it is not a scam, an impersonation or illegal. My wallet signs this
+        acceptance with the launch attestation.
+      </span>
+    </label>
+  );
 
   /**
    * Pilihan mode sebagai dua kartu, bukan sakelar kecil.
@@ -1944,6 +1987,8 @@ export default function StudioPage() {
         </div>
       )}
 
+      {termsConsent}
+
       <button
         type="button"
         onClick={handleExpressLaunch}
@@ -1964,7 +2009,8 @@ export default function StudioPage() {
       <p className="flex items-start gap-1.5 text-[12px] leading-relaxed text-ink-soft">
         <Info className="mt-0.5 h-3 w-3 shrink-0" />
         <span>
-          Your wallet asks twice: a free signature that proves you control this address, then the launch transaction,
+          Your wallet asks twice: a free signature that proves you control this address and records your acceptance of
+          the terms, then the launch transaction,
           which costs gas. There is no liquidity deposit.
         </span>
       </p>
@@ -3009,7 +3055,8 @@ export default function StudioPage() {
                     <button
                       type="button"
                       onClick={handleAttest}
-                      disabled={attesting}
+                      disabled={attesting || !termsAccepted}
+                      title={termsAccepted ? undefined : "Accept the Terms below first"}
                       // 48 px di bawah lg (plan U2.3): tombol ini membuka tanda tangan wallet.
                       className="flex min-h-[48px] shrink-0 items-center gap-1 rounded-lg border border-line bg-cream-3 px-3.5 text-[12px] font-bold text-ink hover:bg-cream-3 lg:min-h-0 lg:px-3 lg:py-1.5"
                     >
@@ -3042,6 +3089,7 @@ export default function StudioPage() {
                     identity.
                   </span>
                 </p>
+                {termsConsent}
               </div>
 
               {/* Panel World ID dulu di sini. Dicabut bersama gerbangnya — lihat catatan

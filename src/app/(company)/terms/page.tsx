@@ -24,6 +24,9 @@ export const metadata: Metadata = {
  *   - mencabut dari situs, gerbang x402, MCP/A2A, Telegram dan feed agregator:
  *     `src/config/delisted-markets.ts`
  *   - mencabut kunci Agent Compute: `src/lib/agent-compute-pool.ts`
+ *   - persetujuan yang ditandatangani: `TERMS_ACCEPTANCE_LINE` (`src/config/terms.ts`), diwajibkan
+ *     `verifyLaunchAttestation`. `TERMS_VERSION` harus sama dengan `UPDATED` halaman ini.
+ *   - saringan isi peluncuran: `src/lib/launch-content.ts`
  *
  * Yang TIDAK ada — membekukan, menghentikan trade di kurva, menyita — dinyatakan tidak ada.
  */
@@ -36,8 +39,10 @@ export default function TermsPage() {
         These terms cover adexto.xyz, the ADEXTO contracts, the MCP server, the A2A agent and the x402
         gateway at x402.adexto.xyz (together, &quot;ADEXTO&quot;). Using any of them means accepting these
         terms, the <In href="/acceptable-use">acceptable use policy</In> and the{" "}
-        <In href="/privacy">privacy notice</In>, and so does launching a market, whether from the studio or
-        from an agent. If any part is unacceptable to you, do not use ADEXTO.
+        <In href="/privacy">privacy notice</In>. Launching a market accepts them explicitly: the launch
+        attestation your wallet signs, from the studio or from an agent, ends with a line accepting these terms
+        and the acceptable use policy by their version date, and no launch is prepared without it. If any part
+        is unacceptable to you, do not use ADEXTO.
       </P>
 
       <H2>Who may use ADEXTO</H2>

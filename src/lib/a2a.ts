@@ -229,7 +229,8 @@ export function agentCard() {
         description:
           "A multi-turn task. Send a data part {skill:'launch_market', chainId, name, symbol, deployer, agentId?, description?}. " +
           "The task returns TASK_STATE_INPUT_REQUIRED with attestationMessage: sign it with personal_sign (EIP-191) from deployer " +
-          "and reply on the same task with {attestationSignature}. The task then returns the unsigned launch transaction as an " +
+          "and reply on the same task with {attestationSignature}. The message ends with an acceptance of the ADEXTO Terms and " +
+          "Acceptable Use Policy (adexto.xyz/terms), so signing it is the deployer's acceptance. The task then returns the unsigned launch transaction as an " +
           "artifact: send it from deployer (value 0, gas only) and reply with {txHash}. When it is mined the market is listed and " +
           "the task completes with the market artifact.",
         tags: ["launch", "token", "bonding-curve", "erc-8004", "evm"],

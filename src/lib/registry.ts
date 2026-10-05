@@ -17,6 +17,7 @@ import { CHAINS, DEFAULT_CHAIN, resolveChainOrDefault, type ChainKey } from "@/l
 import { readJson, writeJson } from "@/lib/server-store";
 import { isHiddenMarket } from "@/config/hidden-markets";
 import { delistedEntry, isDelistedMarket } from "@/config/delisted-markets";
+import { checkLaunchContent } from "@/lib/launch-content";
 
 const STORE_FILE = "projects.json";
 
@@ -423,6 +424,11 @@ function isOfficialDeployer(address?: string | null): boolean {
   return officialDeployers().has(address.trim().toLowerCase());
 }
 
+/** Untuk pemeriksaan isi (`checkLaunchContent`): hanya deployer resmi yang boleh memakai nama ADEXTO. */
+export function isOfficialCreator(address?: string | null): boolean {
+  return isOfficialDeployer(typeof address === "string" ? address : null);
+}
+
 declare global {
   var __ADEXTO_PROJECT_CACHE__: ProjectRecord[] | undefined;
 }
@@ -755,6 +761,13 @@ export interface RegisterInput {
 export function registerProject(input: RegisterInput): ProjectRecord {
   const symbolCheck = checkSymbolAvailable(input.symbol, input.chainId, input.creator);
   if (!symbolCheck.available) throw new Error(symbolCheck.reason);
+  // Gerbang terakhir untuk setiap jalur listing (Studio, /api/deploy confirm, MCP/A2A/REST register):
+  // isi yang melanggar /acceptable-use tidak masuk registry, apa pun jalur yang menyiapkannya.
+  const content = checkLaunchContent(
+    { name: input.name, symbol: input.symbol, description: input.description ?? null, links: input.links ?? null },
+    isOfficialDeployer(input.creator)
+  );
+  if (!content.ok) throw new Error(content.reason);
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(input.tokenAddress)) {
     throw new Error("tokenAddress must be a 20-byte hex address returned by the factory.");
@@ -863,6 +876,16 @@ export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPa
   if (isDelistedMarket(custom[at].chainId, custom[at].symbol)) throw new Error("This market was removed from this site.");
 
   const current = custom[at];
+  // Pitch dan tautan baru diperiksa dengan aturan yang sama seperti saat peluncuran. Nama tidak berubah
+  // di jalur ini, jadi aturan nama tidak ikut (flag resmi = true).
+  const content = checkLaunchContent(
+    {
+      description: patch.description === undefined ? null : String(patch.description ?? ""),
+      links: patch.links && typeof patch.links === "object" ? (patch.links as Record<string, string | null>) : null,
+    },
+    true
+  );
+  if (!content.ok) throw new Error(content.reason);
   const next: ProjectRecord = {
     ...current,
     description:
