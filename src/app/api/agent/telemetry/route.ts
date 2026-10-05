@@ -98,7 +98,7 @@ export async function GET(req: Request) {
      * `eth_getLogs` chain itu terlalu sempit untuk mencapai blok peluncuran pasarnya.
      *
      *   Monad    -> Envio      cap 100 blok di rpc.monad.xyz
-     *   Base     -> subgraph   cap 2.000 blok x 16 panggilan = 32.000 blok, ~18 jam sejarah
+     *   Base     -> subgraph   cap 500 blok x 16 panggilan = 8.000 blok, ~4,4 jam sejarah
      *   Arbitrum -> subgraph   dilayani manifest yang sama
      *   0G       -> log RPC    petak 90.000 x 16 = 1.440.000 blok, cukup ke pasar tertua
      *

@@ -991,8 +991,8 @@ const mcp = createMcpHandler(
      * seperti pasar yang tidak pernah diperdagangkan. Tapi penjaganya bukan daftar chain —
      * penjaganya `coverage.reachedLaunch`, yang menyatakan penelusuran berhenti karena
      * riwayatnya HABIS, bukan karena anggarannya habis. Base masih akan dilaporkan tidak
-     * lengkap kalau memang tidak lengkap: petaknya 2.000 blok, jadi 16 panggilan hanya
-     * menjangkau 32.000 blok.
+     * lengkap kalau memang tidak lengkap: petaknya 500 blok (sejak 2026-10-05), jadi 16
+     * panggilan hanya menjangkau 8.000 blok.
      *
      * Keduanya memakai pustaka yang SAMA dengan yang dipakai terminal token
      * (`readEnvioSwaps`, `readOnChainSwaps`). Versi pertama menyalin ulang kueri GraphQL

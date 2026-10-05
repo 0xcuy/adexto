@@ -26,9 +26,10 @@ import type { TradeEvent } from "@/lib/telemetry";
  *     angka yang salah di sana lebih buruk daripada tidak ada angka.
  *   - statistik: "24 jam" tidak bermakna kalau jendelanya sendiri bisa lebih pendek.
  *
- * Ditanam di disk karena pemindaian awal mahal (Base: petak 2.000 blok, $BLOOP ~590.000 blok
- * dalam = ~300 panggilan) sedangkan pembaruan sesudahnya murah: satu panggilan untuk blok yang
- * lahir sejak pembaruan terakhir.
+ * Ditanam di disk karena pemindaian awal mahal (Base: petak 500 blok sejak 2026-10-05, $BLOOP
+ * ~840.000 blok dalam = ~1.700 panggilan, jadi lima kali jalan dengan `MAX_CALLS_PER_RUN`)
+ * sedangkan pembaruan sesudahnya murah: satu panggilan untuk blok yang lahir sejak pembaruan
+ * terakhir.
  *
  * YANG DIJAMIN
  *

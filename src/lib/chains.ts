@@ -651,8 +651,10 @@ export function readProvider(chain: ChainInfo): JsonRpcProvider {
  * dan relai di `src/app/api/rpc/[chain]/route.ts` untuk Worker Cloudflare. Menyatukannya
  * menjadi satu konstanta pasti salah untuk salah satu dari ketiganya.
  *
- * `LOG_SPAN_BY_CHAIN[8453] = 2_000` di `onchain-trades.ts` cocok dengan batas yang
- * diumumkan endpoint ini: "eth_getLogs is limited to a 2,000 range".
+ * `LOG_SPAN_BY_CHAIN[8453] = 500` di `onchain-trades.ts` cocok dengan batas yang
+ * diumumkan endpoint ini sejak 2026-10-05: "eth_getLogs is limited to a 500 range"
+ * (sebelumnya "a 2,000 range"). Pengukuran di atas, 2.000 blok HTTP 200, sudah tidak
+ * berlaku; penyedia lain di tabel itu belum diukur ulang.
  */
 const LOG_READ_RPC: Partial<Record<ChainKey, string>> = {
   Base: "https://mainnet.base.org",

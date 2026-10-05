@@ -418,8 +418,9 @@ export async function fetchCurveStats(
  *
  * KENAPA INI ADA
  *
- * Base membatasi `eth_getLogs` pada 2.000 blok dan anggaran pemindaian 16 panggilan, jadi
- * jangkauan RPC-nya 32.000 blok — sekitar 18 jam sejarah Base. `$BLOOP` diluncurkan pada
+ * Base membatasi `eth_getLogs` pada 500 blok (sejak 2026-10-05; sebelumnya 2.000) dan
+ * anggaran pemindaian 16 panggilan, jadi jangkauan RPC-nya 8.000 blok — sekitar 4,4 jam
+ * sejarah Base (dulu 32.000 blok, sekitar 18 jam). `$BLOOP` diluncurkan pada
  * blok 51.372.549 dan sekarang ada di kedalaman ~223.000 blok, jadi `readOnChainSwaps`
  * TIDAK PERNAH bisa mencapai blok peluncurannya, berapa kali pun dicoba. Gejalanya pasar
  * yang tidak pernah diperdagangkan: `trades: 0`, `reachedLaunch: false`, tanpa galat.

@@ -46,8 +46,9 @@ import type { TradeEvent } from "@/lib/telemetry";
  * dan tanpa penjaga itu gejalanya akan berupa riwayat perdagangan Base yang kosong tanpa
  * satu pun pesan galat.
  *
- * Chain tanpa entri memakai 2.000, yaitu nilai paling ketat yang masih terbukti diterima
- * di keempat RPC yang diuji kecuali Monad.
+ * Chain tanpa entri memakai 2.000. Dulu itu nilai paling ketat yang terbukti diterima di
+ * keempat RPC yang diuji kecuali Monad; sejak Base turun ke 500 (2026-10-05) tidak lagi.
+ * Setiap mainnet punya entri sendiri, jadi bawaan ini hanya berlaku untuk testnet dan devchain.
  */
 const LOG_SPAN_BY_CHAIN: Record<number, number> = {
   /**
@@ -81,7 +82,29 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
    * mengaburkan hasilnya.
    */
   16661: 90_000, // 0G mainnet — diukur 2026-09-18; ceiling keras 100.000
-  8453: 2_000, // Base — diukur 2026-09-09; sebelumnya 10.000
+  /**
+   * Base TURUN lagi, dari 2.000 ke 500 (2026-10-05). Ketiga kalinya pola yang sama.
+   *
+   * `mainnet.base.org` (endpoint log Base, lihat `LOG_READ_RPC` di `chains.ts`) sekarang
+   * menjawab HTTP 413 dengan `-32614 "eth_getLogs is limited to a 500 range"`. Diukur dengan
+   * filter alamat mati yang juga dipakai penjaga di `audit_consistency.mjs`, pada kedalaman
+   * blok factory 0.11.0 (50.971.523):
+   *
+   *   2.000 blok   DITOLAK  413
+   *   1.000 blok   DITOLAK  413
+   *     500 blok   diterima
+   *
+   * Yang paling berbahaya bukan pemindaian mundur yang gagal, melainkan `market-index.ts`.
+   * Indeks itu memanjang per permintaan dari blok terakhir yang dipindai, jadi selama ia
+   * tertinggal kurang dari 500 blok (sekitar 16 menit) petaknya kecil dan lolos. Begitu ia
+   * tertinggal lebih jauh, setiap petak berikutnya selebar `span` dan ditolak, dan indeksnya
+   * berhenti selamanya tanpa ada yang tampak rusak kecuali angka holder yang membeku.
+   *
+   * Harganya: pemindaian mundur 16 panggilan sekarang menjangkau 8.000 blok (sekitar 4,4 jam)
+   * alih-alih 32.000. Untuk Base itu tidak lagi menentukan, karena subgraph v0.12.0 menjawab
+   * lebih dulu untuk setiap pasar Base dan indeks pasar menyimpan sisanya sejak blok launch.
+   */
+  8453: 500, // Base — diukur 2026-10-05; sebelumnya 2.000 (2026-09-09) dan 10.000
   42161: 500_000, // Arbitrum
   /**
    * Monad NAIK dari 100 ke 500.000, dan yang berubah bukan Monad — penyedianya.
