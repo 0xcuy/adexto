@@ -10,6 +10,10 @@ Please do not open a public issue for a vulnerability. If private reporting is u
 you for any reason, open an issue saying only that you have something to report and asking for
 a channel — no details — and it will be answered.
 
+A market that looks like a scam, an impersonation or illegal content is not a vulnerability. Report
+it at [adexto.xyz/report](https://adexto.xyz/report) or with the
+[market report form](https://github.com/0xcuy/adexto/issues/new?template=report-market.yml).
+
 ## What to include
 
 Whatever you already have. These are the things that most often decide how fast a report can be

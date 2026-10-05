@@ -5,6 +5,7 @@
  * Kelas-kelasnya diambil dari `globals.css` yang sudah ada, bukan nilai baru: dokumen hukum
  * yang paletnya sedikit berbeda dari situsnya terlihat seperti ditempel dari tempat lain.
  */
+import Link from "next/link";
 
 /**
  * Satu daftar tautan Company, dipakai layout grup ini DAN footer.
@@ -12,14 +13,37 @@
  * Tinggal di berkas berawalan garis bawah karena dua alasan: Next tidak memperlakukannya
  * sebagai rute, dan `layout.tsx` tidak boleh mengekspor const biasa — build menolaknya dengan
  * "does not match the required types of a Next.js Layout".
+ *
+ * Footer mengimpor daftar ini juga. Dulu footer menyalin lima tautannya sendiri, dan dua salinan
+ * daftar yang sama adalah cara paling pasti membuat salah satunya tertinggal.
  */
 export const COMPANY_LINKS = [
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
-  { href: "/privacy", label: "Privacy" },
+  { href: "/report", label: "Report a market" },
   { href: "/terms", label: "Terms" },
+  { href: "/acceptable-use", label: "Acceptable use" },
+  { href: "/privacy", label: "Privacy" },
   { href: "/disclaimer", label: "Disclaimer" },
 ] as const;
+
+/** Tautan keluar dengan gaya tautan dokumen. */
+export function Ext({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+      {children}
+    </a>
+  );
+}
+
+/** Tautan di dalam situs dengan gaya yang sama. */
+export function In({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="font-semibold text-accent hover:underline">
+      {children}
+    </Link>
+  );
+}
 
 export function PageTitle({ children, updated }: { children: React.ReactNode; updated: string }) {
   return (

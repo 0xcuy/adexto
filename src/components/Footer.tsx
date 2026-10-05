@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, Github, Send, Twitter } from "lucide-react";
 import { LAUNCH_SENTENCE } from "@/lib/launch-state";
+import { COMPANY_LINKS } from "@/app/(company)/_parts";
 
 /**
  * Tautan kolom: baris setinggi 40 px selebar kolom di layar sentuh (di bawah lg), tautan biasa
@@ -139,11 +140,9 @@ export default function Footer() {
           <div>
             <h4 className={COL_HEAD}>Company</h4>
             <ul className={COL_LIST}>
-              <li><Link href="/about" className={COL_LINK}>About</Link></li>
-              <li><Link href="/contact" className={COL_LINK}>Contact</Link></li>
-              <li><Link href="/privacy" className={COL_LINK}>Privacy</Link></li>
-              <li><Link href="/terms" className={COL_LINK}>Terms</Link></li>
-              <li><Link href="/disclaimer" className={COL_LINK}>Disclaimer</Link></li>
+              {COMPANY_LINKS.map((l) => (
+                <li key={l.href}><Link href={l.href} className={COL_LINK}>{l.label}</Link></li>
+              ))}
             </ul>
           </div>
 

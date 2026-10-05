@@ -1,0 +1,62 @@
+name: Report a market
+description: Flag a market that looks like a scam, an impersonation, or illegal content. For vulnerabilities use the Security tab instead.
+title: "[Report] $TICKER on CHAIN"
+labels: ["market-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting. This issue is public, so do not include private information about yourself or anyone else.
+        What happens next and what ADEXTO can and cannot do is described at https://adexto.xyz/report.
+  - type: dropdown
+    id: chain
+    attributes:
+      label: Chain
+      options:
+        - Monad
+        - Arbitrum One
+        - Robinhood Chain
+        - Base
+        - 0G
+    validations:
+      required: true
+  - type: input
+    id: market
+    attributes:
+      label: Market
+      description: The ticker and, if you have it, the token or curve address or the market page URL.
+      placeholder: "$TICKER · 0x… · https://adexto.xyz/token/…"
+    validations:
+      required: true
+  - type: dropdown
+    id: reason
+    attributes:
+      label: Reason
+      multiple: true
+      options:
+        - Fraud or a planned rug pull
+        - Impersonates a person, brand, project or institution
+        - Infringes a trademark or copyright
+        - Phishing or malicious links
+        - Child sexual abuse material or non-consensual sexual content
+        - Hate speech or incitement to violence
+        - Sanctions evasion, money laundering or terrorist financing
+        - Unregistered securities offering or promised returns
+        - Other illegal content or goods
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: What makes you think so. Links, transaction hashes, screenshots of claims made by the creator.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: For trademark or copyright reports
+      options:
+        - label: I own the right I am reporting, or I am authorised to act for the owner.
+          required: false

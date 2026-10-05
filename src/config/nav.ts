@@ -38,8 +38,10 @@ import {
   Lock,
   Mail,
   Plug,
+  Flag,
   Rocket,
   Scale,
+  ScrollText,
   ShieldCheck,
   TriangleAlert,
   Trophy,
@@ -138,6 +140,8 @@ const CONTACT: NavItem = { href: "/contact", label: "Contact", description: "How
 const PRIVACY: NavItem = { href: "/privacy", label: "Privacy", description: "What this site stores, and why", icon: Lock };
 const TERMS: NavItem = { href: "/terms", label: "Terms", description: "Terms of use", icon: Scale };
 const DISCLAIMER: NavItem = { href: "/disclaimer", label: "Disclaimer", description: "The risks of trading these tokens", icon: TriangleAlert };
+const ACCEPTABLE_USE: NavItem = { href: "/acceptable-use", label: "Acceptable use", description: "What may not be launched or done here", icon: ScrollText };
+const REPORT: NavItem = { href: "/report", label: "Report a market", description: "Flag a scam, impersonation or illegal market", icon: Flag };
 
 // ── Grup ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -146,7 +150,7 @@ export const NAV: Readonly<Record<NavGroupKey, NavGroup>> = {
   launch: { key: "launch", label: "Launch", items: [LAUNCH_TOKEN, LAUNCH_AGENT, AGENTS, CREATOR, REWARDS] },
   build: { key: "build", label: "Build", items: [MCP, X402, COMPUTE, DOCS, DEMO] },
   verify: { key: "verify", label: "Verify", items: [SECURITY, WHITEPAPER] },
-  company: { key: "company", label: "Company", items: [ABOUT, CONTACT, PRIVACY, TERMS, DISCLAIMER] },
+  company: { key: "company", label: "Company", items: [ABOUT, CONTACT, REPORT, TERMS, ACCEPTABLE_USE, PRIVACY, DISCLAIMER] },
 };
 
 export interface NavMenu {
