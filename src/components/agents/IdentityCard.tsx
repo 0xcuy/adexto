@@ -255,7 +255,10 @@ export default function IdentityCard({ data, className, preview = false }: { dat
             </>
           ) : (
             <div className="font-mono" style={{ fontSize: 16, lineHeight: "22px", color: "#8696a6", marginTop: 34, padding: "0 14px" }}>
-              {markets ? "No markets yet" : "Scored after your first launch"}
+              {/* Keadaan SATU agen (belum dipakai meluncurkan), bukan keadaan platform. Sengaja tidak memakai kalimat
+                  keadaan peluncuran dari launch-state.ts: itu tentang factory, dan penjaga §10 audit_consistency
+                  menolak varian "no markets yet" di .tsx maupun di launch-state.ts selama chain sudah punya pasar. */}
+              {markets ? "Not used in a launch yet" : "Scored after your first launch"}
             </div>
           )}
         </div>
