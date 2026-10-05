@@ -109,6 +109,17 @@ export const OPERATED_AGENTS: readonly OperatedAgent[] = [
     market: { symbol: "LOOP", token: "0x2F4Ca22703B6440d434833315505a2281011B228" },
     cardFace: { name: "Loop Agent", image: "/api/logo/42161-loop-1203f178.png" },
   },
+  // End-to-end test, 2026-10-05: registered by Agent A over MCP (tx 0xca55aec1…993f), bound to $ARBTTEST at
+  // launch (tx 0x92208bc4…79dc). Its market is hidden (src/config/hidden-markets.ts), so this agent is left
+  // out of /agents, /api/agents and the well-known registration; its own card still serves.
+  {
+    chainId: 42161,
+    agentId: "1593",
+    name: "ARBT Test Agent",
+    operator: "agentA",
+    market: { symbol: "ARBTTEST", token: "0xeEe33340Db68A03Ece66970F34aa9ec46304e151" },
+    cardFace: { name: "ARBT Test Agent", image: "/api/logo/42161-arbttest-9674f4a9.png" },
+  },
 ];
 
 /** `eip155:<chainId>:<registry>` dalam huruf kecil, bentuk yang dipakai berkas registrasi kami. */

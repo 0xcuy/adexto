@@ -191,6 +191,16 @@
       "token": "0x2F4Ca22703B6440d434833315505a2281011B228",
       "curve": "0x037F55c7BE6E6537A218bD533DE5aCC3aF3C3B0C",
       "why": "Loop on Arbitrum One, the second market from the v1 factory there, launched over MCP for the Arbitrum MCP film by the same creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch transaction itself (prepare_launch, then register_launch). The same ticker and logo as $LOOP on Monad: a ticker is unique per chain. Bound at launch to ERC-8004 agent 1578 on Arbitrum One, registered from that wallet a minute earlier (tx 0x42c937d2110520eb49f046383616873fede1e8c84c31f171512360b343dd8e46); launch tx 0x0f8e469ca46906b9202714da2a614ed61f2f7af332751f3ee03eaf29e2e1030e, block 511223223, 3,216,639 gas. It stakes in Arbitrum One's AdextoStakeHub 0xdf8891bA9fd8e3DC2E7D0A0ccae279247cd2ddf3."
+    },
+    {
+      "symbol": "ARBTTEST",
+      "status": "test",
+      "chainId": 42161,
+      "factoryVersion": "1.0.0",
+      "factory": "0x79DF3671e7e7456832C84a34c2bC0DB7871C0E0E",
+      "token": "0xeEe33340Db68A03Ece66970F34aa9ec46304e151",
+      "curve": "0x72eb3911266e279a721f563994bf7e2b04c79AC3",
+      "why": "End-to-end test market on Arbitrum One, hidden from every public list by src/config/hidden-markets.ts (its page still opens by URL). Launched over MCP by creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch itself (launch tx 0x92208bc4a97a47199fa83c9743b2e1ed1c21d8e7a3d182f2855e1ac38b8f79dc, block 511927429, 3,222,422 gas), bound at launch to ERC-8004 agent 1593 registered from that wallet (tx 0xca55aec1069d26bcd4b376bbc7e08ecefc875e9fa88289290ee865aafa95993f). Then bought over A2A with x402 by wallet 0x150ca9B520dE1fCBAD992322C798E547f0b9E803: delivery tx 0x08572021421a9009a26b8d738d7f401491307577869805feedb485696327bbe7 on Arbitrum One, settlement tx 0x0fa9ea9f4471303360c6bd97a8a3c5c669876b62ad02267b81a5bb9d73f89b5b on Base. Both wallets are ADEXTO's own. Not counted in listedMarkets."
     }
   ]
 }
