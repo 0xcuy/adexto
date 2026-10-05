@@ -15,6 +15,7 @@
  */
 import { CHAINS, DEFAULT_CHAIN, resolveChainOrDefault, type ChainKey } from "@/lib/chains";
 import { readJson, writeJson } from "@/lib/server-store";
+import { isHiddenMarket } from "@/config/hidden-markets";
 
 const STORE_FILE = "projects.json";
 
@@ -494,7 +495,8 @@ export function marketKey(chainId: number, symbol: string): string {
  * substituting a ticker, which is how the hardcoded values got there in the first place.
  */
 export function exampleMarkets(): ProjectRecord[] {
-  const tradable = listProjects().filter((p) => p.poolLive && p.poolAddress);
+  // Daftar publik: pasar tersembunyi yang paling baru tidak boleh jadi contoh di halaman protokol.
+  const tradable = listPublicProjects().filter((p) => p.poolLive && p.poolAddress);
   if (tradable.length === 0) return [];
 
   /**
@@ -566,6 +568,16 @@ export function listProjects(): ProjectRecord[] {
   }
 
   return out;
+}
+
+/**
+ * `listProjects()` tanpa pasar tersembunyi (`src/config/hidden-markets.ts`): sumber setiap DAFTAR
+ * publik. Pencarian satu pasar (`findProject`, halaman token, `/api/pool`, beli x402) dan pemeriksaan
+ * ticker tetap memakai `listProjects()`, supaya pasar tersembunyi tetap bisa dibuka, dibeli, dan
+ * tickernya tidak terlihat bebas.
+ */
+export function listPublicProjects(): ProjectRecord[] {
+  return listProjects().filter((p) => !isHiddenMarket(p.chainId, p.symbol));
 }
 
 /**
@@ -850,6 +862,11 @@ export function markLaunchedVia(tokenAddress: string, via: LaunchVia): ProjectRe
 
 export function customProjectCount(): number {
   return loadCustom().length;
+}
+
+/** `customProjectCount` tanpa pasar tersembunyi, untuk angka yang dipajang. */
+export function publicCustomProjectCount(): number {
+  return loadCustom().filter((p) => !isHiddenMarket(p.chainId, p.symbol)).length;
 }
 
 export { ZERO_TOKENS };

@@ -14,7 +14,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import AgentsNav from "@/components/agents/AgentsNav";
 import { short, WEIGHTS } from "@/components/agents/format";
 import { mcpUsageSummary } from "@/lib/mcp-usage";
-import { listProjects } from "@/lib/registry";
+import { listPublicProjects } from "@/lib/registry";
 import { agentLaunchVia } from "@/config/agent-launches";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function AgentMarketsPage() {
   const outsideDeliveries = dir.markets.reduce((s, m) => s + m.evidence.x402DeliveriesOutside, 0);
   const operated = dir.operatedAgents.filter((a) => a.ownedByAdexto).length;
   const usage = mcpUsageSummary(7);
-  const listedByAgents = listProjects().filter((p) => agentLaunchVia(p) !== null).length;
+  const listedByAgents = listPublicProjects().filter((p) => agentLaunchVia(p) !== null).length;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">

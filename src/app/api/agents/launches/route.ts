@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listProjects } from "@/lib/registry";
+import { listProjects, listPublicProjects } from "@/lib/registry";
 import { agentLaunchVia } from "@/config/agent-launches";
 import { clientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
@@ -26,7 +26,10 @@ export async function GET(req: Request) {
   const symbol = (url.searchParams.get("symbol") ?? "").trim().toUpperCase();
   const chainId = Number(url.searchParams.get("chainId") ?? NaN);
 
-  const launches = listProjects()
+  // Pasar tersembunyi hanya dijawab bila ditanya persis (symbol + chainId), seperti pelacak sebuah
+  // peluncuran; daftar per creator tidak memuatnya.
+  const exact = Boolean(symbol) && Number.isFinite(chainId);
+  const launches = (exact ? listProjects() : listPublicProjects())
     .filter((p) => p.creator.toLowerCase() === deployer)
     .filter((p) => !symbol || p.symbol === symbol)
     .filter((p) => !Number.isFinite(chainId) || p.chainId === chainId)

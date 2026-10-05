@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listProjects, customProjectCount, marketKey, type ProjectRecord } from "@/lib/registry";
+import { listPublicProjects, publicCustomProjectCount, marketKey, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { isDurable } from "@/lib/server-store";
 import { logoUrlFor } from "@/lib/logo-image";
@@ -201,7 +201,8 @@ function indexerSummary(health: SubgraphChainHealth[], fromCache: boolean) {
 
 async function payload() {
   // Path one. Complete on its own, and everything below is additive.
-  const records = listProjects();
+  // Daftar publik: pasar tersembunyi (src/config/hidden-markets.ts) tidak ikut, termasuk di angka total.
+  const records = listPublicProjects();
 
   // Path two. Only curves the registry already knows about are ever asked for.
   const targets = records
@@ -228,7 +229,7 @@ async function payload() {
         distinctSymbols: String(distinctSymbols),
         multiChainSymbols: String(projects.filter((p) => p.deployedChainCount > 1).length),
         curatedProjects: String(projects.filter((p) => p.curated).length),
-        launchedProjects: String(customProjectCount()),
+        launchedProjects: String(publicCustomProjectCount()),
         tradableProjects: String(projects.filter((p) => p.tradable).length),
         verifiedProjects: String(projects.filter((p) => p.verified).length),
         /** Markets the indexer had state for. Zero is normal without a subgraph. */

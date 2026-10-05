@@ -20,7 +20,7 @@
  *   jendela itu membeli lebih banyak token daripada yang ia jual. Launch oleh wallet tim tidak ikut.
  */
 import { ethers } from "ethers";
-import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { listPublicProjects, type ProjectRecord } from "@/lib/registry";
 import { ensureMarketIndex, indexable, swapsWithTimes } from "@/lib/market-index";
 import { computeHolders } from "@/lib/holders";
 import { chainFromId, readProvider } from "@/lib/chains";
@@ -184,7 +184,7 @@ async function compute(): Promise<Leaderboard> {
   } catch {
     // kurs bawaan
   }
-  const projects = listProjects().filter(indexable);
+  const projects = listPublicProjects().filter(indexable);
 
   const rows = await Promise.all(
     projects.map(async (p) => {

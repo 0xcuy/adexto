@@ -57,7 +57,7 @@ import { ethers } from "ethers";
  */
 import { z } from "zod-v4";
 import { ADEXTO_CONTRACTS } from "@/config/contracts";
-import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { listProjects, listPublicProjects, type ProjectRecord } from "@/lib/registry";
 import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
@@ -274,6 +274,15 @@ async function passthrough(
  */
 function registryProjects(): ProjectRecord[] {
   return listProjects();
+}
+
+/**
+ * Ticker yang boleh disebut di daftar dan pesan galat. Pasar tersembunyi
+ * (src/config/hidden-markets.ts) tetap bisa dicari dengan `get_market`, dikutip dan dibeli,
+ * tetapi tidak pernah ditawarkan dalam daftar.
+ */
+function publicSymbols(): string[] {
+  return listPublicProjects().map((p) => p.symbol);
 }
 
 /**
@@ -545,7 +554,8 @@ const mcp = createMcpHandler(
         outputSchema: MCP_OUTPUTS.list_markets,
       },
       async () => {
-        const projects = registryProjects();
+        // Daftar publik: pasar tersembunyi tidak ditawarkan, tetapi tetap terjawab lewat get_market.
+        const projects = listPublicProjects();
         return jsonResult({
           count: projects.length,
           markets: projects.map((p) => ({
@@ -588,7 +598,7 @@ const mcp = createMcpHandler(
           return jsonResult({
             error: "unknown_market",
             symbol: want,
-            known: projects.map((p) => p.symbol),
+            known: publicSymbols(),
             detail: "That ticker is not served here. list_markets returns everything that is.",
           });
         }
@@ -845,7 +855,7 @@ const mcp = createMcpHandler(
         const want = String(symbol).toUpperCase();
         const market = pickMarket(registryProjects(), want, chainId);
         if (!market) {
-          return jsonResult({ error: "unknown_market", symbol: want, known: registryProjects().map((p) => p.symbol) });
+          return jsonResult({ error: "unknown_market", symbol: want, known: publicSymbols() });
         }
 
         // 1. Tantangan diambil dari GERBANG, bukan dibangun di sini. Yang ditandatangani
@@ -1013,7 +1023,7 @@ const mcp = createMcpHandler(
         const want = String(symbol).toUpperCase();
         const market = pickMarket(projects, want, chainId);
         if (!market) {
-          return jsonResult({ error: "unknown_market", symbol: want, known: projects.map((p) => p.symbol) });
+          return jsonResult({ error: "unknown_market", symbol: want, known: publicSymbols() });
         }
         if (!market.poolAddress || !market.poolLive) {
           return jsonResult({

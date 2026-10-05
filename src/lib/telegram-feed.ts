@@ -13,7 +13,7 @@
  * Tidak ada riwayat lama yang diposting: kursor sebuah pasar dimulai di ujung riwayatnya saat pertama
  * terlihat, kecuali pasar yang lahir sesudah feed jalan, yang dimulai dari launch-nya.
  */
-import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { listPublicProjects, type ProjectRecord } from "@/lib/registry";
 import { ensureMarketIndex, indexable, swapsWithTimes } from "@/lib/market-index";
 import { chainFromId, explorerTxUrl } from "@/lib/chains";
 import { isOurAddress } from "@/lib/agent-identities";
@@ -82,7 +82,8 @@ async function tick(): Promise<TickResult> {
     outbox.set(k, list);
   };
 
-  const projects = listProjects().filter(indexable);
+  // Kanal publik: pasar tersembunyi tidak diumumkan, peluncuran maupun tradenya.
+  const projects = listPublicProjects().filter(indexable);
   result.markets = projects.length;
   for (const p of projects) {
     const key = `${p.chainId}:${p.tokenAddress.toLowerCase()}`;

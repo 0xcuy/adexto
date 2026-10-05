@@ -33,7 +33,7 @@ import {
   creatorTickers,
   findProjectGroup,
   registerProject,
-  listProjects,
+  listPublicProjects,
   RegistryLimitError,
 } from "@/lib/registry";
 import {
@@ -115,7 +115,7 @@ export async function GET(req: Request) {
           supersededCurveFactory: c.supersededCurveFactoryAddress,
         };
       }),
-      registered: listProjects().map((p) => p.symbol),
+      registered: listPublicProjects().map((p) => p.symbol),
     });
   }
   // Availability is per chain, so the caller may ask about specific chains.

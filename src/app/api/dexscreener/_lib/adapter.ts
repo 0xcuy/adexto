@@ -40,6 +40,7 @@ import { ADEXTO_CURVE_ABI } from "@/lib/dex";
 import { confirmationsFor } from "@/lib/market-index";
 import { logSpanFor } from "@/lib/onchain-trades";
 import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { isHiddenMarket } from "@/config/hidden-markets";
 import { readJson, writeJson } from "@/lib/server-store";
 import launchRecord from "@/config/onchain-launches.json";
 import v1Deployments from "@/config/factory-deployments.json";
@@ -408,6 +409,9 @@ const LAUNCHES: LaunchRow[] = (launchRecord as { launches: LaunchRow[] }).launch
  */
 function exclusion(rt: Runtime, m: StoredMarket): string | null {
   if (!SUPPORTED_CURVE_VERSIONS.has(m.curveVersion)) return `curve version ${m.curveVersion} is not covered`;
+  // Pasar tersembunyi (src/config/hidden-markets.ts) tidak dilayani ke agregator, meski terdaftar.
+  // Diperiksa dari simbol on-chain juga, supaya tetap tersaring sebelum masuk registry.
+  if (isHiddenMarket(rt.cfg.chain.chainId, m.symbol)) return "hidden market";
   if (registryRecord(rt, m.pairId)) return null;
   const row = LAUNCHES.find(
     (l) => l.chainId === rt.cfg.chain.chainId && l.curve.toLowerCase() === m.pairId.toLowerCase()

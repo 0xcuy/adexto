@@ -15,7 +15,7 @@ import type { Metadata } from "next";
 import { ArrowRight, Bot, Coins, Plug, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import CopyField from "@/components/ui/CopyField";
-import { listProjects } from "@/lib/registry";
+import { listPublicProjects } from "@/lib/registry";
 import { agentLaunchVia } from "@/config/agent-launches";
 import { isOurAddress } from "@/lib/agent-identities";
 import { explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
@@ -54,7 +54,7 @@ const MORE: Array<{ href: string; title: string; text: string }> = [
 
 export default function AgentsPage() {
   // Bukti: pasar yang didaftarkan lewat alat agen (MCP `register_launch` atau REST), terbaru dulu.
-  const agentLaunches = listProjects()
+  const agentLaunches = listPublicProjects()
     .map((p) => ({ p, via: agentLaunchVia(p) }))
     .filter((x) => x.via !== null)
     .sort((a, b) => b.p.deployedAt - a.p.deployedAt)

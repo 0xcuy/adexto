@@ -19,6 +19,7 @@ import { ethers } from "ethers";
 import { X402_RELAYER } from "@/config/contracts";
 import { AGENT_REGISTRY_ADDRESS, IDENTITY_REGISTRY_ABI } from "@/lib/dex";
 import { readProvider, resolveChain } from "@/lib/chains";
+import { isHiddenMarket } from "@/config/hidden-markets";
 
 /** Alamat operasional ADEXTO. Huruf campur (checksum) di sini; bandingkan selalu dalam huruf kecil. */
 export const OUR_ADDRESSES = {
@@ -154,10 +155,20 @@ export async function agentOwner(chainId: number, agentId: string): Promise<stri
   }
 }
 
-/** Agen kami yang pemiliknya terbukti salah satu alamat kami saat ini. */
+/**
+ * Agen yang boleh dipajang: tanpa agen yang pasarnya tersembunyi (`src/config/hidden-markets.ts`).
+ * Sumbernya satu, pasar yang disembunyikan, jadi agen dan pasarnya tidak bisa berbeda status.
+ * Kartu per agen (`agentCard`) tetap memakai `OPERATED_AGENTS` penuh: kartunya harus tetap terbaca
+ * oleh Identity Registry dan 8004scan.
+ */
+export function publicOperatedAgents(): readonly OperatedAgent[] {
+  return OPERATED_AGENTS.filter((a) => !a.market || !isHiddenMarket(a.chainId, a.market.symbol));
+}
+
+/** Agen kami yang pemiliknya terbukti salah satu alamat kami saat ini (hanya yang dipajang). */
 export async function verifiedOperatedAgents(): Promise<Array<OperatedAgent & { owner: string }>> {
   const rows = await Promise.all(
-    OPERATED_AGENTS.map(async (a) => {
+    publicOperatedAgents().map(async (a) => {
       const owner = await agentOwner(a.chainId, a.agentId);
       return owner && isOurAddress(owner) ? { ...a, owner } : null;
     })

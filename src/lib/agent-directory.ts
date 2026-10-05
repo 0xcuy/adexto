@@ -7,9 +7,9 @@
  * kosong untuk pasar lama), jadi pasar yang diluncurkan siapa pun dengan agen terikat muncul di
  * sini tanpa langkah tambahan.
  */
-import { listProjects, type ProjectRecord } from "@/lib/registry";
+import { listPublicProjects, type ProjectRecord } from "@/lib/registry";
 import { computeAgentScore, readBinding, recentActivity, SCORE_METHOD, type ActivityRow, type AgentScore } from "@/lib/agent-score";
-import { OPERATED_AGENTS, agentOwner, isOurAddress, type OperatedAgent } from "@/lib/agent-identities";
+import { publicOperatedAgents, agentOwner, isOurAddress, type OperatedAgent } from "@/lib/agent-identities";
 import { resolveChainOrDefault, explorerNftUrl } from "@/lib/chains";
 import { AGENT_REGISTRY_ADDRESS } from "@/lib/dex";
 import { agentCardUrl } from "@/lib/agent-card";
@@ -33,7 +33,8 @@ export interface AgentDirectory {
 }
 
 export async function agentDirectory(): Promise<AgentDirectory> {
-  const projects = listProjects();
+  // Daftar publik: pasar tersembunyi dan agennya tidak dipajang di /agents maupun /api/agents.
+  const projects = listPublicProjects();
   const bindings = await Promise.all(projects.map(async (p) => [p, await readBinding(p)] as const));
   const bound: ProjectRecord[] = [];
   const unreadable: Array<{ symbol: string; chainId: number }> = [];
@@ -45,7 +46,7 @@ export async function agentDirectory(): Promise<AgentDirectory> {
   const [markets, operatedAgents, activity] = await Promise.all([
     Promise.all(bound.map((p) => computeAgentScore(p))),
     Promise.all(
-      OPERATED_AGENTS.map(async (a) => {
+      publicOperatedAgents().map(async (a) => {
         const owner = await agentOwner(a.chainId, a.agentId);
         return {
           ...a,
