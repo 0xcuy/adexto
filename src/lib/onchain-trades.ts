@@ -101,7 +101,7 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
    * berhenti selamanya tanpa ada yang tampak rusak kecuali angka holder yang membeku.
    *
    * Harganya: pemindaian mundur 16 panggilan sekarang menjangkau 8.000 blok (sekitar 4,4 jam)
-   * alih-alih 32.000. Untuk Base itu tidak lagi menentukan, karena subgraph v0.12.0 menjawab
+   * alih-alih 32.000. Untuk Base itu tidak lagi menentukan, karena subgraph v1.0.0 menjawab
    * lebih dulu untuk setiap pasar Base dan indeks pasar menyimpan sisanya sejak blok launch.
    */
   8453: 500, // Base — diukur 2026-10-05; sebelumnya 2.000 (2026-09-09) dan 10.000

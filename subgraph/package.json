@@ -1,6 +1,6 @@
 {
   "name": "adexto-subgraph",
-  "version": "0.12.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Indexes launches from the ADEXTO 0.10.0, 0.11.0 and v1 factories, and their curves' swaps, fee claims and treasury-funded buyback burns.",
   "scripts": {
