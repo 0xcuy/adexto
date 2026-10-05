@@ -89,6 +89,8 @@ export interface SovereignSwap {
    */
   setAmountFraction: (percent: number) => void;
   setMaxAmount: () => void;
+  /** Persen tombol porsi yang menghasilkan jumlah sekarang (100 = Max), null bila diketik/diubah. */
+  activeFraction: number | null;
 
   busy: boolean;
   statusLine: string | null;
@@ -153,7 +155,11 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     setLastEdited("in");
     setOutputDraft("");
     setOutputUnreachable(false);
+    // Jumlah yang ditulis dari mana pun selain tombol porsi bukan lagi "25%"/"Max".
+    setActiveFraction(null);
   }, []);
+  /** Tombol porsi yang menulis jumlah sekarang (25/50/75/100), atau null. Untuk sorotan tombolnya. */
+  const [activeFraction, setActiveFraction] = useState<number | null>(null);
 
   const [nativeBalance, setNativeBalance] = useState<bigint>(0n);
   const [tokenBalance, setTokenBalance] = useState<bigint>(0n);
@@ -296,6 +302,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     (value: string) => {
       setOutputDraft(value);
       setLastEdited("out");
+      setActiveFraction(null);
       solveFromOutput(value);
     },
     [solveFromOutput]
@@ -362,8 +369,10 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
         const part = (tokenBalance * pct) / 100n;
         setAmountInput(part > 0n ? ethers.formatUnits(part, tokenDecimals) : "0");
       }
+      // Sesudah `setAmountInput` (yang mengosongkannya), jadi sorotan jatuh ke tombol ini.
+      setActiveFraction(Number(pct));
     },
-    [mode, nativeBalance, tokenBalance, tokenDecimals, chain.nativeSymbol, gasPrice]
+    [mode, nativeBalance, tokenBalance, tokenDecimals, chain.nativeSymbol, gasPrice, setAmountInput]
   );
 
   const setMaxAmount = useCallback(() => setAmountFraction(100), [setAmountFraction]);
@@ -497,6 +506,7 @@ export function useSovereignSwap(market: SwapMarket | null, address: string | nu
     }),
     setAmountFraction,
     setMaxAmount,
+    activeFraction,
 
     busy,
     statusLine,

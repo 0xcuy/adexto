@@ -133,24 +133,27 @@ export function TradeAmounts({ swap, tokenSymbol, tokenLogo, inputUsd, isConnect
               punya rujukan dan menekannya hanya menulis nol. */}
           {isConnected && (
             <div className="flex items-center gap-1">
-              {[25, 50, 75].map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => swap.setAmountFraction(pct)}
-                  className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-line bg-cream-2 px-2 text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink lg:h-auto lg:min-w-0 lg:py-1"
-                  data-numeric
-                >
-                  {pct}%
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={swap.setMaxAmount}
-                className="inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border border-accent/30 bg-accent-soft px-2 text-[12px] font-semibold text-accent lg:h-auto lg:min-w-0 lg:py-1"
-              >
-                Max
-              </button>
+              {/* Sorotan ungu mengikuti tombol yang menulis jumlah sekarang. Dulu Max selalu ungu,
+                  jadi tampak terpilih walau yang ditekan 25%. Mengetik jumlah sendiri melepas sorotan. */}
+              {([25, 50, 75, 100] as const).map((pct) => {
+                const active = swap.activeFraction === pct;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => swap.setAmountFraction(pct)}
+                    aria-pressed={active}
+                    className={`inline-flex h-[32px] min-w-[36px] items-center justify-center rounded-lg border px-2 text-[12px] font-semibold transition-colors lg:h-auto lg:min-w-0 lg:py-1 ${
+                      active
+                        ? "border-accent/30 bg-accent-soft text-accent"
+                        : "border-line bg-cream-2 text-ink-soft hover:text-ink"
+                    }`}
+                    data-numeric={pct === 100 ? undefined : true}
+                  >
+                    {pct === 100 ? "Max" : `${pct}%`}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
