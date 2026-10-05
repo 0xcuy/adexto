@@ -237,9 +237,23 @@ export interface ProjectRecord {
    * and agent 0 is a real agent, so 0 never stands for "none".
    */
   agentIdentity: { agentId: string; registry: string } | null;
+  /**
+   * Jalur yang MENDAFTARKAN pasar ini lewat alat agen: `register_launch` di MCP ("mcp") atau
+   * `POST /api/agents/launch/register` ("api"). Null = Studio, atau terdaftar sebelum kolom ini ada.
+   *
+   * Ditulis HANYA oleh `markLaunchedVia`, yang dipanggil dari `registerLaunch` di dalam proses
+   * sesudah pendaftaran berhasil. Tidak pernah dari badan permintaan `/api/deploy`, jadi pemanggil
+   * langsung tidak bisa menandai peluncuran Studio sebagai peluncuran agen. Peluncuran agen sebelum
+   * kolom ini ada dicatat di `src/config/agent-launches.ts`.
+   */
+  launchedVia: "mcp" | "api" | null;
 }
 
 const ZERO_TOKENS: string[] = [];
+
+function normalizeLaunchedVia(value: unknown): ProjectRecord["launchedVia"] {
+  return value === "mcp" || value === "api" ? value : null;
+}
 
 function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "tokenAddress" | "name" | "symbol" | "chainKey">): ProjectRecord {
   const chain = CHAINS[partial.chainKey];
@@ -283,6 +297,7 @@ function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "token
     curated: partial.curated ?? false,
     poolLive: partial.poolLive ?? false,
     agentIdentity: normalizeAgentIdentity(partial.agentIdentity),
+    launchedVia: normalizeLaunchedVia(partial.launchedVia),
   };
 }
 
@@ -421,6 +436,7 @@ function loadCustom(): ProjectRecord[] {
     agentModel: normalizeAgentModel(r.agentModel),
     // Baris lama tidak punya kolom ini; dibaca sebagai null, bukan undefined.
     agentIdentity: normalizeAgentIdentity(r.agentIdentity),
+    launchedVia: normalizeLaunchedVia(r.launchedVia),
   }));
   globalThis.__ADEXTO_PROJECT_CACHE__ = clean;
   return clean;
@@ -811,6 +827,22 @@ export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPa
   copy[at] = next;
   persist(copy);
   return next;
+}
+
+/**
+ * Tandai pasar yang baru saja didaftarkan lewat alat agen. Hanya untuk `registerLaunch`; lihat
+ * `ProjectRecord.launchedVia`. Tidak menimpa tanda yang sudah ada. Null bila pasar tidak ditemukan.
+ */
+export function markLaunchedVia(tokenAddress: string, via: "mcp" | "api"): ProjectRecord | null {
+  const address = tokenAddress.toLowerCase();
+  const custom = loadCustom();
+  const at = custom.findIndex((p) => p.tokenAddress.toLowerCase() === address);
+  if (at < 0) return null;
+  if (custom[at].launchedVia) return custom[at];
+  const copy = [...custom];
+  copy[at] = { ...custom[at], launchedVia: via };
+  persist(copy);
+  return copy[at];
 }
 
 export function customProjectCount(): number {

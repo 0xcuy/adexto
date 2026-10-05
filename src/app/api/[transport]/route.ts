@@ -62,6 +62,7 @@ import { resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
 import { clientIp, rateLimit, rateLimitHeaders, secretEquals } from "@/lib/rate-limit";
+import { recordToolCall } from "@/lib/mcp-usage";
 import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, readTextBody } from "@/lib/body-limit";
 import { AGENT_ACCESS_MAX_AGE_MS, agentAccessMessage, stakeForMarket, type MarketStake } from "@/config/market-stakes";
 import { computeStakeForMarket, HUB_COMPUTE_SHARE_BPS } from "@/config/agent-compute";
@@ -1421,7 +1422,7 @@ const mcp = createMcpHandler(
       },
       async ({ chainId, txHash }) => {
         const ctx = requestContext.getStore();
-        return jsonResult(await registerLaunch({ chainId, txHash }, ctx?.ipHeaders ?? {}));
+        return jsonResult(await registerLaunch({ chainId, txHash }, ctx?.ipHeaders ?? {}, "mcp"));
       }
     );
 
@@ -1593,10 +1594,16 @@ async function handler(request: Request): Promise<Response> {
   if (!raw.trim()) {
     return parseError("Empty request body. Send a JSON-RPC 2.0 request, for example {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}.");
   }
+  let parsed: unknown;
   try {
-    JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     return parseError("Request body is not valid JSON.");
+  }
+  // Hitungan pemakaian per alat (`src/lib/mcp-usage.ts`): hanya nama alat dan hash keranjang IP.
+  for (const msg of Array.isArray(parsed) ? parsed : [parsed]) {
+    const m = msg as { method?: unknown; params?: { name?: unknown } } | null;
+    if (m?.method === "tools/call" && typeof m.params?.name === "string") recordToolCall(m.params.name, clientIp(request));
   }
 
   // Badan sudah dikonsumsi oleh `.text()`, jadi permintaannya dirakit ulang dengan isi yang

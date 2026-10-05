@@ -13,6 +13,9 @@ import { explorerAddressUrl } from "@/lib/chains";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentsNav from "@/components/agents/AgentsNav";
 import { short, WEIGHTS } from "@/components/agents/format";
+import { mcpUsageSummary } from "@/lib/mcp-usage";
+import { listProjects } from "@/lib/registry";
+import { agentLaunchVia } from "@/config/agent-launches";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,8 @@ export default async function AgentMarketsPage() {
   const outsideTraders = dir.markets.reduce((s, m) => s + m.evidence.outsideTraders, 0);
   const outsideDeliveries = dir.markets.reduce((s, m) => s + m.evidence.x402DeliveriesOutside, 0);
   const operated = dir.operatedAgents.filter((a) => a.ownedByAdexto).length;
+  const usage = mcpUsageSummary(7);
+  const listedByAgents = listProjects().filter((p) => agentLaunchVia(p) !== null).length;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
@@ -58,6 +63,29 @@ export default async function AgentMarketsPage() {
           </div>
         ))}
       </div>
+
+      <section className="mb-10" aria-labelledby="usage-title" data-testid="agents-usage">
+        <h2 id="usage-title" className="mb-3 text-[16px] font-semibold text-ink">Agent tools, last 7 days</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            ["MCP tool calls", String(usage.calls)],
+            ["Launch calls (prepare + register)", String(usage.launchCalls)],
+            ["Distinct callers per day, summed", String(usage.callerDays)],
+            ["Markets listed through agent tools", String(listedByAgents)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-card border border-line bg-surface p-4">
+              <div className="text-[12px]/snug text-ink-faint">{label}</div>
+              <div className="mt-1 text-[20px] font-semibold text-ink" data-numeric>
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[12px] text-ink-faint">
+          All callers, ADEXTO included: calls are counted per tool and per IP bucket, and our own calls cannot be told apart by
+          IP. Counting started {usage.since}. Markets listed through agent tools include launches from before counting started.
+        </p>
+      </section>
 
       <section className="section-block mb-4 space-y-4" id="directory">
         {dir.markets.length === 0 ? (

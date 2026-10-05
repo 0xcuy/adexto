@@ -15,10 +15,17 @@ import type { Metadata } from "next";
 import { ArrowRight, Bot, Coins, Plug, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import CopyField from "@/components/ui/CopyField";
+import { listProjects } from "@/lib/registry";
+import { agentLaunchVia } from "@/config/agent-launches";
+import { isOurAddress } from "@/lib/agent-identities";
+import { explorerTxUrl, resolveChainOrDefault } from "@/lib/chains";
 import { buttonClass } from "@/components/ui/Button";
 import AgentsNav from "@/components/agents/AgentsNav";
 import LaunchConsole from "@/components/agents/LaunchConsole";
 import { MCP_URL } from "@/components/agents/format";
+
+// Kartu "Launched by agents" dibaca dari registry saat render.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Launch with your agent — ADEXTO",
@@ -46,6 +53,13 @@ const MORE: Array<{ href: string; title: string; text: string }> = [
 ];
 
 export default function AgentsPage() {
+  // Bukti: pasar yang didaftarkan lewat alat agen (MCP `register_launch` atau REST), terbaru dulu.
+  const agentLaunches = listProjects()
+    .map((p) => ({ p, via: agentLaunchVia(p) }))
+    .filter((x) => x.via !== null)
+    .sort((a, b) => b.p.deployedAt - a.p.deployedAt)
+    .slice(0, 6);
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
       <AgentsNav current="/agents" />
@@ -90,6 +104,61 @@ export default function AgentsPage() {
         </p>
         <LaunchConsole />
       </section>
+
+      {agentLaunches.length > 0 && (
+        <section className="mb-12" aria-labelledby="launched-title" data-testid="agent-launches">
+          <h2 id="launched-title" className="mb-1 text-[20px] font-semibold tracking-tight text-ink">Launched by agents</h2>
+          <p className="mb-4 text-[14px] text-ink-soft">
+            Markets whose wallet signed and sent the launch itself, then listed it through the agent tools.
+          </p>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {agentLaunches.map(({ p, via }) => {
+              const chain = resolveChainOrDefault(p.chainId);
+              const ours = isOurAddress(p.creator);
+              return (
+                <li key={`${p.chainId}:${p.tokenAddress}`} className="glass-panel flex flex-col rounded-card p-4">
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.image} alt="" width={36} height={36} className="h-9 w-9 rounded-full border border-line object-cover" />
+                    <div className="min-w-0">
+                      <div className="truncate text-[16px] font-semibold text-ink">${p.symbol}</div>
+                      <div className="truncate text-[12px] text-ink-faint">{chain.name}</div>
+                    </div>
+                  </div>
+                  <dl className="mt-3 space-y-1 text-[12px] text-ink-soft">
+                    <div className="flex justify-between gap-2">
+                      <dt>Listed with</dt>
+                      <dd className="font-mono text-ink">{via === "mcp" ? "MCP register_launch" : "REST register"}</dd>
+                    </div>
+                    {p.agentIdentity && (
+                      <div className="flex justify-between gap-2">
+                        <dt>ERC-8004 agent</dt>
+                        <dd className="font-mono text-ink">#{p.agentIdentity.agentId}</dd>
+                      </div>
+                    )}
+                    {ours && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Creator</dt>
+                        <dd className="text-ink">ADEXTO demo agent</dd>
+                      </div>
+                    )}
+                  </dl>
+                  <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                    <Link href={`/token/${p.slug}?chain=${p.chainId}`} className={buttonClass({ variant: "secondary", size: "sm" })}>
+                      Trade
+                    </Link>
+                    {p.txHash && (
+                      <a href={explorerTxUrl(p.chainId, p.txHash)} target="_blank" rel="noreferrer" className={buttonClass({ variant: "ghost", size: "sm" })}>
+                        Launch tx
+                      </a>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="mb-12" aria-labelledby="gets-title">
         <h2 id="gets-title" className="mb-4 text-[20px] font-semibold tracking-tight text-ink">What your market gets</h2>

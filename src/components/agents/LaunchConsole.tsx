@@ -7,8 +7,9 @@
  * Tidak ada tanda tangan dan tidak ada transaksi di sini: halaman ini menyiapkan agen, peluncurannya
  * tetap dikerjakan agen lewat MCP dengan kuncinya sendiri. Teks English (aturan bahasa repo).
  */
-import { useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert, Loader2, XCircle } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, CircleAlert, Loader2, Radio, XCircle } from "lucide-react";
 import { CHAIN_LIST } from "@/lib/chains";
 import Tabs from "@/components/ui/Tabs";
 import Button from "@/components/ui/Button";
@@ -35,11 +36,57 @@ export default function LaunchConsole() {
   const [deployer, setDeployer] = useState("");
   const [agentId, setAgentId] = useState("");
   const [preflight, setPreflight] = useState<Preflight>({ status: "idle" });
+  /**
+   * Pelacak peluncuran: sesudah preflight lulus, halaman menanyakan registry tiap 5 detik apakah pasar
+   * ini sudah terdaftar dari wallet itu (`register_launch`). Berhenti sesudah 30 menit, saat ditemukan,
+   * atau saat isian berubah.
+   */
+  const [watch, setWatch] = useState<{ deployer: string; symbol: string; chainId: number } | null>(null);
+  const [live, setLive] = useState<{ page: string; symbol: string; chainName: string } | null>(null);
+  const [watchExpired, setWatchExpired] = useState(false);
 
   const chain = LAUNCHABLE.find((c) => c.chainId === chainId) ?? LAUNCHABLE[0];
   const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
   const deployerOk = ADDRESS_RE.test(deployer.trim());
   const ready = name.trim().length > 0 && sym.length >= 2 && deployerOk && Boolean(chain);
+
+  // Isian berubah → pelacak untuk isian lama tidak berlaku lagi.
+  useEffect(() => {
+    setWatch(null);
+    setLive(null);
+    setWatchExpired(false);
+  }, [sym, chainId, deployer]);
+
+  useEffect(() => {
+    if (!watch) return;
+    let stopped = false;
+    const startedAt = Date.now();
+    const check = async () => {
+      if (stopped) return;
+      if (Date.now() - startedAt > 30 * 60_000) {
+        setWatchExpired(true);
+        return;
+      }
+      try {
+        const q = new URLSearchParams({ deployer: watch.deployer, symbol: watch.symbol, chainId: String(watch.chainId) });
+        const res = await fetch(`/api/agents/launches?${q}`);
+        const j = res.ok ? await res.json() : null;
+        const hit = Array.isArray(j?.launches) ? j.launches[0] : null;
+        if (hit && !stopped) {
+          setLive({ page: hit.page, symbol: hit.symbol, chainName: LAUNCHABLE.find((c) => c.chainId === hit.chainId)?.name ?? "" });
+          return;
+        }
+      } catch {
+        // Jaringan sesaat: coba lagi di putaran berikutnya.
+      }
+      if (!stopped) timer = setTimeout(check, 5000);
+    };
+    let timer: ReturnType<typeof setTimeout> = setTimeout(check, 0);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [watch]);
 
   const prompt = useMemo(() => {
     const n = name.trim() || "<market name>";
@@ -108,7 +155,9 @@ async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
       ];
       if (j.checks?.agentId) rows.push({ state: "ok", text: `ERC-8004 agent #${j.checks.agentId} is owned by this wallet.` });
       rows.push({ state: "warn", text: `The wallet needs ${chain.nativeSymbol} on ${chain.name} for gas. The launch sends no value.` });
-      setPreflight({ status: "done", ok: rows.every((r) => r.state !== "fail"), rows, message: String(j.attestationMessage ?? "") || null });
+      const passed = rows.every((r) => r.state !== "fail");
+      setPreflight({ status: "done", ok: passed, rows, message: String(j.attestationMessage ?? "") || null });
+      if (passed) setWatch({ deployer: deployer.trim(), symbol: sym, chainId: chain.chainId });
     } catch {
       setPreflight({ status: "error", text: "The check could not be reached. Try again in a moment." });
     }
@@ -199,9 +248,30 @@ async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
           </p>
           <CopyBlock label="Instruction for your agent" code={prompt} />
         </div>
-        <div>
+        <div data-testid="launch-tracker">
           <h3 className="text-[16px] font-semibold text-ink">3. Watch it go live</h3>
-          <p className="mt-1 text-[13px] text-ink-soft">
+          {live ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-ok/40 bg-ok/10 p-3 text-[14px] text-ink">
+              <CheckCircle2 className="h-5 w-5 text-ok" aria-hidden="true" />
+              <span>
+                <span className="font-semibold">${live.symbol}</span> is live on {live.chainName}.
+              </span>
+              <Link href={live.page} className="font-semibold text-accent hover:underline">
+                Open the market
+              </Link>
+            </div>
+          ) : watch && !watchExpired ? (
+            <div className="mt-2 flex items-center gap-2 rounded-xl border border-line bg-cream-2 p-3 text-[13px] text-ink-soft">
+              <Radio className="h-4 w-4 animate-pulse text-accent" aria-hidden="true" />
+              <span>
+                Waiting for your agent to launch ${watch.symbol} and call <code className="text-accent">register_launch</code>.
+                Keep this page open; it checks every 5 seconds.
+              </span>
+            </div>
+          ) : watchExpired ? (
+            <p className="mt-2 text-[13px] text-ink-soft">Stopped watching after 30 minutes. Run the check again to resume.</p>
+          ) : null}
+          <p className="mt-2 text-[13px] text-ink-soft">
             When the transaction is mined and your agent calls <code className="text-accent">register_launch</code>, the
             market opens at <span className="font-mono text-ink">adexto.xyz/token/{(sym || "ticker").toLowerCase()}?chain={chain?.chainId}</span>,
             appears in <code className="text-accent">list_markets</code>, and other agents can buy it over x402.
