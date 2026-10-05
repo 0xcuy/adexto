@@ -92,6 +92,9 @@ ARBITRUM_RPC = "https://adexto.xyz/api/rpc/arbitrum"
 # Relai `/api/rpc/robinhood` sudah ada di situs dan menjawab chainId 0x1237 dengan kunci
 # relai (diperiksa 2026-10-01); upstream-nya RPC publik Robinhood.
 ROBINHOOD_RPC = "https://adexto.xyz/api/rpc/robinhood"
+# Arc (5042) lewat relai yang sama. Upstream relai: rpc.mainnet.arc.io (resmi), arc.drpc.org cadangan baca.
+# Native Arc adalah USDC; harga 1 dari /api/prices. Diset 2026-10-06 setelah factory Arc di-broadcast.
+ARC_RPC = "https://adexto.xyz/api/rpc/arc"
 # Satu asal untuk registry pasar DAN harga, supaya tidak ada sumber kebenaran kedua.
 ADEXTO_ORIGIN = "https://adexto.xyz"
 # Kelipatan biaya gas yang harus tersedia di vault buyback sebelum burn dijalankan.

@@ -173,7 +173,7 @@ export function openApiDocument(params: {
       version: compute ? "1.2.0" : "1.1.0",
       description:
         "Buy any ADEXTO bonding-curve market with USDC on Base and receive the token on the market's own chain " +
-        "(0G, Base, Arbitrum One, Monad, Robinhood Chain). No bridge, no gas on the destination chain. Delivery " +
+        "(0G, Base, Arbitrum One, Monad, Robinhood Chain, Arc). No bridge, no gas on the destination chain. Delivery " +
         "is executed before the charge, so a failed fill costs the gateway, not the buyer." +
         (compute ? " The same gateway sells single chat completions from 0G Compute, charged only after they are produced." : ""),
       "x-guidance":
