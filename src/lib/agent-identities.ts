@@ -61,6 +61,8 @@ export const OPERATED_AGENTS: readonly OperatedAgent[] = [
   { chainId: 8453, agentId: "84622", name: "ADEXTO Protocol Agent", operator: "deployer", market: null },
   { chainId: 42161, agentId: "1457", name: "ADEXTO Protocol Agent", operator: "deployer", market: null },
   { chainId: 143, agentId: "10247", name: "ADEXTO Protocol Agent", operator: "deployer", market: null },
+  // Arc, 2026-10-06: scripts/register-agent-8004.mjs --chain arc (tx 0x801c46fb…3b9a), pinned ipfs:// file.
+  { chainId: 5042, agentId: "1422", name: "ADEXTO Protocol Agent", operator: "deployer", market: null },
   {
     chainId: 143,
     agentId: "10251",
@@ -88,6 +90,16 @@ export const OPERATED_AGENTS: readonly OperatedAgent[] = [
     name: "SAi Robin Agent",
     operator: "agentA",
     market: { symbol: "SAI", token: "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d" },
+  },
+  // Arc, 2026-10-06: registered by Agent A over MCP (tx 0x75452495…0391), bound to $SAI at launch
+  // (tx 0x90a09e61…6a47). Keeps the name it registered under; its picture is the market's logo.
+  {
+    chainId: 5042,
+    agentId: "1421",
+    name: "SAi Arc Agent",
+    operator: "agentA",
+    market: { symbol: "SAI", token: "0x670062eDe99Fc9Ac946895dB146b88D54b01c76e" },
+    cardFace: { name: "SAi Arc Agent", image: "/api/logo/5042-sai-f072e7fe.png" },
   },
   // Registered by Agent A itself over MCP on 2026-10-03 (tx 0xdee136e2…e009), then bound to $LOOP at
   // launch (tx 0x086de87c…a9c4). Keeps the name it registered under; its picture is $LOOP's logo.

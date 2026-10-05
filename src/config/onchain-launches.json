@@ -1,6 +1,6 @@
 {
   "note": "Every launch that exists on chain, on any chain, and what each one is. Read from the factories rather than remembered. allProjects is append-only with no delete, so this list can only grow -- which is exactly why it is written down once here instead of being re-explained every time totalProjectsCount() is read. audit_consistency.mjs sums totalProjectsCount() across every chain and both factory generations, and fails only when an on-chain launch is NOT accounted for here. chainId is per entry: this file stopped being single-chain when $CURB launched on Monad, and a top-level chainId would have quietly labelled that launch 0G.",
-  "listedMarkets": 11,
+  "listedMarkets": 12,
   "launches": [
     {
       "symbol": "NOVA784",
@@ -211,6 +211,16 @@
       "token": "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
       "curve": "0x1b9d0221e2C7447845326A4a8C6B0f35c329500B",
       "why": "Test market on Arc, the first launch on the Arc v1 factory, hidden from every public list by src/config/hidden-markets.ts and not listed on the site. Launched over MCP by creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5 (launch tx 0x9a328e82595ca587d027c6f0a8902b8701900bd23444d67ade69bc1ff8afe06b, block 24455233), bound to ERC-8004 agent 1420 registered from that wallet (tx 0x9b9648411f44c0b7a9204e8ba201a90e2cbc2078e435c93d14066b43fabb8378). Its token and curve sit at the same addresses as $SAI on Robinhood Chain, because the Arc and Robinhood factories share an address: always pair an address with its chain id. That collision is what showed the registry keyed markets by address alone. Not counted in listedMarkets."
+    },
+    {
+      "symbol": "SAI",
+      "status": "live",
+      "chainId": 5042,
+      "factoryVersion": "1.0.0",
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "token": "0x670062eDe99Fc9Ac946895dB146b88D54b01c76e",
+      "curve": "0x13Ffcc4933B6db23b85532C767b85913430b0624",
+      "why": "SAi Arc, the first listed market on Arc and the fourth of the SAi family. Launched over MCP by the demo creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch itself (launch tx 0x90a09e61e0a7eec216edee1c4833bcf567dca2e2e1199e04839226cd68ae6a47, block 24465502, 3,216,062 gas), bound at launch to ERC-8004 agent 1421 registered from that wallet (tx 0x754524951937c1c18e7fd37ef13f78c55e7607ee320d1a1a4d080271d54f0391). Then bought over A2A with x402 by wallet 0x150ca9B520dE1fCBAD992322C798E547f0b9E803: delivery tx 0xf1569a0240333edd81cbd693e54af3ac53180e46d027765ced65eb8c97a78efe on Arc, settlement tx 0x7da5096ca9c4467069625967f1de287630d41ea0b9ee35a5c5a3f1d21c22f3e7 on Base. Both wallets are ADEXTO's own. Its image is a 3D render from /api/generate-logo."
     }
   ]
 }

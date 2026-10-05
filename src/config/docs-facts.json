@@ -4,7 +4,7 @@
     "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
     "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
   ],
-  "generatedAt": "2026-10-05T21:58:24.141Z",
+  "generatedAt": "2026-10-05T23:17:05.150Z",
   "site": "https://adexto.xyz",
   "chains": [
     {
@@ -86,6 +86,19 @@
     "antiSnipeMaxWalletBps": 100
   },
   "markets": [
+    {
+      "symbol": "SAI",
+      "name": "SAi Arc",
+      "slug": "sai",
+      "chainId": 5042,
+      "chainKey": "Arc",
+      "nativeSymbol": "USDC",
+      "token": "0x670062eDe99Fc9Ac946895dB146b88D54b01c76e",
+      "curve": "0x13Ffcc4933B6db23b85532C767b85913430b0624",
+      "depthFeeBps": 10,
+      "buybackBps": 10,
+      "launchBlock": 24465502
+    },
     {
       "symbol": "LOOP",
       "name": "Loop",
@@ -383,15 +396,15 @@
     "gateway": "https://x402.adexto.xyz",
     "example": {
       "httpStatus": 402,
-      "wwwAuthenticate": "x402 realm=\"adexto-buy-loop\"",
+      "wwwAuthenticate": "x402 realm=\"adexto-buy-sai\"",
       "x402Version": 2,
       "accepts": [
         {
           "scheme": "exact",
           "network": "base",
           "maxAmountRequired": "100000",
-          "resource": "https://x402.adexto.xyz/v1/x402/buy/loop?chain=42161",
-          "description": "Buy $LOOP on Arbitrum One with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
+          "resource": "https://x402.adexto.xyz/v1/x402/buy/sai?chain=5042",
+          "description": "Buy $SAI on Arc with USDC on Base. The curve sends the tokens straight to your address; we never hold them.",
           "mimeType": "application/json",
           "payTo": "0x24268Fffc119ec5550F68e80D94476fD64daE967",
           "maxTimeoutSeconds": 300,
@@ -420,12 +433,12 @@
   "nativePrices": {
     "USDC": 1,
     "USDT": 1,
-    "ETH": 2717.89,
-    "0G": 0.306634,
-    "A0GI": 0.306634,
-    "MON": 0.03148579,
-    "ARB": 0.210027,
-    "cbBTC": 85969
+    "ETH": 2714.64,
+    "0G": 0.306133,
+    "A0GI": 0.306133,
+    "MON": 0.03145281,
+    "ARB": 0.2076,
+    "cbBTC": 85890
   },
   "analysers": [
     {
