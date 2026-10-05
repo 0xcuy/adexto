@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-01T23:48:02.467Z",
-  "commit": "f80f6bc7c256cfa5027ad7a4773e3700ce867191",
-  "commitTime": "2026-10-02T06:46:55+07:00",
+  "generatedAt": "2026-10-05T22:50:36.779Z",
+  "commit": "b6f9c5bc3546fa916dc3ab69c812bcb12b0427e9",
+  "commitTime": "2026-10-06T05:16:35+07:00",
   "dirty": false,
   "contractHashes": {
     "contracts/AdextoAgentStake.sol": "ae967fcd4dd80d4b",
@@ -183,10 +183,10 @@
       "counts": {
         "properties": 6,
         "failed": 0,
-        "totalCalls": 50183,
+        "totalCalls": 50139,
         "uniqueInstructions": 7918
       },
-      "detail": "6/6 properties passed · 1 harness · 50,183 calls",
+      "detail": "6/6 properties passed · 1 harness · 50,139 calls",
       "cases": [
         "EchidnaAdextoCurve.echidna_solvent",
         "EchidnaAdextoCurve.echidna_tokensSoldWithinCurve",
