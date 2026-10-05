@@ -105,7 +105,26 @@ const LOG_SPAN_BY_CHAIN: Record<number, number> = {
    * lebih dulu untuk setiap pasar Base dan indeks pasar menyimpan sisanya sejak blok launch.
    */
   8453: 500, // Base — diukur 2026-10-05; sebelumnya 2.000 (2026-09-09) dan 10.000
-  42161: 500_000, // Arbitrum
+  /**
+   * Arbitrum TURUN dari 500.000 ke 100.000 (2026-10-06), dan bentuknya sama persis dengan
+   * Robinhood Chain di bawah: `arb1.arbitrum.io` kini punya DUA batas menurut bentuk filter.
+   *
+   *   satu nilai per posisi (1 alamat, 1 topic)     500.000 blok diterima
+   *   lebih dari satu nilai di satu posisi          100.000 blok, di atasnya ditolak:
+   *     "query spans 499997 blocks (…), but only 100000 are allowed for this request;
+   *      narrow the block range, or send one value per position"
+   *
+   * Diukur dengan filter `readOnChainSwaps` (satu kurva, tiga topic Swap): 500.000, 300.000,
+   * 200.000, 150.000 dan 120.000 ditolak, 100.000 diterima. Penjaga rentang di
+   * `audit_consistency.mjs` memakai satu nilai per posisi, jadi ia tetap lolos sementara
+   * MCP `trade_history` menjawab `read_failed` untuk ketiga pasar Arbitrum. Indeks pasar
+   * (dua alamat, empat topic) kena batas yang sama: ia hanya selamat selama tertinggal kurang
+   * dari 100.000 blok, sekitar tujuh jam.
+   *
+   * 100.000 x 16 panggilan = 1,6 juta blok, sekitar 4,4 hari di 0,25 dtk/blok. Riwayat yang
+   * lebih tua dari itu datang dari subgraph dan indeks pasar.
+   */
+  42161: 100_000, // Arbitrum — diukur 2026-10-06; sebelumnya 500.000
   /**
    * Monad NAIK dari 100 ke 500.000, dan yang berubah bukan Monad — penyedianya.
    *

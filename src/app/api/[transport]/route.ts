@@ -61,6 +61,9 @@ import { listPublicProjects, listServedProjects, type ProjectRecord } from "@/li
 import { chainIdList, resolveChainOrDefault } from "@/lib/chains";
 import { readOnChainSwaps } from "@/lib/onchain-trades";
 import { envioServes, readEnvioSwaps } from "@/lib/envio-indexer";
+import { readSubgraphSwaps, subgraphServesSwaps } from "@/lib/subgraph";
+import { ensureMarketIndex, indexable, indexedTrades, swapsWithTimes } from "@/lib/market-index";
+import type { TradeEvent } from "@/lib/telemetry";
 import { clientIp, rateLimit, rateLimitHeaders, secretEquals } from "@/lib/rate-limit";
 import { recordToolCall } from "@/lib/mcp-usage";
 import { BodyTooLargeError, IMAGE_JSON_BODY_BYTES, readTextBody } from "@/lib/body-limit";
@@ -490,6 +493,37 @@ function pickMarket(projects: ProjectRecord[], symbol: string, chainId?: number)
   return group.find((p) => p.poolLive) ?? group[0];
 }
 
+/**
+ * Jalur baca yang akan dipakai `trade_history` untuk sebuah pasar, dengan urutan yang SAMA
+ * dengan alat itu: indexer (Envio atau subgraph), lalu indeks per pasar, lalu log saja.
+ */
+function historySourceFor(p: ProjectRecord): "indexer" | "market-index" | "rpc-logs" {
+  if (envioServes(p.chainId) || subgraphServesSwaps(p.chainId)) return "indexer";
+  return indexable(p) ? "market-index" : "rpc-logs";
+}
+
+/** Alamat ber-checksum, atau string aslinya bila bukan alamat. */
+function checksumOrSelf(address: string): string {
+  try {
+    return ethers.getAddress(address);
+  } catch {
+    return address;
+  }
+}
+
+/** Kunci dedup yang sama dengan telemetry: satu transaksi bisa memuat beli dan jual. */
+const tradeKeyOf = (t: Pick<TradeEvent, "txHash" | "type">) => `${t.txHash.toLowerCase()}:${t.type}`;
+
+/** `logIndex` dari id `${txHash}_${logIndex}` (pemindaian, indeks) atau `${txHash}-${logIndex}`. */
+const logIndexOf = (t: TradeEvent) => {
+  const m = /[_-](\d+)$/.exec(String(t.id ?? ""));
+  return m ? Number(m[1]) : 0;
+};
+
+/** Terbaru dulu: blok turun, lalu urutan log di dalam blok turun. */
+const newestFirst = (a: TradeEvent, b: TradeEvent) =>
+  Number(b.blockNumber ?? 0) - Number(a.blockNumber ?? 0) || logIndexOf(b) - logIndexOf(a);
+
 const CHAIN_ID = z
   .number()
   .int()
@@ -569,7 +603,7 @@ const mcp = createMcpHandler(
             curve: p.poolAddress,
             tradable: p.poolLive && Boolean(p.poolAddress),
             priceNative: p.priceNative,
-            historySource: envioServes(p.chainId) ? "indexer" : "rpc-logs",
+            historySource: historySourceFor(p),
             agentIdentity: agentIdentityOut(p.chainId, p.agentIdentity),
           })),
           note:
@@ -624,7 +658,7 @@ const mcp = createMcpHandler(
            * Sumbernya, bukan klaim kelengkapan. Lengkap atau tidak hanya diketahui SESUDAH
            * dibaca — `trade_history` yang menyatakannya per panggilan lewat `complete`.
            */
-          historySource: envioServes(found.chainId) ? "indexer" : "rpc-logs",
+          historySource: historySourceFor(found),
           buyResource: `${GATEWAY}/v1/x402/buy/${found.slug}?chain=${found.chainId}`,
           agentIdentity: await readAgentIdentity(found),
           staking: stakeSummary(found),
@@ -975,29 +1009,32 @@ const mcp = createMcpHandler(
 
     // ── FREE: history ─────────────────────────────────────────────────────────
     /**
-     * KELENGKAPAN DIUKUR, BUKAN DIASUMSIKAN DARI CHAIN.
+     * KELENGKAPAN DIUKUR, BUKAN DIASUMSIKAN DARI CHAIN — dan dari sumber yang SAMA dengan
+     * terminal token.
      *
-     * Versi pertama alat ini MENOLAK setiap chain selain Monad, dengan alasan yang ditulis
-     * di dalam pesan galatnya sendiri: "pemindaian RPC di chain ini hanya menjangkau jendela
-     * pendek". Alasan itu salah untuk 0G, dan angkanya sudah ada di repo ini sejak awal.
+     * Urutannya:
+     *   1. Envio (Monad, Robinhood Chain) — lengkap sejak blok factory, tanpa `getLogs`.
+     *   2. Subgraph (Base, Arbitrum One) — sama, dari The Graph.
+     *   3. Indeks per pasar (`market-index.ts`, riwayat utuh sejak launch di disk) digabung
+     *      dengan pemindaian log mundur untuk ujung terbaru, persis seperti
+     *      `/api/agent/telemetry`.
      *
-     * Petak `eth_getLogs` 0G adalah 500.000 blok dengan anggaran 16 panggilan, sedangkan
-     * jarak dari blok peluncuran $ADEXTO ke kepala rantai 715.692 blok. Jadi riwayat penuh
-     * 0G terjangkau dalam DUA panggilan, dan produksi memang sudah menyajikannya:
-     * `reachedLaunch: true`, `truncated: false`, `calls: 2`, 20 fill untuk $ADEXTO dan 1
-     * untuk $ADT. Alat ini menolak data yang sudah dipajang halaman token di sebelahnya.
+     * Versi sebelumnya berhenti di pemindaian log saja (16 panggilan), jadi jawabannya
+     * terpotong di setiap pasar yang lebih tua dari jangkauan itu: $ADEXTO 6 dari 26 fill,
+     * $ADT, $ZEEBO dan $BLOOP nol (diukur 2026-10-06), padahal halaman token di sebelahnya
+     * sudah menampilkan riwayat penuh dari indeks pasar. Arbitrum bahkan menjawab
+     * `read_failed`, karena RPC-nya mulai menolak filter banyak-topic di atas 100.000 blok
+     * (lihat `LOG_SPAN_BY_CHAIN`).
      *
-     * Yang sebenarnya ingin dicegah tetap benar: riwayat terpotong tidak boleh terlihat
-     * seperti pasar yang tidak pernah diperdagangkan. Tapi penjaganya bukan daftar chain —
-     * penjaganya `coverage.reachedLaunch`, yang menyatakan penelusuran berhenti karena
-     * riwayatnya HABIS, bukan karena anggarannya habis. Base masih akan dilaporkan tidak
-     * lengkap kalau memang tidak lengkap: petaknya 500 blok (sejak 2026-10-05), jadi 16
-     * panggilan hanya menjangkau 8.000 blok.
+     * Yang dijaga tetap sama: riwayat terpotong tidak boleh terlihat seperti pasar yang tidak
+     * pernah diperdagangkan. `complete` hanya benar bila pemindaian mencapai blok launch,
+     * atau bila indeks menyambung ke bagian yang dibaca pemindaian (aturan `joined` yang sama
+     * dengan telemetry). Selain itu jawabannya menyatakan kenapa, dan baris yang ada tetap
+     * dikembalikan.
      *
-     * Keduanya memakai pustaka yang SAMA dengan yang dipakai terminal token
-     * (`readEnvioSwaps`, `readOnChainSwaps`). Versi pertama menyalin ulang kueri GraphQL
-     * Envio ke dalam berkas ini — persis "definisi kedua" yang dijanjikan tidak akan dibuat
-     * di komentar kepala berkas. Sekarang tidak ada kueri swap di sini sama sekali.
+     * Pemindaian SELALU diminta 400 baris lalu dipotong di sini: kunci cache
+     * `readOnChainSwaps` tidak memuat `limit`, jadi `limit: 2` dari MCP akan memangkas hasil
+     * yang dibagi dengan halaman token selama 15 detik.
      */
     server.registerTool(
       "trade_history",
@@ -1005,7 +1042,7 @@ const mcp = createMcpHandler(
         title: "Every swap on a market, and how complete the answer is",
         annotations: { title: "Every swap on a market, and how complete the answer is", ...READ_CHAIN },
         description:
-          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
+          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad and Robinhood Chain are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's index is still catching up or a read fails, the answer says so instead of presenting a shortened list as the whole history.",
         inputSchema: {
           symbol: SYMBOL,
           chainId: CHAIN_ID,
@@ -1056,10 +1093,14 @@ const mcp = createMcpHandler(
           executionPriceNative: t.priceNative,
           /** Harga spot kurva sesudah fill ini. Ini yang harus diplot sebagai harga. */
           spotPriceAfter: t.priceNativeAfter ?? null,
-          trader: t.trader,
+          // Indeks dan subgraph menyimpan alamat huruf kecil, pemindaian ber-checksum: satu bentuk.
+          trader: checksumOrSelf(t.trader),
           timestamp: t.timestamp,
           blockNumber: t.blockNumber,
         });
+
+        /** Galat indexer atau subgraph yang dilewati, dilaporkan di jawaban akhir. */
+        let sourceError: string | null = null;
 
         // 1. Indexer lebih dulu bila ia melayani chain ini: lengkap sejak blok peluncuran
         //    tanpa satu pun panggilan `getLogs`.
@@ -1090,59 +1131,121 @@ const mcp = createMcpHandler(
           }
           /**
            * Indexer yang gagal TIDAK mengembalikan daftar kosong: ia menyerahkan giliran ke
-           * pemindaian di bawah, dan galatnya tetap dilaporkan. Indexer mati yang diam-diam
-           * diganti sumber lebih sempit adalah tepat jenis kemunduran yang tidak boleh
-           * tampil seperti keadaan normal.
+           * sumber di bawah, dan galatnya tetap dilaporkan (`indexerError`, `degraded`).
+           * Indexer mati yang diam-diam diganti sumber lebih sempit adalah tepat jenis
+           * kemunduran yang tidak boleh tampil seperti keadaan normal.
            */
-          if (fromIndexer.error) {
-            const read = await readOnChainSwaps(chain, market.poolAddress, want, rows, market.blockNumber);
+          if (fromIndexer.error) sourceError = fromIndexer.error;
+        }
+
+        // 2. Subgraph, untuk chain yang dilayaninya (Base, Arbitrum One): sama seperti Envio,
+        //    lengkap sejak blok deployment factory tanpa satu pun panggilan `getLogs`.
+        if (subgraphServesSwaps(market.chainId)) {
+          const fromGraph = await readSubgraphSwaps(market.chainId, market.poolAddress, want, chain.nativeSymbol, rows);
+          if (!fromGraph.error && fromGraph.trades.length > 0) {
             return jsonResult({
               symbol: want,
               chainId: market.chainId,
               chain: market.chainLabel,
               curve: market.poolAddress,
-              source: "rpc-logs",
-              indexerError: fromIndexer.error,
-              degraded: true,
-              complete: read.coverage.reachedLaunch,
-              coverage: read.coverage,
-              returned: read.trades.length,
-              swaps: read.trades.map(shape),
+              source: "the-graph",
+              complete: true,
+              completeBecause:
+                "Our subgraph indexes every Swap since the factory's deployment block, so this is the whole history rather than a window.",
+              totalSwaps: fromGraph.totalSwaps,
+              returned: fromGraph.trades.length,
+              indexerSyncedToBlock: fromGraph.syncedToBlock,
+              swaps: fromGraph.trades.map(shape),
             });
           }
+          if (fromGraph.error) sourceError = fromGraph.error;
         }
 
-        // 2. Pemindaian log. Untuk sebagian chain ini menjangkau blok peluncuran dan karena
-        //    itu LENGKAP; untuk yang lain tidak, dan jawabannya menyatakan yang mana.
-        const read = await readOnChainSwaps(chain, market.poolAddress, want, rows, market.blockNumber);
-        if (read.coverage.error) {
+        // 3. Indeks per pasar (riwayat utuh sejak launch, di disk) + ujung terbaru dari
+        //    pemindaian log mundur, digabung seperti `/api/agent/telemetry`.
+        const [tail, indexed] = await Promise.all([
+          readOnChainSwaps(chain, market.poolAddress, want, 400, market.blockNumber),
+          indexable(market)
+            ? ensureMarketIndex(market, { waitMs: 8_000 }).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        // Snapshot SINKRON, tanpa `await` di antaranya: `runUpdate` mengubah indeks di tempat.
+        // Indeks yang belum memindai satu blok pun (dibuat segar lalu RPC-nya gagal) bukan indeks:
+        // tanpa penjaga ini, RPC yang mati akan dilaporkan sebagai riwayat kosong yang "belum lengkap".
+        const index = indexed?.index && indexed.index.scannedTo >= indexed.index.launchBlock ? indexed.index : null;
+        const status = indexed?.status ?? null;
+        const fromIndex = index ? indexedTrades(index, want, chain.nativeSymbol) : [];
+        const indexedThrough = index ? index.scannedTo : null;
+        const timesKnown = index ? swapsWithTimes(index).length === index.swaps.length : false;
+        const scanError = tail.coverage.error;
+
+        if (scanError && !index) {
           return jsonResult({
             error: "read_failed",
             symbol: want,
             chainId: market.chainId,
-            detail: read.coverage.error,
+            detail: scanError,
+            ...(sourceError ? { indexerError: sourceError } : {}),
             note: "This is an RPC failure, not an empty market. The two are reported separately on purpose.",
           });
         }
+
+        // Baris dari chain menang bila bertabrakan: ia dibaca langsung dari event.
+        const seen = new Set(tail.trades.map(tradeKeyOf));
+        const added = fromIndex.filter((t) => !seen.has(tradeKeyOf(t)));
+        const merged = [...tail.trades, ...added].sort(newestFirst);
+
+        const scanReachedLaunch = !scanError && tail.coverage.reachedLaunch;
+        /**
+         * Aturan `joined` dari telemetry: indeks menutup launch→`scannedTo`, pemindaian menutup
+         * `fromBlock`→kepala. Tanpa pemindaian yang berjalan, cukup indeksnya sudah di kepala.
+         */
+        const freshFrom = !scanError && tail.coverage.calls > 0 ? tail.coverage.fromBlock : null;
+        const indexJoined = Boolean(
+          index &&
+            !scanError &&
+            timesKnown &&
+            indexedThrough !== null &&
+            (freshFrom !== null ? indexedThrough + 1 >= freshFrom : status?.complete)
+        );
+        const complete = scanReachedLaunch || indexJoined;
+        const source = index && (added.length > 0 || indexJoined) ? "market-index" : "rpc-logs";
+        const percent = Math.floor((status?.progress ?? 0) * 100);
+        /** Blok yang tidak dicakup siapa pun: sesudah ujung indeks, sebelum awal pemindaian. */
+        const gap =
+          indexedThrough !== null && freshFrom !== null && freshFrom > indexedThrough + 1
+            ? `blocks ${indexedThrough + 1} to ${freshFrom - 1}`
+            : "the blocks it has not reached";
+        const reason = complete
+          ? indexJoined
+            ? `Our per-market index holds every Swap since the launch block ${market.blockNumber}, and the live log scan joins it up to the chain head, so this is the whole history.`
+            : `The scan reached the launch block ${market.blockNumber}, and the curve was created in the same transaction as the token, so no swap can exist before it.`
+          : scanError
+            ? `The live log scan failed (${scanError}), so swaps after block ${indexedThrough} may be missing. Everything up to that block comes from our per-market index.`
+            : !index
+              ? "The scan ran out of its call budget before reaching the launch block, and this market's index is not built yet, so older swaps exist that are not listed here. Treat an empty or short list as 'not seen', not as 'never traded'."
+              : status?.error
+                ? `Our per-market index stopped at block ${indexedThrough} because its last update failed, so swaps in ${gap} may be missing.`
+                : !timesKnown && status?.complete
+                  ? "Our per-market index has every swap but is still reading the block times of some of them. Ask again shortly."
+                  : `Our per-market index is still catching up (${percent}% of the blocks since launch), so swaps in ${gap} may be missing. Ask again shortly.`;
+
         return jsonResult({
           symbol: want,
           chainId: market.chainId,
           chain: market.chainLabel,
           curve: market.poolAddress,
-          source: "rpc-logs",
-          complete: read.coverage.reachedLaunch,
-          ...(read.coverage.reachedLaunch
-            ? {
-                completeBecause: `The scan reached the launch block ${market.blockNumber}, and the curve was created in the same transaction as the token, so no swap can exist before it.`,
-              }
-            : {
-                incompleteBecause:
-                  "The scan ran out of its call budget before reaching the launch block, so older swaps exist that are not listed here. Treat an empty or short list as 'not seen', not as 'never traded'.",
-              }),
+          source,
+          complete,
+          ...(complete ? { completeBecause: reason } : { incompleteBecause: reason }),
           launchBlock: market.blockNumber,
-          coverage: read.coverage,
-          returned: read.trades.length,
-          swaps: read.trades.map(shape),
+          indexedThroughBlock: indexedThrough,
+          ...(status && !status.complete ? { indexProgress: Math.round(status.progress * 1000) / 1000 } : {}),
+          coverage: tail.coverage,
+          totalSwaps: merged.length,
+          returned: Math.min(rows, merged.length),
+          swaps: merged.slice(0, rows).map(shape),
+          ...(sourceError ? { indexerError: sourceError, degraded: true } : {}),
         });
       }
     );
