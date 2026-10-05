@@ -57,6 +57,49 @@ try {
 
   launch("LOOP", 42161, 100);
   launch("SAI", 42161, 200);
+  /**
+   * Same token address on two chains (2026-10-06): the Arc and Robinhood factories share an address,
+   * so $ARCTEST on 5042 was born at $SAI's Robinhood address and register_launch read it as SAI.
+   */
+  {
+    const shared = "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d";
+    const reg = (symbol, chainId) =>
+      registry.registerProject({
+        tokenAddress: shared,
+        poolAddress: "0x1b9d0221e2C7447845326A4a8C6B0f35c329500B",
+        creator: AGENT_A,
+        name: symbol,
+        symbol,
+        chainId,
+        priceNative: 1e-9,
+        supply: 1_000_000_000,
+        lpFeeBps: 20,
+        treasuryBuybackBps: 10,
+        txHash: hash(),
+        blockNumber: 1,
+        poolLive: true,
+      });
+    reg("SAI", 4663);
+    let second = null;
+    try {
+      second = reg("ARCSAME", 5042);
+    } catch (e) {
+      check("the same address registers on a second chain", false, String(e.message));
+    }
+    if (second) check("the same address registers on a second chain", true);
+    const both = registry.listProjects().filter((p) => p.tokenAddress === shared);
+    check("listProjects keeps both chains' markets", both.length === 2, `${both.length}`);
+    check("findProject(address, 4663) is the Robinhood market", registry.findProject(shared, 4663)?.symbol === "SAI");
+    check("findProject(address, 5042) is the Arc market", registry.findProject(shared, 5042)?.symbol === "ARCSAME");
+    check("findProject(address, 143) finds nothing", registry.findProject(shared, 143) === null);
+    let dup = null;
+    try {
+      reg("ARCSAME", 5042);
+    } catch (e) {
+      dup = String(e.message);
+    }
+    check("the same address twice on ONE chain is still refused", Boolean(dup), dup ?? "accepted");
+  }
   const hidden = launch("ARBTTEST", 42161, 999); // newest on its chain
 
   const all = registry.listProjects();

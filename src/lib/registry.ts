@@ -567,7 +567,10 @@ export function listProjects(): ProjectRecord[] {
 
   for (const record of [...CURATED_PROJECTS, ...loadCustom()]) {
     const key = marketKey(record.chainId, record.symbol);
-    const addressKey = record.tokenAddress.toLowerCase();
+    // Alamat SELALU berpasangan dengan chainId. Factory Arc dan Robinhood ada di alamat yang sama
+    // (nonce 0 deployer), jadi token/kurva peluncuran ke-n di keduanya juga beralamat sama: $ARCTEST
+    // di 5042 = alamat $SAI di 4663. Kunci alamat saja membuat pasar Arc tertelan pasar Robinhood.
+    const addressKey = `${record.chainId}:${record.tokenAddress.toLowerCase()}`;
     if (seenMarket.has(key) || seenAddress.has(addressKey)) continue;
     seenMarket.add(key);
     seenAddress.add(addressKey);
@@ -658,7 +661,11 @@ export function findProject(slugOrAddress: string, chainId?: number | null): Pro
   if (!slugOrAddress) return null;
   const needle = slugOrAddress.toLowerCase();
 
-  const byAddress = listServedProjects().find((p) => p.tokenAddress.toLowerCase() === needle);
+  // Dengan chainId, alamat dicocokkan di chain itu saja (alamat yang sama bisa ada di dua chain).
+  const wantChain = chainId !== undefined && chainId !== null ? Number(chainId) : null;
+  const byAddress = listServedProjects().find(
+    (p) => p.tokenAddress.toLowerCase() === needle && (wantChain === null || p.chainId === wantChain)
+  );
   if (byAddress) return byAddress;
 
   const group = findProjectGroup(needle);
@@ -778,7 +785,8 @@ export function registerProject(input: RegisterInput): ProjectRecord {
 
   const address = input.tokenAddress.toLowerCase();
   const custom = loadCustom();
-  if (custom.some((p) => p.tokenAddress.toLowerCase() === address)) {
+  const onChain = resolveChainOrDefault(input.chainId).chainId;
+  if (custom.some((p) => p.tokenAddress.toLowerCase() === address && p.chainId === onChain)) {
     throw new Error("This token address is already registered.");
   }
 
@@ -904,10 +912,10 @@ export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPa
  * Tandai pasar yang baru saja didaftarkan lewat alat agen. Hanya untuk `registerLaunch`; lihat
  * `ProjectRecord.launchedVia`. Tidak menimpa tanda yang sudah ada. Null bila pasar tidak ditemukan.
  */
-export function markLaunchedVia(tokenAddress: string, via: LaunchVia): ProjectRecord | null {
+export function markLaunchedVia(tokenAddress: string, via: LaunchVia, chainId: number): ProjectRecord | null {
   const address = tokenAddress.toLowerCase();
   const custom = loadCustom();
-  const at = custom.findIndex((p) => p.tokenAddress.toLowerCase() === address);
+  const at = custom.findIndex((p) => p.tokenAddress.toLowerCase() === address && p.chainId === Number(chainId));
   if (at < 0) return null;
   if (custom[at].launchedVia) return custom[at];
   const copy = [...custom];

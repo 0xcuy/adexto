@@ -511,7 +511,8 @@ export async function registerLaunch(
     buyResource: `https://x402.adexto.xyz/v1/x402/buy/${slug}?chain=${chain.chainId}`,
   };
 
-  const existing = findProject(token);
+  // Dengan chainId: alamat token yang sama bisa sudah terdaftar di chain lain ($SAI 4663 = $ARCTEST 5042).
+  const existing = findProject(token, chain.chainId);
   if (existing) {
     return { registered: true, alreadyRegistered: true, symbol, chainId: chain.chainId, token, curve, creator, ...links };
   }
@@ -564,7 +565,7 @@ export async function registerLaunch(
   }
   pending().delete(key);
   // Sesudah pendaftaran berhasil, di dalam proses: inilah satu-satunya penulis `launchedVia`.
-  markLaunchedVia(token, via);
+  markLaunchedVia(token, via, chain.chainId);
   return {
     registered: true,
     alreadyRegistered: false,

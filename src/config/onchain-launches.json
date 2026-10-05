@@ -201,6 +201,16 @@
       "token": "0xeEe33340Db68A03Ece66970F34aa9ec46304e151",
       "curve": "0x72eb3911266e279a721f563994bf7e2b04c79AC3",
       "why": "End-to-end test market on Arbitrum One, hidden from every public list by src/config/hidden-markets.ts (its page still opens by URL). Launched over MCP by creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5, which signed the attestation and the launch itself (launch tx 0x92208bc4a97a47199fa83c9743b2e1ed1c21d8e7a3d182f2855e1ac38b8f79dc, block 511927429, 3,222,422 gas), bound at launch to ERC-8004 agent 1593 registered from that wallet (tx 0xca55aec1069d26bcd4b376bbc7e08ecefc875e9fa88289290ee865aafa95993f). Then bought over A2A with x402 by wallet 0x150ca9B520dE1fCBAD992322C798E547f0b9E803: delivery tx 0x08572021421a9009a26b8d738d7f401491307577869805feedb485696327bbe7 on Arbitrum One, settlement tx 0x0fa9ea9f4471303360c6bd97a8a3c5c669876b62ad02267b81a5bb9d73f89b5b on Base. Both wallets are ADEXTO's own. Not counted in listedMarkets."
+    },
+    {
+      "symbol": "ARCTEST",
+      "status": "test",
+      "chainId": 5042,
+      "factoryVersion": "1.0.0",
+      "factory": "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D",
+      "token": "0x4C63223B883B3096bC1Bd24087b56951D1dAC82d",
+      "curve": "0x1b9d0221e2C7447845326A4a8C6B0f35c329500B",
+      "why": "Test market on Arc, the first launch on the Arc v1 factory, hidden from every public list by src/config/hidden-markets.ts and not listed on the site. Launched over MCP by creator wallet 0x42478Ed9A429eC320d243469Fa5d6595BCc8daa5 (launch tx 0x9a328e82595ca587d027c6f0a8902b8701900bd23444d67ade69bc1ff8afe06b, block 24455233), bound to ERC-8004 agent 1420 registered from that wallet (tx 0x9b9648411f44c0b7a9204e8ba201a90e2cbc2078e435c93d14066b43fabb8378). Its token and curve sit at the same addresses as $SAI on Robinhood Chain, because the Arc and Robinhood factories share an address: always pair an address with its chain id. That collision is what showed the registry keyed markets by address alone. Not counted in listedMarkets."
     }
   ]
 }

@@ -13,6 +13,7 @@
  * menyatakan ketiadaannya berarti "hanya untuk discovery" — klaim yang benar.
  */
 import { agentRegistryOf, verifiedOperatedAgents } from "@/lib/agent-identities";
+import { chainNameList } from "@/lib/chains";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET() {
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name: "ADEXTO",
     description:
-      "ADEXTO launches bonding-curve token markets on 0G, Base, Arbitrum One, Monad and Robinhood Chain. An agent " +
+      `ADEXTO launches bonding-curve token markets on ${chainNameList()}. An agent ` +
       "can launch a market with its own key through the MCP server or the A2A agent (the server prepares the transaction; the " +
       "agent signs it), buy any market with USDC on Base over x402 and receive the token on the market's own " +
       "chain, and stake a market's token to ask that market's agent. A launch may bind its token to an ERC-8004 " +
