@@ -45,6 +45,18 @@ export default function LaunchConsole() {
   const [live, setLive] = useState<{ page: string; symbol: string; chainName: string } | null>(null);
   const [watchExpired, setWatchExpired] = useState(false);
 
+  /**
+   * Isi awal dari `?chain=&agentId=` (tautan "Launch with this ID" di /agents/identity dan kartu publik).
+   * Dibaca sekali saat mount dari `location.search`, bukan `useSearchParams`, supaya halaman server tidak butuh Suspense.
+   */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const c = Number(q.get("chain"));
+    if (LAUNCHABLE.some((x) => x.chainId === c)) setChainId(c);
+    const a = (q.get("agentId") ?? "").replace(/\D/g, "").slice(0, 78);
+    if (a) setAgentId(a);
+  }, []);
+
   const chain = LAUNCHABLE.find((c) => c.chainId === chainId) ?? LAUNCHABLE[0];
   const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
   const deployerOk = ADDRESS_RE.test(deployer.trim());

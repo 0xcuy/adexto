@@ -9,6 +9,8 @@ const ITEMS = [
   { href: "/agents/markets", label: "Agent markets" },
   { href: "/agents/activity", label: "Activity" },
   { href: "/agents/registry", label: "Identities & discovery" },
+  // Kartu identitas ERC-8004 milik pengguna (PLAN-AGENTS-ID). Kartu publik /agents/id/... ikut menandai tab ini.
+  { href: "/agents/identity", label: "Agent ID" },
 ] as const;
 
 export default function AgentsNav({ current }: { current: (typeof ITEMS)[number]["href"] }) {
