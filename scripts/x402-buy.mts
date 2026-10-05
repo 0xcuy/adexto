@@ -2,6 +2,7 @@
  * Beli token lewat gerbang x402 dengan UANG SUNGGUHAN, lalu buktikan kedua kakinya.
  *
  *   ./node_modules/.bin/tsx scripts/x402-buy.mts --symbol parcel
+ *   ./node_modules/.bin/tsx scripts/x402-buy.mts --symbol sai --chain 4663     # ticker di beberapa chain
  *   ./node_modules/.bin/tsx scripts/x402-buy.mts --symbol parcel --broadcast
  *
  * KENAPA BERKAS INI ADA
@@ -27,6 +28,7 @@
  */
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
+import { readFileSync } from "node:fs";
 import { signAuthorization, encodePaymentPayload, type PaymentRequirements } from "../cloudflare-worker/src/x402";
 
 dotenv.config({ path: ".env.local", quiet: true });
@@ -39,6 +41,17 @@ const argOf = (f: string) => {
 const BROADCAST = args.includes("--broadcast");
 const SYMBOL = (argOf("--symbol") || "parcel").toLowerCase();
 const GATEWAY = argOf("--gateway") || "https://x402.adexto.xyz";
+/**
+ * `--chain <id>` memilih pasar ketika satu ticker hidup di beberapa chain ($SAI ada di tiga).
+ * Diteruskan sebagai `?chain=` ke URL tantangan DAN URL berbayar: tanpa itu gerbang memakai
+ * pasar tertua ticker tersebut, dan pembayaran bisa mendarat di chain yang tidak dimaksud.
+ */
+const CHAIN = argOf("--chain");
+if (CHAIN && !/^\d+$/.test(CHAIN)) {
+  console.error(`--chain harus chain id angka, dapat "${CHAIN}"`);
+  process.exit(1);
+}
+const BUY_URL = `${GATEWAY}/v1/x402/buy/${SYMBOL}${CHAIN ? `?chain=${CHAIN}` : ""}`;
 
 /**
  * RPC Base publik, BUKAN relai kami.
@@ -63,11 +76,11 @@ const ERC20 = [
 const base = new ethers.JsonRpcProvider(BASE_RPC, 8453, { staticNetwork: true });
 const payer = new ethers.Wallet(PAYER_KEY, base);
 
-console.log(`gerbang : ${GATEWAY}/v1/x402/buy/${SYMBOL}`);
+console.log(`gerbang : ${BUY_URL}`);
 console.log(`pembayar: ${payer.address}\n`);
 
 // ── 1. Tantangan 402 ────────────────────────────────────────────────────────
-const challengeRes = await fetch(`${GATEWAY}/v1/x402/buy/${SYMBOL}`, { signal: AbortSignal.timeout(60000) });
+const challengeRes = await fetch(BUY_URL, { signal: AbortSignal.timeout(60000) });
 const challenge: any = await challengeRes.json();
 if (challengeRes.status !== 402) {
   console.error(`Diharapkan 402, dapat ${challengeRes.status}:`, JSON.stringify(challenge).slice(0, 300));
@@ -75,6 +88,10 @@ if (challengeRes.status !== 402) {
 }
 const requirements: PaymentRequirements = challenge.accepts[0];
 const q = challenge.quote;
+if (CHAIN && Number(q.chainId) !== Number(CHAIN)) {
+  console.error(`BATAL: diminta chain ${CHAIN}, gerbang mengutip chain ${q.chainId}`);
+  process.exit(1);
+}
 
 console.log("── tantangan 402 ──");
 console.log(`  bayar     : ${q.payWith.amount} (${requirements.asset}) di ${requirements.network}`);
@@ -91,13 +108,24 @@ if (!q.inventory.inStock) {
 
 // ── 2. Saldo sebelum, di kedua chain ────────────────────────────────────────
 const usdc = new ethers.Contract(requirements.asset, ERC20, base);
-const marketProvider = new ethers.JsonRpcProvider(
-  q.chainId === 143
-    ? process.env.MONAD_RPC_URL || "https://rpc.monad.xyz"
-    : process.env.OG_RPC_URL || "https://evmrpc.0g.ai",
-  q.chainId,
-  { staticNetwork: true }
-);
+/**
+ * RPC pemeriksa per chain pasar, dari `rpcUrl` di `src/config/contracts.ts` (sumber yang sama dengan
+ * aplikasi), dengan env opsional untuk menimpa. Versi sebelumnya hanya mengenal Monad dan 0G, jadi
+ * pembelian di Base, Arbitrum One atau Robinhood Chain membaca saldo token dari RPC 0G.
+ */
+const contractsSrc = readFileSync("src/config/contracts.ts", "utf8");
+const rpcFromConfig = (id: number) =>
+  (contractsSrc.match(new RegExp(`chainId:\\s*${id}\\b[\\s\\S]*?rpcUrl:\\s*"([^"]+)"`)) || [])[1];
+const RPC_OVERRIDE: Record<number, string | undefined> = {
+  143: process.env.MONAD_RPC_URL,
+  16661: process.env.OG_RPC_URL,
+};
+const marketRpc = RPC_OVERRIDE[Number(q.chainId)] || rpcFromConfig(Number(q.chainId));
+if (!marketRpc) {
+  console.error(`BATAL: tidak ada RPC untuk chain ${q.chainId} di src/config/contracts.ts`);
+  process.exit(1);
+}
+const marketProvider = new ethers.JsonRpcProvider(marketRpc, q.chainId, { staticNetwork: true });
 const tokenC = new ethers.Contract(q.token, ERC20, marketProvider);
 
 const before = {
@@ -128,7 +156,7 @@ if (!BROADCAST) {
 // ── 4. Kirim ulang permintaan, kali ini berbayar ────────────────────────────
 console.log("\n── mengirim X-PAYMENT ──");
 const t0 = Date.now();
-const paidRes = await fetch(`${GATEWAY}/v1/x402/buy/${SYMBOL}`, {
+const paidRes = await fetch(BUY_URL, {
   headers: { "X-PAYMENT": encodePaymentPayload(payload) },
   signal: AbortSignal.timeout(180000),
 });

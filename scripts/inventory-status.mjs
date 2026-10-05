@@ -97,6 +97,9 @@ const CHAINS = [
   { id: 8453, name: "Base", sym: "ETH", rpc: rpcFor(8453, "https://mainnet.base.org") },
   { id: 42161, name: "Arbitrum", sym: "ETH", rpc: rpcFor(42161, "https://arb1.arbitrum.io/rpc") },
   { id: 143, name: "Monad", sym: "MON", rpc: rpcFor(143, "https://rpc1.monad.xyz") },
+  { id: 4663, name: "Robinhood", sym: "ETH", rpc: rpcFor(4663, "https://rpc.mainnet.chain.robinhood.com") },
+  // Arc: native adalah USDC (18 desimal sebagai saldo native), jadi `formatEther` tetap benar.
+  { id: 5042, name: "Arc", sym: "USDC", rpc: rpcFor(5042, "https://rpc.mainnet.arc.io") },
 ];
 
 const provider = (c) => new ethers.JsonRpcProvider(c.rpc, c.id, { staticNetwork: true, batchMaxCount: 1 });
