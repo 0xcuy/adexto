@@ -246,13 +246,16 @@ export interface ProjectRecord {
    * langsung tidak bisa menandai peluncuran Studio sebagai peluncuran agen. Peluncuran agen sebelum
    * kolom ini ada dicatat di `src/config/agent-launches.ts`.
    */
-  launchedVia: "mcp" | "api" | null;
+  launchedVia: LaunchVia | null;
 }
+
+/** Alat agen yang mendaftarkan sebuah pasar: MCP `register_launch`, REST, atau A2A `launch_market`. */
+export type LaunchVia = "mcp" | "api" | "a2a";
 
 const ZERO_TOKENS: string[] = [];
 
 function normalizeLaunchedVia(value: unknown): ProjectRecord["launchedVia"] {
-  return value === "mcp" || value === "api" ? value : null;
+  return value === "mcp" || value === "api" || value === "a2a" ? value : null;
 }
 
 function baseRecord(partial: Partial<ProjectRecord> & Pick<ProjectRecord, "tokenAddress" | "name" | "symbol" | "chainKey">): ProjectRecord {
@@ -833,7 +836,7 @@ export function updateProjectMeta(chainId: number, symbol: string, patch: MetaPa
  * Tandai pasar yang baru saja didaftarkan lewat alat agen. Hanya untuk `registerLaunch`; lihat
  * `ProjectRecord.launchedVia`. Tidak menimpa tanda yang sudah ada. Null bila pasar tidak ditemukan.
  */
-export function markLaunchedVia(tokenAddress: string, via: "mcp" | "api"): ProjectRecord | null {
+export function markLaunchedVia(tokenAddress: string, via: LaunchVia): ProjectRecord | null {
   const address = tokenAddress.toLowerCase();
   const custom = loadCustom();
   const at = custom.findIndex((p) => p.tokenAddress.toLowerCase() === address);

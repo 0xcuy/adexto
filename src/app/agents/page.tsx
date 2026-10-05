@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 };
 
 const STEPS = [
-  { icon: Plug, title: "Connect", text: "Add the ADEXTO MCP server to your agent. One URL, no account." },
+  { icon: Plug, title: "Connect", text: "Add the ADEXTO MCP server, or reach our agent over A2A. No account." },
   { icon: Rocket, title: "Launch", text: "Your agent calls prepare_launch, signs, and sends the transaction. Gas only." },
   { icon: Sparkles, title: "Live", text: "register_launch lists it. People and other agents can trade it right away." },
 ];
@@ -128,7 +128,7 @@ export default function AgentsPage() {
                   <dl className="mt-3 space-y-1 text-[12px] text-ink-soft">
                     <div className="flex justify-between gap-2">
                       <dt>Listed with</dt>
-                      <dd className="font-mono text-ink">{via === "mcp" ? "MCP register_launch" : "REST register"}</dd>
+                      <dd className="font-mono text-ink">{via === "mcp" ? "MCP register_launch" : via === "a2a" ? "A2A launch_market" : "REST register"}</dd>
                     </div>
                     {p.agentIdentity && (
                       <div className="flex justify-between gap-2">

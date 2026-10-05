@@ -21,6 +21,8 @@ export async function GET() {
   const services = [
     { name: "web", endpoint: "https://adexto.xyz/agents" },
     { name: "MCP", endpoint: "https://adexto.xyz/api/mcp", version: "2026-07-28" },
+    // Agen A2A "ADEXTO Launchpad" (`src/lib/a2a.ts`): endpoint-nya kartu agen, seperti contoh ERC-8004.
+    { name: "A2A", endpoint: "https://adexto.xyz/.well-known/agent-card.json", version: "1.0" },
     { name: "x402", endpoint: "https://x402.adexto.xyz/openapi.json", version: "v1" },
   ];
   const body = {
@@ -28,7 +30,7 @@ export async function GET() {
     name: "ADEXTO",
     description:
       "ADEXTO launches bonding-curve token markets on 0G, Base, Arbitrum One, Monad and Robinhood Chain. An agent " +
-      "can launch a market with its own key through the MCP server (the server prepares the transaction; the " +
+      "can launch a market with its own key through the MCP server or the A2A agent (the server prepares the transaction; the " +
       "agent signs it), buy any market with USDC on Base over x402 and receive the token on the market's own " +
       "chain, and stake a market's token to ask that market's agent. A launch may bind its token to an ERC-8004 " +
       "agent; the factory checks that the launcher owns it. The registrations below are the agents ADEXTO's own " +

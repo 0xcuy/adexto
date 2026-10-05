@@ -17,7 +17,7 @@ import { ethers } from "ethers";
 import { POST as deployPOST } from "@/app/api/deploy/route";
 import { CHAIN_LIST, resolveChain, readProvider, type ChainInfo } from "@/lib/chains";
 import { CURVE_FACTORY_ABI, checkAgentOwnership } from "@/lib/dex";
-import { checkSymbolAvailable, creatorQuota, creatorTickers, findProject, markLaunchedVia } from "@/lib/registry";
+import { checkSymbolAvailable, creatorQuota, creatorTickers, findProject, markLaunchedVia, type LaunchVia } from "@/lib/registry";
 import { sanitizeName, sanitizeSymbol } from "@/lib/studio-prefill";
 import { LAUNCH_GAS_UNITS } from "@/lib/launch-cost";
 
@@ -423,7 +423,7 @@ export async function registerLaunch(
   input: { chainId: number; txHash: string },
   ipHeaders: IpHeaders,
   /** Alat agen yang memanggil: `register_launch` MCP atau REST `/api/agents/launch/register`. */
-  via: "mcp" | "api" = "mcp"
+  via: LaunchVia = "mcp"
 ): Promise<Record<string, unknown>> {
   const chain = launchChain(input.chainId);
   if (!chain) return { error: "unsupported_chain", detail: `Chain ${input.chainId} has no ADEXTO launch factory.`, launchableChains: launchableChains() };

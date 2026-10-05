@@ -1,6 +1,8 @@
 /** Helper tampilan bersama halaman `/agents/*`. */
 
 export const MCP_URL = "https://adexto.xyz/api/mcp";
+export const A2A_URL = "https://adexto.xyz/api/a2a";
+export const A2A_CARD_URL = "https://adexto.xyz/.well-known/agent-card.json";
 
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const fmt = (v: number, digits = 2) => v.toLocaleString("en-US", { maximumFractionDigits: digits });

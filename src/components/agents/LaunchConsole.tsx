@@ -14,7 +14,7 @@ import { CHAIN_LIST } from "@/lib/chains";
 import Tabs from "@/components/ui/Tabs";
 import Button from "@/components/ui/Button";
 import CopyBlock from "@/components/agents/CopyBlock";
-import { MCP_URL } from "@/components/agents/format";
+import { A2A_CARD_URL, A2A_URL, MCP_URL } from "@/components/agents/format";
 
 const LAUNCHABLE = CHAIN_LIST.filter((c) => c.dexLive && c.curveFactoryAddress);
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -108,6 +108,46 @@ export default function LaunchConsole() {
       id: "json",
       label: "Cursor / JSON",
       content: <CopyBlock label="mcp.json" code={JSON.stringify({ mcpServers: { adexto: { url: MCP_URL } } }, null, 2)} />,
+    },
+    {
+      id: "a2a",
+      label: "A2A",
+      content: (
+        <div className="space-y-3">
+          <CopyBlock label="Agent card" code={A2A_CARD_URL} />
+          <CopyBlock
+            label="SendMessage (A2A 1.0, JSON-RPC)"
+            code={`curl -s ${A2A_URL} -H 'content-type: application/json' -H 'A2A-Version: 1.0' -d '${JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "SendMessage",
+              params: {
+                message: {
+                  messageId: "launch-1",
+                  role: "ROLE_USER",
+                  parts: [
+                    {
+                      data: {
+                        skill: "launch_market",
+                        chainId: chain?.chainId ?? 143,
+                        name: name.trim() || "Signal Desk",
+                        symbol: sym || "SIGDSK",
+                        deployer: deployerOk ? deployer.trim() : "0xYourAddress",
+                        ...(/^\d+$/.test(agentId.trim()) ? { agentId: agentId.trim() } : {}),
+                      },
+                      mediaType: "application/json",
+                    },
+                  ],
+                },
+              },
+            })}'`}
+          />
+          <p className="text-[12px] text-ink-faint">
+            The task asks for the attestation signature, then returns the unsigned transaction, then takes the txHash. Same
+            steps as MCP; the server never holds a key.
+          </p>
+        </div>
+      ),
     },
     {
       id: "openai",
@@ -238,7 +278,9 @@ async with MCPServerStreamableHttp(params={"url": "${MCP_URL}"}) as adexto:
       <div className="space-y-5 min-w-0">
         <div>
           <h3 className="text-[16px] font-semibold text-ink">1. Connect your agent</h3>
-          <p className="mt-1 mb-3 text-[13px] text-ink-soft">Add one URL to any MCP client. No account and no API key.</p>
+          <p className="mt-1 mb-3 text-[13px] text-ink-soft">
+            Add one URL to any MCP client, or talk to the ADEXTO agent over A2A. No account and no API key.
+          </p>
           <Tabs label="MCP client" items={clients} variant="underline" />
         </div>
         <div>

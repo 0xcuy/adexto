@@ -21,6 +21,8 @@ const DISCOVERY: Array<[string, string]> = [
   ["MCP endpoint (Streamable HTTP)", MCP_URL],
   ["MCP server card", "https://adexto.xyz/.well-known/mcp/server-card.json"],
   ["MCP Registry entry (server.json)", "https://github.com/0xcuy/adexto/blob/main/server.json"],
+  ["A2A agent card (A2A 1.0 and 0.3)", "https://adexto.xyz/.well-known/agent-card.json"],
+  ["A2A endpoint (JSON-RPC)", "https://adexto.xyz/api/a2a"],
   ["x402 OpenAPI", "https://x402.adexto.xyz/openapi.json"],
   ["x402 resources", "https://x402.adexto.xyz/.well-known/x402"],
   ["ERC-8004 domain file", "https://adexto.xyz/.well-known/agent-registration.json"],
