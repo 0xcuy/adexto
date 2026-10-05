@@ -4,7 +4,7 @@
     "Ini satu-satunya bahan yang boleh dipakai halaman docs. Angka atau alamat di halaman",
     "docs yang tidak ada di berkas ini adalah halusinasi; scripts/docs-verify.mjs menolaknya."
   ],
-  "generatedAt": "2026-10-05T20:39:40.013Z",
+  "generatedAt": "2026-10-05T21:58:24.141Z",
   "site": "https://adexto.xyz",
   "chains": [
     {
@@ -287,7 +287,7 @@
       {
         "name": "trade_history",
         "title": "Every swap on a market, and how complete the answer is",
-        "description": "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad is served by our Envio indexer, which has no lookback window; the other chains are served by a log scan whose reach is reported per call. When the scan cannot reach the launch block the answer says so instead of presenting a shortened list as the whole history.",
+        "description": "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad and Robinhood Chain are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's in",
         "args": [
           "symbol",
           "chainId",
@@ -420,12 +420,12 @@
   "nativePrices": {
     "USDC": 1,
     "USDT": 1,
-    "ETH": 2713.66,
-    "0G": 0.308102,
-    "A0GI": 0.308102,
-    "MON": 0.03132975,
-    "ARB": 0.209875,
-    "cbBTC": 85790
+    "ETH": 2717.89,
+    "0G": 0.306634,
+    "A0GI": 0.306634,
+    "MON": 0.03148579,
+    "ARB": 0.210027,
+    "cbBTC": 85969
   },
   "analysers": [
     {
