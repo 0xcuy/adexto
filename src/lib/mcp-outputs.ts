@@ -191,7 +191,9 @@ export const MCP_OUTPUTS = {
     complete: b("True only when the answer reaches the launch block."),
     completeBecause: s("Why the history is complete."),
     incompleteBecause: s("Why older swaps may be missing."),
-    totalSwaps: n("Swaps since launch; on an incomplete answer, the swaps seen so far."),
+    totalSwaps: n(
+      "Swaps since launch, on every read path. Treasury buybacks are not counted, so this can be lower than the curve's swapCount. On an incomplete answer, the swaps seen so far."
+    ),
     returned: n("Rows in swaps."),
     indexerSyncedToBlock: nn("Block the indexer or subgraph has reached."),
     indexerError: any("Why the indexer or subgraph was skipped, when it was."),

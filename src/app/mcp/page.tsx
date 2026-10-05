@@ -271,14 +271,19 @@ export default function McpPage() {
           {/* Kalimat lama: "Trade history is Monad only." Itu salah, dan salahnya bukan
               soal kata — alatnya memang menolak 0G padahal riwayat 0G lengkap dan sudah
               dipajang halaman token. Penjaganya sekarang jangkauan yang terukur, bukan
-              daftar chain. */}
+              daftar chain. Versi berikutnya ("the other chains are served by a log scan")
+              basi sejak 2026-10-06: `trade_history` kini membaca sumber yang sama dengan
+              halaman token, dan ke-11 pasar menjawab `complete: true`. */}
           <p className="text-xs leading-relaxed text-ink-soft">
-            <strong className="text-ink">History states its own reach.</strong> Monad is served by an indexer,
-            which has no lookback window. The other chains are served by a log scan, and how far it got is
-            reported on every call: <code className="text-accent">complete</code> is true only when the scan
-            reached the market&apos;s launch block, and since the curve is created in the same transaction as the
-            token, nothing can exist before it. When it is false the answer says so, because a short list must
-            never be mistaken for a market that has never traded.
+            <strong className="text-ink">History states its own reach.</strong> Monad and Robinhood Chain are
+            served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch
+            block. Every market also has its own index of every swap since launch, joined to a live log scan for
+            the newest fills, which is what answers on 0G and whenever an indexer is down.{" "}
+            <code className="text-accent">complete</code> is true only when the answer provably reaches the
+            market&apos;s launch block, and since the curve is created in the same transaction as the token,
+            nothing can exist before it. While a market&apos;s index is still catching up it is false and the
+            answer names the blocks not read yet, because a short list must never be mistaken for a market that
+            has never traded.
           </p>
         </div>
       </div>

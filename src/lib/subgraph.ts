@@ -437,7 +437,7 @@ export async function fetchCurveStats(
  */
 export type SubgraphSwapResult = {
   trades: TradeEvent[];
-  /** Total baris yang dimiliki subgraph untuk kurva ini, tanpa dipotong `limit`. */
+  /** Jumlah `Swap` kurva ini menurut subgraph, tanpa dipotong `limit` dan tanpa buyback. */
   totalSwaps: number;
   /** Blok terakhir yang sudah diproses subgraph, untuk menyatakan kesegarannya. */
   syncedToBlock: number | null;
@@ -475,7 +475,7 @@ const SWAPS_QUERY = `query Swaps($curve: String!, $limit: Int!) {
     timestamp
     blockNumber
   }
-  curve(id: $curve) { swapCount }
+  curve(id: $curve) { buyCount sellCount }
   _meta { block { number } }
 }`;
 
@@ -516,7 +516,16 @@ export async function readSubgraphSwaps(
       return { ...empty, error: String(body.errors[0]?.message ?? "Subgraph returned an error.") };
     }
     const rows: Array<Record<string, unknown>> = Array.isArray(body?.data?.swaps) ? body.data.swaps : [];
-    const totalSwaps = Number(body?.data?.curve?.swapCount ?? rows.length);
+    /**
+     * `buyCount + sellCount`, BUKAN `swapCount`. Kontrak menaikkan `swapCount` juga untuk
+     * buyback treasury, dan subgraph ikut, padahal buyback bukan `Swap` dan tidak ada di
+     * `swaps`. Dengan `swapCount`, pasar Base/Arbitrum yang pernah buyback akan tampak
+     * terpotong (`truncated` di telemetry, `totalSwaps` > `returned` di MCP) walau setiap
+     * perdagangannya sudah dikembalikan. Envio menghitung entitas `Swap` dan indeks pasar
+     * menghitung event `Swap`, jadi ketiga jalur kini menghitung hal yang sama.
+     */
+    const counts = body?.data?.curve;
+    const totalSwaps = counts ? Number(counts.buyCount) + Number(counts.sellCount) : rows.length;
     const syncedToBlock = Number(body?.data?._meta?.block?.number) || null;
     const toWhole = (v: unknown) => Number(v ?? 0) / SWAP_WEI;
     const trades: TradeEvent[] = rows.map((r) => {

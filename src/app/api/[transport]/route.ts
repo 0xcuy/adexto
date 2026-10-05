@@ -1035,6 +1035,12 @@ const mcp = createMcpHandler(
      * Pemindaian SELALU diminta 400 baris lalu dipotong di sini: kunci cache
      * `readOnChainSwaps` tidak memuat `limit`, jadi `limit: 2` dari MCP akan memangkas hasil
      * yang dibagi dengan halaman token selama 15 detik.
+     *
+     * Buyback treasury BUKAN perdagangan dan tidak masuk `swaps`, tetapi kontrak menaikkan
+     * `swapCount` untuknya. `totalSwaps` di ketiga jalur menghitung `Swap` saja (Envio: agregat
+     * entitas `Swap`; subgraph: `buyCount + sellCount`; indeks: event `Swap`), jadi ia bisa
+     * lebih kecil daripada `swapCount()` kurva. Terukur 2026-10-06 pada $ADEXTO di 0G:
+     * `swapCount()` 27 = 26 `Swap` + 1 `AutoBuybackExecuted`, dan jawabannya 26 baris.
      */
     server.registerTool(
       "trade_history",
@@ -1042,7 +1048,7 @@ const mcp = createMcpHandler(
         title: "Every swap on a market, and how complete the answer is",
         annotations: { title: "Every swap on a market, and how complete the answer is", ...READ_CHAIN },
         description:
-          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad and Robinhood Chain are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's index is still catching up or a read fails, the answer says so instead of presenting a shortened list as the whole history.",
+          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad and Robinhood Chain are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's index is still catching up or a read fails, the answer says so instead of presenting a shortened list as the whole history. Treasury buybacks are not trades and are not listed, although the curve's swapCount counts them.",
         inputSchema: {
           symbol: SYMBOL,
           chainId: CHAIN_ID,

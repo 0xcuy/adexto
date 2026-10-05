@@ -569,7 +569,7 @@
               "type": "list",
               "items": [
                 "Base Mainnet and Arbitrum One use hosted subgraphs to index contract events.",
-                "Monad Mainnet uses an Envio HyperIndex deployment for log indexing and queries.",
+                "Monad Mainnet and Robinhood Chain use an Envio HyperIndex deployment for log indexing and queries.",
                 "0G Mainnet reads event logs directly from the node RPC endpoint at `https://evmrpc.0g.ai` because The Graph does not offer indexing support for chain ID 16661."
               ]
             },
@@ -592,7 +592,7 @@
             },
             {
               "type": "p",
-              "text": "As noted in the `list_markets` tool description, the Envio indexer on Monad operates without a lookback window limitation, whereas direct log scans on other networks remain constrained by RPC block span limits."
+              "text": "The Envio indexer has no lookback window, and neither do the subgraphs on Base and Arbitrum One or the per-market index that covers every market, including those on 0G. Only the live log scan that supplies the newest fills is bounded by RPC block span limits, and the `trade_history` tool reads these sources in that order."
             }
           ]
         },
@@ -609,7 +609,7 @@
             },
             {
               "type": "note",
-              "text": "When a direct RPC log scan cannot reach the initial launch block of a market, the response explicitly indicates that the scan window is bounded, rather than misrepresenting the partial record as a complete history."
+              "text": "When an answer cannot be shown to reach the launch block of a market, for example while that market's index is still catching up, the response says so and names the blocks not read yet, rather than presenting the partial record as a complete history."
             }
           ]
         },
