@@ -1,106 +1,103 @@
-# Skema subgraph ADEXTO.
+# ADEXTO subgraph schema.
 #
-# KENAPA SKEMA LAMA DIGANTI SELURUHNYA
+# WHY THE OLD SCHEMA WAS REPLACED ENTIRELY
 #
-# Yang sebelumnya ada hanya `Project` dan `GlobalStats`, diisi dari satu event
-# factory generasi v1 (`TrinityProjectCreated`) — dan bahkan itu tidak pernah
-# berjalan, karena manifestnya menunjuk `network: mainnet` untuk alamat yang
-# sesungguhnya ada di 0G. Sementara itu halaman /docs mengklaim subgraph
-# "mengindeks curve depth, swap transactions, dan real-time treasury buyback
-# burns". Tak satu pun dari ketiganya punya tempat di skema lama.
+# The previous schema had only `Project` and `GlobalStats`, filled from a single
+# event of the first factory generation (`TrinityProjectCreated`), and even that
+# never ran, because its manifest pointed at `network: mainnet` for an address
+# that actually lives on 0G. Meanwhile the /docs page claimed the subgraph
+# "indexes curve depth, swap transactions, and real-time treasury buyback
+# burns". None of the three had a place in the old schema.
 #
-# KENAPA TIDAK BUTUH `eth_call` SAMA SEKALI
+# WHY NO `eth_call` IS NEEDED AT ALL
 #
-# Ini yang menentukan seluruh bentuk skema ini. `SovereignCurve.Swap` memancarkan
-# `nativeReserveAfter` dan `tokenReserveAfter` — keadaan reserve SESUDAH tiap
-# perdagangan — dan `CurveInitialized` memancarkan `virtualNative`, `curveTokens`,
-# serta `openingPrice`. Artinya seluruh keadaan kurva bisa dipelihara dari aliran
-# event saja.
+# This decides the whole shape of the schema. `SovereignCurve.Swap` emits
+# `nativeReserveAfter` and `tokenReserveAfter`, the reserves AFTER each trade,
+# and `CurveInitialized` emits `virtualNative`, `curveTokens` and
+# `openingPrice`. So the entire curve state can be maintained from the event
+# stream alone.
 #
-# Itu bukan kenyamanan kecil: RPC publik 0G berjalan pruned, bukan archive
-# (`eth_getBalance` gagal dengan `missing trie node` bahkan 1.000 blok ke
-# belakang), dan tidak menyediakan `trace_block`. Subgraph yang memanggil fungsi
-# view akan mati di sana. Karena itu ada satu aturan pemeliharaan yang tidak boleh
-# dilanggar: JANGAN menambahkan `.bind()` atau `try_*` ke mapping mana pun.
-# Begitu satu panggilan kontrak masuk, jalur 0G langsung menuntut node archive dan
-# biayanya berubah dari satu kontainer menjadi masalah infrastruktur.
+# That is not a minor convenience. The public 0G RPC runs pruned, not archive
+# (`eth_getBalance` fails with `missing trie node` even 1,000 blocks back), and
+# it does not provide `trace_block`. A subgraph that calls view functions would
+# die there. Hence one maintenance rule that must not be broken: DO NOT add
+# `.bind()` or `try_*` to any mapping. The moment one contract call goes in, the
+# 0G path needs an archive node, and the cost turns from one container into an
+# infrastructure problem.
 #
-# `metadataRoot`, BUKAN `teeAttestationRoot`
+# `metadataRoot`, NOT `teeAttestationRoot`
 #
-# Field ini dulu bernama `teeAttestationRoot` di skema maupun di kontrak. Nilainya
-# adalah root penyimpanan 0G DA dari metadata launch — sebuah hash konten. Ia bukan
-# laporan attestation hardware, dan nama lamanyalah yang membuat halaman produk
-# mengklaim attestation yang tidak pernah diverifikasi siapa pun.
+# This field used to be called `teeAttestationRoot`, in the schema and in the
+# contract. Its value is the 0G DA storage root of the launch metadata, a
+# content hash. It is not a hardware attestation report, and the old name is
+# what led the product page to claim an attestation that nobody ever verified.
 
 """
-Pengikatan ERC-8004 yang tercatat oleh event `AgentBound`.
+An ERC-8004 binding recorded by the `AgentBound` event.
 
-KENAPA ENTITY INI ADA, BUKAN LANGSUNG DITULIS KE `Project`
+WHY THIS IS ITS OWN ENTITY INSTEAD OF BEING WRITTEN STRAIGHT INTO `Project`
 
-Factory memancarkan `AgentBound` SEBELUM `TrinityProjectDeployed` (baris 330 vs
-334 di AdextoCurveFactory.sol), jadi saat handler-nya berjalan entity `Project`
-belum ada. Menulis Project setengah jadi di sana akan melanggar field non-null
-miliknya. Jadi pengikatannya disimpan di sini lebih dulu, lalu digabungkan oleh
-`handleTrinityProjectDeployed` yang berjalan setelahnya di transaksi yang sama.
+The factory emits `AgentBound` BEFORE `TrinityProjectDeployed` (lines 330 and
+334 of AdextoCurveFactory.sol), so when its handler runs, the `Project` entity
+does not exist yet. Writing a half-built Project there would violate its
+non-null fields. So the binding is stored here first, then merged by
+`handleTrinityProjectDeployed`, which runs after it in the same transaction.
 
-Entity ini juga tetap berguna sendiri: ia bisa dikueri untuk mencari semua token
-yang terikat ke satu agent.
+The entity is also useful on its own: query it to find every token bound to one
+agent.
 """
 type AgentBinding @entity(immutable: true) {
-  "Alamat token, huruf kecil — sama dengan Project.id."
+  "Token address, lowercase. Same as Project.id."
   id: ID!
   token: Bytes!
   agentId: BigInt!
   agentRegistry: Bytes!
-  "Pemilik agent saat peluncuran, sebagaimana diverifikasi factory lewat `ownerOf`."
+  "Agent owner at launch, as verified by the factory through `ownerOf`."
   ownerAtLaunch: Bytes!
   boundAtBlock: BigInt!
   boundAtTx: Bytes!
 }
 
 """
-Satu peluncuran.
+One launch.
 
-TIDAK ADA `chainId` DI SINI, DAN ITU DISENGAJA. `ethereum.Event` tidak
-menyediakannya dan graph-ts tidak mengekspornya, jadi satu-satunya cara mengisinya
-adalah menebak atau memakukannya per deployment — keduanya cara yang bagus untuk
-membuat dua pasar dari chain berbeda tampak sebagai satu. Sebuah subgraph selalu
-satu jaringan, jadi chainId adalah metadata tentang DEPLOYMENT-nya, bukan tentang
-entitas ini. `/api/graphql` menempelkannya dari sisi server, tempat nilainya
-memang diketahui dengan pasti.
+THERE IS NO `chainId` HERE, AND THAT IS ON PURPOSE. `ethereum.Event` does not
+provide it and graph-ts does not export it, so the only ways to fill it are
+guessing or pinning it per deployment, and both are good ways to make two
+markets on different chains look like one. A subgraph is always one network,
+so the chain id is metadata about its DEPLOYMENT, not about this entity.
+`/api/graphql` attaches it server-side, where the value is known for certain.
 """
 type Project @entity(immutable: false) {
-  "Alamat token, huruf kecil."
+  "Token address, lowercase."
   id: ID!
   token: Bytes!
   curve: Curve!
   creator: Bytes!
   name: String!
   symbol: String!
-  "Supply dalam satuan utuh seperti yang dikirim ke factory."
+  "Supply in whole units, as sent to the factory."
   initialSupply: BigInt!
-  "Token yang benar-benar masuk kurva. Sama dengan seluruh supply ter-mint."
+  "Tokens that actually entered the curve. Equal to the whole minted supply."
   curveTokens: BigInt!
-  "Root penyimpanan 0G DA dari metadata launch. Bukan attestation hardware."
+  "0G DA storage root of the launch metadata. Not a hardware attestation."
   metadataRoot: Bytes!
 
   """
-  Apakah peluncuran ini mengikat identitas agent ERC-8004.
+  Whether this launch binds an ERC-8004 agent identity.
 
-  BACA FIELD INI DULU, JANGAN `agentId`. Agent id 0 adalah agent nyata yang
-  dimiliki seseorang di keempat mainnet, jadi `agentId == 0` TIDAK bisa berarti
-  "tanpa agent" — kontraknya pernah salah di titik ini dan diperbaiki sebelum
-  di-broadcast.
+  READ THIS FIELD FIRST, NOT `agentId`. Agent id 0 is a real agent with an owner
+  on every mainnet where this was checked, so `agentId == 0` CANNOT mean "no
+  agent". The contract once got this wrong, and it was fixed before broadcast.
   """
   agentBound: Boolean!
-  "Agent id ERC-8004. Hanya berarti bila `agentBound` true."
+  "ERC-8004 agent id. Meaningful only when `agentBound` is true."
   agentId: BigInt
-  "Identity Registry tempat `agentId` hidup. Null bila tidak terikat."
+  "The Identity Registry where `agentId` lives. Null when not bound."
   agentRegistry: Bytes
   """
-  Pemilik agent PADA SAAT peluncuran, sebagaimana diverifikasi factory lewat
-  `ownerOf`. Kepemilikan agent bisa berpindah setelahnya — yang tidak bisa
-  berpindah adalah pengikatannya ke token ini.
+  The agent owner AT launch, as verified by the factory through `ownerOf`.
+  Ownership of the agent can move afterwards; the binding to this token cannot.
   """
   agentOwnerAtLaunch: Bytes
 
@@ -110,76 +107,76 @@ type Project @entity(immutable: false) {
 }
 
 type Curve @entity(immutable: false) {
-  "Alamat kurva, huruf kecil."
+  "Curve address, lowercase."
   id: ID!
   project: Project
-  "Diisi dari CurveInitialized. Reserve pembuka yang tidak pernah berupa uang nyata."
+  "Set from CurveInitialized. The opening reserve, which was never real money."
   virtualNative: BigInt!
-  "Token yang dimuat ke kurva saat inisialisasi (T)."
+  "Tokens loaded into the curve at initialization (T)."
   curveTokens: BigInt!
   """
-  Harga pembukaan kurva: native UTUH per token UTUH, satuan yang SAMA dengan
-  `spotPriceNative` dan `floorPriceNative`.
+  The curve's opening price: WHOLE native per WHOLE token, the SAME unit as
+  `spotPriceNative` and `floorPriceNative`.
 
-  Dulu field ini `BigInt!` yang menyimpan rumus mentah kontrak
-  (`virtualNative * 1e18 / curveTokens`), yaitu wei per 1e18-token. Jadi satu
-  entity memuat tiga field harga dalam DUA satuan berbeda yang selisihnya 1e18,
-  tanpa penjelasan apa pun, padahal namanya sama-sama berakhiran `PriceNative`.
-  Menghitung "berapa persen naik sejak launch" dari `openingPriceNative` dan
-  `spotPriceNative` memberi hasil yang salah satu triliun kali sejuta.
+  This field used to be a `BigInt!` holding the contract's raw formula
+  (`virtualNative * 1e18 / curveTokens`), which is wei per 1e18 tokens. So one
+  entity carried three price fields in TWO different units, 1e18 apart, with no
+  explanation, even though all three names end in `PriceNative`. Computing "how
+  far it is up since launch" from `openingPriceNative` and `spotPriceNative`
+  gave a result off by a factor of 1e18.
 
-  Terjaring saat memverifikasi handler terhadap event devchain nyata, sebelum
-  subgraph ini dipublish — mengubah tipe field setelah publish berarti versi baru
-  dan kurasi baru.
+  Caught while verifying the handlers against real devchain events, before this
+  subgraph was published: changing a field's type after publishing means a new
+  version and new curation.
   """
   openingPriceNative: BigDecimal!
 
-  # ── Keadaan langsung, seluruhnya diturunkan dari event ───────────────────
-  "virtualNative + native nyata. Diambil dari nativeReserveAfter swap terakhir."
+  # ── Live state, all derived from events ───────────────────────────────────
+  "virtualNative + real native. Taken from the last swap's nativeReserveAfter."
   reserveNative: BigInt!
-  "curveTokens - tokensSold. Diambil dari tokenReserveAfter swap terakhir."
+  "curveTokens - tokensSold. Taken from the last swap's tokenReserveAfter."
   reserveToken: BigInt!
   tokensSold: BigInt!
-  "reserveNative / reserveToken. Inilah harga spot yang dipakai UI."
+  "reserveNative / reserveToken. This is the spot price the UI uses."
   spotPriceNative: BigDecimal!
 
   """
-  VERSION kontrak kurva ini: "0.10.0" atau "0.11.0".
+  The VERSION of this curve's contract: "0.10.0", "0.11.0" or "1.0.0" (ADEXTO v1).
 
-  Disimpan karena kedua generasi hidup berdampingan dan hanya yang kedua memungut
-  fee protokol. Tanpa field ini, `protocolFeeBps: 0` pada kurva lama tidak bisa
-  dibedakan dari kurva baru yang kebetulan bertarif nol — dan pembaca akan
-  menyimpulkan tarifnya bisa berubah, padahal ia immutable per kurva.
+  Stored because the generations live side by side and only 0.11.0 and v1 charge
+  a protocol fee. Without this field, `protocolFeeBps: 0` on an old curve could
+  not be told apart from a newer curve that happens to charge zero, and a reader
+  would conclude that the rate can change, when it is immutable per curve.
 
-  Diisi oleh mapping yang terikat ke satu alamat factory tertentu, jadi nilainya
-  fakta tentang data source-nya, bukan tebakan.
+  Set by a mapping bound to one specific factory address, so the value is a fact
+  about its data source, not a guess.
   """
   curveVersion: String!
 
-  # ── Pembagian fee, tetap sejak deployment ────────────────────────────────
+  # ── Fee split, fixed at deployment ────────────────────────────────────────
   depthFeeBps: BigInt!
   creatorFeeBps: BigInt!
   treasuryBuybackBps: BigInt!
   """
-  Kaki protokol, dipungut DI ATAS total yang dikonfigurasi creator — bukan diambil
-  dari dalamnya. Nol untuk setiap kurva 0.10.0, dan itu permanen karena tarifnya
-  immutable.
+  The protocol leg. A 0.11.0 curve charges it ON TOP of the total the creator
+  configured; a v1 (1.0.0) curve carves it out of that total. Zero on every
+  0.10.0 curve, permanently, because the rate is immutable.
   """
   protocolFeeBps: BigInt!
 
-  # ── Akumulasi ────────────────────────────────────────────────────────────
-  "Fee depth yang mengendap di kurva. Inilah yang mengangkat lantai harga."
+  # ── Running totals ────────────────────────────────────────────────────────
+  "Depth fees that stay in the curve. This is what lifts the price floor."
   totalDepthFees: BigInt!
   totalCreatorFees: BigInt!
   totalTreasuryFees: BigInt!
   totalCreatorFeesClaimed: BigInt!
   """
-  Fee protokol yang pernah dipungut kurva ini.
+  Protocol fees this curve has ever charged.
 
-  TIDAK ikut mengangkat lantai harga, dan itu pembeda yang paling mudah salah:
-  irisan depth mengendap di kurva sehingga lantainya naik, sedangkan irisan
-  protokol MENINGGALKAN kurva. Kalau keduanya dijumlahkan ke `totalDepthFees`,
-  lantai yang ditampilkan akan lebih tinggi daripada yang bisa dibayar kurva.
+  They do NOT lift the price floor, and that is the easiest distinction to get
+  wrong: the depth slice stays in the curve, so the floor rises, while the
+  protocol slice LEAVES the curve. Adding both to `totalDepthFees` would show a
+  floor higher than the curve can pay.
   """
   totalProtocolFees: BigInt!
   totalProtocolFeesClaimed: BigInt!
@@ -189,10 +186,10 @@ type Curve @entity(immutable: false) {
   sellCount: BigInt!
   tokensBurned: BigInt!
   """
-  Harga terendah yang bisa dicapai kurva, yaitu saat setiap token beredar dijual
-  kembali: (virtualNative + totalDepthFees) / curveTokens. Naik monoton seiring
-  volume, dan itu properti yang membedakan kurva ini — jadi ia dihitung di sini
-  alih-alih dibiarkan dihitung ulang setiap klien.
+  The lowest price the curve can reach, when every circulating token is sold
+  back: (virtualNative + totalDepthFees) / curveTokens. It rises monotonically
+  with volume, which is the property that sets this curve apart, so it is
+  computed here instead of being recomputed by every client.
   """
   floorPriceNative: BigDecimal!
 
@@ -213,7 +210,7 @@ type Swap @entity(immutable: true) {
   project: Project
   trader: Bytes!
   recipient: Bytes!
-  "true = native masuk, token keluar."
+  "true = native in, tokens out."
   isBuy: Boolean!
   amountIn: BigInt!
   amountOut: BigInt!
@@ -221,14 +218,14 @@ type Swap @entity(immutable: true) {
   creatorFee: BigInt!
   treasuryFee: BigInt!
   """
-  Kaki protokol untuk fill ini. Nol pada setiap swap kurva 0.10.0, yang event-nya
-  tidak punya field ini sama sekali.
+  The protocol leg of this fill. Zero on every swap of a 0.10.0 curve, whose
+  event has no such field at all.
   """
   protocolFee: BigInt!
-  "Reserve sesudah perdagangan, langsung dari event. Tanpa eth_call."
+  "Reserves after the trade, straight from the event. No eth_call."
   reserveNativeAfter: BigInt!
   reserveTokenAfter: BigInt!
-  "Harga sesudah perdagangan. Inilah bahan lilin grafik."
+  "Price after the trade. The chart candles are built from this."
   priceNativeAfter: BigDecimal!
   blockNumber: BigInt!
   timestamp: BigInt!
@@ -239,9 +236,9 @@ type Swap @entity(immutable: true) {
 type BuybackBurn @entity(immutable: true) {
   id: ID!
   curve: Curve!
-  "Native dari vault buyback yang dibelanjakan di kurva."
+  "Native from the buyback vault, spent on the curve."
   amountInNative: BigInt!
-  "Token yang dibeli lalu dibakar, sehingga supply benar-benar berkurang."
+  "Tokens bought and then burned, so the supply really shrinks."
   tokensBurned: BigInt!
   blockNumber: BigInt!
   timestamp: BigInt!
@@ -259,19 +256,19 @@ type CreatorFeeClaim @entity(immutable: true) {
 }
 
 """
-Penarikan fee protokol dari sebuah kurva 0.11.0.
+A protocol fee withdrawal from a 0.11.0 or v1 curve.
 
-`to` dicatat meski tujuannya immutable, dan itu bukan kelebihan: justru karena
-`claimProtocolFees()` tanpa izin, siapa pun boleh memicunya — jadi `caller` dan
-`to` bisa berbeda, dan satu-satunya cara membuktikan tujuannya tidak bisa
-dibajak adalah menyimpan keduanya.
+`to` is recorded even though the destination is immutable, and that is not
+redundant: precisely because `claimProtocolFees()` is permissionless, anyone
+may trigger it, so `caller` and `to` can differ, and the only way to prove the
+destination cannot be hijacked is to store both.
 """
 type ProtocolFeeClaim @entity(immutable: true) {
   id: ID!
   curve: Curve!
-  "Tujuan immutable yang tertulis di kontrak."
+  "The immutable destination written in the contract."
   to: Bytes!
-  "Siapa yang memicu penarikan. Boleh siapa saja."
+  "Who triggered the withdrawal. Anyone may."
   caller: Bytes!
   amount: BigInt!
   blockNumber: BigInt!
@@ -280,12 +277,12 @@ type ProtocolFeeClaim @entity(immutable: true) {
 }
 
 """
-Agregat harian per kurva.
+Daily totals per curve.
 
-Ada supaya explorer bisa menampilkan volume 24 jam dan rentang harga tanpa
-memindai setiap swap di klien — itu justru pekerjaan yang seharusnya dilakukan
-indexer. `open`/`high`/`low`/`close` memakai harga sesudah swap, jadi lilinnya
-konsisten dengan apa yang benar-benar terjadi di kurva.
+They exist so the explorer can show 24-hour volume and the price range without
+scanning every swap on the client, which is exactly the work an indexer should
+do. `open`/`high`/`low`/`close` use the post-swap price, so the candles match
+what actually happened on the curve.
 """
 type CurveDayData @entity(immutable: false) {
   "curveAddress-dayStartTimestamp."
@@ -305,7 +302,7 @@ type CurveDayData @entity(immutable: false) {
 }
 
 type GlobalStats @entity(immutable: false) {
-  "Selalu 'global'."
+  "Always 'global'."
   id: ID!
   totalProjects: BigInt!
   totalCurves: BigInt!
