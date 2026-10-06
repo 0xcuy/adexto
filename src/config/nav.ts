@@ -18,6 +18,7 @@
  *   HEADER_MENUS   panel desktop di kiri: Markets, Build (Build memuat kolom Verify)
  *   LAUNCH_MENU    panel dari ▾ di tombol Launch; `featured` = dua kartu besar
  *   MOBILE_TABS    empat tab bawah (Markets · Swap · Launch · Compute); slot kelima = tombol More
+ *   MOBILE_LAUNCH_ITEMS  isi lembar Launch ponsel: Studio dan Agent (kartu yang sama dengan `featured`)
  *   MORE_ITEMS     isi lembar More: hanya yang tidak ada di tab, footer, atau landing (keputusan owner 4 Okt)
  *   isNavActive()  pencocokan rute aktif yang dipakai header dan tab bar
  */
@@ -59,6 +60,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Awalan path yang membuat item ini aktif. Bawaan: path dari `href`. */
   match?: readonly string[];
+  /** Judul pendek untuk kartu di lembar Launch ponsel ("Studio" / "Agent"). Teks publik. */
+  short?: string;
 }
 
 export interface NavGroup {
@@ -84,10 +87,17 @@ const LEADERBOARD: NavItem = {
   icon: Trophy,
 };
 
-const LAUNCH_TOKEN: NavItem = { href: "/studio", label: "Launch a token", description: "Gas only, with no liquidity deposit", icon: Rocket };
+const LAUNCH_TOKEN: NavItem = {
+  href: "/studio",
+  label: "Launch a token",
+  short: "Studio",
+  description: "Gas only, with no liquidity deposit",
+  icon: Rocket,
+};
 const LAUNCH_AGENT: NavItem = {
   href: "/agents#launch",
   label: "Launch with your agent",
+  short: "Agent",
   description: "Over MCP, your agent signs the launch with its own key",
   icon: BotMessageSquare,
   // Anchor ke seksi /agents: tidak pernah ditandai aktif, supaya "Agents" yang menandai halaman itu.
@@ -180,12 +190,18 @@ export const LAUNCH_MENU: NavMenu = {
   columns: [{ key: "launch", label: "Launch", items: [AGENTS, CREATOR, REWARDS] }],
 };
 
+/**
+ * Lembar Launch di ponsel: tab Launch tidak langsung ke /studio, tapi menawarkan dua jalan yang sama dengan
+ * kartu besar panel desktop (permintaan owner 6 Okt: "launch di mobile ada pilihan studio/agent").
+ */
+export const MOBILE_LAUNCH_ITEMS: readonly NavItem[] = [LAUNCH_TOKEN, LAUNCH_AGENT];
+
 export interface MobileTab {
   href: string;
   label: string;
   icon: LucideIcon;
   match: readonly string[];
-  /** Tab tengah berisi aksen (Launch). */
+  /** Tab tengah berisi aksen (Launch). Membuka lembar Launch (`MOBILE_LAUNCH_ITEMS`), bukan tautan. */
   primary?: boolean;
 }
 
@@ -193,6 +209,8 @@ export interface MobileTab {
 export const MOBILE_TABS: readonly MobileTab[] = [
   { href: "/explorer", label: "Markets", icon: Compass, match: ["/explorer", "/token"] },
   { href: "/swap", label: "Swap", icon: ArrowDownUp, match: ["/swap"] },
+  // Hanya /studio yang menandai tab ini aktif: /agents sudah ditandai tombol More (item Agents), dan dua tab
+  // yang menyala bersamaan membingungkan.
   { href: "/studio", label: "Launch", icon: Rocket, match: ["/studio"], primary: true },
   { href: "/agent-compute", label: "Compute", icon: Cpu, match: ["/agent-compute"] },
 ];

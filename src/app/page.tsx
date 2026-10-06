@@ -190,7 +190,7 @@ const FAQ = [
 ];
 
 const faqItem = "group card rounded-panel px-5 py-4 [&_summary::-webkit-details-marker]:hidden";
-const faqSummary = "flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium text-ink";
+const faqSummary = "flex cursor-pointer list-none items-center justify-between gap-4 text-[16px] font-medium text-ink";
 const faqChevron = "h-4 w-4 shrink-0 text-ink-faint transition-transform duration-300 group-open:rotate-180";
 
 export default async function HomePage() {
@@ -290,8 +290,8 @@ export default async function HomePage() {
                   />
                   <span className="relative flex items-end justify-between">
                     <span>
-                      <span className="block font-display text-[17px] font-medium leading-tight text-ink">{label}</span>
-                      <span className="block text-[11px] text-ink-faint">{hint}</span>
+                      <span className="block font-display text-[16px] font-medium leading-tight text-ink">{label}</span>
+                      <span className="block text-[12px] text-ink-faint">{hint}</span>
                     </span>
                     <Icon className="h-4 w-4 text-ink-faint transition-colors group-hover:text-accent" />
                   </span>
@@ -302,14 +302,21 @@ export default async function HomePage() {
             {/* Chain tempat pasar bisa dibuka, di celah kecil di bawah pintu. Logo tidak dipotong
                 bulat: logo Base persegi, dan memotong logo dicantumkan sebagai penyalahgunaan di
                 brand kit pemiliknya. */}
+            {/* Di ponsel chip duduk di grid tiga kolom (dua baris untuk enam chain, kolom sejajar; dua kolom
+                di bawah 360 px supaya "Robinhood" tidak terpotong). Mulai sm kembali satu baris yang membungkus. */}
             {HERO_CHAINS.length > 0 ? (
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="hero-chains">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-faint">Live on</span>
-                <ul aria-label="Chains with a live launch factory" className="flex flex-wrap items-center gap-2">
+              <div className="mt-4 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2" data-testid="hero-chains">
+                <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-faint sm:mb-0">
+                  Live on
+                </span>
+                <ul
+                  aria-label="Chains with a live launch factory"
+                  className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:flex sm:flex-wrap sm:items-center"
+                >
                   {HERO_CHAINS.map((c) => (
                     <li
                       key={c.chainId}
-                      className="glass inline-flex h-8 items-center gap-2 rounded-full pl-2 pr-3 text-[12.5px] font-medium text-ink"
+                      className="glass flex h-8 min-w-0 items-center gap-1.5 rounded-full pl-2 pr-2.5 text-[12px] font-medium text-ink sm:inline-flex sm:gap-2 sm:pr-3 sm:text-[13px]"
                     >
                       <img
                         src={chainMark(c) as string}
@@ -317,9 +324,9 @@ export default async function HomePage() {
                         aria-hidden="true"
                         width={18}
                         height={18}
-                        className="h-[18px] w-[18px] object-contain"
+                        className="h-[18px] w-[18px] shrink-0 object-contain"
                       />
-                      {c.key}
+                      <span className="min-w-0 truncate">{c.key}</span>
                     </li>
                   ))}
                   {/* Robinhood Chain comes from CHAIN_LIST like every other chain, and only once
@@ -342,8 +349,8 @@ export default async function HomePage() {
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                     <span>
                       <span className="block text-[13px] font-semibold text-ink">{label}</span>
-                      <span className="block text-[11px] leading-snug text-ink-soft">{body}</span>
-                      <span className="block text-[10px] leading-snug text-ink-faint">{hint}</span>
+                      <span className="block text-[12px] leading-snug text-ink-soft">{body}</span>
+                      <span className="block text-[12px] leading-snug text-ink-faint">{hint}</span>
                     </span>
                   </Link>
                 </li>
@@ -477,7 +484,7 @@ export default async function HomePage() {
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
                 <Icon className="h-5 w-5" />
               </span>
-              <h3 className="mt-5 text-[17px] font-medium leading-snug text-ink">{title}</h3>
+              <h3 className="mt-5 text-[16px] font-medium leading-snug text-ink">{title}</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{body}</p>
             </div>
           ))}
@@ -566,7 +573,7 @@ export default async function HomePage() {
                 ))}
               </tbody>
             </table>
-            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">
               Paid in each chain&apos;s own gas token and priced at page load, so these move with the market. No liquidity
               deposit is required and none is possible — 100% of supply enters the curve at genesis.
             </p>
@@ -584,17 +591,22 @@ export default async function HomePage() {
         </div>
 
         {/* Untuk developer: satu baris, bukan satu panel penuh. */}
-        <p className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] text-ink-faint">
-          <span>
+        {/* Tautan ABI setinggi 32 px: sebagai teks 19 px yang berdempetan, ketiganya gagal WCAG 2.5.8 di ponsel. */}
+        <p className="mt-6 flex flex-wrap items-center justify-center gap-x-1.5 text-[12px] text-ink-faint">
+          <span className="px-1.5">
             Published interface · {CURVE_FACTORY_GENERATION.contract} {CURVE_FACTORY_GENERATION.version} ·
           </span>
           {ABI_FILES.map((name) => (
-            <a key={name} href={`/abi/${name}.json`} className="font-mono text-accent hover:underline underline-offset-4">
+            <a
+              key={name}
+              href={`/abi/${name}.json`}
+              className="inline-flex min-h-[32px] items-center rounded px-1.5 font-mono text-accent underline-offset-4 hover:underline"
+            >
               {name}
             </a>
           ))}
         </p>
-        <p className="mt-1 text-center text-[11px] leading-relaxed text-ink-faint">
+        <p className="mt-1 text-center text-[12px] leading-relaxed text-ink-faint">
           Every deploy compares each published ABI byte for byte against the compiled artifact, so these cannot drift from what
           is running.
         </p>
@@ -612,7 +624,7 @@ export default async function HomePage() {
             <Mascot pose="jump" className="mascot-float h-44 w-auto" />
           </div>
           <h2 className="max-w-xl text-3xl font-light tracking-tight text-ink sm:text-5xl">Open your market</h2>
-          <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-ink-soft">
+          <p className="mt-4 max-w-lg text-[16px] leading-relaxed text-ink-soft">
             One transaction and it is trading — with its terminal, its agent, and a price the rest of the internet can pay.
           </p>
           <Link
