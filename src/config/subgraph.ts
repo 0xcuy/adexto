@@ -83,10 +83,11 @@ export const PUBLISHED_SUBGRAPH = {
  * 2026-10-06, owned by the deployer and with no curation signal.
  *
  * The site does not query these: it reads the Studio endpoints in
- * `SUBGRAPH_URL_*`, which need no API key. The network version runs the same
- * mappings, data sources and start blocks as the Studio deployment; only the
- * schema file differs, because its comments and descriptions were translated
- * to English. The README lists the same ids.
+ * `SUBGRAPH_URL_*`, which need no API key. Each network version is the same
+ * deployment as Studio `v1.0.1`. It carries the label `v1.0.0` because it was
+ * published under that label before Studio refused to reuse it for a new
+ * deployment, and a version label on the network cannot be changed afterwards.
+ * The README lists the same ids.
  */
 export const NETWORK_SUBGRAPHS = [
   {

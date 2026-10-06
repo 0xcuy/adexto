@@ -117,7 +117,7 @@ export default function VerifiedDeploymentCard() {
       label: `The Graph subgraph · ${s.displayName} (published on Arbitrum One 42161)`,
       address: s.subgraphId,
       explorerUrl: s.explorerUrl,
-      badge: `published · ${s.version} · no curation signal`,
+      badge: "published · no curation signal",
       color: "border-accent/30 bg-accent-soft text-accent",
     })),
     {
