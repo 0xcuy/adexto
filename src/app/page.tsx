@@ -38,6 +38,7 @@ import {
   Wallet,
 } from "lucide-react";
 import Mascot, { type MascotPose } from "@/components/Mascot";
+import LaunchDoorLink from "@/components/LaunchDoorLink";
 import HeroSparks from "@/components/landing/HeroSparks";
 import LiveMarkets from "@/components/landing/LiveMarkets";
 import TiltStage from "@/components/landing/TiltStage";
@@ -60,9 +61,10 @@ const HERO_CHAINS = CHAIN_LIST.filter((c) => c.dexLive && chainMark(c));
 const ABI_FILES = ["AdextoFactory", "AdextoCurve", "AdextoToken"] as const;
 
 /** Pintu masuk bergambar. Satu tujuan, satu kata, satu pose maskot. */
-const DOORS: Array<{ href: string; label: string; hint: string; pose: MascotPose; icon: typeof Rocket }> = [
+const DOORS: Array<{ href: string; label: string; hint: string; pose: MascotPose; icon: typeof Rocket; launch?: boolean }> = [
   { href: "/explorer", label: "Trade", hint: "live markets", pose: "run", icon: Compass },
-  { href: "/studio", label: "Launch", hint: "gas only", pose: "celebrate", icon: Rocket },
+  // `launch`: di ponsel dan tablet membuka lembar Launch (Studio / Agent) seperti tab Launch, lihat LaunchDoorLink.
+  { href: "/studio", label: "Launch", hint: "gas only", pose: "celebrate", icon: Rocket, launch: true },
   { href: "/swap", label: "Swap", hint: "any chain", pose: "point", icon: ArrowDownUp },
   { href: "/agent-compute", label: "Compute", hint: "stake for AI", pose: "think", icon: Cpu },
 ];
@@ -271,10 +273,13 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            {/* Empat pintu bergambar. Ini jalan masuk utama ke seluruh situs. */}
+            {/* Empat pintu bergambar. Ini jalan masuk utama ke seluruh situs. Pintu Launch di ponsel dan tablet
+                membuka lembar Launch yang sama dengan tab Launch (Studio / Agent); mulai lg tetap ke /studio. */}
             <nav aria-label="Where to start" className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {DOORS.map(({ href, label, hint, pose, icon: Icon }) => (
-                <Link
+              {DOORS.map(({ href, label, hint, pose, icon: Icon, launch }) => {
+                const DoorLink = launch ? LaunchDoorLink : Link;
+                return (
+                <DoorLink
                   key={href}
                   href={href}
                   className="glass group relative flex h-36 flex-col justify-end overflow-hidden rounded-panel p-3 transition-[transform,border-color,box-shadow] duration-300 ease-settle hover:-translate-y-1 hover:border-accent/40 hover:shadow-[var(--glow-accent)] sm:h-44"
@@ -295,8 +300,9 @@ export default async function HomePage() {
                     </span>
                     <Icon className="h-4 w-4 text-ink-faint transition-colors group-hover:text-accent" />
                   </span>
-                </Link>
-              ))}
+                </DoorLink>
+                );
+              })}
             </nav>
 
             {/* Chain tempat pasar bisa dibuka, di celah kecil di bawah pintu. Logo tidak dipotong

@@ -241,6 +241,16 @@ const TB = "inline-flex h-[36px] min-w-[36px] shrink-0 items-center justify-cent
 const TB_GROUPED = "inline-flex h-[34px] min-w-[36px] items-center justify-center px-2.5 lg:h-auto lg:min-w-0 lg:px-2 lg:py-0.5";
 /** Tombol ikon (Candles/Line): di desktop tetap `py-1` seperti dulu. */
 const TB_GROUPED_ICON = "inline-flex h-[34px] min-w-[36px] items-center justify-center px-2.5 lg:h-auto lg:min-w-0 lg:px-2 lg:py-1";
+/**
+ * Ponsel (< 640 px) sejak 6 Okt: tanpa rel geser, dua baris. `TB_SEG` = sel kontrol bersegmen baris 1 (lebar bar
+ * dan All: sel sama lebar, tanpa latar sendiri kecuali yang aktif); `TB_ROW2` = tombol di dalam sakelar baris 2,
+ * yang meregang mengisi baris. Mulai sm kelas-kelas ini tidak berlaku, jadi tablet dan desktop tidak berubah.
+ */
+const TB_SEG = "max-sm:h-[34px] max-sm:min-w-0 max-sm:flex-1 max-sm:shrink max-sm:px-0";
+const TB_SEG_IDLE = "max-sm:bg-transparent";
+// Di bawah 360 px padding tombol teks diciutkan lagi: di 320 px baris 2 hanya 269 px, dan kasus terlebar (Arc,
+// "USD | USDC", dengan jumlah indikator aktif) baru muat dengan sisa beberapa piksel.
+const TB_ROW2 = "max-sm:min-w-[32px] max-sm:flex-1 max-sm:px-1 max-[359px]:px-0.5";
 
 /** Lebar bar yang boleh dipilih otomatis untuk sebuah rentang. */
 const AUTO_BUCKETS = [300, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400, 259200, 604800];
@@ -2004,19 +2014,24 @@ export default function RealtimeCandleChart({
           </div>
         </div>
 
-        {/* Toolbar. Di bawah 640 px tombolnya dulu membungkus jadi tiga-empat baris tombol 21 px yang rapat
-            (ERROR tap<24 di 360 px). Sekarang di sana satu rel yang bisa digeser, tombol 36 px, dengan
-            "Indicators" di LUAR rel: popovernya akan terpotong oleh overflow rel kalau ikut di dalam. Mulai
-            640 px rel menjadi `contents`, jadi semua tombol membungkus seperti sebelumnya; mulai lg ukurannya
-            kembali ke ukuran desktop lama.
-            Di rel ponsel lebar bar (1m…1d) dan rentang (1y, All) tampil PERTAMA lewat `max-sm:order-1` pada tiga
-            kelompok sakelar dan Marks: itu kontrol yang paling sering dipakai, dan di 390 px ia dulu berada di
-            luar layar, di balik USD/ETH, bentuk dan Price/MCAP (dicek dengan tangkapan layar 390 px). Urutan DOM
-            tidak berubah; sakelar-sakelar ini berdiri sendiri, jadi urutan fokus tidak mengubah artinya. */}
-        <div className="flex w-full min-w-0 items-center gap-1 text-[12px] sm:w-auto sm:flex-wrap">
-          <div className="-ml-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 pl-1 pr-6 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)] sm:contents [&::-webkit-scrollbar]:hidden">
+        {/* Toolbar. Di bawah 640 px: DUA BARIS, semua kontrol terlihat tanpa geser (owner 6 Okt: "harus digeser
+            ke kiri … rapih tapi semua terlihat"). Sebelumnya satu rel geser yang hanya menampilkan 192–284 px dari
+            608–648 px isinya, dengan fade 20 px sebagai satu-satunya tanda bahwa ia bisa digeser.
+              Baris 1: lebar bar + All, satu kontrol bersegmen selebar toolbar (`max-sm:order-first`), sel sama
+                       lebar. Di satuan native ada sel "s" di depan (8 sel, tetap ≥ 32 px di 320 px).
+              Baris 2: satuan, bentuk, sumbu, Indicators (`ƒx` di bawah 390 px, karena teksnya tidak muat).
+            Urutan DOM sama dengan desktop (satuan, bentuk, sumbu, lebar bar, Indicators); di ponsel baris lebar bar
+            dinaikkan lewat `order`. Sakelar-sakelar ini berdiri sendiri, jadi urutan fokus tidak mengubah artinya.
+            Baris 2 boleh membungkus: kalau suatu saat tidak muat, tombol terakhir turun satu baris, tidak hilang.
+            Mulai 640 px pembungkus baris 1 menjadi `contents`, jadi semua tombol membungkus seperti sebelumnya;
+            mulai lg ukurannya kembali ke ukuran desktop lama. `data-chart-toolbar` diperiksa audit-layout: di
+            ponsel tidak boleh ada kontrol di luar kotak toolbar. */}
+        <div
+          data-chart-toolbar
+          className="flex w-full min-w-0 flex-wrap items-center gap-1 text-[12px] max-sm:gap-y-1.5 sm:w-auto"
+        >
           {/* Satuan sumbu: dolar, atau aset native chain. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1 max-sm:ml-1">
+          <div className="flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:flex-auto sm:mr-1">
             {(
               [
                 ["USD", "usd"],
@@ -2041,7 +2056,8 @@ export default function RealtimeCandleChart({
                     ? `Price in dollars, converted with recorded ${nativeSymbol}/USD rates. In this unit the market keeps moving when ${nativeSymbol} moves, even with no trades.`
                     : `Price in ${nativeSymbol}, exactly as the curve prices it`
                 }
-                className={`${TB_GROUPED} font-bold transition-colors ${
+                data-unit={value}
+                className={`${TB_GROUPED} ${TB_ROW2} font-bold transition-colors ${
                   unit === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -2051,7 +2067,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Bentuk: candle, atau garis penutupan. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1">
+          <div className="flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:flex-auto sm:mr-1">
             {(
               [
                 ["Candles", "candles", ChartCandlestick],
@@ -2065,7 +2081,7 @@ export default function RealtimeCandleChart({
                 aria-pressed={chartKind === value}
                 aria-label={`${label} chart`}
                 title={`${label} chart`}
-                className={`${TB_GROUPED_ICON} transition-colors ${
+                className={`${TB_GROUPED_ICON} max-sm:min-w-[30px] max-sm:flex-1 max-sm:px-1 transition-colors ${
                   chartKind === value ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -2075,7 +2091,7 @@ export default function RealtimeCandleChart({
           </div>
 
           {/* Sumbu: harga per token, atau kapitalisasi. */}
-          <div className="mr-1 flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:order-1">
+          <div className="flex shrink-0 items-center overflow-hidden rounded border border-line max-sm:flex-auto sm:mr-1">
             {[
               { label: "Price", on: !showMcap, set: false },
               { label: "MCAP", on: showMcap, set: true },
@@ -2089,7 +2105,7 @@ export default function RealtimeCandleChart({
                     ? "Chart the market cap: price x supply. 100% of supply is in the curve, so this equals FDV."
                     : "Chart the price of one token"
                 }
-                className={`${TB_GROUPED} font-bold transition-colors ${
+                className={`${TB_GROUPED} ${TB_ROW2} font-bold transition-colors ${
                   o.on ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink"
                 }`}
               >
@@ -2108,9 +2124,16 @@ export default function RealtimeCandleChart({
               tidak mungkin memuat perubahan apa pun — yang tergambar selalu garis rata, dan itu
               terbaca sebagai chart rusak. Tombolnya disembunyikan alih-alih dibiarkan
               menghasilkan tampilan yang pasti kosong. */}
-          {/* Di bawah 640 px pilihan sub-menit terbuka SEBARIS di dalam rel, bukan sebagai popover:
-              popover di dalam penggulir akan terpotong. Mulai 640 px tetap popover seperti dulu. */}
-          <div className={`relative flex shrink-0 items-center gap-1 ${unit === "usd" ? "hidden" : ""}`}>
+          {/* Pilihan sub-menit selalu popover. Di ponsel dulu terbuka SEBARIS di dalam rel geser, karena popover di
+              dalam penggulir akan terpotong; rel itu sudah tidak ada (6 Okt), jadi ponsel memakai popover yang sama
+              dengan desktop. */}
+          {/* Baris lebar bar: di ponsel baris 1, satu kontrol bersegmen selebar toolbar. Mulai 640 px `contents`. */}
+          <div
+            role="group"
+            aria-label="Chart timeframe"
+            className="flex min-w-0 items-stretch max-sm:order-first max-sm:w-full max-sm:rounded max-sm:border max-sm:border-line max-sm:bg-cream-3 sm:contents"
+          >
+          <div className={`relative flex shrink-0 items-center gap-1 max-sm:min-w-0 max-sm:flex-1 max-sm:shrink ${unit === "usd" ? "hidden" : ""}`}>
             <button
               type="button"
               onClick={() => setShowSubMinute((v) => !v)}
@@ -2118,16 +2141,16 @@ export default function RealtimeCandleChart({
               aria-haspopup="true"
               aria-label="Sub-minute timeframes"
               title="Timeframes under one minute"
-              className={`${TB} rounded font-bold border transition-colors ${
+              className={`${TB} ${TB_SEG} rounded font-bold border transition-colors max-sm:w-full ${
                 subMinuteActive || showSubMinute
                   ? "bg-accent-soft text-accent border-accent/30"
-                  : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+                  : `bg-cream-3 text-ink-soft border-transparent hover:text-ink ${TB_SEG_IDLE}`
               }`}
             >
               {subMinuteActive ? INTERVALS.find((i) => i.seconds === interval)?.label : "s"}
             </button>
             {showSubMinute && (
-              <div className="flex gap-1 sm:absolute sm:left-0 sm:top-full sm:z-30 sm:mt-1 sm:rounded-xl sm:border sm:border-line sm:bg-surface sm:p-1 sm:shadow-[var(--shadow-panel)]">
+              <div className="absolute left-0 top-full z-30 mt-1 flex gap-1 rounded-xl border border-line bg-surface p-1 shadow-[var(--shadow-panel)]">
                 {INTERVALS.filter((i) => i.sub).map((i) => (
                   <button
                     key={i.label}
@@ -2138,7 +2161,7 @@ export default function RealtimeCandleChart({
                       setShowSubMinute(false);
                     }}
                     className={`${TB} rounded font-bold transition-colors ${
-                      interval === i.seconds ? "bg-accent-soft text-accent" : "bg-cream-3 text-ink-soft hover:text-ink sm:bg-transparent sm:hover:bg-cream-3"
+                      interval === i.seconds ? "bg-accent-soft text-accent" : "bg-transparent text-ink-soft hover:bg-cream-3 hover:text-ink"
                     }`}
                   >
                     {i.label}
@@ -2157,10 +2180,10 @@ export default function RealtimeCandleChart({
                 setIntervalSeconds(i.seconds);
               }}
               aria-pressed={!range && interval === i.seconds}
-              className={`${TB} rounded font-bold border transition-colors ${
+              className={`${TB} ${TB_SEG} rounded font-bold border transition-colors ${
                 !range && interval === i.seconds
                   ? "bg-accent-soft text-accent border-accent/30"
-                  : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+                  : `bg-cream-3 text-ink-soft border-transparent hover:text-ink ${TB_SEG_IDLE}`
               }`}
             >
               {i.label}
@@ -2169,7 +2192,7 @@ export default function RealtimeCandleChart({
           {/* Rentang, dipisah garis tipis dari lebar bar: keduanya menjawab pertanyaan berbeda
               ("seberapa jauh ke belakang" vs "seberapa lebar tiap candle"), dan meletakkannya
               sejajar tanpa pemisah membuat 1y terbaca sebagai candle setahun. */}
-          <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
+          <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 self-center bg-line-strong" />
           {RANGES.map((r) => {
             const nowSec = Math.floor(Date.now() / 1000);
             /**
@@ -2194,10 +2217,10 @@ export default function RealtimeCandleChart({
                 }}
                 aria-pressed={range === r.label}
                 title="The whole history since launch, with the candle width picked to fit"
-                className={`${TB} rounded font-bold border transition-colors ${
+                className={`${TB} ${TB_SEG} rounded font-bold border transition-colors ${
                   range === r.label
                     ? "bg-accent-soft text-accent border-accent/30"
-                    : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
+                    : `bg-cream-3 text-ink-soft border-transparent hover:text-ink ${TB_SEG_IDLE}`
                 }`}
               >
                 {r.label}
@@ -2207,19 +2230,36 @@ export default function RealtimeCandleChart({
 
           </div>
 
-          <div className="relative shrink-0 sm:ml-1">
+          <div className="relative shrink-0 max-sm:flex-auto sm:ml-1">
             <button
               type="button"
               onClick={() => setShowIndicatorMenu((v) => !v)}
               aria-expanded={showIndicatorMenu}
               aria-haspopup="true"
-              className={`${TB} rounded font-bold border transition-colors ${
+              aria-label={activeCount > 0 ? `Indicators (${activeCount} on)` : "Indicators"}
+              title="Indicators"
+              className={`${TB} rounded font-bold border transition-colors max-sm:w-full max-sm:px-1.5 ${
                 showIndicatorMenu
                   ? "bg-accent-soft text-accent border-accent/30"
                   : "bg-cream-3 text-ink-soft border-transparent hover:text-ink"
               }`}
             >
-              Indicators{activeCount > 0 ? ` (${activeCount})` : ""}
+              {/* Di bawah 390 px teks "Indicators" tidak muat di baris 2 bersama tiga sakelar (terukur dengan font
+                  aslinya, kasus terlebar Arc "USD | USDC"). ƒx adalah tanda indikator yang dipakai TradingView. */}
+              <span aria-hidden="true" className="min-[390px]:hidden">
+                ƒx
+              </span>
+              <span aria-hidden="true" className="max-[389px]:hidden">
+                Indicators
+              </span>
+              {/* Jumlah aktif: "(2)" di samping teks, "2" saja di samping ƒx supaya baris 2 tetap satu baris di 320 px. */}
+              {activeCount > 0 ? (
+                <span aria-hidden="true" className="ml-1">
+                  <span className="max-[389px]:hidden">(</span>
+                  {activeCount}
+                  <span className="max-[389px]:hidden">)</span>
+                </span>
+              ) : null}
             </button>
             {showIndicatorMenu && (
               <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-xl border border-line bg-surface p-2 shadow-2xl space-y-0.5">

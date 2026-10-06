@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, LayoutGrid } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { MOBILE_LAUNCH_ITEMS, MOBILE_TABS, MORE_ITEMS, isNavActive } from "@/config/nav";
+import { LAUNCH_SHEET_EVENT, LAUNCH_SHEET_ID, type LaunchSheetDetail } from "@/components/nav/launch-sheet";
 
 /**
  * Navigasi bawah untuk ponsel (di bawah `lg`).
@@ -20,6 +21,8 @@ import { MOBILE_LAUNCH_ITEMS, MOBILE_TABS, MORE_ITEMS, isNavActive } from "@/con
  *
  * Tab Launch membuka lembar kecil dengan dua jalan, Studio dan Agent (`MOBILE_LAUNCH_ITEMS`, permintaan owner
  * 6 Okt), sama dengan dua kartu besar panel Launch di desktop. Hanya satu lembar terbuka pada satu waktu.
+ * Pintu "Launch" di landing membuka lembar yang sama lewat `openLaunchSheet()` (nav/launch-sheet.ts); Esc
+ * mengembalikan fokus ke yang membukanya.
  *
  * Semua ikon tab duduk di slot setinggi pil Launch, supaya kelima label berada di satu garis.
  *
@@ -44,27 +47,43 @@ export default function MobileTabBar() {
   const [open, setOpen] = useState<SheetKey | null>(null);
   const buttons = { more: useRef<HTMLButtonElement>(null), launch: useRef<HTMLButtonElement>(null) };
   const sheets = { more: useRef<HTMLDivElement>(null), launch: useRef<HTMLDivElement>(null) };
+  /** Elemen di luar tab bar yang membuka lembar (pintu Launch di landing); null = tombol tab-nya sendiri. */
+  const opener = useRef<HTMLElement | null>(null);
 
   // Lembar ditutup setiap kali rute berubah, supaya tidak tertinggal menutupi halaman baru.
   useEffect(() => {
     setOpen(null);
   }, [pathname]);
 
+  // Lembar Launch bisa dibuka dari luar tab bar, lewat `openLaunchSheet()`.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      opener.current = (e as CustomEvent<LaunchSheetDetail>).detail?.opener ?? null;
+      setOpen("launch");
+    };
+    window.addEventListener(LAUNCH_SHEET_EVENT, onOpen);
+    return () => window.removeEventListener(LAUNCH_SHEET_EVENT, onOpen);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
-    // Fokus masuk ke lembar saat dibuka (tautan pertama), dan kembali ke tombolnya saat Esc.
+    // Fokus masuk ke lembar saat dibuka (tautan pertama), dan kembali ke yang membukanya saat Esc.
     sheets[open].current?.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpen(null);
-      buttons[open].current?.focus();
+      (opener.current ?? buttons[open].current)?.focus();
+      opener.current = null;
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // `buttons` dan `sheets` hanya membungkus ref yang stabil, jadi cukup bergantung pada `open`.
   }, [open]);
 
-  const toggle = (key: SheetKey) => setOpen((v) => (v === key ? null : key));
+  const toggle = (key: SheetKey) => {
+    opener.current = null;
+    setOpen((v) => (v === key ? null : key));
+  };
   const moreOpen = open === "more";
   const launchOpen = open === "launch";
   const moreActive = MORE_ITEMS.some((i) => isNavActive(pathname, i));
@@ -83,7 +102,7 @@ export default function MobileTabBar() {
       {/* Lembar "Launch" — dua jalan: Studio dan Agent. */}
       <div
         ref={sheets.launch}
-        id="mobile-launch-sheet"
+        id={LAUNCH_SHEET_ID}
         role="dialog"
         aria-label="Launch"
         aria-hidden={!launchOpen}
@@ -186,7 +205,7 @@ export default function MobileTabBar() {
                     type="button"
                     onClick={() => toggle("launch")}
                     aria-expanded={launchOpen}
-                    aria-controls="mobile-launch-sheet"
+                    aria-controls={LAUNCH_SHEET_ID}
                     aria-current={active ? "page" : undefined}
                     className={tabClass}
                   >
