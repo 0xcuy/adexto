@@ -1,0 +1,72 @@
+name: Feedback
+description: Tell us what is broken, what is confusing, or what works well.
+title: "[Feedback] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. This issue is public: never paste a private key, a seed phrase or an API key. Nobody from ADEXTO will ask you for one.
+        Found a vulnerability? Report it privately from the Security tab, not here. A market that looks like a scam has its own form, "Report a market".
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of feedback
+      options:
+        - Something is broken
+        - Something is confusing or hard to use
+        - Something works well
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Launching a token (Studio)
+        - Trading, charts and the token page
+        - MCP server or the agent kit
+        - x402 payments
+        - Staking, Agent Compute or ask_agent
+        - Creator earnings
+        - Docs
+        - Smart contracts
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: chain
+    attributes:
+      label: Chain
+      description: Leave empty if it is not about one chain.
+      options:
+        - Monad
+        - Arbitrum One
+        - Robinhood Chain
+        - Arc
+        - Base
+        - 0G
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what you think
+      description: If something is broken, the steps that led to it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: Links, transaction hashes, screenshots
+      description: Public data only. A page URL, a transaction hash, your browser and your wallet help us find it fast.
+    validations:
+      required: false

@@ -686,6 +686,12 @@ Report a vulnerability privately as described in [SECURITY.md](SECURITY.md). Ple
 
 ---
 
+## Feedback and ideas
+
+Something broken, confusing or good? Open a [feedback issue](https://github.com/0xcuy/adexto/issues/new?template=feedback.yml). Ideas for what to build next go to [Discussions › Ideas](https://github.com/0xcuy/adexto/discussions/categories/ideas), where they can be upvoted.
+
+---
+
 ## Local development
 
 ```bash

@@ -16,6 +16,7 @@ body:
         - Monad
         - Arbitrum One
         - Robinhood Chain
+        - Arc
         - Base
         - 0G
     validations:

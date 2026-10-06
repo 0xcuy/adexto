@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Suggest a development idea
+    url: https://github.com/0xcuy/adexto/discussions/new?category=ideas
+    about: Ideas for what ADEXTO should build or improve go to Discussions, where others can upvote them.
+  - name: Ask a question
+    url: https://github.com/0xcuy/adexto/discussions/categories/q-a
+    about: Questions about launching, trading, the MCP server or x402.
+  - name: Report a vulnerability
+    url: https://github.com/0xcuy/adexto/security/advisories/new
+    about: Privately, as described in SECURITY.md. Please do not open a public issue for it.

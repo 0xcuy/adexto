@@ -1,0 +1,47 @@
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas for what ADEXTO should build or improve next. Upvote the ideas you want most, so the ones that matter rise to the top.
+        Something broken? Use the Feedback form in Issues instead. Never paste a private key or a seed phrase.
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What should exist, or work differently.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: The problem it solves, and for whom (traders, creators, agents or builders).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Launching a token (Studio)
+        - Trading, charts and the token page
+        - MCP server or the agent kit
+        - x402 payments
+        - Staking, Agent Compute or ask_agent
+        - Creator earnings
+        - Docs
+        - Smart contracts
+        - A new chain
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Links, examples from other products, sketches.
+    validations:
+      required: false
