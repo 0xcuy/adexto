@@ -1,5 +1,5 @@
 /**
- * AdextoCurve 0.11.0 (Monad) dan 1.0.0 (Robinhood), event yang sama. Kontraknya didaftarkan dinamis oleh `factory.ts`, jadi tidak ada satu
+ * AdextoCurve 0.11.0 (Monad) dan 1.0.0 (Monad, Robinhood, Arc), event yang sama. Kontraknya didaftarkan dinamis oleh `factory.ts`, jadi tidak ada satu
  * pun alamat kurva di `config.yaml`.
  *
  * Perhatikan bahwa setiap field dibongkar memakai NAMA, bukan posisi. Di kurva 0.10.0 kedua
@@ -8,9 +8,9 @@
  * tidak bisa menyebabkan `protocolFee` terbaca sebagai reserve — kesalahan yang tidak akan
  * memunculkan galat, hanya harga yang meleset beberapa orde besaran.
  *
- * `srcAddress` dipakai sebagai id kurva. Ia sudah huruf kecil karena `address_format:
- * lowercase` di config, jadi ia cocok dengan `Project.curve_id` yang ditulis handler factory
- * tanpa satu pun normalisasi manual.
+ * Id kurva adalah `chainScopedId(event.chainId, event.srcAddress)`, bentuk yang sama dengan
+ * `Project.curve_id` yang ditulis handler factory. Alamat saja tidak cukup: kurva di Arc dan di
+ * Robinhood Chain bisa beralamat sama (lihat `chainScopedId` di `shared.ts`).
  */
 import { indexer } from "envio";
 import {
@@ -19,6 +19,7 @@ import {
   applyCurveInitialized,
   applyProtocolClaim,
   applySwap,
+  chainScopedId,
   metaOf,
 } from "../shared";
 
@@ -26,7 +27,8 @@ indexer.onEvent(
   { contract: "AdextoCurve", event: "CurveInitialized" },
   async ({ event, context }) => {
     await applyCurveInitialized(context, {
-      curveId: event.srcAddress,
+      curveId: chainScopedId(event.chainId, event.srcAddress),
+      curveAddress: event.srcAddress,
       virtualNative: event.params.virtualNative,
       curveTokens: event.params.curveTokens,
       // `event.params.openingPrice` SENGAJA tidak dipakai: ia wei per 1e18-token, satuan
@@ -39,7 +41,7 @@ indexer.onEvent(
 
 indexer.onEvent({ contract: "AdextoCurve", event: "Swap" }, async ({ event, context }) => {
   await applySwap(context, {
-    curveId: event.srcAddress,
+    curveId: chainScopedId(event.chainId, event.srcAddress),
     meta: metaOf(event),
     trader: event.params.trader,
     recipient: event.params.recipient,
@@ -59,7 +61,7 @@ indexer.onEvent(
   { contract: "AdextoCurve", event: "AutoBuybackExecuted" },
   async ({ event, context }) => {
     await applyBuyback(context, {
-      curveId: event.srcAddress,
+      curveId: chainScopedId(event.chainId, event.srcAddress),
       meta: metaOf(event),
       amountIn: event.params.amountIn,
       tokensBurned: event.params.tokensBurned,
@@ -74,7 +76,7 @@ indexer.onEvent(
   { contract: "AdextoCurve", event: "CreatorFeesClaimed" },
   async ({ event, context }) => {
     await applyCreatorClaim(context, {
-      curveId: event.srcAddress,
+      curveId: chainScopedId(event.chainId, event.srcAddress),
       meta: metaOf(event),
       to: event.params.to,
       amount: event.params.amount,
@@ -91,7 +93,7 @@ indexer.onEvent(
   { contract: "AdextoCurve", event: "ProtocolFeesClaimed" },
   async ({ event, context }) => {
     await applyProtocolClaim(context, {
-      curveId: event.srcAddress,
+      curveId: chainScopedId(event.chainId, event.srcAddress),
       meta: metaOf(event),
       to: event.params.to,
       amount: event.params.amount,

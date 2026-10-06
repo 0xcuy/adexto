@@ -170,7 +170,7 @@ export const DOC_SUMMARIES: Readonly<Record<string, readonly string[]>> = {
   data: [
     "The factory on each chain is the source of truth for which markets exist.",
     "Indexers add history and can lag behind the chain, so a brand-new market can exist before an index shows it.",
-    "History is read differently per chain: subgraphs, Envio HyperIndex on Monad, or direct RPC log scans.",
+    "History is read differently per chain: subgraphs, Envio HyperIndex on Monad, Robinhood Chain and Arc, or direct RPC log scans.",
   ],
   security: [
     "Nothing on the launch path has an owner or a setter, and no function can drain a curve.",

@@ -143,12 +143,17 @@ for (const chainId of chains) {
   if (curves.length === 0) continue;
 
   // 3. Angka Envio per kurva vs kontrak, pada blok yang sama.
+  //
+  // Id kurva di Envio `<chainId>_<alamat huruf kecil>` (`chainScopedId` di envio/src/shared.ts),
+  // bukan alamat saja: factory Arc dan Robinhood beralamat sama, jadi kurva peluncuran ke-n di
+  // keduanya juga. Bertanya dengan alamat saja akan mencocokkan baris chain lain, atau tidak ada.
+  const idOf = (c) => `${chainId}_${c.curve.toLowerCase()}`;
   let rows = [];
   try {
     rows = (
       await gql(
-        "query($ids: [String!]) { Curve(where: { id: { _in: $ids } }) { id curveVersion swapCount volumeNative totalDepthFees } }",
-        { ids: curves.map((c) => c.curve.toLowerCase()) }
+        "query($ids: [String!]) { Curve(where: { id: { _in: $ids } }) { id chainId curveVersion swapCount volumeNative totalDepthFees } }",
+        { ids: curves.map(idOf) }
       )
     ).Curve;
   } catch (e) {
@@ -158,7 +163,7 @@ for (const chainId of chains) {
   }
   const byId = new Map(rows.map((r) => [String(r.id).toLowerCase(), r]));
   for (const c of curves) {
-    const g = byId.get(c.curve.toLowerCase());
+    const g = byId.get(idOf(c));
     const listed = launches.some((l) => l.chainId === chainId && l.curve.toLowerCase() === c.curve.toLowerCase());
     const label = `$${c.symbol}${listed ? "" : " (unlisted)"}`;
     if (!g) {
@@ -177,6 +182,7 @@ for (const chainId of chains) {
       continue;
     }
     const diffs = [];
+    if (Number(g.chainId) !== chainId) diffs.push(`chainId ${g.chainId} vs ${chainId}`);
     if (g.curveVersion !== c.version) diffs.push(`curveVersion ${g.curveVersion} vs ${c.version}`);
     if (String(g.swapCount) !== chain.swaps) diffs.push(`swapCount ${g.swapCount} vs ${chain.swaps}`);
     if (String(g.volumeNative) !== chain.volume) diffs.push(`volumeNative ${g.volumeNative} vs ${chain.volume}`);

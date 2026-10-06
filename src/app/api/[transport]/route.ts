@@ -1013,7 +1013,7 @@ const mcp = createMcpHandler(
      * terminal token.
      *
      * Urutannya:
-     *   1. Envio (Monad, Robinhood Chain) — lengkap sejak blok factory, tanpa `getLogs`.
+     *   1. Envio (Monad, Robinhood Chain, Arc) — lengkap sejak blok factory, tanpa `getLogs`.
      *   2. Subgraph (Base, Arbitrum One) — sama, dari The Graph.
      *   3. Indeks per pasar (`market-index.ts`, riwayat utuh sejak launch di disk) digabung
      *      dengan pemindaian log mundur untuk ujung terbaru, persis seperti
@@ -1048,7 +1048,7 @@ const mcp = createMcpHandler(
         title: "Every swap on a market, and how complete the answer is",
         annotations: { title: "Every swap on a market, and how complete the answer is", ...READ_CHAIN },
         description:
-          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad and Robinhood Chain are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's index is still catching up or a read fails, the answer says so instead of presenting a shortened list as the whole history. Treasury buybacks are not trades and are not listed, although the curve's swapCount counts them.",
+          "Trade history for a market, newest first, with an explicit statement of whether it reaches the launch block. Free. Monad, Robinhood Chain and Arc are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch block; every market is also covered by our per-market index of every swap since launch, joined to a live log scan for the newest fills. When a market's index is still catching up or a read fails, the answer says so instead of presenting a shortened list as the whole history. Treasury buybacks are not trades and are not listed, although the curve's swapCount counts them.",
         inputSchema: {
           symbol: SYMBOL,
           chainId: CHAIN_ID,

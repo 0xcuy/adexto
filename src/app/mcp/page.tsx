@@ -275,8 +275,8 @@ export default function McpPage() {
               basi sejak 2026-10-06: `trade_history` kini membaca sumber yang sama dengan
               halaman token, dan ke-11 pasar menjawab `complete: true`. */}
           <p className="text-xs leading-relaxed text-ink-soft">
-            <strong className="text-ink">History states its own reach.</strong> Monad and Robinhood Chain are
-            served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch
+            <strong className="text-ink">History states its own reach.</strong> Monad, Robinhood Chain and Arc
+            are served by our Envio indexer and Base and Arbitrum One by our subgraph, both complete from the launch
             block. Every market also has its own index of every swap since launch, joined to a live log scan for
             the newest fills, which is what answers on 0G and whenever an indexer is down.{" "}
             <code className="text-accent">complete</code> is true only when the answer provably reaches the

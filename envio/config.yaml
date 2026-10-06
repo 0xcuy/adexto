@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 #
 # Envio HyperIndex — AdextoFactory 0.11.0 dan 1.0.0 (ADEXTO v1) beserta kurvanya di Monad
-# mainnet, plus AdextoFactory 1.0.0 dan kurvanya di Robinhood Chain (4663).
+# mainnet, plus AdextoFactory 1.0.0 dan kurvanya di Robinhood Chain (4663) dan Arc (5042).
 #
 # KENAPA INDEXER TERPISAH, BUKAN MENAMBAH JARINGAN KE SUBGRAPH
 #
@@ -23,14 +23,14 @@
 # cocok dengan kepala rantai. Karena itu `rpc` di bawah hanya FALLBACK. Menaruh RPC sebagai
 # sumber utama akan mengembalikan justru batas yang indexer ini ada untuk menghapus.
 name: adexto-monad
-description: Bonding-curve launches, swaps, buyback burns and ERC-8004 bindings on Monad mainnet and Robinhood Chain.
+description: Bonding-curve launches, swaps, buyback burns and ERC-8004 bindings on Monad mainnet, Robinhood Chain and Arc.
 
 # `Bytes` sebagai string hex 0x, dan alamat huruf kecil di mana pun.
 #
-# Skema ini memakai alamat huruf kecil sebagai `id` entity, sama seperti subgraph yang
-# digantikannya, supaya kueri yang sudah ada tidak perlu tahu perbedaan casing. Menyetelnya
-# di sini menghapus setiap `.toLowerCase()` di handler — dan satu yang terlupa adalah cara
-# yang bagus untuk membuat dua baris entity bagi satu kontrak.
+# Id entity adalah `<chainId>_<alamat huruf kecil>` (lihat chain 5042 di bawah untuk alasannya),
+# dan bagian alamatnya selalu huruf kecil, supaya kueri tidak perlu tahu perbedaan casing.
+# Menyetelnya di sini menghapus setiap `.toLowerCase()` di handler — dan satu yang terlupa adalah
+# cara yang bagus untuk membuat dua baris entity bagi satu kontrak.
 address_format: lowercase
 
 # `block_fields` TIDAK disebut di sini dengan sengaja. `number`, `timestamp` dan `hash`
@@ -130,5 +130,30 @@ chains:
         # AdextoFactory 1.0.0, generasi pertama dan satu-satunya di chain ini. ABI-nya sama
         # dengan 0.11.0 untuk setiap event yang diindeks: topic0 `TrinityProjectDeployed`,
         # `AgentBound`, `CurveInitialized` dan `Swap` dicocokkan dengan log nyata $SAI.
+        address: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D"
+      - name: AdextoCurve
+
+  # Arc (Circle L1, gas dalam USDC). The Graph memang mendaftarkan `arc`, tetapi Envio sudah
+  # melayani dua chain lain dari satu indexer, dan HyperSync melayani Arc:
+  # `GET https://5042.hypersync.xyz/height` menjawab tinggi yang cocok dengan
+  # `eth_blockNumber` (6 Okt 2026). URL-nya disebut eksplisit supaya sumber utama tidak
+  # bergantung pada daftar jaringan bawaan versi Envio yang terpasang.
+  #
+  # FACTORY DI SINI BERALAMAT SAMA DENGAN FACTORY ROBINHOOD (nonce 0 deployer), jadi token dan
+  # kurva peluncuran ke-n di kedua chain juga beralamat sama. Itu sebabnya setiap id entity di
+  # skema ini `<chainId>_<alamat>` (`chainScopedId` di `src/shared.ts`).
+  #
+  # Fallback ke Pinax, bukan RPC resmi: RPC resmi menolak `eth_getLogs` di atas 10.000 blok,
+  # Pinax menerima 100.000 dengan filter banyak alamat (diukur 6 Okt 2026).
+  - id: 5042
+    # Blok deployment AdextoFactory 1.0.0 di Arc, dari `build/deployments.json` (`arc.blockNumber`).
+    start_block: 24446119
+    hypersync_config:
+      url: https://5042.hypersync.xyz
+    rpc:
+      - url: https://arc.rpc.pinax.network
+        for: fallback
+    contracts:
+      - name: AdextoFactory
         address: "0x8e63e117E71A80Cfc10fDF375F079e2e29cd7D7D"
       - name: AdextoCurve

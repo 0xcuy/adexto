@@ -50,6 +50,8 @@ export const DAY = 86400n;
  *                   (0.10.0 di 0xbC72…Ac39 tidak pernah punya peluncuran; 0.12.0 di 0xcA9c…39B9
  *                   hanya meluncurkan pasar uji $VOLT, jadi keduanya tidak diindeks)
  *   Robinhood 4663  0x8e63…7D7D  AdextoFactory 1.0.0, generasi pertama di sana
+ *   Arc       5042  0x8e63…7D7D  AdextoFactory 1.0.0, generasi pertama di sana; alamatnya SAMA
+ *                                dengan Robinhood, jadi kuncinya memuat chain
  *
  * Factory baru WAJIB ditambahkan di sini DAN di `config.yaml`; factory yang tidak dikenal
  * menghentikan indexer alih-alih menerbitkan versi tebakan.
@@ -60,6 +62,7 @@ const CURVE_VERSION_BY_FACTORY: Record<string, string> = {
   "143:0x5800e9715a47a598fce9bc3b65a95fd6bebf76a3": V_0_11_0,
   "143:0x3dfcbed7dd889f465cc9f75c430b43ef873b6056": V_1_0_0,
   "4663:0x8e63e117e71a80cfc10fdf375f079e2e29cd7d7d": V_1_0_0,
+  "5042:0x8e63e117e71a80cfc10fdf375f079e2e29cd7d7d": V_1_0_0,
 };
 export function curveVersionFor(chainId: number, factory: string): string {
   const v = CURVE_VERSION_BY_FACTORY[`${chainId}:${factory.toLowerCase()}`];
@@ -78,7 +81,7 @@ export function curveVersionFor(chainId: number, factory: string): string {
  * termasuk `curveVersion`, dengan versi factory yang sebenarnya. Yang dipilih generasi terbaru
  * di chain itu, supaya baris setengah jadi pun tidak menyebut generasi lama.
  */
-const PROVISIONAL_VERSION_BY_CHAIN: Record<number, string> = { 143: V_1_0_0, 4663: V_1_0_0 };
+const PROVISIONAL_VERSION_BY_CHAIN: Record<number, string> = { 143: V_1_0_0, 4663: V_1_0_0, 5042: V_1_0_0 };
 export function provisionalCurveVersion(chainId: number): string {
   const v = PROVISIONAL_VERSION_BY_CHAIN[chainId];
   if (v === undefined) throw new Error(`No curve version is configured for chain ${chainId}.`);
@@ -143,9 +146,30 @@ export function metaOf(event: RawEvent): EventMeta {
   };
 }
 
-/** Id log yang stabil: satu transaksi bisa memuat beberapa swap. */
+/**
+ * Id entity untuk sebuah KONTRAK: `<chainId>_<alamat huruf kecil>`.
+ *
+ * Bukan alamat saja, dan ini bukan kehati-hatian teoretis. Factory Arc (5042) dan Robinhood Chain
+ * (4663) lahir di alamat yang sama, nonce 0 deployer, jadi token dan kurva peluncuran ke-n di
+ * keduanya juga beralamat sama: $ARCTEST di Arc persis alamat $SAI di Robinhood. Entity Envio
+ * berbagi satu tabel untuk semua chain, jadi dengan id alamat saja peluncuran Arc menimpa baris
+ * pasar Robinhood — swapCount, volume, harga — tanpa satu pun galat.
+ *
+ * Satu fungsi untuk setiap id kontrak, supaya tidak ada handler yang membentuknya sendiri dan lupa
+ * chain-nya. `.toLowerCase()` di sini berlebihan selama `address_format: lowercase`, dan sengaja
+ * dibiarkan: id yang berbeda casing berarti dua baris untuk satu kontrak.
+ */
+export function chainScopedId(chainId: number, address: string): string {
+  return `${chainId}_${address.toLowerCase()}`;
+}
+
+/**
+ * Id log yang stabil: satu transaksi bisa memuat beberapa swap. Ikut terikat chain, supaya
+ * setiap id di skema ini punya bentuk yang sama dan tidak ada yang bergantung pada keunikan hash
+ * transaksi lintas chain.
+ */
 export function eventId(meta: EventMeta): string {
-  return `${meta.txHash}-${meta.logIndex}`;
+  return `${meta.chainId}_${meta.txHash}-${meta.logIndex}`;
 }
 
 /**
@@ -197,6 +221,7 @@ export async function getGlobalStats(context: Ctx, chainId: number): Promise<Glo
   if (existing !== undefined) return existing;
   return {
     id,
+    chainId,
     totalProjects: ZERO,
     totalCurves: ZERO,
     totalSwaps: ZERO,
@@ -220,16 +245,19 @@ export async function getGlobalStats(context: Ctx, chainId: number): Promise<Glo
 async function dayBucket(
   context: Ctx,
   curveId: string,
+  chainId: number,
   timestamp: bigint,
   priceAfter: BigDecimal,
 ): Promise<CurveDayData> {
   const dayStart = (timestamp / DAY) * DAY;
+  // `curveId` sudah terikat chain (`chainScopedId`), jadi ember ini juga.
   const id = `${curveId}-${dayStart}`;
 
   const existing = await context.CurveDayData.get(id);
   if (existing === undefined) {
     return {
       id,
+      chainId,
       curve_id: curveId,
       dayStartTimestamp: dayStart,
       volumeNative: ZERO,
@@ -265,7 +293,10 @@ async function dayBucket(
 export async function applyLaunch(
   context: Ctx,
   args: {
+    /** `chainScopedId(chainId, curveAddress)`. */
     curveId: string;
+    curveAddress: string;
+    /** `chainScopedId(chainId, token)`. */
     tokenId: string;
     virtualNative: bigint;
     curveTokens: bigint;
@@ -282,6 +313,8 @@ export async function applyLaunch(
 
   const curve: Curve = {
     id: args.curveId,
+    chainId: args.chainId,
+    address: args.curveAddress.toLowerCase(),
     project_id: args.tokenId,
     curveVersion: curveVersionFor(args.chainId, args.factory),
     virtualNative: args.virtualNative,
@@ -368,6 +401,7 @@ export async function applySwap(
 
   context.Swap.set({
     id: eventId(args.meta),
+    chainId: args.meta.chainId,
     curve_id: args.curveId,
     project_id: curve.project_id,
     trader: args.trader,
@@ -434,7 +468,7 @@ export async function applySwap(
     lastSwapTimestamp: args.meta.timestamp,
   });
 
-  const day = await dayBucket(context, args.curveId, args.meta.timestamp, priceAfter);
+  const day = await dayBucket(context, args.curveId, args.meta.chainId, args.meta.timestamp, priceAfter);
   context.CurveDayData.set({
     ...day,
     volumeNative: day.volumeNative + volumeNative,
@@ -481,6 +515,7 @@ export async function applyBuyback(
 
   context.BuybackBurn.set({
     id: eventId(args.meta),
+    chainId: args.meta.chainId,
     curve_id: args.curveId,
     amountInNative: args.amountIn,
     tokensBurned: args.tokensBurned,
@@ -539,6 +574,7 @@ export async function applyCreatorClaim(
 
   context.CreatorFeeClaim.set({
     id: eventId(args.meta),
+    chainId: args.meta.chainId,
     curve_id: args.curveId,
     to: args.to,
     amount: args.amount,
@@ -574,6 +610,7 @@ export async function applyProtocolClaim(
 
   context.ProtocolFeeClaim.set({
     id: eventId(args.meta),
+    chainId: args.meta.chainId,
     curve_id: args.curveId,
     to: args.to,
     caller: args.meta.txFrom,
@@ -605,7 +642,15 @@ export async function applyProtocolClaim(
  */
 export async function applyCurveInitialized(
   context: Ctx,
-  args: { curveId: string; virtualNative: bigint; curveTokens: bigint; blockNumber: bigint; chainId: number },
+  args: {
+    /** `chainScopedId(chainId, curveAddress)`. */
+    curveId: string;
+    curveAddress: string;
+    virtualNative: bigint;
+    curveTokens: bigint;
+    blockNumber: bigint;
+    chainId: number;
+  },
 ): Promise<void> {
   const existing = await context.Curve.get(args.curveId);
 
@@ -618,6 +663,8 @@ export async function applyCurveInitialized(
 
   const base: Curve = existing ?? {
     id: args.curveId,
+    chainId: args.chainId,
+    address: args.curveAddress.toLowerCase(),
     project_id: undefined,
     curveVersion: provisionalCurveVersion(args.chainId),
     virtualNative: ZERO,
@@ -695,6 +742,7 @@ export async function applyProject(
 
   const project: Project = {
     id: args.tokenId,
+    chainId: args.meta.chainId,
     token: args.token,
     curve_id: args.curveId,
     creator: args.creator,
@@ -742,7 +790,9 @@ export function applyAgentBound(
   },
 ): void {
   context.AgentBinding.set({
-    id: args.token,
+    // Sama dengan `Project.id` peluncuran yang sama, supaya `applyProject` menemukannya.
+    id: chainScopedId(args.meta.chainId, args.token),
+    chainId: args.meta.chainId,
     token: args.token,
     agentId: args.agentId,
     agentRegistry: args.agentRegistry,

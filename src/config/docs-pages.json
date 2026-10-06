@@ -569,7 +569,7 @@
               "type": "list",
               "items": [
                 "Base Mainnet and Arbitrum One use hosted subgraphs to index contract events.",
-                "Monad Mainnet and Robinhood Chain use an Envio HyperIndex deployment for log indexing and queries.",
+                "Monad Mainnet, Robinhood Chain and Arc use an Envio HyperIndex deployment for log indexing and queries.",
                 "0G Mainnet reads event logs directly from the node RPC endpoint at `https://evmrpc.0g.ai` because The Graph does not offer indexing support for chain ID 16661."
               ]
             },

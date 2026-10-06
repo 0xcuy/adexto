@@ -1,16 +1,39 @@
-# Adexto on Monad and Robinhood Chain — Envio HyperIndex
+# Adexto on Monad, Robinhood Chain and Arc — Envio HyperIndex
 
 Indexes `AdextoFactory` 0.11.0 and 1.0.0 (ADEXTO v1) and every bonding curve they deploy on
 Monad mainnet (chain 143), and `AdextoFactory` 1.0.0 and its curves on Robinhood Chain
-(chain 4663): launches, swaps, buyback burns, fee claims, and ERC-8004 agent bindings. Both
-generations emit the same events, so one contract definition serves both Monad factories;
-`Curve.curveVersion` comes from the address of the factory that launched the curve.
+(chain 4663) and Arc (chain 5042): launches, swaps, buyback burns, fee claims, and ERC-8004
+agent bindings. Both generations emit the same events, so one contract definition serves
+every factory; `Curve.curveVersion` comes from the address of the factory that launched the
+curve.
 
 Robinhood Chain is here for the same reason as Monad: `graphprotocol/networks-registry`
 v0.8.6 lists `robinhood` (eip155:4663) with no Subgraphs service, only Firehose and
 Substreams, while `https://robinhood.hypersync.xyz/height` answers with the chain head.
-`GlobalStats` has one row per chain (`global` for Monad, `global-4663` for Robinhood
-Chain), because native volume is MON on one and ETH on the other.
+Arc's official RPC rejects `eth_getLogs` over more than 10,000 blocks, about 85 minutes of
+Arc, and `https://5042.hypersync.xyz/height` answers with the chain head, so the same
+indexer serves it. `GlobalStats` has one row per chain (`global` for Monad, `global-4663`
+for Robinhood Chain, `global-5042` for Arc), because native volume is MON, ETH and USDC.
+
+## Every id carries its chain
+
+Contract entities (`Project`, `Curve`, `AgentBinding`) use `<chainId>_<lowercase address>`
+as their id, events use `<chainId>_<txHash>-<logIndex>`, and `CurveDayData` uses
+`<curve id>-<day start>`. Every entity also has a `chainId` field, and `Curve.address` and
+`Project.token` hold the bare address.
+
+This is not caution for its own sake. The Arc and Robinhood Chain factories were deployed
+from the same deployer at nonce 0, so they share one address, and so do the tokens and
+curves of their n-th launches: the first Arc launch, the unlisted test ticker `$ARCTEST`,
+sits at exactly the address of `$SAI` on Robinhood Chain. Envio keeps every chain in one
+table per entity, so with address-only ids the Arc launch would overwrite the Robinhood
+market's swap count, volume and price without a single error.
+
+Filter on `chainId` and `address` rather than parsing ids:
+
+```graphql
+{ Curve(where: { chainId: { _eq: 5042 } }) { address swapCount volumeNative } }
+```
 
 ## Why this exists as its own indexer
 
@@ -49,7 +72,7 @@ The indexer is live, and its data is readable anonymously:
 ```bash
 curl -s -X POST https://adexto.xyz/api/indexer/graphql \
   -H 'content-type: application/json' \
-  -d '{"query":"{ Curve { id swapCount volumeNative totalProtocolFees } Swap_aggregate { aggregate { count } } }"}'
+  -d '{"query":"{ Curve { chainId address swapCount volumeNative totalProtocolFees } Swap_aggregate { aggregate { count } } }"}'
 ```
 
 `GET` the same URL for the entity list, the live sync position, and a copy-paste query.

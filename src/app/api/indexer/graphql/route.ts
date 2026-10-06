@@ -1,5 +1,5 @@
 /**
- * Endpoint GraphQL publik dan read-only untuk indexer Envio (Monad 143 dan Robinhood Chain 4663).
+ * Endpoint GraphQL publik dan read-only untuk indexer Envio (Monad 143, Robinhood Chain 4663, Arc 5042).
  *
  * KENAPA SEBUAH PROXY, DAN BUKAN HASURA YANG DITERBITKAN LANGSUNG
  *
@@ -69,6 +69,7 @@ const CORS = {
 const CHAINS = [
   { chainId: 143, chain: "Monad mainnet" },
   { chainId: 4663, chain: "Robinhood Chain" },
+  { chainId: 5042, chain: "Arc" },
 ] as const;
 
 export async function OPTIONS() {
@@ -92,7 +93,7 @@ export async function GET() {
       indexer: "Envio HyperIndex",
       chains: CHAINS,
       indexes:
-        "Monad: AdextoFactory 0.11.0 and the ADEXTO v1 factory (1.0.0), and every bonding curve they deploy, from the 0.11.0 factory's deploy block; Curve.curveVersion names the factory generation. Robinhood Chain: AdextoFactory 1.0.0 and every bonding curve it deploys, from its deploy block. Curve addresses are unique across chains; GlobalStats has one row per chain ('global' for Monad, 'global-4663' for Robinhood Chain) because native volume is in different units.",
+        "Monad: AdextoFactory 0.11.0 and the ADEXTO v1 factory (1.0.0), and every bonding curve they deploy, from the 0.11.0 factory's deploy block; Curve.curveVersion names the factory generation. Robinhood Chain and Arc: AdextoFactory 1.0.0 and every bonding curve it deploys, from its deploy block. Every id is '<chainId>_<address>' (events: '<chainId>_<txHash>-<logIndex>'), because the same address exists on two chains: the Arc and Robinhood Chain factories share one, and so do their n-th launches. Filter by the chainId and address fields rather than parsing ids. GlobalStats has one row per chain ('global' for Monad, 'global-4663' for Robinhood Chain, 'global-5042' for Arc) because native volume is MON, ETH and USDC.",
       entities: [
         "Project",
         "Curve",
@@ -113,11 +114,11 @@ export async function GET() {
        * protokol dipungut 10 bps atas volume kotor.
        */
       exampleQuery:
-        "{ Curve { id swapCount volumeNative totalProtocolFees floorPriceNative } Swap_aggregate { aggregate { count } } }",
+        "{ Curve { chainId address swapCount volumeNative totalProtocolFees floorPriceNative } Swap_aggregate { aggregate { count } } }",
       exampleCurl:
         `curl -s -X POST https://adexto.xyz/api/indexer/graphql ` +
         `-H 'content-type: application/json' ` +
-        `-d '{"query":"{ Curve { id swapCount } }"}'`,
+        `-d '{"query":"{ Curve { chainId address swapCount } }"}'`,
       status,
       docs: "https://github.com/0xcuy/adexto/tree/main/envio",
     },

@@ -1,5 +1,5 @@
 /**
- * AdextoFactory 0.11.0 dan 1.0.0 di Monad mainnet, dan AdextoFactory 1.0.0 di Robinhood Chain.
+ * AdextoFactory 0.11.0 dan 1.0.0 di Monad mainnet, dan AdextoFactory 1.0.0 di Robinhood Chain dan Arc.
  * Event yang diindeks bertanda tangan sama di kedua generasi, jadi satu kontrak `AdextoFactory`
  * di `config.yaml` melayani keduanya; generasinya dibaca dari alamat factory di `applyLaunch`.
  *
@@ -18,7 +18,7 @@
  * membuat kedua urutan menghasilkan baris yang sama.
  */
 import { indexer } from "envio";
-import { applyAgentBound, applyLaunch, applyProject, metaOf } from "../shared";
+import { applyAgentBound, applyLaunch, applyProject, chainScopedId, metaOf } from "../shared";
 
 indexer.contractRegister(
   { contract: "AdextoFactory", event: "TrinityProjectDeployed" },
@@ -50,11 +50,13 @@ indexer.onEvent(
   { contract: "AdextoFactory", event: "TrinityProjectDeployed" },
   async ({ event, context }) => {
     const meta = metaOf(event);
-    const curveId = event.params.curve;
-    const tokenId = event.params.token;
+    // Terikat chain: factory Arc dan Robinhood beralamat sama, jadi kurva dan tokennya bisa juga.
+    const curveId = chainScopedId(meta.chainId, event.params.curve);
+    const tokenId = chainScopedId(meta.chainId, event.params.token);
 
     await applyLaunch(context, {
       curveId,
+      curveAddress: event.params.curve,
       tokenId,
       virtualNative: event.params.virtualNative,
       curveTokens: event.params.curveTokens,

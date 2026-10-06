@@ -47,9 +47,19 @@ const ADMIN_SECRET = process.env.ENVIO_HASURA_SECRET ?? "";
  *
  * Harus sama dengan `chains:` di `envio/config.yaml`. 4663 (Robinhood) ditambahkan karena The
  * Graph tidak melayaninya, dan tanpa indexer setiap permintaan chart memindai `eth_getLogs` ke
- * RPC publik Robinhood (terukur 7,1 dtk dingin).
+ * RPC publik Robinhood (terukur 7,1 dtk dingin). 5042 (Arc) karena RPC resminya membatasi
+ * `eth_getLogs` pada 10.000 blok, sekitar 85 menit Arc.
  */
-export const ENVIO_CHAIN_IDS = new Set<number>([143, 4663]);
+export const ENVIO_CHAIN_IDS = new Set<number>([143, 4663, 5042]);
+
+/**
+ * Id entity Envio untuk sebuah kontrak: `<chainId>_<alamat huruf kecil>`, sama dengan
+ * `chainScopedId` di `envio/src/shared.ts`. Alamat saja tidak cukup: factory Arc dan Robinhood
+ * beralamat sama, jadi kurva peluncuran ke-n di keduanya juga.
+ */
+export function envioEntityId(chainId: number, address: string): string {
+  return `${chainId}_${address.toLowerCase()}`;
+}
 
 export function envioServes(chainId: number | null | undefined): boolean {
   return Boolean(ENDPOINT) && chainId != null && ENVIO_CHAIN_IDS.has(chainId);
@@ -139,13 +149,14 @@ export async function readEnvioSwaps(
   }
 
   /**
-   * Alamat di-LOWERCASE sebelum dicocokkan.
+   * Id kurva di indexer: chain + alamat HURUF KECIL.
    *
-   * `address_format: lowercase` di config indexer berarti setiap id disimpan huruf kecil,
+   * `address_format: lowercase` di config indexer berarti setiap alamat disimpan huruf kecil,
    * sementara registry menyimpan alamat ber-checksum. Tanpa normalisasi ini kecocokannya
-   * nol dan gejalanya sama persis dengan pasar yang belum pernah diperdagangkan.
+   * nol dan gejalanya sama persis dengan pasar yang belum pernah diperdagangkan. Chain-nya
+   * wajib: tanpa itu kurva $SAI Robinhood dan $ARCTEST Arc adalah satu baris.
    */
-  const curve = curveAddress.toLowerCase();
+  const curve = envioEntityId(chainId, curveAddress);
 
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };

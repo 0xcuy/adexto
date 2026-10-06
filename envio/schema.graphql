@@ -10,8 +10,9 @@ berjalan setelahnya di transaksi yang sama.
 Berguna sendiri juga: bisa dikueri untuk menemukan setiap token yang terikat ke satu agent.
 """
 type AgentBinding {
-  "Alamat token, huruf kecil — sama dengan Project.id."
+  "`<chainId>_<alamat token huruf kecil>` — sama dengan Project.id."
   id: ID!
+  chainId: Int! @index
   token: String!
   agentId: BigInt!
   agentRegistry: String!
@@ -23,11 +24,19 @@ type AgentBinding {
 
 """
 Satu peluncuran.
+
+ID SETIAP ENTITY TERIKAT CHAIN: `<chainId>_<alamat>`, bukan alamat saja. Factory Arc dan Robinhood
+Chain lahir di alamat yang sama (nonce 0 deployer), jadi peluncuran ke-n di keduanya juga
+beralamat sama: token dan kurva $ARCTEST di Arc persis alamat $SAI di Robinhood Chain. Dengan id
+alamat saja, peluncuran Arc menimpa baris pasar Robinhood tanpa satu pun galat. Bagian-bagiannya
+disimpan terpisah di `chainId` dan `token`/`address` supaya klien tidak perlu memotong id.
 """
 type Project {
-  "Alamat token, huruf kecil."
+  "`<chainId>_<alamat token huruf kecil>`."
   id: ID!
-  token: String!
+  chainId: Int! @index
+  "Alamat token, huruf kecil."
+  token: String! @index
   curve: Curve!
   creator: String! @index
   name: String!
@@ -63,8 +72,11 @@ type Project {
 }
 
 type Curve {
-  "Alamat kurva, huruf kecil."
+  "`<chainId>_<alamat kurva huruf kecil>`. Alamatnya sendiri ada di `address`."
   id: ID!
+  chainId: Int! @index
+  "Alamat kurva, huruf kecil. Hanya bermakna bersama `chainId`."
+  address: String! @index
   project: Project
   "Dari peluncuran. Reserve pembuka yang tidak pernah berupa uang nyata."
   virtualNative: BigInt!
@@ -91,7 +103,7 @@ type Curve {
 
   """
   VERSION kontrak kurva ini, menurut factory yang meluncurkannya: "0.11.0" atau "1.0.0"
-  (ADEXTO v1) di Monad, "1.0.0" di Robinhood Chain. Generasi 0.10.0 di Monad tidak punya
+  (ADEXTO v1) di Monad, "1.0.0" di Robinhood Chain dan Arc. Generasi 0.10.0 di Monad tidak punya
   satu pun peluncuran. Field-nya dipertahankan supaya skema tetap cocok dengan subgraph
   yang melayani chain lain.
   """
@@ -146,8 +158,9 @@ type Curve {
 }
 
 type Swap {
-  "txHash-logIndex."
+  "`<chainId>_<txHash>-<logIndex>`."
   id: ID!
+  chainId: Int! @index
   curve: Curve!
   project: Project
   trader: String! @index
@@ -173,7 +186,9 @@ type Swap {
 }
 
 type BuybackBurn {
+  "`<chainId>_<txHash>-<logIndex>`."
   id: ID!
+  chainId: Int!
   curve: Curve!
   "Native dari vault buyback yang dibelanjakan di kurva."
   amountInNative: BigInt!
@@ -185,7 +200,9 @@ type BuybackBurn {
 }
 
 type CreatorFeeClaim {
+  "`<chainId>_<txHash>-<logIndex>`."
   id: ID!
+  chainId: Int!
   curve: Curve!
   to: String!
   amount: BigInt!
@@ -202,7 +219,9 @@ izin, jadi siapa pun boleh memicunya dan keduanya bisa berbeda. Menyimpan keduan
 satu-satunya cara memperlihatkan bahwa tujuannya tidak bisa dibajak oleh pemanggilnya.
 """
 type ProtocolFeeClaim {
+  "`<chainId>_<txHash>-<logIndex>`."
   id: ID!
+  chainId: Int!
   curve: Curve!
   "Tujuan immutable yang tertulis di kontrak."
   to: String!
@@ -222,8 +241,9 @@ swap — itu justru pekerjaan indexer. `open`/`high`/`low`/`close` memakai harga
 jadi lilinnya konsisten dengan apa yang benar-benar terjadi di kurva.
 """
 type CurveDayData {
-  "curveAddress-dayStartTimestamp."
+  "`<Curve.id>-<dayStartTimestamp>`, jadi terikat chain lewat id kurvanya."
   id: ID!
+  chainId: Int!
   curve: Curve!
   dayStartTimestamp: BigInt! @index
   volumeNative: BigInt!
@@ -239,8 +259,9 @@ type CurveDayData {
 }
 
 type GlobalStats {
-  "Satu baris per chain, karena volume native berbeda satuan: 'global' untuk Monad (143), 'global-4663' untuk Robinhood Chain."
+  "Satu baris per chain, karena volume native berbeda satuan: 'global' untuk Monad (143), 'global-4663' untuk Robinhood Chain, 'global-5042' untuk Arc."
   id: ID!
+  chainId: Int!
   totalProjects: BigInt!
   totalCurves: BigInt!
   totalSwaps: BigInt!
