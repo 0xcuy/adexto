@@ -261,7 +261,9 @@ try {
   const usdc = new ethers.Contract(USDC_BASE, ["function balanceOf(address) view returns (uint256)"], provider(base));
   earned = Number(ethers.formatUnits(await usdc.balanceOf(TREASURY), 6));
   const nonce = await provider(base).getTransactionCount(TREASURY);
-  line(`treasury   ${earned.toFixed(6)} USDC on Base, nonce ${nonce}${nonce === 0 ? " (never spent from)" : ""}`);
+  // Nonce 0 berarti treasury tidak pernah MENGIRIM transaksi, bukan bahwa tidak ada yang pernah keluar:
+  // USDC bisa dipindah lewat otorisasi EIP-3009 yang dikirim dompet lain (2026-10-06, 2,04 USDC ke deployer).
+  line(`treasury   ${earned.toFixed(6)} USDC on Base, nonce ${nonce}${nonce === 0 ? " (has never sent a transaction)" : ""}`);
   if (nonce !== 0) {
     note("treasury nonce is no longer 0 — the offline-key property published on /security has changed");
   }
