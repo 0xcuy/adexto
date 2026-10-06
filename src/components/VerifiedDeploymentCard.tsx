@@ -6,7 +6,7 @@ import {
   CURVE_FACTORY_GENERATION,
   SUPERSEDED_CURVE_FACTORY_GENERATION,
 } from "@/config/contracts";
-import { PUBLISHED_SUBGRAPH } from "@/config/subgraph";
+import { NETWORK_SUBGRAPHS } from "@/config/subgraph";
 import { 
   CheckCircle2, ExternalLink, ShieldCheck, Database, Copy, Check, 
   Cpu, Layers, Sparkles 
@@ -104,21 +104,22 @@ export default function VerifiedDeploymentCard() {
     // The pre-release hook-era contracts (AdextoTrinityFactory, SovereignHook) are no longer
     // listed: they never settled a trade, no market lives on them, and the README dropped
     // them too. Their addresses stay in src/config/contracts.ts.
-    {
-      // Badge ini dulu berbunyi "The Graph Published" dengan warna accent, dan
-      // secara harfiah benar — NFT subgraph-nya memang ada di Arbitrum One. Tapi
-      // versi yang dipublish mendeklarasikan `network: mainnet` (Ethereum) untuk
-      // alamat 0xe8E9Cf43… yang punya 0 byte bytecode di Ethereum dan 7216 byte
-      // di 0G. Jadi ia memindai chain yang salah sejak blok 1 dan sudah
-      // mengindeks nol baris. Menampilkannya sebagai sumber data hijau adalah
-      // klaim yang tidak bisa dipertahankan; badge-nya sekarang menyebut apa
-      // yang benar-benar disajikannya.
-      label: "The Graph Subgraph NFT (Arbitrum One 42161)",
-      address: PUBLISHED_SUBGRAPH.subgraphId,
-      explorerUrl: PUBLISHED_SUBGRAPH.explorerUrl,
-      badge: "published · serves no data yet",
-      color: "border-warn/30 bg-warn/10 text-warn",
-    },
+    /**
+     * Subgraph yang dipublish ke The Graph Network, satu per chain (2026-10-06).
+     *
+     * Menggantikan baris NFT pertama (`PUBLISHED_SUBGRAPH`, badge "published · serves no
+     * data yet"): NFT itu mendeklarasikan `network: mainnet` untuk alamat yang hanya ada
+     * di 0G, jadi ia tidak pernah melayani apa pun dan tidak akan pernah. Ia tetap
+     * disebut di kartu The Graph pada status teknis. Badge baru sengaja tidak mengklaim
+     * apa yang dilayani network: situs membaca endpoint Studio, bukan gateway.
+     */
+    ...NETWORK_SUBGRAPHS.map((s) => ({
+      label: `The Graph subgraph · ${s.displayName} (published on Arbitrum One 42161)`,
+      address: s.subgraphId,
+      explorerUrl: s.explorerUrl,
+      badge: `published · ${s.version} · no curation signal`,
+      color: "border-accent/30 bg-accent-soft text-accent",
+    })),
     {
       /**
        * "Attestation Root" was the wrong word, and it is the same misnomer that let

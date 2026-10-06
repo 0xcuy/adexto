@@ -669,7 +669,7 @@ Since `v0.11.0` the subgraph indexes **curve generations side by side**, because
 
 Earlier versions: `v0.10.1` fixed a 1e18 unit mismatch between `openingPriceNative` and `spotPriceNative`. `v0.10.2` removed "agent buyback burns" from the manifest description, since `executeBuyback` has no caller gate and attributing it to an agent overstated the contract.
 
-Both subgraphs are published to the decentralized network without curation signal. Indexers are paid in proportion to signal, so apart from The Graph's own upgrade indexer, which The Graph says indexes every published subgraph, no indexer has a reason to pick them up. The Studio endpoints above answer queries either way.
+Both subgraphs are published to the decentralized network without curation signal. Indexers are paid in proportion to signal, so no independent indexer has a reason to pick them up. The site reads the Studio endpoints above, not the gateway.
 
 Self-hosting runs from `subgraph/docker-compose.yml`. Public-RPC `eth_getLogs` ceilings are probed rather than assumed and recorded per chain in `subgraph/chains.json`: 2,000 blocks on 0G, and a hard 100 on Monad, which returns `-32614` above that.
 

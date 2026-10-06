@@ -5,7 +5,7 @@ import { ShieldCheck, Cpu, Terminal, Layers, CloudLightning, Award, Network, Glo
 import { agentAttestation } from "@/lib/og-attestation";
 import { LAUNCH_CLAUSE } from "@/lib/launch-state";
 import { LAUNCH_CHAIN_COUNT_WORD, chainNameList } from "@/lib/chains";
-import { STUDIO_VERSION } from "@/config/subgraph";
+import { NETWORK_SUBGRAPHS, STUDIO_VERSION } from "@/config/subgraph";
 import { DataTable, TD, TD_MONO } from "@/app/docs/DocBlocks";
 
 /**
@@ -114,7 +114,24 @@ export default function ComponentStatus() {
                 factory tanpa indexing error. Yang MASIH benar adalah bagian
                 keduanya — situs ini belum membacanya, karena SUBGRAPH_URL_* sengaja
                 dibiarkan kosong sampai ada satu peluncuran nyata yang terindeks. */}
-            <p className="text-ink-soft">A subgraph NFT is published on the decentralized network but serves nothing: the published version declares Ethereum as its network while pointing at an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn. The rewritten multi-chain subgraph is deployed to Subgraph Studio for Base and Arbitrum One at {STUDIO_VERSION ?? "no version configured"}, both synced past the factory&apos;s start block with no indexing errors. This site is now wired to read them, and the registry remains the primary source with the indexer additive — so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. No data comes from The Graph for the three live markets either, and the reason is narrower than it looks: two are on 0G and one is on Monad, and Studio serves neither chain. 0G is absent from The Graph&apos;s networks registry, and Monad is listed there without Subgraphs support — Firehose and Substreams only. Monad is indexed anyway, by Envio HyperIndex rather than a subgraph: full history from the factory&apos;s deploy block, 1.93M blocks in under 45 seconds, checked figure by figure against what the curve contracts store. 0G is still read straight from RPC logs.</p>
+            {/* 2026-10-06: kedua subgraph per chain dipublish ke network sebagai dua NFT baru
+                (`NETWORK_SUBGRAPHS`), tanpa signal. Kalimat "No data comes from The Graph for the
+                three live markets" ikut dibuang: pasar di Base dan Arbitrum One sudah dibaca dari
+                subgraph, dan jumlah "three" sudah lama basi. Arc sengaja TIDAK disebut sebagai
+                chain yang tidak dilayani The Graph: itu belum diperiksa, jadi hanya disebut bahwa
+                Envio yang mengindeksnya. */}
+            <p className="text-ink-soft">
+              The Base and Arbitrum One subgraphs are published on the decentralized network, on Arbitrum One:{" "}
+              {NETWORK_SUBGRAPHS.map((s, i) => (
+                <span key={s.subgraphId}>
+                  {i > 0 ? " and " : ""}
+                  <a href={s.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline font-medium">
+                    {s.displayName}
+                  </a>
+                </span>
+              ))}
+              , both at {NETWORK_SUBGRAPHS[0].version} with no curation signal. This site reads the same subgraphs through Subgraph Studio at {STUDIO_VERSION ?? "no version configured"}, both synced past every factory&apos;s start block with no indexing errors. The registry remains the primary source with the indexer additive, so an empty or unreachable indexer only leaves live figures blank rather than emptying the page. The other chains are not read from The Graph. 0G is absent from its networks registry, and Monad and Robinhood Chain are listed there without Subgraphs support, Firehose and Substreams only. Monad is indexed by Envio HyperIndex instead: full history from the factory&apos;s deploy block, 1.93M blocks in under 45 seconds, checked figure by figure against what the curve contracts store. Robinhood Chain and Arc are indexed by Envio as well, and 0G is still read straight from RPC logs. An older subgraph NFT also exists on the network but serves nothing: its version declares Ethereum as the network for an address that only exists on 0G, so it has indexed zero rows and always will. Its curation signal was withdrawn.
+            </p>
           </div>
 
           {/* Kartu ini dulu berwarna amber, sederet dengan sebuah kartu "Planned:

@@ -43,12 +43,13 @@
 import type { ChainKey } from "@/lib/chains";
 
 /**
- * The published subgraph NFT on Arbitrum One.
+ * The FIRST subgraph NFT on Arbitrum One, superseded by `NETWORK_SUBGRAPHS` below.
  *
- * Kept because the NFT is real and reusable: publishing a new version to the same
- * token id preserves the id, and therefore the query URL. Its curation signal was
- * withdrawn on 2026-08-21 (21.39438708 GRT out, `burnSignal`, nSignal now 0), and
- * `disabled` is still false, so the id remains available for a new version.
+ * Its curation signal was withdrawn on 2026-08-21 (21.39438708 GRT out,
+ * `burnSignal`, nSignal now 0), and `disabled` is still false. On 2026-10-06 the
+ * per-chain subgraphs were published as two new NFTs instead of a new version on
+ * this one, because one NFT can only point at one deployment and a subgraph is
+ * always one network. This one is left as it is: `deprecateSubgraph` would burn it.
  *
  * `indexes` is deliberately explicit. It is the honest answer to "what does this
  * currently serve", and the answer is nothing.
@@ -76,6 +77,45 @@ export const PUBLISHED_SUBGRAPH = {
   /** Signal withdrawn; the NFT itself is intact and can take a new version. */
   curationSignalGrt: 0,
 } as const;
+
+/**
+ * The per-chain subgraphs published to The Graph Network (L2GNS on Arbitrum One),
+ * 2026-10-06, owned by the deployer and with no curation signal.
+ *
+ * The site does not query these: it reads the Studio endpoints in
+ * `SUBGRAPH_URL_*`, which need no API key. The network version runs the same
+ * mappings, data sources and start blocks as the Studio deployment; only the
+ * schema file differs, because its comments and descriptions were translated
+ * to English. The README lists the same ids.
+ */
+export const NETWORK_SUBGRAPHS = [
+  {
+    chain: "Base",
+    displayName: "ADEXTO Base",
+    /** Subgraph id, base58, as in the Graph Explorer URL. */
+    subgraphId: "6MDqw9tKQ5sAtfkthKLpqWVVuEcrdtBCFQGmkzF839nq",
+    explorerUrl:
+      "https://thegraph.com/explorer/subgraphs/6MDqw9tKQ5sAtfkthKLpqWVVuEcrdtBCFQGmkzF839nq?view=Query&chain=arbitrum-one",
+    version: "v1.0.0",
+    deployment: "QmT1W8wYCgRoTSBaPrw8wtZJhv1avLxiQkNRXmvtqGCj9m",
+  },
+  {
+    chain: "Arbitrum",
+    displayName: "ADEXTO Arbitrum One",
+    subgraphId: "QfeXRWWYT89qiM288cTTBNpa4g82jjfAMUS94zqjdWd",
+    explorerUrl:
+      "https://thegraph.com/explorer/subgraphs/QfeXRWWYT89qiM288cTTBNpa4g82jjfAMUS94zqjdWd?view=Query&chain=arbitrum-one",
+    version: "v1.0.0",
+    deployment: "QmYpYjRUayUUBmiJpciHa4zgE91fonUVhdEg2gaTehvMo9",
+  },
+] as const satisfies readonly {
+  chain: ChainKey;
+  displayName: string;
+  subgraphId: string;
+  explorerUrl: string;
+  version: string;
+  deployment: string;
+}[];
 
 /**
  * Per-chain query endpoints, server-side only.
