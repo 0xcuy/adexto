@@ -38,6 +38,7 @@ export const REPOS = [
   { name: "0xcuy/adexto-mcp", what: "MCP connection guides, the tool reference and an agent kit that signs with your own key" },
   { name: "0xcuy/adexto-arbitrum", what: "the Arbitrum One engineering" },
   { name: "0xcuy/adexto-monad", what: "the Monad engineering" },
+  { name: "0xcuy/adexto-arc", what: "the Arc engineering" },
 ] as const;
 
 /** Spread x402 bawaan gateway, sama dengan `X402_SPREAD_BPS` di Worker. Kutipan menyebut nilai yang berlaku. */

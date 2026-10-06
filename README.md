@@ -101,6 +101,7 @@ The 12 listed markets, read from chain on 2026-10-04 (SAi Arc on 2026-10-06). Th
 | [`0xcuy/adexto-mcp`](https://github.com/0xcuy/adexto-mcp) | MCP connection guides, the tool reference, and an agent kit that signs with your own key |
 | [`0xcuy/adexto-arbitrum`](https://github.com/0xcuy/adexto-arbitrum) | the Arbitrum One engineering |
 | [`0xcuy/adexto-monad`](https://github.com/0xcuy/adexto-monad) | the Monad engineering |
+| [`0xcuy/adexto-arc`](https://github.com/0xcuy/adexto-arc) | the Arc engineering: what is different on Arc, the go-live log, a read-only probe, and the demo video |
 
 ---
 
