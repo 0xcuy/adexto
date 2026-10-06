@@ -63,6 +63,9 @@ const CHAINS = [
   ["Robinhood Chain", svgUrl(readFileSync(path.join(ROOT, "public/brand/robinhood.svg"), "utf8"))],
   ["Base", svgUrl(readFileSync(path.join(ROOT, "public/brand/base.svg"), "utf8"))],
   ["0G", `data:image/png;base64,${b64("public/brand/0g-token.png")}`],
+  // Arc joined on 2026-10-06, last in the site's own order (src/lib/chains.ts). CHAINS[3] and CHAINS[4]
+  // are read by index for the Base and 0G service chips, so new chains go at the end.
+  ["Arc", svgUrl(readFileSync(path.join(ROOT, "public/brand/arc.svg"), "utf8"))],
 ];
 
 // ── Themes: the page behind each variant is GitHub's own canvas ─────────────────────────────────────
@@ -137,7 +140,7 @@ function architecture(t) {
     ["zap", "x402 gateway", "x402.adexto.xyz", ["402 quote with the exact USDC terms", "Delivers first, then settles", "Cloudflare Worker, own relayer key"], `<img alt="" src="${CHAINS[3][1]}">`, "USDC on Base · EIP-3009"],
   ];
   const onchain = [
-    ["blocks", "AdextoFactory", "1.0.0", ["Byte-identical on five chains", "Token and curve in one transaction", "Checks ERC-8004 ownerOf if asked"]],
+    ["blocks", "AdextoFactory", "1.0.0", ["Byte-identical on six chains", "Token and curve in one transaction", "Checks ERC-8004 ownerOf if asked"]],
     ["layers", "Stake contracts", null, ["AdextoStakeHub, one per chain", "Every market, from its first block", "Opens ask_agent and Agent Compute"]],
     ["chart-candlestick", "Curve + token", null, ["100% of supply, virtual reserve", "Fee legs fixed at launch", "No owner, no withdraw"]],
   ];

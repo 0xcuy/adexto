@@ -17,7 +17,7 @@ Every word in the diagrams is set in HTML with the site's own fonts and rendered
 
 Before a file is written, the script checks the rendered page and stops on any finding: a box that overlaps another or leaves the canvas, text wider than its card, a connector that runs through a box, a font that did not load, or text below 4.5:1 contrast against what is behind it. A negative control (a deliberately long line, a misplaced label, a connector through a card, a faded text colour) was run once to confirm that each check fires.
 
-The diagrams only draw. The facts in them (the versions, five chains, 14 MCP tools, the 1.00% split) come from the README, which reads them from chain. If a fact changes, change the README first, then the drawing.
+The diagrams only draw. The facts in them (the versions, six chains, 14 MCP tools, the 1.00% split) come from the README, which reads them from chain. If a fact changes, change the README first, then the drawing. Arc was added to the chain row and the factory card on 2026-10-06, by appending it to `CHAINS` in `render.mjs` and rendering again; the layout checks passed unchanged.
 
 Icons are [Lucide](https://lucide.dev) 0.468.0, read from the installed `lucide-react` package, ISC License, © Lucide Contributors. The chain marks come from [`public/brand/`](../../../public/brand/), with their origins and licences in [`public/brand/SOURCES.txt`](../../../public/brand/SOURCES.txt). They are trademarks of their owners and appear only to name the chains ADEXTO is deployed on.
 
@@ -46,13 +46,17 @@ The plate is scaled to cover the frame, anchored right, lifted with `brightness(
 | ADEXTO mark | [`public/logo.svg`](../../../public/logo.svg), ink recoloured from `#141110` to white for the dark plate |
 | Display type | Bricolage Grotesque, [`src/app/fonts/BricolageGrotesque-Variable.woff2`](../../../src/app/fonts/BricolageGrotesque-Variable.woff2) |
 | Text type | Inter, [`src/app/fonts/Inter-Variable.woff2`](../../../src/app/fonts/Inter-Variable.woff2) |
-| Chain marks | `monad.svg`, `arbitrum.svg`, `robinhood.svg`, `base.svg` and `0g-token.png` from [`public/brand/`](../../../public/brand/), used unchanged |
+| Chain marks | `monad.svg`, `arbitrum.svg`, `robinhood.svg`, `base.svg`, `0g-token.png` and `arc.svg` from [`public/brand/`](../../../public/brand/), used unchanged |
 
-The chain order (Monad, Arbitrum One, Robinhood Chain, Base, 0G) is the site's own order.
+The chain order (Monad, Arbitrum One, Robinhood Chain, Base, 0G, Arc) is the site's own order.
+
+### 3. Arc chip, added on 2026-10-06
+
+The page behind the banner was not kept, so Arc was added to the finished JPEG rather than by rendering the banner again. One chip was rendered by Playwright over a transparent background and composited 12 px to the right of the 0G chip, the same gap the other chips keep, at y 494 to 541. Its style was calibrated against the 0G chip already in the banner: a replica of that chip was rendered for every combination of weight (500, 600, 700), size (21, 22, 23 px), icon-to-text gap (10 to 13 px) and border colour, and the closest match was kept. That match is Inter 600 at 22 px, an 11 px gap, a 1 px `rgb(55,53,59)` border and an `rgb(23,21,28)` fill, with a mean difference of 5.8 per channel from the original chip, which is about what the JPEG noise alone accounts for. The rest of the banner is unchanged apart from being encoded once more, at the same settings.
 
 ### Checked without looking at it
 
-- OCR of the finished banner reads every word set in it: the wordmark, `MCP · x402 · ERC-8004`, the headline, the sub-line, `LIVE ON`, the five chain names and `adexto.xyz`.
+- OCR of the finished banner reads every word set in it: the wordmark, `MCP · x402 · ERC-8004`, the headline, the sub-line, `LIVE ON`, the five chain names and `adexto.xyz`. That was on 2026-10-04; OCR was not run again after the Arc chip was added.
 - Contrast, measured on the background behind each text box with the text hidden (95th-percentile pixel): 8.2:1 for the smallest violet label, 12.0:1 or more for everything else (WCAG AA asks 4.5:1).
 - No text box overlaps another, and nothing leaves the frame.
 
