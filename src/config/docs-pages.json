@@ -828,18 +828,2028 @@
         }
       ],
       "draftedAt": "2026-09-21T15:45:48.029Z"
+    },
+    "quickstart": {
+      "title": "Quickstart",
+      "lede": "Connect a wallet, buy a token on its market page, and launch a market of your own from the Studio.",
+      "sections": [
+        {
+          "heading": "What you need",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A wallet that runs in your browser, such as MetaMask, Rabby or Coinbase Wallet, or a mobile wallet that connects through WalletConnect. ADEXTO never asks for your seed phrase or private key: you sign every launch, trade, stake and claim in your own wallet."
+            },
+            {
+              "type": "p",
+              "text": "A little of the chain's own asset to pay gas: MON on Monad, ETH on Arbitrum One, Robinhood Chain and Base, USDC on Arc, and 0G on 0G. To move funds between chains, use the Cross-chain tab on `/swap`."
+            },
+            {
+              "type": "note",
+              "text": "Launches and trades are real transactions on mainnet. Check the network and the amount in your wallet before you confirm."
+            }
+          ]
+        },
+        {
+          "heading": "Buy your first token",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Open `/explorer` and pick a market. Every row shows its chain, and the same ticker on another chain is a separate market with its own price.",
+                "On the market page, connect your wallet. If the wallet is on another network, the app asks it to switch, and to add the network if the wallet does not have it yet.",
+                "In the swap card, choose Buy and enter an amount in the chain's own asset. Check `Minimum received` and `Price impact` before you sign.",
+                "Confirm in your wallet. If the price moves past your slippage limit before the trade is mined, the trade reverts instead of filling at a worse price."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Selling works the same way from the Sell side of the card. A sale first asks for an approval of the exact amount, when the curve does not already have one, and then sends the sale (`Approve & sell`)."
+            }
+          ]
+        },
+        {
+          "heading": "Launch a market of your own",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Open `/studio`. It starts in Express mode, which asks for a name, a ticker, an optional one-line description, an image and one chain.",
+                "Read `Settings used`: a 1.00% fee on every trade, of which 0.70% goes to you, and a supply of 1,000,000,000 tokens, all of them in the curve and none to you.",
+                "Read the cost card. The launch accepts no deposit, so you pay gas only, and you receive no tokens.",
+                "Accept the terms and press the launch button. Your wallet asks twice: first a free signature that proves you control the address, then the launch transaction, which costs gas."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "When the transaction confirms, the Studio links to your market's page and to Creator earnings, where your share of every trade adds up until you claim it."
+            }
+          ]
+        },
+        {
+          "heading": "Where to go next",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each of these pages takes a few minutes to read."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/studio-guide",
+                  "label": "Studio, step by step"
+                },
+                {
+                  "href": "/docs/market-page",
+                  "label": "The market page"
+                },
+                {
+                  "href": "/docs/fees",
+                  "label": "Fees"
+                },
+                {
+                  "href": "/docs/check-a-market",
+                  "label": "Check a market"
+                },
+                {
+                  "href": "/docs/glossary",
+                  "label": "Glossary"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "glossary": {
+      "title": "Glossary",
+      "lede": "Short definitions of the words used across ADEXTO and these docs.",
+      "sections": [
+        {
+          "heading": "Markets and prices",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Market: one token and its bonding curve on one chain. The same ticker on two chains is two markets, each with its own supply and price, and nothing is bridged between them.",
+                "Bonding curve: the contract that holds a market's tokens and its native reserve, and prices every trade from them with a constant-product formula over a virtual native reserve. You always trade against it, never against another person's order.",
+                "Virtual reserve: a native amount that the curve counts in its formula but never holds. It sets the opening price without anyone depositing liquidity.",
+                "Opening market cap: the market cap at launch. The Studio sets it to about $4,000 on every chain, using the native price at the time of the launch.",
+                "Market cap: the price times the total supply. Because the whole supply starts in the curve, the chart's MCAP view is the same as the fully diluted value.",
+                "Price impact: how far your own trade moves the price. A larger trade against a smaller reserve moves it more.",
+                "Slippage limit: the worst result you accept. A trade carries a minimum output and reverts if it cannot meet it.",
+                "Deadline: the time after which a signed trade can no longer execute. The swap card sets it to 600 seconds."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Fees and earnings",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Fee: the percentage of every trade that the curve keeps back, fixed at launch. It is split into four parts.",
+                "Creator part: the creator's share of every trade. It accrues in the curve, in the chain's native asset, and is claimed later.",
+                "Depth: the part that stays in the curve's reserve, so the market gets deeper as it trades.",
+                "Buyback: the part that is set aside to buy the token back from the curve and burn it. Anyone can trigger a buyback, at most once an hour, and each one spends at most 1% of the curve's native reserve.",
+                "Protocol part: 0.10% of every trade for ADEXTO. On markets from the current factory it sits inside the total; on the six earlier markets it is added on top.",
+                "Claim: the transaction that pays accrued fees to their recipient. Anyone can send it, and the money still goes to the recipient fixed at launch.",
+                "Basis point (bps): one hundredth of a percent. 100 bps is 1%."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Launch rules",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Ticker: the market's symbol, 2 to 12 letters or digits. It is permanent on its chain and taken regardless of letter case, and some tickers are reserved.",
+                "Launch window: the first 180 seconds of a market from the current factory, when no wallet may hold more than 1% of the supply. The curve is exempt, so selling still works.",
+                "Express and Advanced: the two Studio modes. Express asks for a name, a ticker and an image; Advanced is the five-step form with every option.",
+                "Launch attestation: the free message you sign before the launch transaction. It states your address, the ticker, a timestamp and the version of the terms you accept.",
+                "Clean-launch proof: a set of checks read from chain that shows how a launch went, such as where the supply went and whether the creator's wallet bought during the launch window."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Agents and payments",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "ERC-8004: a standard for on-chain agent identities. At launch, a market can be bound to an agent id that the creator owns.",
+                "Agent id: an identity in the ERC-8004 registry of one chain. An id means nothing without its chain.",
+                "MCP: the Model Context Protocol. ADEXTO's MCP server lets an AI agent read markets and prepare launch, stake and claim transactions.",
+                "A2A: the Agent2Agent protocol. ADEXTO answers it at `/api/a2a` with the same launch and buy flows as MCP.",
+                "x402: a way to pay for an HTTP request. ADEXTO's gateway answers HTTP 402 with a USDC quote on Base, and delivers the token after you sign a payment.",
+                "EIP-3009: the USDC transfer authorization that an x402 buyer signs. It moves USDC without the buyer paying gas or granting an allowance.",
+                "Unsigned transaction: a transaction that ADEXTO builds and returns for your wallet or agent to sign and send. ADEXTO never holds your key for it."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Chains and data",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Chain id: the number that identifies a network, such as 143 for Monad or 8453 for Base. Check it together with any address.",
+                "Factory: the contract that launches markets on a chain. Version 1.0.0 runs on all six chains, with byte-for-byte identical runtime code.",
+                "Indexer: a service that reads chain events into a database. ADEXTO uses Envio, subgraphs on The Graph and direct log scans, and any of them can lag behind the chain.",
+                "Stake hub: one staking contract per chain for markets launched by ADEXTO factories. It has no owner, no lock and no reward."
+              ]
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/faq",
+                  "label": "FAQ"
+                },
+                {
+                  "href": "/docs/quickstart",
+                  "label": "Quickstart"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "faq": {
+      "title": "FAQ",
+      "lede": "Short answers to the questions people ask most about launching and trading on ADEXTO.",
+      "sections": [
+        {
+          "heading": "Do I need to add liquidity to launch?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No. The launch transaction accepts no deposit, so you pay gas only. The curve starts from a virtual native reserve, and the whole supply goes into it at launch."
+            }
+          ]
+        },
+        {
+          "heading": "Does the creator get any tokens?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No. The creator receives no allocation. Instead, the creator earns a fixed part of every trade, 0.70% on the Standard tier, which accrues in the curve and is claimed from Creator earnings."
+            }
+          ]
+        },
+        {
+          "heading": "Can the fees change after launch?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No. Every fee rate and every payout address is written into the market when it is created, and nothing can change them later. There is no owner and no admin key on the launch path."
+            }
+          ]
+        },
+        {
+          "heading": "Does a market graduate to another exchange?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No. The curve never graduates or migrates; it stays the market's venue for its whole life. Anyone can still pair the token on another exchange, where the price can differ from the curve's."
+            }
+          ]
+        },
+        {
+          "heading": "Why is the same ticker on two chains?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each chain is a separate market with its own curve, supply and price, and nothing is bridged between them. Check the chain on the market page before you trade."
+            }
+          ]
+        },
+        {
+          "heading": "Why did my buy fail in the first minutes of a market?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "For the first 180 seconds, no wallet may hold more than 1% of the supply. A buy that would take a wallet past that reverts. Buy less, or wait for the window to end."
+            }
+          ]
+        },
+        {
+          "heading": "Can someone take my ticker?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "On the chain where your market launched, the factory reserves the ticker for good, in any letter case. The Studio and the agent launch tools also refuse a ticker that another creator already uses on a different chain."
+            }
+          ]
+        },
+        {
+          "heading": "Has anyone audited the contracts?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No security firm has reviewed them. The output of automated analysers is published on the Security page, and bugs can be reported privately through GitHub."
+            }
+          ]
+        },
+        {
+          "heading": "Who holds my funds?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "You do. Trades go from your wallet straight to the curve, and ADEXTO never holds your key. A cross-chain swap is carried by the bridge named on the route you pick."
+            }
+          ]
+        },
+        {
+          "heading": "What does staking give me?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A stake at or above a market's minimum opens that market's agent to your address over MCP, and on markets that offer it, an Agent Compute key. It pays no reward, and nothing is locked."
+            }
+          ]
+        },
+        {
+          "heading": "Is anything here financial advice?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No. Market data, leaderboards and the answers of a market's agent describe what happened on chain. They are not advice."
+            }
+          ]
+        },
+        {
+          "heading": "How do I report a scam market?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Use the Report page. A removed market disappears from ADEXTO's own site and tools; the contracts on chain are not touched."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/reporting",
+                  "label": "Report a market"
+                },
+                {
+                  "href": "/docs/troubleshooting",
+                  "label": "Troubleshooting"
+                },
+                {
+                  "href": "/docs/glossary",
+                  "label": "Glossary"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "studio-guide": {
+      "title": "Studio, step by step",
+      "lede": "The Studio opens a market in one transaction. Express asks for a name, a ticker and an image; Advanced lets you set every option over five steps.",
+      "sections": [
+        {
+          "heading": "Two modes",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`/studio` opens in Express. Advanced is the five-step form at `/studio?mode=advanced`. Switching between them keeps what you typed, and both launch through the same factory call, simulated first."
+            },
+            {
+              "type": "p",
+              "text": "Every launch goes to one chain. Each chain is its own market with its own supply and price, so to be on a second chain you launch there as well once the first market is live."
+            },
+            {
+              "type": "p",
+              "text": "A link can fill the form in for someone else: `/studio?mode=express&name=…&symbol=…&chain=…`. The `Copy launch link` button builds one from what you typed."
+            }
+          ]
+        },
+        {
+          "heading": "Express: name, ticker, image",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Name: up to 64 characters.",
+                "Ticker: 2 to 12 letters or digits. It is permanent on the chain you launch on.",
+                "What is it? (optional): one line of up to 160 characters.",
+                "Image: upload one, generate one, or leave it out.",
+                "Chain: the one chain this market lives on."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The `Settings used` panel shows what Express fills in for you: the Standard fee of 1.00% per trade with 0.70% of it to you, and a supply of 1,000,000,000 tokens, all of them in the curve and none to you. To change any of it, switch to Advanced."
+            }
+          ]
+        },
+        {
+          "heading": "Advanced: the five steps",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Chains: pick the chain to launch on.",
+                "Token: the name, the ticker, the supply (1,000,000,000 by default), a category, a description with links, and an image.",
+                "Curve: the fee tier. The opening market cap is about $4,000 on every chain.",
+                "Agent: an optional mandate for the market's agent, up to 1,000 characters, and an optional ERC-8004 agent id to bind.",
+                "Verify: review everything, sign the launch attestation, and launch."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Fee tiers",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Advanced offers three tiers. The 0.10% protocol part is inside each total."
+            },
+            {
+              "type": "list",
+              "items": [
+                "Low, 0.60% per trade: 0.40% to the creator, 0.05% to the buyback, 0.05% to depth.",
+                "Standard, 1.00% (the default): 0.70% to the creator, 0.10% to the buyback, 0.10% to depth.",
+                "Meme, 2.00%: 1.50% to the creator, 0.20% to the buyback, 0.20% to depth."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "The tier is written into the market at launch and can never be changed, by you or by anyone else."
+            }
+          ]
+        },
+        {
+          "heading": "Description, links and image",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Category: DeFi, AI agents, Meme, Gaming, Infrastructure, Real-world assets, Social or Other.",
+                "Description and links: a pitch of up to 160 characters, an X handle, a website, GitHub and docs. Links must start with http or https.",
+                "Image: PNG, JPEG or WebP, square, up to 2 MB, resized to 256×256. Ten robot presets are there if you have no image."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The description, links and image are kept by the ADEXTO site and are not part of the launch transaction. The launch metadata is anchored with an upload to 0G Storage that ADEXTO pays for, or with a keccak hash of the metadata when that upload fails. The anchor is a pointer to content, not an attestation."
+            }
+          ]
+        },
+        {
+          "heading": "What the Studio refuses",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Names, tickers and descriptions that impersonate or mislead are refused before anything is signed: for example ones built on words like official, airdrop, giveaway or claim, ones that use another brand's name or the ADEXTO name, and ones that carry malicious links or link shorteners."
+            },
+            {
+              "type": "p",
+              "text": "Some tickers are reserved on every chain, such as ADEXTO, ETH, WETH, USDC, USDT, BTC, WBTC, 0G, MON and ARB. Robinhood Chain also reserves USDG and the tickers of listed stocks, and Arc reserves ARC, EURC, USYC and CIRBTC."
+            },
+            {
+              "type": "p",
+              "text": "A ticker that already has a market on the chain you picked is taken, and so is a ticker that another creator uses on a different chain. Preparing a launch is limited to 6 tries per 10 minutes per IP address."
+            }
+          ]
+        },
+        {
+          "heading": "The cost card and the two wallet prompts",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Before you launch, the cost card shows what the launch costs. There is no liquidity deposit, because the launch is not payable, and you receive no tokens, because the whole supply enters the curve. The gas figure is an estimate of about 3.3 million gas at the current gas price, and on Base it does not include the L1 data fee."
+            },
+            {
+              "type": "p",
+              "text": "Your wallet then asks twice. First comes a free signature, the launch attestation, which states your address, the ticker, a timestamp and the version of the Terms and Acceptable Use Policy you accept. It is valid for 30 minutes. Then comes the launch transaction, which costs gas."
+            },
+            {
+              "type": "note",
+              "text": "The attestation shows that an address signed. It is not a Sybil barrier: one person can still use many addresses."
+            }
+          ]
+        },
+        {
+          "heading": "After the launch",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "A link to your market's page, and one to Creator earnings, where your fee share is tracked and claimed.",
+                "A launch kit: a share card, a button that adds the Telegram alert bot to your group, a link to the stake panel, and whether DEX Screener and GeckoTerminal list the market yet.",
+                "Announcement buttons that post to X or Farcaster, or copy the text.",
+                "The clean-launch proof, read from chain. Adding `&proof=1` to the market link opens it."
+              ]
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/launch",
+                  "label": "Launch a market"
+                },
+                {
+                  "href": "/docs/fees",
+                  "label": "Fees"
+                },
+                {
+                  "href": "/docs/creator-earnings",
+                  "label": "Creator earnings"
+                },
+                {
+                  "href": "/docs/check-a-market",
+                  "label": "Check a market"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "agent-launch": {
+      "title": "Launch from an agent",
+      "lede": "An agent can launch a market through ADEXTO's MCP server, its REST routes or A2A. ADEXTO prepares the transaction, and the agent signs and sends it with its own key.",
+      "sections": [
+        {
+          "heading": "What the agent needs",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "An MCP client pointed at `https://adexto.xyz/api/mcp`, or any HTTP client for the REST and A2A routes.",
+                "A key that the agent controls, with gas on the chain it launches on.",
+                "A name and a ticker. Agent launches use fixed settings: 1.00% per trade, of which 0.70% goes to the creator and 0.10% is the protocol part, and a supply of 1,000,000,000."
+              ]
+            },
+            {
+              "type": "code",
+              "lang": "Claude Code",
+              "code": "claude mcp add --transport http adexto https://adexto.xyz/api/mcp"
+            },
+            {
+              "type": "code",
+              "lang": "Cursor and other JSON configs",
+              "code": "{\"mcpServers\":{\"adexto\":{\"url\":\"https://adexto.xyz/api/mcp\"}}}"
+            },
+            {
+              "type": "p",
+              "text": "The `/agents` page has the same setup for Claude Code, Cursor, A2A and OpenAI Agents, with a `Copy MCP URL` button."
+            }
+          ]
+        },
+        {
+          "heading": "Two calls to prepare_launch",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Call `prepare_launch` with `chainId`, `name`, `symbol` and `deployer`, and optionally `agentId`, a description, links, an image and a category. It checks the chain, the ticker and the agent id, and returns an attestation message that stays valid for 1,800 seconds.",
+                "Sign that message with the deployer key. It is a free EIP-191 signature that moves nothing.",
+                "Call `prepare_launch` again with the same arguments plus `attestationMessage` and `attestationSignature`. It anchors the metadata and returns an unsigned transaction: `from`, `to` (the factory), `data`, a `value` of 0, `chainId` and `gas`.",
+                "Sign and send that transaction from the deployer address.",
+                "Call `register_launch` with the chain id and the transaction hash. It reads the factory's event from the receipt and lists the market on the site, in `list_markets` and on the x402 gateway. It is safe to call twice."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "The gas limit includes a margin: 5% on Monad, which charges for the gas limit rather than the gas used, and 20% on the other chains."
+            }
+          ]
+        },
+        {
+          "heading": "The REST routes",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The same flow works without MCP. `/api/agents/launch/preflight` runs the first step only: it checks a launch and returns the attestation message, and it never signs, anchors or sends anything. `/api/agents/launch/prepare` and `/api/agents/launch/register` are the second step and the registration. The routes allow 30 requests per 5 minutes."
+            },
+            {
+              "type": "p",
+              "text": "The launch console on `/agents` (`Check before launch`) calls the preflight, so you can see whether a name, a ticker and a chain would pass before an agent signs anything."
+            }
+          ]
+        },
+        {
+          "heading": "Over A2A",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "An A2A client sends a data part with `{\"skill\":\"launch_market\",\"chainId\":143,\"name\":\"…\",\"symbol\":\"…\",\"deployer\":\"0x…\"}` to `/api/a2a`. The task asks for the attestation signature, then returns the unsigned transaction, and completes when it receives the `txHash`."
+            }
+          ]
+        },
+        {
+          "heading": "Binding an agent id",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Pass `agentId` to bind the new market to an ERC-8004 agent. The factory checks that the deployer owns that id on that chain's registry, so register the agent first, from the same wallet, at `/agents/identity`."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/mcp",
+                  "label": "MCP server"
+                },
+                {
+                  "href": "/docs/a2a",
+                  "label": "A2A"
+                },
+                {
+                  "href": "/docs/agent-identity",
+                  "label": "Agent identity"
+                },
+                {
+                  "href": "/docs/studio-guide",
+                  "label": "Studio, step by step"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "market-page": {
+      "title": "The market page",
+      "lede": "Every market has a page with its price, chart, trades, holders, your position and a swap card.",
+      "sections": [
+        {
+          "heading": "The header",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The header shows the name, the ticker and badges. `Contract verified on-chain` means the token contract was confirmed on chain when the market was registered. A market without it is marked as a showcase entry, which was not minted by an ADEXTO factory. A market bound to an agent also shows its ERC-8004 badge."
+            },
+            {
+              "type": "p",
+              "text": "Links open the token on the chain's explorer, the curve (`Pool`) and the market's x402 API. Share buttons post the market to X, Telegram, WhatsApp or Reddit, or make an image card of the market or of your own position."
+            },
+            {
+              "type": "p",
+              "text": "The figures are per chain: the market cap, the price in USD, the supply and the price in the chain's own asset. The same ticker on another chain has its own figures."
+            }
+          ]
+        },
+        {
+          "heading": "The chart",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Unit: USD, the default, or the chain's own asset.",
+                "Style: candles or a line. View: price or MCAP, which is the fully diluted value, because the whole supply started in the curve.",
+                "Timeframes: 1m (the default), 5m, 15m, 1h, 4h and 1d, plus 1s, 5s and 15s in the native unit. `All` shows the whole history since launch, in at most 160 bars.",
+                "Indicators: EMA 9, EMA 21, SMA 50, Bollinger Bands (20, 2) and VWAP on the price, and RSI 14 and MACD (12, 26, 9) in a pane of their own. The price axis can be logarithmic or automatic.",
+                "Time: shown in your own time zone. Daily candles are fixed UTC days."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Candles are built from every trade since launch. USD candles use the native/USD rates that ADEXTO has recorded; where no rate was recorded for a period, the chart says so instead of filling in today's rate."
+            }
+          ]
+        },
+        {
+          "heading": "Depth, trades and holders",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`Curve depth ladder` shows how far the price would move for buys and sells of different sizes. It is computed from the curve's reserves, so it is not an order book: nobody has placed those orders."
+            },
+            {
+              "type": "p",
+              "text": "The trade feed shows all trades, only yours (`Mine`), only the creator's (`Dev`), or only the large ones (`Large`), which move at least 1% of the supply. Trades are marked BUY, SELL or AUTO_BUYBACK."
+            },
+            {
+              "type": "p",
+              "text": "`Holders` shows the number of holders, the share of the top 10, the creator's share and the share still in the curve, rebuilt from every transfer since the token was minted."
+            }
+          ]
+        },
+        {
+          "heading": "Your position",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "With a wallet connected, the position panel shows your balance, your average entry, your cost basis, unrealized and realized profit and loss, and `Exit value`, what selling your balance would return now. All of it comes from your own trades on chain."
+            },
+            {
+              "type": "p",
+              "text": "The creator's wallet also sees its fee earnings above the swap card, with a button to claim them."
+            }
+          ]
+        },
+        {
+          "heading": "The swap card",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`Max slippage`: 0.5%, 1% (the default), 3% or 5%. The deadline is fixed at 600 seconds.",
+                "The 25%, 50%, 75% and Max buttons keep a little of the chain's own asset back for gas.",
+                "`Minimum received` and `Price impact` are shown before you sign, with the fee split into curve depth, creator, agent buyback and protocol.",
+                "A sale approves the exact amount, then sells (`Approve & sell`).",
+                "Every trade is simulated before your wallet opens, so a trade that would revert is caught before you pay gas for it."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "`Not enough MON`, or the chain's own asset, means the wallet cannot cover the amount plus gas. `More than the curve holds` means the buy asks for more tokens than the curve has left."
+            }
+          ]
+        },
+        {
+          "heading": "On a phone",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "On a phone the page has three tabs. `Trade` has the chart and the swap card. `Market` has the 24-hour volume, traders and transactions, the same ticker on other chains, the depth ladder and trades, the holders, and the market's agent. `You` has your position, the stake panel and the launch facts."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/trading",
+                  "label": "Trading"
+                },
+                {
+                  "href": "/docs/check-a-market",
+                  "label": "Check a market"
+                },
+                {
+                  "href": "/docs/fees",
+                  "label": "Fees"
+                },
+                {
+                  "href": "/docs/troubleshooting",
+                  "label": "Troubleshooting"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "finding-markets": {
+      "title": "Finding markets",
+      "lede": "The Explorer lists every market on every chain, and the Leaderboard shows which ones people are actually buying.",
+      "sections": [
+        {
+          "heading": "The Explorer",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`/explorer` lists the markets that ADEXTO knows about, and its header counts how many have a bonding curve you can trade."
+            },
+            {
+              "type": "list",
+              "items": [
+                "Search by ticker, name or address.",
+                "Filter by chain, by category, or to your watchlist.",
+                "Sort by `Largest` or `Newest`.",
+                "Each row shows the chain, a `verified` or `showcase` badge, and whether its curve is live. `Terminal` opens the market page, and `Swap` opens the swap."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "A market that was removed after a report shows `Removed from this site`. Removal only affects ADEXTO's own site and tools; the contracts keep running on chain."
+            }
+          ]
+        },
+        {
+          "heading": "Your watchlist",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The star next to a market's name adds it to your watchlist, and the `Watchlist` chip in the Explorer shows only those markets. The list is kept in this browser's local storage, so it does not follow you to another device or browser."
+            }
+          ]
+        },
+        {
+          "heading": "The Leaderboard",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`/leaderboard` shows who is actually buying, in five lists:"
+            },
+            {
+              "type": "list",
+              "items": [
+                "Trending: markets ranked by the number of different wallets that bought in the last 24 hours.",
+                "Newest launches.",
+                "Top creators.",
+                "Agent-bound markets: the ones bound to an ERC-8004 agent.",
+                "Launch of the week. There is no prize."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "ADEXTO team wallets and each market's own creator are left out of the counts, so a creator's own buys do not move their market up."
+            }
+          ]
+        },
+        {
+          "heading": "The same ticker on several chains",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A ticker can have markets on several chains, each with its own curve, supply and price. The Explorer shows the chain on every row, and a market page lists the same ticker's other chains under `Independent pool and price per chain · no bridging`."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/market-page",
+                  "label": "The market page"
+                },
+                {
+                  "href": "/docs/check-a-market",
+                  "label": "Check a market"
+                },
+                {
+                  "href": "/docs/chains",
+                  "label": "Chains"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "cross-chain": {
+      "title": "Cross-chain swaps",
+      "lede": "The Cross-chain tab on `/swap` moves value between chains through LI.FI. You sign in your own wallet, and a bridge carries the funds.",
+      "sections": [
+        {
+          "heading": "How it works",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Open `/swap` and choose `Cross-chain`. Pick what you send and what you want to receive on the other chain. ADEXTO asks LI.FI for routes from its server, and you sign the route you pick in your own wallet."
+            },
+            {
+              "type": "p",
+              "text": "Routes are found by LI.FI and carried by the bridge named on each route. ADEXTO never holds the funds, and no integrator fee is set on these routes."
+            },
+            {
+              "type": "note",
+              "text": "The funds arrive at the same address that sent them. There is no field for another recipient."
+            }
+          ]
+        },
+        {
+          "heading": "Chains and assets",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Monad: MON and USDC.",
+                "Arbitrum One: ETH, USDC and USDG.",
+                "Robinhood Chain: ETH and USDG.",
+                "Base: ETH and USDC.",
+                "0G: 0G."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Arc is not in the Cross-chain tab. Market tokens are not bridged either: a token bought on one chain stays a token of that chain's market."
+            }
+          ]
+        },
+        {
+          "heading": "Settings",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Route preference: `Most received` or `Fastest delivery`.",
+                "Slippage: 0.3%, 0.5% (the default), 1% or 3%.",
+                "Bridges: allow or deny particular bridges."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Only single-step routes are offered, so a transfer is one transaction on the sending chain, after an approval when the token needs one. If a route would lose more than 10% of the value, the tab warns you before you sign."
+            }
+          ]
+        },
+        {
+          "heading": "What arrives",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each route states a minimum: at least that amount arrives, or the bridge refunds you. How long a transfer takes depends on the bridge."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/wallets",
+                  "label": "Wallets and networks"
+                },
+                {
+                  "href": "/docs/chains",
+                  "label": "Chains"
+                },
+                {
+                  "href": "/docs/risks",
+                  "label": "Risks"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "wallets": {
+      "title": "Wallets and networks",
+      "lede": "ADEXTO works with browser wallets and WalletConnect. Your wallet signs everything, and ADEXTO never asks for your seed phrase.",
+      "sections": [
+        {
+          "heading": "Connecting",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`Choose wallet` lists the wallets installed in your browser, found through EIP-6963, and offers WalletConnect for mobile and desktop wallets that connect with a QR code."
+            },
+            {
+              "type": "note",
+              "text": "ADEXTO never asks for a seed phrase or a private key. Anyone who does, in a direct message or on a page that looks like ADEXTO, is not ADEXTO."
+            }
+          ]
+        },
+        {
+          "heading": "Switching networks",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Every market lives on one chain. When you trade, the app asks your wallet to switch to that chain, and to add it if the wallet does not have it yet. If you decline, trading stays blocked until the wallet is on the right network."
+            },
+            {
+              "type": "factsTable",
+              "table": "chains"
+            },
+            {
+              "type": "p",
+              "text": "On Robinhood Chain, the network that the app adds to your wallet uses ADEXTO's public RPC at `https://adexto.xyz/api/public-rpc/robinhood`. It allows 240 requests per minute per IP address and 20 raw transactions per 5 minutes. A wallet that added the network earlier keeps its own RPC, because adding a network never overwrites one that exists."
+            }
+          ]
+        },
+        {
+          "heading": "Gas on each chain",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Monad: MON. Monad charges for the gas limit rather than the gas used.",
+                "Arbitrum One, Robinhood Chain and Base: ETH. On Base, an L1 data fee is added to the L2 gas.",
+                "Arc: USDC, which is Arc's own gas asset.",
+                "0G: 0G."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Signing safely",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Check the network and the contract in the wallet prompt before you confirm.",
+                "A sale asks for an approval of the exact amount, not an unlimited allowance.",
+                "The messages that ADEXTO asks you to sign, such as the launch attestation or the Agent Compute key message, move nothing and cost nothing.",
+                "An x402 payment is also a signature, but it authorizes a USDC transfer. Read the amount before you sign it."
+              ]
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/quickstart",
+                  "label": "Quickstart"
+                },
+                {
+                  "href": "/docs/cross-chain",
+                  "label": "Cross-chain swaps"
+                },
+                {
+                  "href": "/docs/troubleshooting",
+                  "label": "Troubleshooting"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "creator-earnings": {
+      "title": "Creator earnings",
+      "lede": "A creator holds no tokens and earns a fixed part of every trade instead. It accrues in the curve and is claimed at `/creator`.",
+      "sections": [
+        {
+          "heading": "How a creator earns",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Every trade pays the market's fee, and the creator's part was fixed at launch: 0.70% of each trade on the Standard tier, 0.40% on Low and 1.50% on Meme. It accrues inside the curve, in the chain's own asset, until it is claimed."
+            },
+            {
+              "type": "p",
+              "text": "The payout address was fixed in the curve when the market was created. Anyone can send the claim transaction, and the money always goes to that address."
+            }
+          ]
+        },
+        {
+          "heading": "The Creator earnings page",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`/creator` shows `Earned, all time`, `Claimable now` and the number of markets, for your connected wallet or for any address in the link, as in `/creator?address=0x…`."
+            },
+            {
+              "type": "p",
+              "text": "`Claim` appears for your own wallet only. With several markets on one chain, `Claim all` collects every one of them in a single transaction through Multicall3."
+            },
+            {
+              "type": "note",
+              "text": "A claim costs gas. When little has accrued, the gas can cost more than the claim pays, so it can make sense to wait."
+            }
+          ]
+        },
+        {
+          "heading": "Claiming from an agent",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The MCP tool `prepare_claim` returns unsigned claim transactions for an address on a chain: one `claimCreatorFees()` call per curve, or one Multicall3 batch when several curves owe fees."
+            },
+            {
+              "type": "p",
+              "text": "The same figures are public at `/api/creator/earnings?address=0x…`, limited to 30 requests per minute."
+            }
+          ]
+        },
+        {
+          "heading": "On the market page and in Telegram",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "On a market page, the creator's wallet sees its earnings above the swap card. In Telegram, `/earnings <address>` asks the ADEXTO bot what an address has earned."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/fees",
+                  "label": "Fees"
+                },
+                {
+                  "href": "/docs/telegram",
+                  "label": "Telegram bot"
+                },
+                {
+                  "href": "/docs/studio-guide",
+                  "label": "Studio, step by step"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "staking": {
+      "title": "Staking",
+      "lede": "Staking a market's token opens that market's agent to you over MCP and, where offered, an Agent Compute key. There is no lock and no reward.",
+      "sections": [
+        {
+          "heading": "What a stake does",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A stake at or above the market's minimum is active. An active stake opens the market's agent to your address over MCP (`ask_agent`), and on markets that offer it, an Agent Compute key."
+            },
+            {
+              "type": "p",
+              "text": "Staking pays no reward and is not a yield. Nothing is locked: you can unstake at any time."
+            }
+          ]
+        },
+        {
+          "heading": "Where tokens are staked",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each chain has one stake hub, which accepts tokens launched by ADEXTO factories. Its minimum is 1/100,000 of the token's supply, which is 10,000 tokens for a supply of 1,000,000,000. The hub has no owner."
+            },
+            {
+              "type": "p",
+              "text": "A few markets have a stake contract of their own instead: $ADEXTO on 0G, with a minimum of 5,000, and $SAI on Arbitrum One, Robinhood Chain and Monad, with a minimum of 10,000 on each."
+            },
+            {
+              "type": "p",
+              "text": "The stake panel on the market page shows the total staked, the number of stakers, the minimum and your own stake."
+            }
+          ]
+        },
+        {
+          "heading": "Staking and unstaking",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Open the market page and find `Stake`. On a phone it is in the `You` tab.",
+                "Enter an amount at or above the minimum and press Stake. The wallet asks for an approval of the exact amount if needed, then for the stake.",
+                "To leave, press `Unstake all`. A partial unstake has to leave either nothing or at least the minimum."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "An agent can do the same with `prepare_stake`, which checks the balance, the minimum and whether the hub accepts the token, and returns unsigned transactions. `check_stake` reads a stake."
+            }
+          ]
+        },
+        {
+          "heading": "Asking a market's agent",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Call `access_message` for the market and your address, and sign the message it returns. Signing moves nothing and costs nothing.",
+                "Within 10 minutes, call `ask_agent` with the signature and your question."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The answer comes from glm-5.3 on the 0G router and is limited to facts read on chain for that call, which the tool returns next to the answer. Without an active stake it is refused, and nothing is charged either way. It is not advice."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/compute",
+                  "label": "Agent Compute"
+                },
+                {
+                  "href": "/docs/mcp",
+                  "label": "MCP server"
+                },
+                {
+                  "href": "/docs/market-page",
+                  "label": "The market page"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "compute": {
+      "title": "Agent Compute",
+      "lede": "Stake a token and get your own API key for an OpenAI-compatible endpoint that serves DeepSeek-V4-Flash through 0G Compute. It is a beta.",
+      "sections": [
+        {
+          "heading": "What you get",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Agent Compute turns a stake into an API key. The key calls `0g/deepseek-v4-flash` at `https://compute.adexto.xyz/v1`, an OpenAI-compatible endpoint served by 0G Compute. The model accepts a context of 1,441,792 tokens and can return up to 393,216."
+            },
+            {
+              "type": "p",
+              "text": "The 0G router reports that the model runs in a TDX trusted execution environment. ADEXTO shows that report and does not verify the underlying quote itself."
+            },
+            {
+              "type": "p",
+              "text": "Usage is counted in tokens, input plus output, from the router's records, and adds up from the day the key is created."
+            }
+          ]
+        },
+        {
+          "heading": "Tiers on $ADEXTO and $SAI",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A stake in $ADEXTO on 0G, or in $SAI on Arbitrum One, Robinhood Chain or Monad, opens a tier by its size:"
+            },
+            {
+              "type": "list",
+              "items": [
+                "Starter: an allowance of 100,000 tokens, about 121 requests, for 5,000 ADEXTO or 10,000 SAI.",
+                "Builder: 300,000 tokens, about 364 requests, for 25,000 ADEXTO or 50,000 SAI.",
+                "Operator: 600,000 tokens, about 729 requests, for 100,000 ADEXTO or 250,000 SAI.",
+                "Sovereign: 1,000,000 tokens, about 1,215 requests, for 250,000 ADEXTO or 1,000,000 SAI."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The request counts assume the roughly 823 input tokens that the router adds to every call. Longer prompts and answers use more. When the allowance is spent, raising the stake opens a larger one."
+            }
+          ]
+        },
+        {
+          "heading": "Keys on every other market",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Any other market launched on ADEXTO can be staked in its chain's stake hub, and its keys are funded by that market's own trading. Half of the 0.10% protocol part that the curve collects is valued in USD at the current native price and turned into model tokens at $0.3168 per million."
+            },
+            {
+              "type": "p",
+              "text": "That allowance is shared among the market's keys in proportion to each key's stake, and only fees that arrive after a key exists count toward it. A key stays on while at least 823 tokens of allowance remain, which takes about $0.52 of trading per request."
+            },
+            {
+              "type": "note",
+              "text": "A market with no trading funds no compute. Launching a token and staking it yourself gives nothing until other people trade it."
+            }
+          ]
+        },
+        {
+          "heading": "Getting a key",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Stake the token at or above its minimum.",
+                "On `/agent-compute`, choose the token and sign a message with the staking address. Signing moves nothing.",
+                "Copy the key. It is shown once; if you lose it, revoke it and issue a new one."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Each address gets one key per token, and at most 5 keys can be issued per hour from one IP address. A key can be revoked at any time."
+            },
+            {
+              "type": "code",
+              "lang": "Request",
+              "code": "curl https://compute.adexto.xyz/v1/chat/completions \\\n  -H \"Authorization: Bearer $ADEXTO_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"0g/deepseek-v4-flash\",\n       \"messages\":[{\"role\":\"user\",\"content\":\"hello\"}],\n       \"stream\":false}'"
+            },
+            {
+              "type": "note",
+              "text": "Send `\"stream\": false` unless your client reads server-sent events. Without it, the router answers as an event stream."
+            }
+          ]
+        },
+        {
+          "heading": "Limits of the beta",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "The allowances are a policy, not a right that a contract guarantees.",
+                "Usage is checked on a schedule, so a key can go slightly past its allowance before it is switched off.",
+                "A key is switched off when its stake falls below the minimum, when its allowance is spent, or when its market is no longer listed."
+              ]
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/staking",
+                  "label": "Staking"
+                },
+                {
+                  "href": "/docs/mcp",
+                  "label": "MCP server"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "referrals": {
+      "title": "Referrals",
+      "lede": "Share a referral link and earn 25% of the 0.10% protocol part on the trades you bring, paid weekly by the ADEXTO team.",
+      "sections": [
+        {
+          "heading": "How a referral is recorded",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Your link is any ADEXTO page with `?ref=` and your code. The code is a handle of 3 to 20 characters, using lowercase letters, digits and underscores, or your wallet address."
+            },
+            {
+              "type": "p",
+              "text": "When someone opens your link and agrees to it, the code is kept in their browser for 30 days. Trades they then send from the ADEXTO site carry your address at the end of the transaction data, after an `ADXR` marker, which the curve ignores."
+            }
+          ]
+        },
+        {
+          "heading": "What you earn",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "You earn 25% of the 0.10% protocol part on the volume you refer, which is 0.025% of that volume. Rewards are counted weekly, from Monday to Monday UTC, and paid for each week whose reward reaches $5."
+            },
+            {
+              "type": "p",
+              "text": "Payouts are made by the ADEXTO team and reviewed by hand. No token is promised, and referral totals are not points that can be transferred or traded."
+            }
+          ]
+        },
+        {
+          "heading": "The rules",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "One level only: you are credited for the wallets you bring, not for the wallets they bring.",
+                "You cannot refer yourself. A trade whose buyer, seller or recipient is your own address does not count.",
+                "ADEXTO team wallets can neither refer nor be referred.",
+                "Patterns that look like one person trading through many wallets to farm credit are excluded.",
+                "Only trades sent from the ADEXTO site with your code attached carry the referral."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Your figures",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`/rewards` shows your link, the trades you have referred so far, and the totals of the whole program."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/fees",
+                  "label": "Fees"
+                },
+                {
+                  "href": "/docs/finding-markets",
+                  "label": "Finding markets"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "a2a": {
+      "title": "A2A",
+      "lede": "ADEXTO answers the Agent2Agent protocol at `/api/a2a`: launch a market, buy with x402, or read markets, using JSON data parts.",
+      "sections": [
+        {
+          "heading": "The agent card",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The card is at `https://adexto.xyz/.well-known/agent-card.json`. It names the agent `ADEXTO Launchpad` and lists four skills: `launch_market`, `buy_token`, `list_markets` and `get_market`."
+            },
+            {
+              "type": "p",
+              "text": "The endpoint speaks JSON-RPC 2.0 over HTTP. Send the header `A2A-Version: 1.0` to use version 1.0; without it, the server answers in the version 0.3 format, and it accepts the method names of both. The version 1.0 methods are `SendMessage`, `GetTask`, `CancelTask` and `ListTasks`."
+            },
+            {
+              "type": "p",
+              "text": "There is no streaming and no push notification. The agent does not run a language model: it works from JSON data parts, and free text gets an answer that explains how to use the skills."
+            }
+          ]
+        },
+        {
+          "heading": "Reading markets",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`list_markets` and `get_market` answer at once with a message, without a task."
+            },
+            {
+              "type": "code",
+              "lang": "Request",
+              "code": "curl -s https://adexto.xyz/api/a2a \\\n  -H 'Content-Type: application/json' \\\n  -H 'A2A-Version: 1.0' \\\n  -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"SendMessage\",\"params\":{\"message\":{\"role\":\"ROLE_USER\",\"messageId\":\"m-1\",\"parts\":[{\"data\":{\"skill\":\"get_market\",\"symbol\":\"ADEXTO\",\"chainId\":16661}}]}}}'"
+            }
+          ]
+        },
+        {
+          "heading": "Launching a market",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Send a data part with `skill` set to `launch_market`, plus `chainId`, `name`, `symbol` and `deployer`, and optionally `agentId` and `description`. The task asks for input and returns an `attestationMessage`.",
+                "Sign it with the deployer key and send `attestationSignature` in the same task. The task returns the unsigned launch transaction.",
+                "Sign and send the transaction yourself, then send its `txHash`. The task registers the market and completes."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Tasks are kept in memory for up to 6 hours. If a task is lost after the transaction was sent, send the `txHash` in a new task, or call `register_launch` over MCP."
+            }
+          ]
+        },
+        {
+          "heading": "Buying with x402",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`buy_token` is a two-turn task on the a2a-x402 extension, version 0.2. Send a data part with `skill` set to `buy_token`, plus `symbol`, `chainId` and `to`. The task returns the gateway's payment requirements; you sign the EIP-3009 payment and send it back in the same task. ADEXTO's A2A server signs nothing for you."
+            }
+          ]
+        },
+        {
+          "heading": "Limits",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each IP address can send 60 messages and 300 reads per 5 minutes. There is no authentication: a task id is random and works as the key to its task, so anyone who has the id can read or cancel the task. `ListTasks` only returns the tasks in a `contextId` you give it."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/mcp",
+                  "label": "MCP server"
+                },
+                {
+                  "href": "/docs/agent-launch",
+                  "label": "Launch from an agent"
+                },
+                {
+                  "href": "/docs/x402",
+                  "label": "Buy with x402"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "public-api": {
+      "title": "Public API",
+      "lede": "Read-only HTTP endpoints for markets, prices, holders and launch facts, plus contract ABIs and discovery files for agents. No key is needed.",
+      "sections": [
+        {
+          "heading": "Before you call",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Every endpoint on this page is public and read-only, and answers in JSON unless it serves an image.",
+                "Rate limits are kept per server process. A limit per IP address answers 429; a shared limit answers 503.",
+                "Figures come from chain reads and from ADEXTO's indexes, which can trail a brand-new market or trade for a moment."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Markets and prices",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`GET /api/graphql`: the market list that the site itself uses, with prices in each chain's own asset and the `verified` and `poolLive` flags. Despite the path, it is not a GraphQL server: it returns the whole list and ignores any query.",
+                "`GET /api/pool?symbol=&chainId=`: one market's curve, reserves and spot price, or `tradable: false` with a reason.",
+                "`GET /api/prices`: the USD prices of the native assets, with a `live` flag that says whether the price feeds answered.",
+                "`GET /api/fx-history?symbol=`: the native/USD rates that ADEXTO has recorded, which the chart uses for USD candles.",
+                "`GET /api/agent/telemetry?symbol=&chainId=`: a market's trade history, up to 5,000 trades, with candles built from all of it.",
+                "`GET /api/leaderboard`: the data behind `/leaderboard`."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Holders, positions and earnings",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`GET /api/market/holders?symbol=&chainId=`: the holder count and the shares of the top 10, the creator and the curve, rebuilt from every transfer since mint. `complete: false` means the first scan has not finished yet.",
+                "`GET /api/market/position?symbol=&chainId=&wallet=`: one wallet's balance, average entry, cost basis and profit and loss in one market.",
+                "`GET /api/creator/earnings?address=`: what an address has earned and can claim as a creator."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The holder and position endpoints allow 60 requests per 5 minutes, and creator earnings 30 per minute."
+            }
+          ]
+        },
+        {
+          "heading": "Launch facts",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`GET /api/launch-cost`: what opening a market costs on each chain now, from the measured gas, the current gas price and the native price. A chain whose RPC does not answer is reported with `live: false`.",
+                "`GET /api/launch-proof?chainId=&token=`: the clean-launch proof of one market, read from chain. `token` is an address or the market's slug.",
+                "`GET /api/deploy`: the factory on each chain, with its version and protocol fee read from chain. With `?symbol=`, and optionally `chainIds=`, it says whether a ticker is still free in ADEXTO's registry.",
+                "`GET /api/listing-status?chainId=&token=`: whether DEX Screener and GeckoTerminal show the market yet.",
+                "`GET /api/tee`: the attestation status that the 0G router reports for the agent models. `live: false` means the router could not be reached, which is not the same as safe."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Images, ABIs and discovery files",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`/api/share-card/<token>?chain=`: a 1200×630 share image of a market. The `/position` and `/launch-proof` paths under it make the position and proof cards.",
+                "`/abi/AdextoFactory.json`, `/abi/AdextoCurve.json` and `/abi/AdextoToken.json`, listed in `/abi/index.json`: the contract ABIs.",
+                "`/.well-known/agent-card.json` for A2A, `/.well-known/agent-registration.json`, and `/.well-known/mcp/server-card.json` for MCP: discovery files for agents.",
+                "`/api/dexscreener` and `/api/dextools`: the adapters that DEX Screener and DEXTools read."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Indexer queries",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`POST /api/indexer/graphql` is a read-only GraphQL proxy to ADEXTO's Envio indexer for Monad, Robinhood Chain and Arc. It allows 60 queries per minute, each up to 16,000 bytes, and can be called from a browser. Entity ids look like `<chainId>_<address>`."
+            },
+            {
+              "type": "code",
+              "lang": "Request",
+              "code": "curl -s https://adexto.xyz/api/indexer/graphql \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"query\":\"{ Swap(limit: 5, order_by: {timestamp: desc}, where: {chainId: {_eq: 143}}) { txHash isBuy amountIn amountOut timestamp } }\"}'"
+            },
+            {
+              "type": "p",
+              "text": "Base and Arbitrum One are indexed by subgraphs on The Graph, at `https://api.studio.thegraph.com/query/1757874/adexto-base/v1.0.1` and the same path with `adexto-arbitrum`. Their entities include `Project`, `Curve`, `Swap`, `BuybackBurn` and `CreatorFeeClaim`. These are development endpoints, and The Graph limits how much they can be queried."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/data",
+                  "label": "Market data"
+                },
+                {
+                  "href": "/docs/mcp",
+                  "label": "MCP server"
+                },
+                {
+                  "href": "/docs/a2a",
+                  "label": "A2A"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "telegram": {
+      "title": "Telegram bot",
+      "lede": "The ADEXTO bot posts new launches and buys, answers questions about a market, and can post every buy of a market in your own group.",
+      "sections": [
+        {
+          "heading": "Commands",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`/market <ticker> [chain]`: the price, buyers, holders and creator fees of a market, with links.",
+                "`/launch [TICKER] [name]`: a Studio link with your token filled in. You still sign the launch in your own wallet.",
+                "`/earnings <address>`: what a creator address has earned.",
+                "`/alerts`: in a group, post every buy of a market there. Only group admins can change it."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "The bot is at `https://t.me/Adextofeedbot`."
+            }
+          ]
+        },
+        {
+          "heading": "Alerts in your group",
+          "blocks": [
+            {
+              "type": "steps",
+              "items": [
+                "Add the bot to your group. The `Add the alert bot` button in the Studio's launch kit opens Telegram with your market already chosen.",
+                "As a group admin, send `/alerts <ticker> [chain]`. A group can follow up to 10 markets.",
+                "Send `/alerts` on its own to see what the group follows, `/alerts off <ticker>` to stop one market, and `/alerts off` to stop them all."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "The public feed",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The ADEXTO Telegram at `https://t.me/adexto` gets every new launch and every buy worth at least $1. Sells are not posted, and neither are buys by ADEXTO team wallets."
+            },
+            {
+              "type": "p",
+              "text": "A buy made through x402 is shown under the wallet that received the tokens, not the relayer that sent the transaction. When the feed first sees a market, it starts from that market's newest trade, so old history is not replayed."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/creator-earnings",
+                  "label": "Creator earnings"
+                },
+                {
+                  "href": "/docs/studio-guide",
+                  "label": "Studio, step by step"
+                },
+                {
+                  "href": "/docs/troubleshooting",
+                  "label": "Troubleshooting"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting",
+      "lede": "What the common errors mean, and what to do about each of them.",
+      "sections": [
+        {
+          "heading": "A buy or a sale fails",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`Anti-sniper: wallet limit during launch window`: for the first 180 seconds of a market, no wallet may hold more than 1% of the supply. Buy less, or wait until the window ends.",
+                "`AdextoCurve: slippage`: the price moved past your `Max slippage` before the trade was mined. Try again, or raise the limit if you accept a worse price.",
+                "`AdextoCurve: expired`: the trade waited past its 600-second deadline. Send it again.",
+                "`More than the curve holds`, or `AdextoCurve: insufficient curve liquidity`: the buy asks for more tokens than the curve has left. Buy less.",
+                "`Not enough MON`, or ETH, USDC or 0G: the wallet cannot cover the amount plus gas. The Max button keeps some back for gas.",
+                "`Rejected in wallet.`: you declined the prompt, and nothing was sent."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "The wallet is on the wrong network",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The app asks the wallet to switch to the market's chain, and to add it if needed. If you decline, trading stays blocked; switch the network in the wallet and try again."
+            },
+            {
+              "type": "p",
+              "text": "On Robinhood Chain, a wallet that added the network earlier keeps its own RPC. If transactions never reach the chain, point the network's RPC in your wallet at `https://adexto.xyz/api/public-rpc/robinhood`."
+            }
+          ]
+        },
+        {
+          "heading": "A launch fails",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "The ticker is taken: it has a market on that chain already, another creator uses it on a different chain, or it is reserved. Pick another ticker.",
+                "Too many tries: preparing a launch is limited to 6 tries per 10 minutes per IP address. Wait, then try again.",
+                "The attestation expired: a signed attestation is valid for 30 minutes. Start the launch again to get a fresh message.",
+                "The gas is higher than the estimate: the cost card estimates about 3.3 million gas, and on Base the L1 data fee comes on top."
+              ]
+            },
+            {
+              "type": "p",
+              "text": "If the launch transaction was mined but the market does not appear, it has not been registered yet. `register_launch`, over MCP or at `/api/agents/launch/register`, registers it from the chain id and the transaction hash, and it is safe to repeat."
+            }
+          ]
+        },
+        {
+          "heading": "A market or a trade is missing",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Indexers can trail the chain, so a new market or a fresh trade can take a moment to appear in lists and charts. The chain has the trade as soon as it is mined: look it up on the chain's explorer."
+            },
+            {
+              "type": "p",
+              "text": "Holder figures say so when the first scan of a market has not finished, and the chart says so when no USD rate was recorded for a period."
+            }
+          ]
+        },
+        {
+          "heading": "A claim or a buyback fails",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "`AdextoCurve: nothing to claim`: no fees have accrued since the last claim.",
+                "`AdextoCurve: buyback cooldown`: a buyback ran less than an hour ago, and each curve allows one per hour.",
+                "A claim worth less than its gas is not an error, but it can be worth waiting until more has accrued."
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "An API answers 429 or 503",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "429 means your IP address reached a rate limit: wait, then retry. 503 means a shared limit or an upstream service is busy. The x402 gateway answers 503 before it takes any payment when it cannot fill an order."
+            }
+          ]
+        },
+        {
+          "heading": "Still stuck?",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Ask in the ADEXTO Telegram at `https://t.me/adexto`, or open an issue at `https://github.com/0xcuy/adexto/issues`. Never share your seed phrase or private key with anyone who offers to help."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/faq",
+                  "label": "FAQ"
+                },
+                {
+                  "href": "/docs/wallets",
+                  "label": "Wallets and networks"
+                },
+                {
+                  "href": "/docs/telegram",
+                  "label": "Telegram bot"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "check-a-market": {
+      "title": "Check a market",
+      "lede": "Before you buy, you can check how a market was launched, who created it and where its supply is, all from chain.",
+      "sections": [
+        {
+          "heading": "The clean-launch proof",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A market page has a `Clean launch` panel, read from chain through `/api/launch-proof`. Adding `&proof=1` to a market link opens it. It covers markets from the current 1.0.0 factories and the earlier 0.11.0 ones; for anything else it makes no claim at all."
+            },
+            {
+              "type": "list",
+              "items": [
+                "The creator's balance right after the launch transaction, from the transfers in its receipt.",
+                "That the whole supply went into the curve and the factory kept none.",
+                "That the factory is ADEXTO's known factory for that chain, with a matching version, and that the token and the curve point at each other.",
+                "The launch window and its cap, and the fee split, from the contracts themselves.",
+                "That the token, the curve and the factory have no owner, and that none of them is a proxy.",
+                "Whether the creator's wallet bought during the launch window."
+              ]
+            },
+            {
+              "type": "note",
+              "text": "A creator who buys from another wallet cannot be seen by any check, and the proof does not claim otherwise."
+            }
+          ]
+        },
+        {
+          "heading": "Badges and links",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`Contract verified on-chain` means the token contract was confirmed on chain when the market was registered. A `showcase` entry was not minted by an ADEXTO factory, so the factory's rules on fees, supply and owners do not apply to it."
+            },
+            {
+              "type": "p",
+              "text": "The explorer and `Pool` links open the token and the curve on the chain's explorer. Compare those addresses, and the factory that created them, with the list under Contracts and status."
+            }
+          ]
+        },
+        {
+          "heading": "Holders and trades",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "`Holders` shows the share of the top 10 wallets, the creator's share and what is still in the curve. The trade feed's `Dev` filter shows the creator's own trades."
+            }
+          ]
+        },
+        {
+          "heading": "The agent badge",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A market bound to an ERC-8004 agent shows the agent's badge, which links to its public card at `/agents/id/<chainId>/<agentId>`. The binding proves that the creator owned that agent id on that chain when the market launched. It says nothing about what the agent does or how well."
+            }
+          ]
+        },
+        {
+          "heading": "What no check can tell you",
+          "blocks": [
+            {
+              "type": "list",
+              "items": [
+                "Whether the project behind a token is real, or whether its links belong to who they claim. The Studio refuses obvious impersonation, but it cannot check identities.",
+                "Whether the creator also holds the token through other wallets.",
+                "What the price will do."
+              ]
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/security",
+                  "label": "Security"
+                },
+                {
+                  "href": "/docs/risks",
+                  "label": "Risks"
+                },
+                {
+                  "href": "/docs/reporting",
+                  "label": "Report a market"
+                },
+                {
+                  "href": "/docs#contracts",
+                  "label": "Contracts and status"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "risks": {
+      "title": "Risks",
+      "lede": "What can go wrong when you launch or trade on ADEXTO, in plain words.",
+      "sections": [
+        {
+          "heading": "Price",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A bonding curve moves the price with every trade. Early buyers pay less and later buyers pay more, and every sale pushes the price back down toward where the market opened. A buyer can lose most of what they paid."
+            },
+            {
+              "type": "p",
+              "text": "Nothing on ADEXTO is financial advice: not the market data, not the leaderboard, and not the answers of a market's agent."
+            }
+          ]
+        },
+        {
+          "heading": "Smart contracts",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "No security firm has reviewed the contracts. Automated analysers have run, and their output is published, but that does not rule out a bug. There is no proxy and no upgrade path, so a bug in a market that already exists cannot be fixed in place."
+            }
+          ]
+        },
+        {
+          "heading": "Chains and bridges",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Each market depends on its chain, and a chain can halt, reorganize or change its fees. A cross-chain swap depends on the bridge named on the route: if a transfer fails, that bridge's refund rules apply."
+            }
+          ]
+        },
+        {
+          "heading": "Purchases through the operator",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "An x402 purchase is two steps on two chains and is not atomic: the operator delivers the tokens first and collects your USDC second. `pay_and_buy` signs with the operator's key, within fixed limits, so the funds it spends are the operator's, not yours."
+            }
+          ]
+        },
+        {
+          "heading": "Impersonation",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Anyone can launch a market, and a name or an image can imitate a real project. The Studio refuses obvious cases, and reported markets are removed from ADEXTO's own site and tools, but the contracts keep running on chain. Check the creator, the chain and the address before you buy."
+            },
+            {
+              "type": "p",
+              "text": "ADEXTO never asks for your seed phrase or private key."
+            }
+          ]
+        },
+        {
+          "heading": "Sending funds the wrong way",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The same address can exist on several chains with different contents, so funds sent to the right address on the wrong chain can be lost. Sending a chain's own asset straight to a curve address buys tokens with no slippage limit; use the swap card, or a call with a minimum output, instead."
+            }
+          ]
+        },
+        {
+          "heading": "Services",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The site, the indexers, the MCP and A2A servers, the Telegram bot and the x402 gateway are run by ADEXTO and can be slow or down. The contracts do not depend on them: a curve can always be traded by calling it directly."
+            },
+            {
+              "type": "p",
+              "text": "Agent Compute is a beta, and its allowances are a policy, not a right that a contract guarantees."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/docs/security",
+                  "label": "Security"
+                },
+                {
+                  "href": "/docs/check-a-market",
+                  "label": "Check a market"
+                },
+                {
+                  "href": "/docs/troubleshooting",
+                  "label": "Troubleshooting"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
+    },
+    "reporting": {
+      "title": "Report a market",
+      "lede": "If a market impersonates someone, links to malware or breaks the Acceptable Use Policy, report it. Removal takes it off ADEXTO's site and tools; the chain is untouched.",
+      "sections": [
+        {
+          "heading": "How to report",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Open `/report`. It links to a GitHub issue form for market reports and to the ADEXTO Telegram. Include the chain, the ticker or the token address, and what is wrong."
+            },
+            {
+              "type": "p",
+              "text": "To report a security bug in the contracts or the site, use GitHub's private vulnerability reporting instead, so the details are not public before a fix."
+            }
+          ]
+        },
+        {
+          "heading": "What removal does",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "A removed market disappears from the ADEXTO site, the x402 gateway, MCP and A2A, the Telegram bot and the aggregator feeds. Its page shows `Removed from this site`."
+            },
+            {
+              "type": "p",
+              "text": "Removal does not touch the chain. The token and its curve keep working for anyone who calls them directly, and the ticker stays taken on that chain."
+            }
+          ]
+        },
+        {
+          "heading": "The rules",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "The Terms and the Acceptable Use Policy, version 2026-10-05, set out what may be launched. The Studio already refuses names and links that impersonate a brand or ADEXTO, promise airdrops or giveaways, or point to malicious sites and link shorteners."
+            },
+            {
+              "type": "see",
+              "links": [
+                {
+                  "href": "/report",
+                  "label": "Report"
+                },
+                {
+                  "href": "/acceptable-use",
+                  "label": "Acceptable Use Policy"
+                },
+                {
+                  "href": "/terms",
+                  "label": "Terms"
+                },
+                {
+                  "href": "/docs/risks",
+                  "label": "Risks"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "draftedAt": "2026-10-07T05:04:16.008Z",
+      "origin": "hand-written"
     }
   },
   "order": [
+    "quickstart",
+    "glossary",
     "launch",
-    "trading",
+    "studio-guide",
+    "agent-launch",
     "fees",
-    "chains",
-    "x402",
-    "mcp",
     "agent-identity",
+    "trading",
+    "market-page",
+    "finding-markets",
+    "cross-chain",
+    "wallets",
+    "chains",
+    "creator-earnings",
+    "staking",
+    "compute",
+    "referrals",
+    "mcp",
+    "a2a",
+    "x402",
+    "public-api",
     "data",
-    "security"
+    "security",
+    "check-a-market",
+    "risks",
+    "reporting",
+    "faq",
+    "troubleshooting",
+    "telegram"
   ],
   "generatedWith": {
     "model": "ag/gemini-3.8-flash-high",

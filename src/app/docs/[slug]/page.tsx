@@ -3,6 +3,7 @@ import pagesJson from "@/config/docs-pages.json";
 import DocsShell from "@/app/docs/DocsShell";
 import { Blocks, DocSection, SourceNote, slugify, type DocSectionData } from "@/app/docs/DocBlocks";
 import { DOC_HEADINGS, DOC_SUMMARIES, groupOf } from "@/app/docs/docs-nav";
+import { docArt } from "@/app/docs/docs-art";
 
 /**
  * Halaman anak docs (`/docs/<slug>`, juga `docs.adexto.xyz/<slug>` lewat middleware), dirender dari JSON.
@@ -20,6 +21,8 @@ interface DocPage {
   title: string;
   lede: string;
   sections: DocSectionData[];
+  /** `"hand-written"` untuk halaman yang tidak disusun `docs-draft.mjs` (lihat `SourceNote`). */
+  origin?: string;
 }
 
 const pages = pagesJson as unknown as { pages: Record<string, DocPage>; order?: string[] };
@@ -60,6 +63,7 @@ export default async function DocsChildPage({ params }: { params: Promise<{ slug
       title={page.title}
       kicker={groupOf(href)}
       summary={DOC_SUMMARIES[slug]}
+      art={docArt(slug)}
       toc={sections.map((s) => ({ id: s.id, label: s.heading }))}
     >
       {sections.map((s) => (
@@ -67,7 +71,7 @@ export default async function DocsChildPage({ params }: { params: Promise<{ slug
           <Blocks blocks={s.blocks} />
         </DocSection>
       ))}
-      <SourceNote />
+      <SourceNote origin={page.origin} />
     </DocsShell>
   );
 }

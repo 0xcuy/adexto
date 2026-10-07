@@ -110,6 +110,27 @@ export function middleware(req: NextRequest) {
     "data",
     "security",
     "launch",
+    // Halaman tulisan tangan, 7 Okt. Tidak satu pun sama dengan rute tingkat atas (lihat docs-nav.ts).
+    "quickstart",
+    "glossary",
+    "faq",
+    "studio-guide",
+    "agent-launch",
+    "market-page",
+    "finding-markets",
+    "cross-chain",
+    "wallets",
+    "creator-earnings",
+    "staking",
+    "compute",
+    "referrals",
+    "a2a",
+    "public-api",
+    "telegram",
+    "troubleshooting",
+    "check-a-market",
+    "risks",
+    "reporting",
   ]);
 
   /**

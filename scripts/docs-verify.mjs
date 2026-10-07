@@ -20,7 +20,7 @@
  * `factsTable` yang dirender dari fakta — dan prosanya tetap harus dibaca manusia. Gerbang
  * ini menghapus satu kelas kesalahan, bukan semuanya.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const facts = JSON.parse(readFileSync("src/config/docs-facts.json", "utf8"));
 const pages = JSON.parse(readFileSync("src/config/docs-pages.json", "utf8"));
@@ -46,6 +46,8 @@ function strings(page) {
       if (b.text) out.push(String(b.text));
       if (b.code) out.push(String(b.code));
       if (Array.isArray(b.items)) out.push(...b.items.map(String));
+      // Blok `see`: label dan href ikut diperiksa (host, frasa terlarang, nama alat).
+      if (Array.isArray(b.links)) for (const l of b.links) out.push(String(l?.label ?? ""), String(l?.href ?? ""));
       if (Array.isArray(b.columns)) out.push(...b.columns.map(String));
       if (Array.isArray(b.rows)) for (const r of b.rows) out.push(...r.map(String));
     }
@@ -80,7 +82,28 @@ const KNOWN_HOSTS = new Set([
   "arbiscan.io",
   "monadscan.com",
   "mcp.nansen.ai",
+  // Halaman tulisan tangan (7 Okt): endpoint Agent Compute, bot dan grup Telegram, subgraph Studio.
+  "compute.adexto.xyz",
+  "t.me",
+  "api.studio.thegraph.com",
 ]);
+
+/**
+ * Rute aplikasi tingkat atas, untuk memeriksa tautan blok `see`. Dibaca dari `src/app`: direktori
+ * `_privat` bukan rute, dan grup `(nama)` tidak menambah segmen, jadi anak-anaknya yang dihitung.
+ */
+const APP_ROUTES = new Set();
+for (const d of readdirSync("src/app", { withFileTypes: true })) {
+  if (!d.isDirectory() || d.name.startsWith("_")) continue;
+  if (d.name.startsWith("(")) {
+    for (const c of readdirSync(`src/app/${d.name}`, { withFileTypes: true })) {
+      if (c.isDirectory() && !c.name.startsWith("_")) APP_ROUTES.add(c.name);
+    }
+    continue;
+  }
+  APP_ROUTES.add(d.name);
+}
+const BLOCK_TYPES = new Set(["p", "list", "code", "note", "factsTable", "steps", "see"]);
 for (const c of facts.chains) {
   try {
     KNOWN_HOSTS.add(new URL(c.explorer).host);
@@ -177,6 +200,33 @@ for (const [slug, page] of Object.entries(pages.pages ?? {})) {
       if (b.type === "factsTable" && !TABLES.has(b.table)) {
         fail(`${slug}: unknown factsTable "${b.table}"`);
         pageFails += 1;
+      }
+      if (b.type !== "table" && !BLOCK_TYPES.has(b.type)) {
+        fail(`${slug}: unknown block type "${b.type}" — DocBlocks.tsx would render nothing`);
+        pageFails += 1;
+      }
+      if ((b.type === "list" || b.type === "steps") && !(Array.isArray(b.items) && b.items.length)) {
+        fail(`${slug}: ${b.type} block without items`);
+        pageFails += 1;
+      }
+      /**
+       * Tautan `see`: hanya path internal, dan tujuannya harus ada. `/docs/<slug>` dicocokkan dengan
+       * halaman di berkas ini; path lain dengan rute tingkat atas di `src/app`. Tautan yang salah di sini
+       * tidak membuat build gagal — ia hanya 404 di depan pembaca — jadi gerbang inilah yang menangkapnya.
+       */
+      if (b.type === "see") {
+        for (const l of Array.isArray(b.links) ? b.links : []) {
+          const href = String(l?.href ?? "");
+          const path = href.split(/[?#]/)[0];
+          const seg = path.split("/");
+          let ok = /^\/(?!\/)/.test(href) && Boolean(String(l?.label ?? "").trim());
+          if (ok && seg[1] === "docs") ok = seg.length === 2 || (seg.length === 3 && Boolean(pages.pages?.[seg[2]]));
+          else if (ok) ok = APP_ROUTES.has(seg[1]);
+          if (!ok) {
+            fail(`${slug}: see-link "${href}" is not an existing internal page`);
+            pageFails += 1;
+          }
+        }
       }
     }
   }

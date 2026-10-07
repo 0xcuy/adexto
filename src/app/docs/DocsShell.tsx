@@ -16,6 +16,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import { DOC_GROUPS, DOC_ORDER, neighbours } from "@/app/docs/docs-nav";
+import type { DocArt } from "@/app/docs/docs-art";
 import { cn } from "@/components/ui/cn";
 
 function DocsNavList({ current }: { current: string }) {
@@ -85,10 +86,12 @@ export interface DocsShellProps {
   summary?: readonly string[];
   toc?: ReadonlyArray<{ id: string; label: string }>;
   intro?: ReactNode;
+  /** Gambar hero di bawah judul (`docs-art.ts`). Hiasan, jadi `alt` kosong. */
+  art?: DocArt | null;
   children: ReactNode;
 }
 
-export default function DocsShell({ current, title, kicker, summary, toc, intro, children }: DocsShellProps) {
+export default function DocsShell({ current, title, kicker, summary, toc, intro, art, children }: DocsShellProps) {
   const currentLabel = DOC_ORDER.find((d) => d.href === current)?.label ?? title;
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8 lg:pt-10">
@@ -117,6 +120,27 @@ export default function DocsShell({ current, title, kicker, summary, toc, intro,
           <div>
             {kicker && <p className="text-[13px] font-semibold text-accent">{kicker}</p>}
             <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.15] tracking-tight text-ink sm:text-[40px]">{title}</h1>
+            {art && (
+              /**
+               * `<img>` biasa, bukan `next/image`: berkasnya sudah WebP berukuran tetap dengan dua lebar, jadi
+               * optimizer tidak menambah apa pun, dan memakainya berarti menambah `images.localPatterns` di
+               * `next.config.ts`.
+               * `width`/`height` menahan tempatnya sebelum gambar datang (tanpa geser tata letak), dan ia
+               * `fetchPriority="high"` karena di layar mana pun ia berada di atas lipatan.
+               */
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={art.src}
+                srcSet={art.srcSet}
+                sizes="(min-width: 768px) 720px, calc(100vw - 32px)"
+                width={art.width}
+                height={art.height}
+                alt=""
+                decoding="async"
+                fetchPriority="high"
+                className="mt-5 aspect-[12/5] h-auto w-full rounded-panel border border-line bg-[rgb(23,18,13)] object-cover"
+              />
+            )}
             {intro && <div className="mt-4 text-[16px] leading-[1.75] text-ink-soft sm:text-[17px]">{intro}</div>}
             {summary && summary.length > 0 && (
               <div className="mt-6 rounded-panel border border-line bg-surface p-4 sm:p-5">

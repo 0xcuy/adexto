@@ -20,7 +20,7 @@
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Info } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
 import factsJson from "@/config/docs-facts.json";
 import CopyField from "@/components/ui/CopyField";
 import { cn } from "@/components/ui/cn";
@@ -30,7 +30,19 @@ export type Block =
   | { type: "list"; items: string[] }
   | { type: "code"; lang?: string; code: string }
   | { type: "note"; text: string }
-  | { type: "factsTable"; table: string };
+  | { type: "factsTable"; table: string }
+  /** Langkah berurutan, bernomor. Sama seperti `list`, hanya urutannya yang bermakna. */
+  | { type: "steps"; items: string[] }
+  /**
+   * Tautan "See also" ke halaman lain DI SITUS INI. `href` wajib diawali satu "/" (diperiksa di sini dan
+   * di `docs-verify.mjs`), jadi JSON tidak pernah bisa memasang tautan keluar atau `javascript:`.
+   */
+  | { type: "see"; links: { href: string; label: string }[] };
+
+/** Hanya path internal: "/x", bukan "//host" atau skema apa pun. */
+export function isInternalHref(href: string): boolean {
+  return /^\/(?!\/)[A-Za-z0-9\-._~/?#=&%]*$/.test(href);
+}
 
 export interface DocSectionData {
   heading: string;
@@ -393,6 +405,47 @@ export function Blocks({ blocks }: { blocks: Block[] }) {
           );
         }
         if (b.type === "factsTable") return <FactsTable key={i} table={b.table} />;
+        if (b.type === "steps") {
+          return (
+            <ol key={i} className="mt-4 space-y-3">
+              {b.items.map((it, j) => (
+                <li key={j} className="flex gap-3 text-[16px] leading-[1.7] text-ink-soft">
+                  <span
+                    aria-hidden="true"
+                    className="mt-[0.18em] flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent"
+                  >
+                    {j + 1}
+                  </span>
+                  <span className="min-w-0 break-words">
+                    <Inline text={it} />
+                  </span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        if (b.type === "see") {
+          const links = b.links.filter((l) => isInternalHref(l.href));
+          if (!links.length) return null;
+          return (
+            <div key={i} className="mt-6">
+              <p className="text-[12px] font-semibold uppercase tracking-wider text-ink-faint">See also</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {links.map((l) => (
+                  <li key={l.href}>
+                    <Link
+                      href={l.href}
+                      className="group inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[14px] font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      {l.label}
+                      <ArrowRight className="h-[13px] w-[13px] text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
         return null;
       })}
     </>
@@ -418,8 +471,24 @@ export function DocSection({ id, heading, children }: { id: string; heading: str
   );
 }
 
-/** Asal angka di halaman docs: fakta, bukan model. */
-export function SourceNote() {
+/**
+ * Asal angka di halaman docs: fakta, bukan model.
+ *
+ * Halaman `origin: "hand-written"` (7 Okt) mendapat catatan sendiri, karena kalimat bawaan di bawah
+ * ("every … fee value … is generated from docs-facts.json") tidak benar untuk halaman itu: tingkatan fee,
+ * batas laju dan minimum stake di sana dibaca dari kode sumber, bukan dari berkas fakta. Yang tetap
+ * dijaga `docs-verify.mjs` untuk keduanya: alamat, host, dan nama alat MCP.
+ */
+export function SourceNote({ origin }: { origin?: string } = {}) {
+  if (origin === "hand-written") {
+    return (
+      <p className="mt-12 text-[13px] leading-relaxed text-ink-faint">
+        This page was written from the ADEXTO source code. Every address, host and MCP tool name on it is checked by{" "}
+        <code className="text-accent">scripts/docs-verify.mjs</code> against{" "}
+        <code className="text-accent">src/config/docs-facts.json</code>, a file read from the repository and from chain.
+      </p>
+    );
+  }
   return (
     <p className="mt-12 text-[13px] leading-relaxed text-ink-faint">
       Every address, chain id, fee value and tool name in these docs is generated from{" "}

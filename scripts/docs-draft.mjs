@@ -254,7 +254,10 @@ for (const page of todo) {
   writeFileSync(OUT, `${JSON.stringify(existing, null, 2)}\n`);
 }
 
-existing.order = PAGES.map((p) => p.slug);
+// `order` mengikuti urutan sidebar (`docs-nav.ts`) sejak halaman tulisan tangan ditambahkan (7 Okt).
+// Skrip ini hanya menambahkan slug miliknya yang belum ada di sana, supaya 20 halaman tulisan tangan
+// (`origin: "hand-written"`, tidak ada di PAGES dan tidak pernah disentuh skrip ini) tidak terhapus dari daftar.
+existing.order = [...(existing.order ?? []), ...PAGES.map((p) => p.slug).filter((s) => !(existing.order ?? []).includes(s))];
 existing.generatedWith = { model: MODEL, factsGeneratedAt: facts.generatedAt };
 writeFileSync(OUT, `${JSON.stringify(existing, null, 2)}\n`);
 console.log(`\nwrote ${OUT} — ${Object.keys(existing.pages).length} of ${PAGES.length} pages`);

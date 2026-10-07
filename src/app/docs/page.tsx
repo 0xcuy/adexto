@@ -8,6 +8,7 @@ import { DocSection, SourceNote } from "@/app/docs/DocBlocks";
 import { DOC_GROUPS, DOC_SUMMARIES } from "@/app/docs/docs-nav";
 import { chainNameList } from "@/lib/chains";
 import ComponentStatus, { ComputeAttestation } from "@/app/docs/TechnicalStatus";
+import { docArt } from "@/app/docs/docs-art";
 
 /**
  * Beranda docs (`/docs`, juga `docs.adexto.xyz`).
@@ -61,6 +62,7 @@ export default function DocsHome() {
       current="/docs"
       title="What is ADEXTO"
       kicker="Docs"
+      art={docArt("home")}
       toc={TOC}
       intro={
         <p>
@@ -93,17 +95,27 @@ export default function DocsHome() {
         <DocSection id="where-to-start" heading="Where to start">
           <ul className="mt-4 space-y-3">
             <Lead word="New here?">
-              Read <A href="/docs/launch">Launch a market</A>, then what a trade costs in <A href="/docs/fees">Fees</A>.
+              Start with the <A href="/docs/quickstart">Quickstart</A>, and keep the <A href="/docs/glossary">Glossary</A>{" "}
+              open for the words you do not know.
+            </Lead>
+            <Lead word="Launching a token?">
+              Read <A href="/docs/launch">Launch a market</A> and <A href="/docs/studio-guide">Studio, step by step</A>, then
+              what a trade costs in <A href="/docs/fees">Fees</A>.
             </Lead>
             <Lead word="Want to trade?">
-              Read <A href="/docs/trading">Trading</A>, then open the <A href="/explorer">markets</A>.
+              Read <A href="/docs/trading">Trading</A> and <A href="/docs/market-page">The market page</A>, then open the{" "}
+              <A href="/explorer">markets</A>.
             </Lead>
             <Lead word="Building an agent?">
-              Point it at the <A href="/docs/mcp">MCP server</A>, or pay from another chain with{" "}
-              <A href="/docs/x402">x402</A>.
+              Point it at the <A href="/docs/mcp">MCP server</A> or <A href="/docs/a2a">A2A</A>, launch with{" "}
+              <A href="/docs/agent-launch">Launch from an agent</A>, or pay from another chain with <A href="/docs/x402">x402</A>.
             </Lead>
             <Lead word="Checking before you trust anything?">
-              Read <A href="/docs/security">Security</A>, then the <A href="/docs#contracts">contract addresses</A> below.
+              Read <A href="/docs/security">Security</A>, <A href="/docs/check-a-market">Check a market</A> and{" "}
+              <A href="/docs/risks">Risks</A>, then the <A href="/docs#contracts">contract addresses</A> below.
+            </Lead>
+            <Lead word="Something went wrong?">
+              See <A href="/docs/troubleshooting">Troubleshooting</A> and the <A href="/docs/faq">FAQ</A>.
             </Lead>
           </ul>
         </DocSection>
@@ -112,7 +124,9 @@ export default function DocsHome() {
       <div className="mt-12">
         <DocSection id="guides" heading="All guides">
           <div className="mt-5 space-y-8">
-            {DOC_GROUPS.filter((g) => g.label !== "Start").map((g) => {
+            {/* Semua grup, termasuk Start: halaman ini sendiri (slug null) tersaring di bawah, jadi Start
+                tinggal Quickstart dan Glossary. */}
+            {DOC_GROUPS.map((g) => {
               const pages = g.items.filter((i) => i.slug);
               if (!pages.length) return null;
               return (
