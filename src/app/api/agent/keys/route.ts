@@ -26,18 +26,17 @@ import { BodyTooLargeError, payloadTooLarge, readJsonBody } from "@/lib/body-lim
 import {
   AGENT_COMPUTE_ENDPOINT,
   AGENT_COMPUTE_MODEL,
-  HUB_COMPUTE_USD_PER_MILLION_TOKENS,
+  COMPUTE_STAKES,
   MIN_STAKE_ADEXTO,
   STAKE_TOKEN,
   stakeContractFor,
   tierForStake,
-  type ComputeStake,
 } from "@/config/agent-compute";
-import { allComputeSources, findComputeSource, hubBudget, hubEligible, type HubBudget } from "@/lib/stake-hub-server";
+import { allComputeSources, findComputeSource } from "@/lib/stake-hub-server";
+import { computeCatalog, entryFromSource, sourceView } from "@/lib/agent-compute-catalog";
 import {
   issueKey,
-  keyFor,
-  keyForAddress,
+  keysForAddress,
   poolConfigured,
   revokeKey,
   stakesOf,
@@ -100,8 +99,17 @@ function verify(body: any, action: string): Verified {
   }
 }
 
-// ─── GET ───────────────────────────────────────────────────────────────────────
-
+// ─── GET ─────────────────────────────────────────────────────────────
+/**
+ * GET tanpa alamat: konfigurasi pool dan empat sumber bertingkat. Daftar SEMUA sumber dulu ada di
+ * sini; sejak 7 Okt ia berhalaman di `/api/agent-compute/sources` (`directory`), karena di 10.000
+ * pasar daftar itu ±5 MB dan dikirim pada setiap tampilan halaman.
+ *
+ * GET dengan `?address=`: hanya baris milik dompet itu — sumber yang ia stake atau yang punya
+ * kuncinya — ditambah `?ids=` yang diminta laci stake walaupun stakenya nol. Stake dibaca lewat
+ * Multicall3 (`stakesOf`), kunci dari satu pembacaan berkas (`keysForAddress`), dan angka pasar
+ * (anggaran, total stake) dari katalog, bukan dari RPC per permintaan.
+ */
 export async function GET(req: Request) {
   const gate = rateLimit(`agentkeys:get:${clientIp(req)}`, 60, 5 * 60_000);
   if (!gate.ok) {
@@ -111,7 +119,13 @@ export async function GET(req: Request) {
     );
   }
 
-  const address = new URL(req.url).searchParams.get("address") || "";
+  const url = new URL(req.url);
+  const address = url.searchParams.get("address") || "";
+  const ids = (url.searchParams.get("ids") ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => /^[a-z0-9-]{3,40}$/.test(x))
+    .slice(0, 10);
   const contract = stakeContractFor(STAKE_TOKEN.chainId);
 
   /**
@@ -120,39 +134,10 @@ export async function GET(req: Request) {
    * Konsekuensinya harus disebut: penegakan jatah bergantung pada ADANYA sapuan, jadi kalau tidak
    * ada yang membuka halaman dan cron belum dipasang, sebuah kunci bisa melewati jatahnya sampai
    * sapuan berikutnya. Itu batas nyata dari memilih penegakan di luar jalur panas, dan ia
-   * dinyatakan di UI alih-alih disembunyikan.
+   * dinyatakan di UI alih-alih disembunyikan. Sapuannya di-throttle semenit dan, sejak 7 Okt,
+   * membaca semua stake lewat Multicall3, jadi pemicunya di sini tidak lagi mahal.
    */
   void sweep().catch(() => {});
-
-  /**
-   * Every source, with or without an address, so the page can list them before a wallet connects:
-   * the four tiered stakes, then one per live market in a stake hub. A hub market also carries its
-   * compute budget so far, read from its curve and valued now.
-   */
-  const all = allComputeSources();
-  // A market its chain's hub refuses (made by a factory deployed after the hub) cannot be staked
-  // anywhere, so it is not listed as a source. Unknown (hub unreadable) stays listed.
-  const eligible = await Promise.all(all.map((s) => (s.kind === "hub" ? hubEligible(s) : Promise.resolve(true))));
-  const sources = all.filter((_, i) => eligible[i] !== false);
-  const budgets = new Map<string, HubBudget>();
-  await Promise.all(
-    sources.filter((s) => s.kind === "hub").map(async (s) => budgets.set(s.id, await hubBudget(s)))
-  );
-  const budgetView = (s: ComputeStake) => {
-    const b = budgets.get(s.id);
-    return b
-      ? {
-          feesNative: b.feesNative,
-          nativeSymbol: b.nativeSymbol,
-          priceUsd: b.priceUsd,
-          budgetUsd: b.budgetUsd,
-          budgetTokens: b.budgetTokens,
-          shareBps: b.shareBps,
-          usdPerMillionTokens: HUB_COMPUTE_USD_PER_MILLION_TOKENS,
-          error: b.error,
-        }
-      : null;
-  };
 
   const base = {
     configured: poolConfigured(),
@@ -161,21 +146,21 @@ export async function GET(req: Request) {
     model: AGENT_COMPUTE_MODEL,
     stakeContract: contract,
     minStake: MIN_STAKE_ADEXTO,
-    sources: sources.map((s) => ({ ...s, budget: budgetView(s) })),
+    directory: "/api/agent-compute/sources",
   };
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    return NextResponse.json({ ...base, address: null, staked: null, tier: null, stakes: [], key: null });
+    return NextResponse.json({ ...base, sources: COMPUTE_STAKES, address: null, staked: null, tier: null, stakes: [], key: null });
   }
 
-  /**
-   * Setiap token di daftar dibaca, dan setiap token punya kuncinya sendiri. `staked`, `tier` dan
-   * `key` di tingkat atas tetap berarti $ADEXTO di 0G, seperti sebelum ada token lain, supaya
-   * pembaca lama API ini tidak tiba-tiba membaca angka token lain di bidang yang sama.
-   */
-  const readings = await stakesOf(address);
-  const adexto = readings.find((r) => r.id === "adexto");
-  const adextoTier = adexto?.staked == null ? null : tierForStake(adexto.staked);
+  const { entries } = await computeCatalog();
+  const catalog = new Map(entries.map((e) => [e.id, e]));
+  // Pasar yang ditolak hub-nya tidak bisa di-stake di mana pun, jadi tidak dibaca. Pasar tersembunyi
+  // tetap dibaca: stake dan kunci dompet ini di sana tetap miliknya.
+  const sources = allComputeSources().filter((s) => catalog.get(s.id)?.eligible !== false);
+  const readings = await stakesOf(address, sources);
+  const keys = keysForAddress(address);
+
   const keyView = (record: PoolKey | null) =>
     record
       ? {
@@ -194,31 +179,43 @@ export async function GET(req: Request) {
         }
       : null;
 
+  let unreadable = 0;
+  const stakes = sources.flatMap((s, i) => {
+    const r = readings[i];
+    const key = keys.get(s.id) ?? null;
+    const holds = typeof r.staked === "number" && r.staked > 0;
+    if (r.staked === null && s.contract && !key && !ids.includes(s.id)) unreadable += 1;
+    if (!holds && !key && !ids.includes(s.id)) return [];
+    const entry = catalog.get(s.id) ?? entryFromSource(s);
+    const t = r.staked == null || s.kind === "hub" ? null : tierForStake(r.staked, s.tiers);
+    return [
+      {
+        id: s.id,
+        kind: s.kind ?? "tiered",
+        staked: r.staked,
+        error: r.error,
+        tier: t ? { label: t.label, stake: t.stake, allowance: t.allowance } : null,
+        key: keyView(key),
+        source: sourceView(entry),
+      },
+    ];
+  });
+
+  /**
+   * `staked`, `tier` dan `key` di tingkat atas tetap berarti $ADEXTO di 0G, seperti sebelum ada token
+   * lain, supaya pembaca lama API ini tidak tiba-tiba membaca angka token lain di bidang yang sama.
+   */
+  const adexto = readings.find((r) => r.id === "adexto");
+  const adextoTier = adexto?.staked == null ? null : tierForStake(adexto.staked);
   return NextResponse.json({
     ...base,
     address: address.toLowerCase(),
     staked: adexto?.staked ?? null,
     stakeError: adexto?.error ?? null,
     tier: adextoTier ? { label: adextoTier.label, stake: adextoTier.stake, allowance: adextoTier.allowance } : null,
-    stakes: sources.map((s) => {
-      const r = readings.find((x) => x.id === s.id);
-      const t = r?.staked == null || s.kind === "hub" ? null : tierForStake(r.staked, s.tiers);
-      return {
-        id: s.id,
-        kind: s.kind ?? "tiered",
-        chainId: s.chainId,
-        symbol: s.symbol,
-        name: s.name,
-        contract: s.contract,
-        minStake: s.minStake,
-        staked: r?.staked ?? null,
-        error: r?.error ?? null,
-        tier: t ? { label: t.label, stake: t.stake, allowance: t.allowance } : null,
-        budget: budgetView(s),
-        key: keyView(keyFor(address, s.id)),
-      };
-    }),
-    key: keyView(keyForAddress(address)),
+    stakes,
+    unreadable,
+    key: keyView(keys.get("adexto") ?? null),
   });
 }
 

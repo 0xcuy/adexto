@@ -43,9 +43,12 @@ import {
 import {
   allComputeSources,
   findComputeSource,
-  hubBudget,
   hubTotalStaked,
+  nativePriceUsd,
   protocolFeesWei,
+  sourceMetricsBatch,
+  stakePairsBatch,
+  stakesOfBatch,
 } from "@/lib/stake-hub-server";
 
 const STORE_FILE = "agent-compute-keys.json";
@@ -313,9 +316,28 @@ async function readOne(source: ComputeStake, address: string): Promise<StakeRead
   }
 }
 
-/** Stake sebuah alamat di setiap sumber compute, dibaca paralel dari chain masing-masing. */
-export async function stakesOf(address: string): Promise<StakeReading[]> {
-  return Promise.all(allComputeSources().map((s) => readOne(s, address)));
+/**
+ * Stake sebuah alamat di banyak sumber sekaligus (bawaan: semuanya), lewat Multicall3.
+ *
+ * Dulu satu `readOne` per sumber, paralel: 13 `eth_call` hari ini, 10.000 di 10.000 pasar. Bacaan
+ * yang gagal di batch dicoba sekali lagi satu per satu, tetapi hanya kalau jumlahnya kecil; chain
+ * yang sedang mati tidak boleh berubah menjadi ribuan panggilan susulan. Sisanya dilaporkan sebagai
+ * tidak terbaca (`staked: null` + `error`), tidak pernah sebagai nol.
+ */
+const RETRY_ONE_BY_ONE_MAX = 40;
+export async function stakesOf(address: string, sources: readonly ComputeStake[] = allComputeSources()): Promise<StakeReading[]> {
+  const batch = await stakesOfBatch(address, sources);
+  const failed = sources.filter((s) => s.contract && typeof batch.get(s.id) !== "number");
+  const retried = new Map<string, StakeReading>();
+  if (failed.length > 0 && failed.length <= RETRY_ONE_BY_ONE_MAX) {
+    for (const r of await Promise.all(failed.map((s) => readOne(s, address)))) retried.set(r.id, r);
+  }
+  return sources.map((s) => {
+    const v = batch.get(s.id);
+    if (typeof v === "number") return { id: s.id, staked: v, error: null };
+    if (!s.contract) return { id: s.id, staked: null, error: null };
+    return retried.get(s.id) ?? { id: s.id, staked: null, error: "The stake could not be read just now." };
+  });
 }
 
 /** Sumber stake sebuah catatan kunci. Catatan lama tanpa bidang ini diterbitkan dari $ADEXTO. */
@@ -588,6 +610,37 @@ export async function sweep(force = false): Promise<SweepResult> {
   const activeById = new Map(routerKeys.map((k) => [k.id, k.isActive]));
 
   /**
+   * Satu bacaan untuk semuanya (7 Okt, rencana 10.000 pasar).
+   *
+   * Dulu setiap kunci dibaca dengan `readOne` berurutan, setiap pasar hub dengan tiga bacaan
+   * sendiri, dan `findComputeSource` menyusun ulang seluruh daftar sumber untuk SETIAP kunci. Dengan
+   * 10.000 kunci itu 10.000 `eth_call` berurutan dan 10.000 penyusunan daftar per sapuan. Sekarang
+   * daftar sumber disusun sekali, dan stake semua kunci serta fee dan total stake semua pasar yang
+   * punya kunci dibaca lewat Multicall3 di awal. `readOne` dan pembaca tunggal lainnya tetap dipakai,
+   * tetapi hanya untuk bacaan yang gagal di batch: batch yang gagal tidak boleh lebih buruk daripada
+   * perilaku lama, dan "tidak terbaca" tetap tidak pernah dibaca sebagai nol.
+   */
+  const sourceById = new Map(allComputeSources().map((s) => [s.id, s]));
+  const hubIds = [...new Set(store.keys.map(sourceOf))].filter((x) => x.startsWith("hub-"));
+  const hubSources = hubIds
+    .map((id) => sourceById.get(id))
+    .filter((s): s is ComputeStake => Boolean(s && s.kind === "hub"));
+  const pairs = store.keys.flatMap((k) => {
+    const s = sourceById.get(sourceOf(k));
+    return s ? [{ source: s, address: k.address }] : [];
+  });
+  const [batchStakes, hubMetrics] = await Promise.all([stakePairsBatch(pairs), sourceMetricsBatch(hubSources)]);
+  const stakeOf = async (source: ComputeStake, address: string): Promise<StakeReading> => {
+    const v = batchStakes.get(`${source.id}:${address}`);
+    return typeof v === "number" ? { id: source.id, staked: v, error: null } : readOne(source, address);
+  };
+  const prices = new Map<string, number | null>();
+  const priceOf = async (symbol: string): Promise<number | null> => {
+    if (!prices.has(symbol)) prices.set(symbol, await nativePriceUsd(symbol));
+    return prices.get(symbol) ?? null;
+  };
+
+  /**
    * Pasar hub: protocol fee baru → jatah, sebanding stake.
    *
    * Untuk setiap pasar hub yang punya kunci, fee kurvanya dibaca dan dibandingkan dengan yang
@@ -606,10 +659,10 @@ export async function sweep(force = false): Promise<SweepResult> {
   /** Pasar yang titik nolnya ditulis sapuan ini; hanya itu yang digabung ke catatan terbaru. */
   const touched = new Set<string>();
   const now = new Date().toISOString();
-  for (const id of [...new Set(store.keys.map(sourceOf))].filter((x) => x.startsWith("hub-"))) {
-    const source = findComputeSource(id);
+  for (const id of hubIds) {
+    const source = sourceById.get(id) ?? null;
     if (!source || source.kind !== "hub") continue;
-    const fees = await protocolFeesWei(source);
+    const fees = hubMetrics.get(id)?.feesWei ?? (await protocolFeesWei(source));
     if (fees === null) {
       result.errors.push(`protocol fees unreadable for ${id}`);
       continue;
@@ -622,7 +675,7 @@ export async function sweep(force = false): Promise<SweepResult> {
     }
     const seen = BigInt(prev.seenFeesWei);
     if (fees <= seen) continue;
-    const price = (await hubBudget(source)).priceUsd;
+    const price = await priceOf(source.nativeSymbol ?? "");
     if (price === null) {
       result.errors.push(`no ${source.nativeSymbol} price for ${id}`);
       continue;
@@ -631,7 +684,7 @@ export async function sweep(force = false): Promise<SweepResult> {
     const tokensSince = (from: bigint): number =>
       fees > from ? hubTokensForUsd((Number(ethers.formatEther(fees - from)) * price * HUB_COMPUTE_SHARE_BPS) / 10_000) : 0;
     if (tokensSince(seen) === 0) continue;
-    const total = await hubTotalStaked(source);
+    const total = hubMetrics.get(id)?.totalStaked ?? (await hubTotalStaked(source));
     if (total === null) {
       result.errors.push(`hub total unreadable for ${id}`);
       continue;
@@ -641,7 +694,7 @@ export async function sweep(force = false): Promise<SweepResult> {
       // RPC yang sedang bermasalah tidak menghapus bagian seorang staker sementara titik nol maju.
       const marketKeys = store.keys.filter((k) => sourceOf(k) === id);
       const marketReadings: StakeReading[] = [];
-      for (const key of marketKeys) marketReadings.push(await readOne(source, key.address));
+      for (const key of marketKeys) marketReadings.push(await stakeOf(source, key.address));
       if (marketReadings.some((r) => r.staked === null)) {
         result.errors.push(`a stake in ${id} could not be read; its new fees wait for the next sweep`);
         continue;
@@ -679,14 +732,14 @@ export async function sweep(force = false): Promise<SweepResult> {
 
     // Satu kunci, satu token: hanya stake token kunci ini yang dibaca. Tanpa jatuh ke $ADEXTO:
     // sumber yang tidak dikenal lagi (pasar dicabut dari registry) mematikan kuncinya.
-    const source = findComputeSource(sourceOf(key));
+    const source = sourceById.get(sourceOf(key)) ?? null;
     let reason: string | null = null;
     if (!source) {
       reason = "This market is no longer listed, so its stake is no longer read.";
       key.allowance = 0;
       key.lastSweepAt = new Date().toISOString();
     } else {
-      const reading = readings.get(`${source.id}:${key.address}`) ?? (await readOne(source, key.address));
+      const reading = readings.get(`${source.id}:${key.address}`) ?? (await stakeOf(source, key.address));
       let staked: number | null;
       if (reading.error || reading.staked === null) {
         if (reading.error) result.errors.push(`stake read failed for ${key.address} (${source.id}): ${reading.error}`);
@@ -771,4 +824,24 @@ export function keyFor(address: string, stakeId: string): PoolKey | null {
 /** Kunci $ADEXTO sebuah alamat, untuk bidang lama `key` di API. */
 export function keyForAddress(address: string): PoolKey | null {
   return keyFor(address, "adexto");
+}
+
+/**
+ * Semua kunci satu alamat, per id sumber, dari SATU pembacaan berkas.
+ *
+ * `keyFor` membaca dan mem-parse seluruh berkas kunci setiap kali dipanggil. `/api/agent/keys` dulu
+ * memanggilnya sekali per sumber, jadi satu tampilan halaman di 10.000 pasar akan mem-parse berkas
+ * yang sama 10.000 kali.
+ */
+export function keysForAddress(address: string): Map<string, PoolKey> {
+  const owner = address.toLowerCase();
+  const out = new Map<string, PoolKey>();
+  for (const k of load().keys) if (k.address === owner) out.set(sourceOf(k), k);
+  return out;
+}
+
+/** Jumlah kunci yang tercatat dan yang aktif pada sapuan terakhir, untuk ringkasan halaman. */
+export function keyCounts(): { issued: number; active: number } {
+  const keys = load().keys;
+  return { issued: keys.length, active: keys.filter((k) => k.active).length };
 }

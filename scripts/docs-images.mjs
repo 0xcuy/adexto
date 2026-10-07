@@ -11,7 +11,7 @@
  *
  * - Satu gambar per halaman, dipilih dari dua varian. Model ini kadang mengukir huruf di permukaan
  *   benda bulat (koin, kubus), jadi benda seperti itu selalu disebut KOSONG di prompt, dan larangan
- *   teks tetap ditulis di akhir setiap prompt (pelajaran `gen-agent-compute-art.mjs`).
+ *   teks tetap ditulis di akhir setiap prompt (pelajaran skrip hero /agent-compute lama, dihapus 7 Okt saat hero itu diganti maskot resmi).
  * - Latar arang hangat, aksen ungu, sorot krem: tema bawaan situs gelap (rgb 23,18,13), jadi banner
  *   gelap menyatu di sana dan tetap terbaca sebagai kartu di tema terang.
  * - Robot putih kecil bervisor ungu HANYA di halaman agen. Maskot resmi tidak ditiru: versi model

@@ -2296,12 +2296,13 @@
               "items": [
                 "`GET /api/market/holders?symbol=&chainId=`: the holder count and the shares of the top 10, the creator and the curve, rebuilt from every transfer since mint. `complete: false` means the first scan has not finished yet.",
                 "`GET /api/market/position?symbol=&chainId=&wallet=`: one wallet's balance, average entry, cost basis and profit and loss in one market.",
-                "`GET /api/creator/earnings?address=`: what an address has earned and can claim as a creator."
+                "`GET /api/creator/earnings?address=`: what an address has earned and can claim as a creator.",
+                "`GET /api/agent-compute/sources`: every token that can be staked for Agent Compute, with its minimum, the total staked, the number of wallets staking and, for hub markets, the compute its trading has funded. It takes `q`, `chain`, `sort` (`staked`, `stakers`, `funded`, `newest` or `name`), `page` and `limit` (up to 50), and answers one page at a time."
               ]
             },
             {
               "type": "p",
-              "text": "The holder and position endpoints allow 60 requests per 5 minutes, and creator earnings 30 per minute."
+              "text": "The holder and position endpoints allow 60 requests per 5 minutes, creator earnings 30 per minute, and the Agent Compute list 120 per minute."
             }
           ]
         },
