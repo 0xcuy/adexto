@@ -127,6 +127,12 @@ X402_COMPUTE_ROUTER_URL = "https://compute.adexto.xyz/v1"
 X402_COMPUTE_MODEL = "0g/deepseek-v4-flash"
 # Per payer, "jumlah/detik", dihitung per isolate. Rem, bukan pagar: plafon sebenarnya kunci router.
 X402_COMPUTE_PAYER_LIMIT = "20/600"
+# OPSIONAL — penyedia cadangan OpenAI-compatible, dipakai HANYA jika router utama gagal
+# (timeout / non-200 / jawaban tanpa teks). Kosong = tanpa cadangan, perilaku byte-identik.
+# Settle tetap sesudah inferensi: kalau kedua penyedia gagal tidak ada yang ditagih.
+# Kunci cadangan lewat `wrangler secret put X402_COMPUTE_FALLBACK_KEY` (jangan di berkas ini).
+X402_COMPUTE_FALLBACK_URL = ""
+X402_COMPUTE_FALLBACK_MODEL = "llama-3.3-70b"
 
 # Rahasia, disetel lewat `wrangler secret put`, tidak pernah di berkas ini:
 #   RPC_RELAY_SECRET — kunci bersama untuk relai di BASE_RPC; tanpa ini relai 401
