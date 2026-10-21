@@ -318,6 +318,47 @@ test("router caller: sends the key and stream false, keeps only OpenAI fields, t
   assert.equal(sanitizeCompletion({ choices: [] }, "m"), null);
 });
 
+test("router caller: optional fallback provider only fires when primary fails, with its own url/key/model", async () => {
+  const seen: Array<{ url: string; init: RequestInit }> = [];
+  const routeFetch = (byUrl: (url: string) => Response) =>
+    (async (url: string, init: RequestInit) => {
+      seen.push({ url, init });
+      return byUrl(url);
+    }) as unknown as typeof fetch;
+
+  const good = (content: string) =>
+    new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content } }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { status: 200 });
+
+  // No fallback configured: a primary failure stays a failure (byte-identical with before).
+  const noFb = routerCaller(env({ X402_COMPUTE_ROUTER_URL: "http://primary.test/v1" }), routeFetch(() => new Response("down", { status: 503 })));
+  assert.equal((await noFb({ model: "0g/deepseek-v4-flash", messages: [{ role: "user", content: "hi" }], max_tokens: 5, stream: false })).ok, false);
+
+  // Primary OK + fallback configured: fallback is NOT called.
+  seen.length = 0;
+  const okCall = routerCaller(
+    env({ X402_COMPUTE_ROUTER_URL: "http://primary.test/v1", X402_COMPUTE_FALLBACK_URL: "http://fallback.test/v1", X402_COMPUTE_FALLBACK_KEY: "fb-key" }),
+    routeFetch((u) => (u.startsWith("http://primary.test") ? good("primary") : good("fallback"))),
+  );
+  const okRes = await okCall({ model: "0g/deepseek-v4-flash", messages: [{ role: "user", content: "hi" }], max_tokens: 5, stream: false });
+  assert.equal(okRes.ok && okRes.completion.choices[0].message.content, "primary");
+  assert.equal(seen.length, 1);
+  assert.match(seen[0].url, /^http:\/\/primary\.test/);
+
+  // Primary fails + fallback configured: fallback serves, with its own key and model.
+  seen.length = 0;
+  const fbCall = routerCaller(
+    env({ X402_COMPUTE_ROUTER_URL: "http://primary.test/v1", X402_COMPUTE_FALLBACK_URL: "http://fallback.test/v1/", X402_COMPUTE_FALLBACK_KEY: "fb-key", X402_COMPUTE_FALLBACK_MODEL: "llama-3.3-70b" }),
+    routeFetch((u) => (u.startsWith("http://primary.test") ? new Response("down", { status: 503 }) : good("fallback"))),
+  );
+  const fbRes = await fbCall({ model: "0g/deepseek-v4-flash", messages: [{ role: "user", content: "hi" }], max_tokens: 5, stream: false });
+  assert.equal(fbRes.ok && fbRes.completion.choices[0].message.content, "fallback");
+  assert.equal(seen.length, 2);
+  assert.match(seen[1].url, /^http:\/\/fallback\.test\/v1\/chat\/completions$/);
+  assert.equal((seen[1].init.headers as Record<string, string>).authorization, "Bearer fb-key");
+  assert.equal(JSON.parse(String(seen[1].init.body)).model, "llama-3.3-70b");
+  assert.equal(JSON.parse(String(seen[1].init.body)).stream, false);
+});
+
 test("discovery: off means byte-identical documents; ready means one extra path and resource", () => {
   const markets = [{ slug: "parcel", chainId: 143, tradable: true }];
   const base = { gateway: ORIGIN, priceAtomic: 100000n, markets };

@@ -92,6 +92,16 @@ export interface ComputeEnv {
   X402_COMPUTE_TIMEOUT_MS?: string;
   /** "jumlah/detik" per payer, misalnya "20/600". */
   X402_COMPUTE_PAYER_LIMIT?: string;
+  /**
+   * OPSIONAL. Penyedia cadangan OpenAI-compatible: dipakai HANYA jika router utama gagal
+   * (timeout, non-200, atau jawaban tanpa teks). Kosong = tidak ada cadangan, perilaku byte-identik
+   * dengan sebelum bidang ini ada. Basis tanpa `/chat/completions`.
+   */
+  X402_COMPUTE_FALLBACK_URL?: string;
+  /** Rahasia untuk penyedia cadangan (`wrangler secret put`). Kosong = tanpa header Authorization. */
+  X402_COMPUTE_FALLBACK_KEY?: string;
+  /** Nama model yang diminta ke penyedia cadangan (default "llama-3.3-70b"). */
+  X402_COMPUTE_FALLBACK_MODEL?: string;
 }
 
 type Role = "system" | "user" | "assistant";
@@ -323,33 +333,64 @@ export function sanitizeCompletion(raw: unknown, model: string, nowMs = Date.now
   };
 }
 
-/** Panggilan router yang sebenarnya. `fetchImpl` disuntik di uji. */
+export const COMPUTE_FALLBACK_DEFAULT_MODEL = "llama-3.3-70b";
+
+/**
+ * Satu panggilan ke satu penyedia OpenAI-compatible. Tidak menyentuh verify/settle: hanya langkah
+ * inferensi. Dipakai untuk router utama DAN penyedia cadangan, jadi keduanya disanitasi dan diperlakukan
+ * identik (jawaban tanpa teks = gagal = tidak ditagih).
+ */
+async function callOnce(
+  fetchImpl: typeof fetch,
+  base: string,
+  key: string | undefined,
+  request: RouterRequest,
+  timeoutMs: number,
+): Promise<RouterResult> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (key) headers.authorization = `Bearer ${key}`;
+  let res: Response;
+  try {
+    res = await fetchImpl(`${base}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e: any) {
+    return { ok: false, status: null, detail: String(e?.name === "TimeoutError" ? `timeout after ${timeoutMs} ms` : e?.message ?? e).slice(0, 160) };
+  }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) return { ok: false, status: res.status, detail: text.slice(0, 160) };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, status: res.status, detail: "the router answered with something other than JSON" };
+  }
+  const completion = sanitizeCompletion(parsed, request.model);
+  if (!completion) return { ok: false, status: res.status, detail: "the router answered without any completion text" };
+  return { ok: true, completion };
+}
+
+/**
+ * Panggilan router yang sebenarnya. `fetchImpl` disuntik di uji.
+ *
+ * Jika `X402_COMPUTE_FALLBACK_URL` disetel dan router utama gagal (timeout, non-200, atau jawaban
+ * tanpa teks), satu percobaan ke penyedia cadangan dilakukan dengan model `X402_COMPUTE_FALLBACK_MODEL`.
+ * Tanpa env itu perilakunya byte-identik dengan sebelumnya. Settle tetap setelah inferensi: kalau
+ * kedua penyedia gagal, hasilnya `{ ok: false }` dan tidak ada yang ditagih, persis seperti dulu.
+ */
 export function routerCaller(env: ComputeEnv, fetchImpl: typeof fetch = fetch): (request: RouterRequest) => Promise<RouterResult> {
   const base = String(env.X402_COMPUTE_ROUTER_URL || COMPUTE_DEFAULTS.routerUrl).replace(/\/+$/, "");
   const timeoutMs = Number(env.X402_COMPUTE_TIMEOUT_MS) > 0 ? Number(env.X402_COMPUTE_TIMEOUT_MS) : COMPUTE_DEFAULTS.timeoutMs;
+  const fallbackUrl = String(env.X402_COMPUTE_FALLBACK_URL ?? "").trim().replace(/\/+$/, "");
+  const fallbackModel = String(env.X402_COMPUTE_FALLBACK_MODEL ?? "").trim() || COMPUTE_FALLBACK_DEFAULT_MODEL;
   return async (request) => {
-    let res: Response;
-    try {
-      res = await fetchImpl(`${base}/chat/completions`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${env.X402_COMPUTE_ROUTER_KEY ?? ""}` },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch (e: any) {
-      return { ok: false, status: null, detail: String(e?.name === "TimeoutError" ? `timeout after ${timeoutMs} ms` : e?.message ?? e).slice(0, 160) };
-    }
-    const text = await res.text().catch(() => "");
-    if (!res.ok) return { ok: false, status: res.status, detail: text.slice(0, 160) };
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return { ok: false, status: res.status, detail: "the router answered with something other than JSON" };
-    }
-    const completion = sanitizeCompletion(parsed, request.model);
-    if (!completion) return { ok: false, status: res.status, detail: "the router answered without any completion text" };
-    return { ok: true, completion };
+    const primary = await callOnce(fetchImpl, base, env.X402_COMPUTE_ROUTER_KEY, request, timeoutMs);
+    if (primary.ok || !fallbackUrl) return primary;
+    // Router utama gagal dan ada cadangan: coba sekali lagi di penyedia lain, model yang ia layani.
+    return callOnce(fetchImpl, fallbackUrl, env.X402_COMPUTE_FALLBACK_KEY, { ...request, model: fallbackModel }, timeoutMs);
   };
 }
 
